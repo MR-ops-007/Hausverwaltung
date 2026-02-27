@@ -4,35 +4,36 @@ const calcService = {
      * Prüft, ob ein Mieter zum jetzigen Zeitpunkt aktiv ist.
      */
     isMieterAktiv(mieter) {
-        if (!mieter || !mieter.mietername) return false;
+        if (!mieter || !mieter.mietername || mieter.mietername.trim() === "") return false;
     
-        // Wir setzen "heute" auf den Beginn des Tages (00:00:00)
         const heute = new Date();
         heute.setHours(0, 0, 0, 0);
     
-        const parseDate = (dateStr) => {
-            if (!dateStr || String(dateStr).trim() === "") return null;
-            
-            const d = new Date(dateStr);
-            // Da Google ISO-Strings schickt, setzen wir auch hier die Zeit auf 0,
-            // damit wir nur die Kalendertage vergleichen.
-            if (!isNaN(d.getTime())) {
-                d.setHours(0, 0, 0, 0);
-                return d;
-            }
-            return null;
+        // Hilfsfunktion: Macht aus egal was ein sauberes Datums-Objekt um 00:00 Uhr
+        const normalizeDate = (input) => {
+            if (!input || String(input).trim() === "") return null;
+            const d = new Date(input);
+            if (isNaN(d.getTime())) return null;
+            d.setHours(0, 0, 0, 0);
+            return d;
         };
     
-        const einzug = parseDate(mieter.einzug_datum);
-        const auszug = parseDate(mieter.auszug_datum);
+        const einzug = normalizeDate(mieter.einzug_datum);
+        const auszug = normalizeDate(mieter.auszug_datum);
     
-        // 1. Wenn Einzug in der Zukunft -> Noch nicht aktiv
-        if (einzug && einzug > heute) return false;
+        // Logik-Check:
+        // 1. Ist der Mieter überhaupt schon eingezogen?
+        if (einzug && einzug > heute) {
+            return false; 
+        }
     
-        // 2. Wenn Auszug in der Vergangenheit (oder heute) -> Nicht mehr aktiv
-        // Wenn Auszug (31.12.2027) > heute (27.02.2026) -> Aktiv bleibt TRUE
-        if (auszug && auszug <= heute) return false;
+        // 2. Ist der Mieter bereits wieder ausgezogen?
+        // Nur wenn ein Auszugsdatum existiert UND dieses in der Vergangenheit oder HEUTE liegt.
+        if (auszug && auszug <= heute) {
+            return false;
+        }
     
+        // Wenn er eingezogen ist und das Auszugsdatum entweder leer oder in der Zukunft liegt:
         return true;
     },
 
