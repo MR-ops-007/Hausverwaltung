@@ -1,5 +1,5 @@
 // cloud-service.js
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyX4i1tdCrdfo6De1igVKs2f8yk70UBmkcNlg1fibN3ebXyoO9468sw2v_TeQXttZlzbA/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxQ-MpWoJPSh7UHR2WNKhJNqNMKYmxpA1arhQmZc9ulnS4waZYQMG8goEa-JDqHHh_Cqw/exec";
 
 const cloudService = {
     /**
