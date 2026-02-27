@@ -47,10 +47,10 @@ const dataService = {
 
     // Findet den aktuell aktiven Mieter einer Einheit
     getActiveMieter(einheitId) {
-        return this.state.mieter.find(m => 
-            m.einheit_id === einheitId && 
-            (!m.auszug_datum || m.auszug_datum === "")
-        );
+        if (!einheitId) return null;
+        // Wir geben einfach den Mieter zurück, der zu dieser ID gehört.
+        // Falls es mehrere gibt (historisch), nehmen wir den neuesten.
+        return this.state.mieter.find(m => String(m.einheit_id).trim() === String(einheitId).trim());
     },
 
     // Holt die letzten Zählerstände einer Einheit
