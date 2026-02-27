@@ -1,13 +1,11 @@
 // calc-service.js
 const calcService = {
     isMieterAktiv(mieter) {
-        // 1. Sicherheit: Ohne Mieter oder Name kein aktiver Status
         if (!mieter || !mieter.mietername) return false;
 
         const heute = new Date();
         heute.setHours(0, 0, 0, 0);
 
-        // Hilfsfunktion zur Datumsumwandlung
         const toDate = (val) => {
             if (!val || String(val).trim() === "") return null;
             const d = new Date(val);
@@ -19,32 +17,17 @@ const calcService = {
         const einzug = toDate(mieter.einzug_datum);
         const auszug = toDate(mieter.auszug_datum);
 
-        // LOGIK-CHECK (Hier lag der Fehler):
-        
-        // A: Ist er schon eingezogen? (Einzug muss <= heute sein)
-        if (einzug && einzug > heute) return false;
+        // Jetzt greift die Logik:
+        if (einzug && einzug > heute) return false; // Noch nicht eingezogen
+        if (auszug && auszug <= heute) return false; // Schon ausgezogen
 
-        // B: Ist er SCHON WIEDER ausgezogen?
-        // Er ist NUR DANN ausgezogen, wenn ein Datum da ist UND dieses <= heute liegt.
-        if (auszug && auszug <= heute) {
-            return false;
-        }
-
-        // Wenn A und B nicht zutreffen, ist der Mieter AKTIV.
-        return true;
+        return true; // Aktiv! (Trifft auf Azeem 2027 zu)
     },
 
     getUnitStatus(unit, mieter) {
-        if (!unit) return "Fehler: Einheit fehlt";
-        
-        // Haus Allgemein
+        if (!unit) return "Fehler";
         if (unit.typ === "Allgemein") return "Allgemeinkosten / Haus";
         
-        // Nutze die korrigierte Logik
-        if (this.isMieterAktiv(mieter)) {
-            return mieter.mietername;
-        }
-        
-        return "Leerstand";
+        return this.isMieterAktiv(mieter) ? mieter.mietername : "Leerstand";
     }
 };
