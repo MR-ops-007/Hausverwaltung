@@ -1,11 +1,13 @@
 // calc-service.js
 const calcService = {
     isMieterAktiv(mieter) {
+        // 1. Sicherheit: Ohne Mieter oder Name kein aktiver Status
         if (!mieter || !mieter.mietername) return false;
 
         const heute = new Date();
         heute.setHours(0, 0, 0, 0);
 
+        // Hilfsfunktion zur Datumsumwandlung
         const toDate = (val) => {
             if (!val || String(val).trim() === "") return null;
             const d = new Date(val);
@@ -17,33 +19,29 @@ const calcService = {
         const einzug = toDate(mieter.einzug_datum);
         const auszug = toDate(mieter.auszug_datum);
 
-        // DIAGNOSE-LOG (Nur für Azeem oder Problemfälle)
-        if (mieter.mietername.includes("Azeem") || auszug !== null) {
-            console.log(`Prüfung für ${mieter.mietername}:`);
-            console.log(` -> Heute: ${heute.toISOString()}`);
-            console.log(` -> Auszug: ${auszug ? auszug.toISOString() : 'keiner'}`);
-            console.log(` -> Vergleich (auszug <= heute): ${auszug <= heute}`);
-        }
-
-        // Die Kern-Logik
-        if (einzug && einzug > heute) return false;
+        // LOGIK-CHECK (Hier lag der Fehler):
         
-        // HIER liegt vermutlich der Hund begraben:
+        // A: Ist er schon eingezogen? (Einzug muss <= heute sein)
+        if (einzug && einzug > heute) return false;
+
+        // B: Ist er SCHON WIEDER ausgezogen?
+        // Er ist NUR DANN ausgezogen, wenn ein Datum da ist UND dieses <= heute liegt.
         if (auszug && auszug <= heute) {
             return false;
         }
 
+        // Wenn A und B nicht zutreffen, ist der Mieter AKTIV.
         return true;
     },
 
     getUnitStatus(unit, mieter) {
         if (!unit) return "Fehler: Einheit fehlt";
+        
+        // Haus Allgemein
         if (unit.typ === "Allgemein") return "Allgemeinkosten / Haus";
         
-        const aktiv = this.isMieterAktiv(mieter);
-        
-        // Wenn aktiv true ist, MUSS der Name kommen
-        if (aktiv === true) {
+        // Nutze die korrigierte Logik
+        if (this.isMieterAktiv(mieter)) {
             return mieter.mietername;
         }
         
