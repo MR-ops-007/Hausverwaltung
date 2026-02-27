@@ -25,8 +25,13 @@ const calcService = {
      * Ermittelt den Status-Text für eine Einheit
      */
     getUnitStatus(unit, mieter) {
+        // Sicherheitscheck: Falls unit aus irgendeinem Grund leer ist
+        if (!unit) return "Fehler: Keine Einheit"; 
+        
         if (unit.typ === "Allgemein") return "Allgemeinkosten / Haus";
+        
         if (this.isMieterAktiv(mieter)) return mieter.mietername;
+        
         return "Leerstand";
     }
 };
