@@ -4,20 +4,29 @@ const calcService = {
      * Prüft, ob ein Mieter zum jetzigen Zeitpunkt aktiv ist.
      */
     isMieterAktiv(mieter) {
-        if (!mieter) return false;
-        
+        if (!mieter || !mieter.mietername) return false;
+    
         const heute = new Date();
-        heute.setHours(0, 0, 0, 0); // Nur das Datum vergleichen, nicht die Uhrzeit
-
-        const einzug = mieter.einzug_datum ? new Date(mieter.einzug_datum) : null;
-        const auszug = mieter.auszug_datum ? new Date(mieter.auszug_datum) : null;
-
-        // Regel: Einzug muss in der Vergangenheit/Gegenwart liegen
+        heute.setHours(0, 0, 0, 0); // Zeit ignorieren, nur Datum zählen
+    
+        // Hilfsfunktion zur Datumsumwandlung
+        const parseDate = (dateStr) => {
+            if (!dateStr || String(dateStr).trim() === "") return null;
+            const d = new Date(dateStr);
+            return isNaN(d.getTime()) ? null : d;
+        };
+    
+        const einzug = parseDate(mieter.einzug_datum);
+        const auszug = parseDate(mieter.auszug_datum);
+    
+        // LOGIK-PRÜFUNG:
+        // 1. Wenn noch nicht eingezogen -> nicht aktiv
         if (einzug && einzug > heute) return false;
-
-        // Regel: Auszug muss leer sein oder in der Zukunft liegen
+    
+        // 2. Wenn ausgezogen (Auszugsdatum liegt in der Vergangenheit oder ist heute) -> nicht aktiv
+        // Wichtig: Wenn auszug > heute, ist er NOCH aktiv!
         if (auszug && auszug <= heute) return false;
-
+    
         return true;
     },
 
