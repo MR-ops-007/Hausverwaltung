@@ -1,16 +1,11 @@
 // calc-service.js
-
 const calcService = {
     isMieterAktiv(mieter) {
-        // 1. Grund-Check: Existiert das Objekt und hat es einen Namen?
-        if (!mieter || !mieter.mietername || String(mieter.mietername).trim() === "") {
-            return false;
-        }
+        if (!mieter || !mieter.mietername) return false;
 
         const heute = new Date();
         heute.setHours(0, 0, 0, 0);
 
-        // 2. Hilfsfunktion: Wandelt ISO-Strings oder deutsche Daten sicher um
         const toDate = (val) => {
             if (!val || String(val).trim() === "") return null;
             const d = new Date(val);
@@ -22,31 +17,33 @@ const calcService = {
         const einzug = toDate(mieter.einzug_datum);
         const auszug = toDate(mieter.auszug_datum);
 
-        // 3. Logik-Entscheidung (Schritt für Schritt)
-        
-        // A: Mieter ist noch nicht eingezogen?
-        if (einzug && einzug > heute) {
-            return false;
+        // DIAGNOSE-LOG (Nur für Azeem oder Problemfälle)
+        if (mieter.mietername.includes("Azeem") || auszug !== null) {
+            console.log(`Prüfung für ${mieter.mietername}:`);
+            console.log(` -> Heute: ${heute.toISOString()}`);
+            console.log(` -> Auszug: ${auszug ? auszug.toISOString() : 'keiner'}`);
+            console.log(` -> Vergleich (auszug <= heute): ${auszug <= heute}`);
         }
 
-        // B: Mieter ist bereits ausgezogen? 
-        // WICHTIG: Nur wenn ein Datum da ist UND es HEUTE oder in der VERGANGENHEIT liegt.
+        // Die Kern-Logik
+        if (einzug && einzug > heute) return false;
+        
+        // HIER liegt vermutlich der Hund begraben:
         if (auszug && auszug <= heute) {
             return false;
         }
 
-        // C: In allen anderen Fällen (Einzug <= heute UND (Auszug leer ODER Auszug > heute))
         return true;
     },
 
     getUnitStatus(unit, mieter) {
         if (!unit) return "Fehler: Einheit fehlt";
-        
-        // Falls Haus "Allgemein"
         if (unit.typ === "Allgemein") return "Allgemeinkosten / Haus";
         
-        // Prüfung über isMieterAktiv
-        if (this.isMieterAktiv(mieter)) {
+        const aktiv = this.isMieterAktiv(mieter);
+        
+        // Wenn aktiv true ist, MUSS der Name kommen
+        if (aktiv === true) {
             return mieter.mietername;
         }
         
