@@ -43,7 +43,7 @@ const uiService = {
 
         einheiten.forEach(unit => {
             const mieter = dataService.getActiveMieter(unit.einheit_id);
-            const statusText = calcService.getUnitStatus(unit.mieter);
+            const statusText = calcService.getUnitStatus(unit, mieter);
             const zaehler = dataService.getZaehlerStaende(unit.einheit_id);
             
             html += `
