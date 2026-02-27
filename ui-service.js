@@ -64,26 +64,37 @@ const uiService = {
         const modal = document.getElementById('modal-container');
         const body = document.getElementById('modal-body');
         
-        // Letzten Stand holen (aus dataService.state.zaehler_staende)
-        const letzterStandObj = dataService.state.zaehler_staende.find(z => z.einheit_id === einheitId);
-        const letzterWert = letzterStandObj ? letzterStandObj.wert : 0;
+        // Falls die Tabelle anders heißt, versuchen wir beide Varianten
+        const tabelle = dataService.state.zaehler_staende || dataService.state.zaehler || [];
+        
+        // Letzten Stand holen
+        const letzterStandObj = tabelle.find(z => String(z.einheit_id).trim() === String(einheitId).trim());
+        const letzterWert = letzterStandObj ? (parseFloat(letzterStandObj.wert) || 0) : 0;
+        
         const einheit = dataService.state.einheiten.find(e => e.einheit_id === einheitId);
+        if (!einheit) return;
     
         body.innerHTML = `
             <h3>Zählerstand erfassen</h3>
-            <p><strong>Einheit:</strong> ${einheit.nummer}</p>
-            <p>Letzter Stand: <span id="prev-val">${letzterWert}</span></p>
+            <p style="margin-bottom: 10px;"><strong>Einheit:</strong> ${einheit.nummer}</p>
+            <div style="background: #e9ecef; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                <small>Letzter gespeicherter Stand:</small><br>
+                <strong id="prev-val" style="font-size: 1.2em;">${letzterWert}</strong>
+            </div>
             
             <div class="input-group">
                 <label>Neuer Stand:</label>
-                <input type="number" id="new-stand" step="0.01" oninput="uiService.updateLiveCalc(${letzterWert})">
+                <input type="number" id="new-stand" step="0.01" 
+                       style="width: 100%; padding: 10px; font-size: 1.1em;" 
+                       oninput="uiService.updateLiveCalc(${letzterWert})">
             </div>
             
-            <div id="calc-preview" style="margin-top: 15px; padding: 10px; background: #f0f0f0;">
+            <div id="calc-preview" style="margin-top: 15px; padding: 15px; background: #fff3cd; border-left: 5px solid #ffc107;">
                 Verbrauch: <strong id="live-diff">0</strong>
             </div>
     
-            <button class="btn-save" onclick="uiService.saveZaehler('${einheitId}')" style="margin-top: 20px;">
+            <button class="btn-save" onclick="uiService.saveZaehler('${einheitId}')" 
+                    style="margin-top: 20px; background: #28a745; color: white; border: none; padding: 15px; width: 100%; border-radius: 5px; cursor: pointer; font-weight: bold;">
                 Speichern & Senden
             </button>
         `;
