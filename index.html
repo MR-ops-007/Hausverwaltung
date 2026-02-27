@@ -45,7 +45,7 @@
         window.onload = async () => {
             uiService.renderPropertySelector();
             // Wir laden die Namen aus der Cloud
-            await cloudService.loadTenantsFromCloud();
+            await cloudService.loadAllDataFromCloud();
             // Wir zeichnen die UI
             uiService.renderAll();
             // Wir senden Reste aus dem Keller nach
