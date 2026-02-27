@@ -2,9 +2,8 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hausverwaltung MVP</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hausverwaltung Prototyp</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -32,12 +31,18 @@
         </div>
     </div>
 
+    <script src="config.js"></script>
+    <script src="data-service.js"></script>
+    <script src="cloud-service.js"></script>
+    <script src="ui-service.js"></script>
+
     <script>
         window.onload = async () => {
             const statusEl = document.getElementById('sync-status');
             try {
                 // 1. Daten laden
                 await cloudService.loadAllDataFromCloud();
+                
                 statusEl.innerText = "Online - Daten aktuell";
                 statusEl.style.color = "green";
                 
@@ -45,11 +50,20 @@
                 await cloudService.processOfflineQueue();
                 
                 // 3. UI initialisieren
-                uiService.renderAll();
+                if (typeof uiService !== 'undefined') {
+                    uiService.renderAll();
+                } else {
+                    throw new Error("uiService konnte nicht geladen werden.");
+                }
             } catch (e) {
-                statusEl.innerText = "Offline-Modus";
-                statusEl.style.color = "orange";
-                uiService.renderAll();
+                console.error("Initialisierungsfehler:", e);
+                statusEl.innerText = "Fehler beim Laden";
+                statusEl.style.color = "red";
+                
+                // Trotz Fehler versuchen zu rendern (Offline-Modus)
+                if (typeof uiService !== 'undefined') {
+                    uiService.renderAll();
+                }
             }
         };
     </script>
