@@ -60,8 +60,45 @@ const uiService = {
         listContainer.innerHTML = html;
     },
 
-    showZaehlerMaske(id) {
-        alert("Zählermaske für " + id + " folgt im nächsten Schritt!");
+    showZaehlerMaske(einheitId) {
+        const modal = document.getElementById('modal-container');
+        const body = document.getElementById('modal-body');
+        
+        // Letzten Stand holen (aus dataService.state.zaehler_staende)
+        const letzterStandObj = dataService.state.zaehler_staende.find(z => z.einheit_id === einheitId);
+        const letzterWert = letzterStandObj ? letzterStandObj.wert : 0;
+        const einheit = dataService.state.einheiten.find(e => e.einheit_id === einheitId);
+    
+        body.innerHTML = `
+            <h3>Zählerstand erfassen</h3>
+            <p><strong>Einheit:</strong> ${einheit.nummer}</p>
+            <p>Letzter Stand: <span id="prev-val">${letzterWert}</span></p>
+            
+            <div class="input-group">
+                <label>Neuer Stand:</label>
+                <input type="number" id="new-stand" step="0.01" oninput="uiService.updateLiveCalc(${letzterWert})">
+            </div>
+            
+            <div id="calc-preview" style="margin-top: 15px; padding: 10px; background: #f0f0f0;">
+                Verbrauch: <strong id="live-diff">0</strong>
+            </div>
+    
+            <button class="btn-save" onclick="uiService.saveZaehler('${einheitId}')" style="margin-top: 20px;">
+                Speichern & Senden
+            </button>
+        `;
+        
+        modal.style.display = 'block';
+    },
+    
+    updateLiveCalc(alt) {
+        const neu = parseFloat(document.getElementById('new-stand').value) || 0;
+        const diff = (neu - alt).toFixed(2);
+        document.getElementById('live-diff').innerText = diff > 0 ? diff : "0 (Eingabe prüfen)";
+    },
+    
+    closeModal() {
+        document.getElementById('modal-container').style.display = 'none';
     },
 
     showMietMaske(id) {
