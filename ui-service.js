@@ -43,11 +43,12 @@ const uiService = {
 
         einheiten.forEach(unit => {
             const mieter = dataService.getActiveMieter(unit.einheit_id);
+            const statusText = calcService.getUnitStatus(unit, mieter);
             const zaehler = dataService.getZaehlerStaende(unit.einheit_id);
             
             html += `
                 <div class="card">
-                    <h4>${unit.nummer} - ${mieter ? mieter.mietername : 'Leerstand'}</h4>
+                    <h4>${unit.nummer} - ${statusText}</h4>
                     <p><small>${unit.qm} qm | ${unit.typ}</small></p>
                     <div class="btn-group">
                         <button onclick="uiService.showZaehlerMaske('${unit.einheit_id}')">Zähler</button>
