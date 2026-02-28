@@ -1,80 +1,53 @@
 // cloud-service.js
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxQ-MpWoJPSh7UHR2WNKhJNqNMKYmxpA1arhQmZc9ulnS4waZYQMG8goEa-JDqHHh_Cqw/exec";
 
+/**
+ * Cloud-Service
+ * Zuständig für die Kommunikation mit Google Apps Script und Offline-Speicherung
+ */
 const cloudService = {
-    /**
-     * Lädt das komplette relationale Datenpaket aus der Cloud
-     */
-    async loadAllDataFromCloud() {
-        if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("DEINE_URL_HIER")) {
-            console.warn("Cloud-URL nicht konfiguriert.");
-            return;
-        }
-        
-        try {
-            console.log("Lade Stammdaten aus der Cloud...");
-            const response = await fetch(GOOGLE_SCRIPT_URL);
-            
-            if (!response.ok) throw new Error("Netzwerk-Antwort war nicht ok");
-            
-            const cloudData = await response.json();
-            
-            // Übergabe des gesamten Pakets an den dataService
-            if (cloudData) {
-                dataService.updateFromCloud(cloudData);
-                console.log("Stammdaten erfolgreich synchronisiert.");
-            }
-        } catch (e) { 
-            console.error("Fehler beim Laden der Cloud-Daten:", e);
-            console.log("Offline-Modus: Nutze lokale Bestandsdaten."); 
-        }
-    },
+    // Die URL deines Google Apps Scripts (muss in der index.html oder hier definiert sein)
+    scriptUrl: window.scriptUrl || "https://script.google.com/macros/s/AKfycbxQ-MpWoJPSh7UHR2WNKhJNqNMKYmxpA1arhQmZc9ulnS4waZYQMG8goEa-JDqHHh_Cqw/exec", 
 
     /**
-     * Sendet eine Transaktion (Zählerstand oder Mietzahlung) an das Google Sheet
+     * Sendet eine Transaktion (Zählerstand, Miete, etc.) an Google Sheets
      */
-    async send(payload) {
-        if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("DEINE_URL_HIER")) {
-            console.error("Cloud-URL nicht konfiguriert!");
-            return false;
+    async sendTransaction(transaction) {
+        console.log("Sende Transaktion:", transaction);
+
+        // 1. Prüfen, ob wir online sind
+        if (!navigator.onLine) {
+            this.saveToOfflineQueue(transaction);
+            return false; 
         }
 
         try {
-            await fetch(GOOGLE_SCRIPT_URL, {
+            // 2. POST-Request an dein Google Apps Script
+            const response = await fetch(this.scriptUrl, {
                 method: 'POST',
-                mode: 'no-cors',
+                mode: 'no-cors', // Wichtig für Google Apps Script
                 cache: 'no-cache',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(transaction)
             });
 
-            if (navigator.onLine) {
-                console.log("Transaktion erfolgreich gesendet:", payload.type);
-                return true;
-            }
-            throw new Error("Offline");
+            // Da 'no-cors' keine richtige Response liefert, gehen wir bei Erfolg von true aus
+            console.log("Daten erfolgreich an Google gesendet");
+            return true;
 
-        } catch (e) {
-            console.warn("Sync fehlgeschlagen, Daten in Warteschlange verschoben:", e);
-            dataService.state.queue.push(payload);
-            dataService.save();
+        } catch (error) {
+            console.error("Cloud-Sende-Fehler:", error);
+            this.saveToOfflineQueue(transaction);
             return false;
         }
     },
 
     /**
-     * Arbeitet die Warteschlange ab, wenn wieder Internet besteht
+     * Speichert Daten lokal, falls kein Internet vorhanden ist
      */
-    async processOfflineQueue() {
-        if (!dataService.state.queue || dataService.state.queue.length === 0 || !navigator.onLine) return;
-        
-        console.log(`Verarbeite ${dataService.state.queue.length} ausstehende Transaktionen...`);
-        const remaining = [];
-        for (const entry of dataService.state.queue) {
-            const success = await this.send(entry);
-            if (!success) remaining.push(entry);
-        }
-        dataService.state.queue = remaining;
-        dataService.save();
+    saveToOfflineQueue(transaction) {
+        let queue = JSON.parse(localStorage.getItem('offline_queue') || '[]');
+        queue.push(transaction);
+        localStorage.setItem('offline_queue', JSON.stringify(queue));
+        console.warn("Daten wurden in der Offline-Queue gespeichert.");
     }
 };
