@@ -4,7 +4,7 @@
  */
 const cloudService = {
     // Die URL wird normalerweise in der index.html gesetzt
-    scriptUrl: window.scriptUrl || "", 
+    scriptUrl: window.scriptUrl || "https://script.google.com/macros/s/AKfycbxQ-MpWoJPSh7UHR2WNKhJNqNMKYmxpA1arhQmZc9ulnS4waZYQMG8goEa-JDqHHh_Cqw/exec", 
 
     /**
      * Lädt alle Daten beim Start der App (Einheiten, Mieter, Zähler, Parameter)
