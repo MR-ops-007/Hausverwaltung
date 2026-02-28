@@ -31,6 +31,10 @@
         </div>
     </div>
 
+   <script>
+        window.scriptUrl = "https://script.google.com/macros/s/AKfycbxQ-MpWoJPSh7UHR2WNKhJNqNMKYmxpA1arhQmZc9ulnS4waZYQMG8goEa-JDqHHh_Cqw/exec";
+    </script>
+
     <script src="config.js"></script>
     <script src="data-service.js"></script>
     <script src="cloud-service.js"></script>
@@ -38,50 +42,45 @@
     <script src="ui-service.js"></script>
 
     <script>
-    // 1. Zentrale Konfiguration
-    window.scriptUrl = "https://script.google.com/macros/s/AKfycbxQ-MpWoJPSh7UHR2WNKhJNqNMKYmxpA1arhQmZc9ulnS4waZYQMG8goEa-JDqHHh_Cqw/exec";
-
-    // 2. Die Haupt-Initialisierung beim Laden der Seite
-    window.onload = async () => {
-        const statusEl = document.getElementById('sync-status');
-        
-        try {
-            statusEl.innerText = "Lade Daten...";
+        window.onload = async () => {
+            const statusEl = document.getElementById('sync-status');
             
-            // Versuche Daten aus der Cloud zu holen
-            const data = await cloudService.loadAllDataFromCloud();
-            
-            if (data) {
-                // ERFOLG: Daten in den Speicher legen
-                dataService.setInitialData(data);
+            try {
+                statusEl.innerText = "Lade Daten...";
                 
-                // Offline-Queue prüfen (falls wir gerade erst wieder online gekommen sind)
-                await cloudService.processOfflineQueue();
+                // WICHTIG: Falls die URL im Service noch leer ist, hier explizit setzen
+                if (!cloudService.scriptUrl) cloudService.scriptUrl = window.scriptUrl;
+    
+                const data = await cloudService.loadAllDataFromCloud();
                 
-                statusEl.innerText = "Online - Daten aktuell";
-                statusEl.style.color = "green";
-            } else {
-                // FEHLER beim Laden (Server antwortet nicht)
-                throw new Error("Keine Daten vom Server erhalten");
+                if (data) {
+                    dataService.setInitialData(data);
+                    
+                    // Falls offline Daten da sind, jetzt senden
+                    if (typeof cloudService.processOfflineQueue === 'function') {
+                        await cloudService.processOfflineQueue();
+                    }
+                    
+                    statusEl.innerText = "Online - Daten aktuell";
+                    statusEl.style.color = "green";
+                    
+                    // UI RENDERN
+                    uiService.renderAll();
+                } else {
+                    throw new Error("Daten-Empfang fehlgeschlagen");
+                }
+    
+            } catch (error) {
+                console.error("Initialisierungsfehler:", error);
+                statusEl.innerText = "Offline - Eingeschränkter Modus";
+                statusEl.style.color = "orange";
+                
+                // Trotz Fehler versuchen zu rendern (falls Cache vorhanden)
+                if (dataService.state.einheiten && dataService.state.einheiten.length > 0) {
+                    uiService.renderAll();
+                }
             }
-
-        } catch (error) {
-            console.error("Initialisierungsfehler:", error);
-            statusEl.innerText = "Offline - Eingeschränkter Modus";
-            statusEl.style.color = "orange";
-            
-            // Hier könnte man versuchen, Daten aus dem LocalStorage zu laden, 
-            // falls wir das später implementieren.
-        }
-
-        // 3. ENTSCHEIDEND: Egal ob Online oder Offline (mit Cache), 
-        // wir versuchen die UI zu zeichnen!
-        if (dataService.state.einheiten && dataService.state.einheiten.length > 0) {
-            uiService.renderAll();
-        } else {
-            console.warn("UI konnte nicht gerendert werden: Keine Einheiten im State.");
-        }
-    };
+        };
     </script>
 </body>
 </html>
