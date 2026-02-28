@@ -110,3 +110,13 @@ button:active {
 }
 .close { float: right; cursor: pointer; font-size: 24px; }
 .btn-save { width: 100%; padding: 10px; background: green; color: white; border: none; }
+
+
+* {
+    box-sizing: border-box;
+}
+
+input[type="number"], 
+input[type="text"] {
+    max-width: 100%; /* Verhindert das Rausragen definitiv */
+}
