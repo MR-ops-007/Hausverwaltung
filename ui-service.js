@@ -3,12 +3,15 @@
  * Zuständig für das Rendern der Oberflächen und die Benutzerinteraktionen
  */
 const uiService = {
-
-    // Hauptfunktion zum Initialisieren der UI
+    // Hauptfunktion zum Rendern in der UI
     renderAll() {
+        // Sucht den Container in der index.html
         const container = document.getElementById('object-selector');
-        if (!container) return;
-        this.renderObjectSelector();
+        if (container) {
+            this.renderObjectSelector();
+        } else {
+            console.error("Container 'object-selector' nicht in der index.html gefunden!");
+        }
     },
 
     // Erstellt die Buttons für die Haus-Auswahl (z.B. Haus A, Haus B, Allgemein)
