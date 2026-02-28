@@ -1,73 +1,57 @@
-// data-service.js
+/**
+ * Data-Service
+ * Zentraler Datenspeicher und Abfrage-Logik
+ */
 const dataService = {
     state: {
-        objekte: [],
         einheiten: [],
         mieter: [],
-        zaehler: [],
+        zaehler_staende: [],
         parameter: [],
-        fixkosten: [],
-        queue: []
+        transaktionen: []
     },
 
-    // Initialisierung: Lädt Daten aus dem LocalStorage (Offline-First)
-    init() {
-        const saved = localStorage.getItem('hv_data_state');
-        if (saved) {
-            this.state = JSON.parse(saved);
-        }
+    // Wird beim App-Start aufgerufen, um die Daten aus Google Sheets zu speichern
+    setInitialData(data) {
+        this.state.einheiten = data.einheiten || [];
+        this.state.mieter = data.mieter || [];
+        // Support für beide Namensvarianten (zaehler oder zaehler_staende)
+        this.state.zaehler_staende = data.zaehler_staende || data.zaehler || [];
+        this.state.parameter = data.parameter || [];
+        this.state.transaktionen = data.transaktionen || [];
+        console.log("DataService: Daten erfolgreich geladen", this.state);
     },
 
-    // Speichert den aktuellen Status lokal
-    save() {
-        localStorage.setItem('hv_data_state', JSON.stringify(this.state));
+    // Liefert die eindeutigen Namen der Häuser/Objekte für die Buttons
+    getUniqueObjects() {
+        const objects = this.state.einheiten.map(u => u.objekt);
+        return [...new Set(objects)].filter(obj => obj);
     },
 
-    // Aktualisiert den gesamten State mit den Daten aus der Cloud
-    updateFromCloud(cloudData) {
-        if (!cloudData) return;
-        
-        // Wir mappen die Cloud-Tabellen auf unseren State
-        this.state.objekte = cloudData.objekte || [];
-        this.state.einheiten = cloudData.einheiten || [];
-        this.state.mieter = cloudData.mieter || [];
-        this.state.zaehler = cloudData.zaehler || [];
-        this.state.parameter = cloudData.parameter || [];
-        this.state.fixkosten = cloudData.fixkosten || [];
-        
-        this.save();
+    // Filtert alle Wohnungen eines bestimmten Hauses
+    getUnitsByObject(objName) {
+        return this.state.einheiten.filter(u => u.objekt === objName);
     },
 
-    // --- Relationale Hilfsfunktionen (Helper) ---
-
-    // Holt alle Einheiten eines bestimmten Objekts
-    getEinheitenByObjekt(objektId) {
-        return this.state.einheiten.filter(e => e.objekt_id === objektId);
-    },
-
-    // Findet den aktuell aktiven Mieter einer Einheit
+    // Findet den Mieter zu einer Einheit (Die Aktiv-Logik macht der calcService!)
     getActiveMieter(einheitId) {
         if (!einheitId) return null;
-        // Wir geben einfach den Mieter zurück, der zu dieser ID gehört.
-        // Falls es mehrere gibt (historisch), nehmen wir den neuesten.
         return this.state.mieter.find(m => String(m.einheit_id).trim() === String(einheitId).trim());
     },
 
-    // Holt die letzten Zählerstände einer Einheit
-    getZaehlerStaende(einheitId) {
-        return this.state.zaehler.find(z => z.einheit_id === einheitId) || {};
-    },
-
-    // Holt einen spezifischen Parameter (z.B. Strompreis) für ein Objekt
-    getParameter(objektId, bezeichnung) {
-        const date = new Date();
-        return this.state.parameter.find(p => 
-            p.objekt_id === objektId && 
-            p.bezeichnung === bezeichnung &&
-            new Date(p.gueltig_ab) <= date && 
-            (!p.gueltig_bis || new Date(p.gueltig_bis) >= date)
-        ) || { wert: 0 };
+    /**
+     * Holt einen Wert aus der Parameter-Tabelle (z.B. "preis_oel")
+     * @param {string} key - Der Name des Parameters
+     * @returns {number|string|null}
+     */
+    getParameter(key) {
+        const param = this.state.parameter.find(p => p.key === key);
+        if (!param) {
+            console.warn(`Parameter '${key}' nicht gefunden.`);
+            return null;
+        }
+        // Versuchen, den Wert als Zahl zurückzugeben, sonst als String
+        const num = parseFloat(param.wert);
+        return isNaN(num) ? param.wert : num;
     }
 };
-
-dataService.init();
