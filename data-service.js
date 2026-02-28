@@ -7,51 +7,34 @@ const dataService = {
         einheiten: [],
         mieter: [],
         zaehler_staende: [],
-        parameter: [],
-        transaktionen: []
+        parameter: []
     },
 
-    // Wird beim App-Start aufgerufen, um die Daten aus Google Sheets zu speichern
     setInitialData(data) {
-        this.state.einheiten = data.einheiten || [];
-        this.state.mieter = data.mieter || [];
-        // Support für beide Namensvarianten (zaehler oder zaehler_staende)
-        this.state.zaehler_staende = data.zaehler_staende || data.zaehler || [];
-        this.state.parameter = data.parameter || [];
-        this.state.transaktionen = data.transaktionen || [];
-        console.log("DataService: Daten erfolgreich geladen", this.state);
+        console.log("DataService empfängt:", data);
+        // Robustes Mapping: Wir prüfen verschiedene Key-Schreibweisen
+        this.state.einheiten = data.einheiten || data.Einheiten || [];
+        this.state.mieter = data.mieter || data.Mieter || [];
+        this.state.zaehler_staende = data.zaehler_staende || data.Zaehler_Staende || data.zaehler || [];
+        this.state.parameter = data.parameter || data.Parameter || [];
+        
+        console.log("State nach Mapping:", this.state);
     },
 
-    // Liefert die eindeutigen Namen der Häuser/Objekte für die Buttons
     getUniqueObjects() {
-        const objects = this.state.einheiten.map(u => u.objekt);
+        // Falls einheiten leer ist, können wir nichts rendern
+        if (!this.state.einheiten || this.state.einheiten.length === 0) return [];
+        
+        // Wir holen die Objektnamen und filtern Duplikate
+        const objects = this.state.einheiten.map(u => u.objekt || u.Objekt);
         return [...new Set(objects)].filter(obj => obj);
     },
 
-    // Filtert alle Wohnungen eines bestimmten Hauses
     getUnitsByObject(objName) {
-        return this.state.einheiten.filter(u => u.objekt === objName);
+        return this.state.einheiten.filter(u => (u.objekt || u.Objekt) === objName);
     },
 
-    // Findet den Mieter zu einer Einheit (Die Aktiv-Logik macht der calcService!)
     getActiveMieter(einheitId) {
-        if (!einheitId) return null;
-        return this.state.mieter.find(m => String(m.einheit_id).trim() === String(einheitId).trim());
-    },
-
-    /**
-     * Holt einen Wert aus der Parameter-Tabelle (z.B. "preis_oel")
-     * @param {string} key - Der Name des Parameters
-     * @returns {number|string|null}
-     */
-    getParameter(key) {
-        const param = this.state.parameter.find(p => p.key === key);
-        if (!param) {
-            console.warn(`Parameter '${key}' nicht gefunden.`);
-            return null;
-        }
-        // Versuchen, den Wert als Zahl zurückzugeben, sonst als String
-        const num = parseFloat(param.wert);
-        return isNaN(num) ? param.wert : num;
+        return this.state.mieter.find(m => String(m.einheit_id || m.Einheit_ID) === String(einheitId));
     }
 };
