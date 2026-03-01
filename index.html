@@ -7,34 +7,34 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Hausverwaltung Prototyp</h1>
-            <div id="sync-status" class="status-indicator">Prüfe Verbindung...</div>
+    <div class="container" style="max-width: 800px; margin: 0 auto; padding: 20px; font-family: sans-serif;">
+        <header style="border-bottom: 2px solid #eee; margin-bottom: 20px; padding-bottom: 10px;">
+            <h1 style="margin: 0;">Hausverwaltung</h1>
+            <div id="sync-status" style="font-size: 0.85em; margin-top: 5px; color: #666;">Prüfe Verbindung...</div>
         </header>
 
         <section id="object-selector-section">
-            <div id="object-selector"></div>
+            <h2 style="font-size: 1.1em; color: #444;">Haus auswählen:</h2>
+            <div id="object-selector">Lade Objekte...</div>
         </section>
 
-        <hr>
-
-        <section id="unit-list-section">
+        <section id="unit-list-section" style="margin-top: 20px;">
             <div id="tenant-list"></div>
         </section>
 
-        <div id="modal-container" class="modal" style="display:none;">
-            <div class="modal-content">
-                <span class="close" onclick="uiService.closeModal()">&times;</span>
+        <div id="modal-container" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;">
+            <div style="background:white; width:90%; max-width:500px; margin:50px auto; padding:20px; border-radius:10px; position:relative;">
+                <span style="position:absolute; top:10px; right:15px; font-size:24px; cursor:pointer;" onclick="uiService.closeModal()">&times;</span>
                 <div id="modal-body"></div>
             </div>
         </div>
     </div>
 
-   <script>
+    <script>
+        // Deine Konfiguration ZUERST
         window.scriptUrl = "https://script.google.com/macros/s/AKfycbxQ-MpWoJPSh7UHR2WNKhJNqNMKYmxpA1arhQmZc9ulnS4waZYQMG8goEa-JDqHHh_Cqw/exec";
     </script>
-
+    
     <script src="config.js"></script>
     <script src="data-service.js"></script>
     <script src="cloud-service.js"></script>
@@ -42,45 +42,35 @@
     <script src="ui-service.js"></script>
 
     <script>
-        window.onload = async () => {
-            const statusEl = document.getElementById('sync-status');
+    window.onload = async () => {
+        const statusEl = document.getElementById('sync-status');
+        
+        try {
+            statusEl.innerText = "Lade Daten aus Cloud...";
             
-            try {
-                statusEl.innerText = "Lade Daten...";
+            // 1. Daten laden
+            const data = await cloudService.loadAllDataFromCloud();
+            
+            if (data) {
+                // 2. Daten im Speicher ablegen
+                dataService.setInitialData(data);
                 
-                // WICHTIG: Falls die URL im Service noch leer ist, hier explizit setzen
-                if (!cloudService.scriptUrl) cloudService.scriptUrl = window.scriptUrl;
-    
-                const data = await cloudService.loadAllDataFromCloud();
+                // 3. Status anzeigen
+                statusEl.innerText = "Online - Daten aktuell";
+                statusEl.style.color = "green";
                 
-                if (data) {
-                    dataService.setInitialData(data);
-                    
-                    // Falls offline Daten da sind, jetzt senden
-                    if (typeof cloudService.processOfflineQueue === 'function') {
-                        await cloudService.processOfflineQueue();
-                    }
-                    
-                    statusEl.innerText = "Online - Daten aktuell";
-                    statusEl.style.color = "green";
-                    
-                    // UI RENDERN
-                    uiService.renderAll();
-                } else {
-                    throw new Error("Daten-Empfang fehlgeschlagen");
-                }
-    
-            } catch (error) {
-                console.error("Initialisierungsfehler:", error);
-                statusEl.innerText = "Offline - Eingeschränkter Modus";
-                statusEl.style.color = "orange";
-                
-                // Trotz Fehler versuchen zu rendern (falls Cache vorhanden)
-                if (dataService.state.einheiten && dataService.state.einheiten.length > 0) {
-                    uiService.renderAll();
-                }
+                // 4. UI zeichnen
+                uiService.renderAll();
+            } else {
+                statusEl.innerText = "Fehler: Keine Daten empfangen";
+                statusEl.style.color = "red";
             }
-        };
+        } catch (error) {
+            console.error("Boot-Fehler:", error);
+            statusEl.innerText = "Offline oder Verbindungsfehler";
+            statusEl.style.color = "orange";
+        }
+    };
     </script>
 </body>
 </html>
