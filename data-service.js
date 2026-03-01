@@ -12,8 +12,6 @@ const dataService = {
 
     setInitialData(data) {
         console.log("DataService: Verarbeite Rohdaten...", data);
-        
-        // Helfer-Funktion, die Daten findet, egal ob groß oder klein geschrieben
         const getSheet = (name) => {
             return data[name] || data[name.toLowerCase()] || data[name.charAt(0).toUpperCase() + name.slice(1)] || [];
         };
@@ -22,29 +20,31 @@ const dataService = {
         this.state.mieter = getSheet('Mieter');
         this.state.zaehler_staende = getSheet('Zaehler_Staende') || getSheet('Zaehler');
         this.state.parameter = getSheet('Parameter');
-
-        console.log("DataService: State erfolgreich befüllt:", this.state);
+        console.log("DataService: State befüllt.");
     },
 
     getUniqueObjects() {
         if (!this.state.einheiten || this.state.einheiten.length === 0) return [];
-        // Sucht in der Tabelle 'Einheiten' nach der Spalte für das Haus/Objekt
-        const objects = this.state.einheiten.map(u => u.Objekt || u.objekt || u.Haus || u.haus);
+        // Nutzt primär objekt_id laut deinem Konsolen-Log
+        const objects = this.state.einheiten.map(u => u.objekt_id || u.Objekt || u.objekt || u.Haus);
         return [...new Set(objects)].filter(obj => obj);
     },
 
-    getUnitsByObject(objName) {
-        return this.state.einheiten.filter(u => (u.Objekt || u.objekt || u.Haus || u.haus) === objName);
+    getUnitsByObject(objId) {
+        return this.state.einheiten.filter(u => (u.objekt_id || u.Objekt || u.objekt) === objId);
     },
 
     getActiveMieter(einheitId) {
         if (!einheitId) return null;
-        // Findet den Mieter passend zur Wohnung-ID
-        return this.state.mieter.find(m => String(m.Einheit_ID || m.einheit_id) === String(einheitId));
+        // Nutzt mietername laut deinem Konsolen-Log
+        return this.state.mieter.find(m => String(m.einheit_id || m.Einheit_ID) === String(einheitId));
     },
 
-    getParameter(key) {
-        const param = this.state.parameter.find(p => p.key === key || p.Key === key);
-        return param ? (parseFloat(param.wert || param.Wert) || param.wert || param.Wert) : null;
+    getParameter(objId, key) {
+        // Parameter sind oft objekt-spezifisch
+        const param = this.state.parameter.find(p => 
+            (p.objekt_id === objId) && (p.bezeichnung === key || p.key === key)
+        );
+        return param ? parseFloat(param.wert) : null;
     }
 };
