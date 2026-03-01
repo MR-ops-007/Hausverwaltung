@@ -1,159 +1,169 @@
 /**
  * UI-Service
- * Zuständig für das Rendern der Oberflächen und die Benutzerinteraktionen
+ * Verantwortlich für das Rendering der Oberfläche und die Interaktionen
  */
 const uiService = {
-    // Hauptfunktion zum Rendern in der UI
+    /**
+     * Haupt-Render-Funktion: Zeichnet die Objekt-Buttons
+     */
     renderAll() {
-        console.log("uiService.renderAll gestartet");
-        // Sucht den Container in der index.html
+        console.log("uiService: Starte Rendering...");
         const container = document.getElementById('object-selector');
-        if (!container) {
-            console.error("ID 'object-selector' nicht im HTML gefunden!");
-            return;
-        }
-        this.renderObjectSelector();
-    },
+        if (!container) return;
 
-    // Erstellt die Buttons für die Haus-Auswahl (z.B. Haus A, Haus B, Allgemein)
-    renderObjectSelector() {
         const objects = dataService.getUniqueObjects();
-        const container = document.getElementById('object-selector');
         
         if (objects.length === 0) {
-            container.innerHTML = "<p style='color:red;'>Keine Objekte in den Daten gefunden.</p>";
+            container.innerHTML = `
+                <div style="padding:20px; background:#fff3cd; border:1px solid #ffeeba; border-radius:8px;">
+                    <strong>Hinweis:</strong> Keine Objekte (Häuser) in den Daten gefunden. 
+                    Bitte prüfe die Tabelle 'Einheiten' im Google Sheet.
+                </div>`;
             return;
         }
 
-        let html = '<div class="object-grid" style="display: flex; gap: 10px; margin-bottom: 20px;">';
+        let html = '<div class="object-grid" style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px;">';
         objects.forEach(obj => {
-            html += `<button class="obj-btn" style="padding: 15px; cursor: pointer;" onclick="uiService.selectObject('${obj}')">${obj}</button>`;
+            html += `
+                <button class="obj-btn" 
+                        style="padding:15px 25px; cursor:pointer; background:#007bff; color:white; border:none; border-radius:8px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);" 
+                        onclick="uiService.selectObject('${obj}')">
+                    ${obj}
+                </button>`;
         });
         html += '</div>';
         container.innerHTML = html;
     },
-    
-    // Wird aufgerufen, wenn ein Haus angeklickt wird
+
+    /**
+     * Wird aufgerufen, wenn ein Haus-Button geklickt wird
+     */
     selectObject(objName) {
         const units = dataService.getUnitsByObject(objName);
         this.renderUnitList(units);
     },
 
-    // Erstellt die Liste der Wohnungen/Einheiten für das gewählte Haus
+    /**
+     * Zeichnet die Liste der Wohnungen/Einheiten eines Hauses
+     */
     renderUnitList(units) {
         const container = document.getElementById('tenant-list');
-        let html = `<h3>Einheiten für ${units[0].objekt || units[0].Objekt}</h3><div class="unit-grid">`;
+        if (!container) return;
+
+        let html = `
+            <h3 style="margin:20px 0 10px 0;">Einheiten & Mieter</h3>
+            <div class="unit-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:15px;">`;
         
         units.forEach(unit => {
-            const mieter = dataService.getActiveMieter(unit.einheit_id || unit.Einheit_ID);
+            const id = unit.Einheit_ID || unit.einheit_id;
+            const mieter = dataService.getActiveMieter(id);
+            // Azeem-Logik: Zeigt den Mieter an, solange er im Speicher ist (Filterung übernimmt der calcService/DataService)
+            const mieterName = mieter ? (mieter.Name || mieter.name) : 'Leerstand';
+            const wohnung = unit.Nummer || unit.nummer || 'Unbekannt';
+            
             html += `
-                <div class="card" style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; border-radius: 8px;">
-                    <h4>Einheit: ${unit.nummer || unit.Nummer}</h4>
-                    <p>Mieter: ${mieter ? (mieter.name || mieter.Name) : 'Leerstand'}</p>
-                    <button onclick="uiService.showZaehlerMaske('${unit.einheit_id || unit.Einheit_ID}')">Zählerstand</button>
-                </div>
-            `;
+                <div class="card" style="border:1px solid #ddd; padding:20px; border-radius:12px; background:white; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                    <div style="display:flex; justify-content:space-between; align-items:start;">
+                        <h4 style="margin:0; color:#333;">Einheit ${wohnung}</h4>
+                        <span style="font-size:0.75em; padding:2px 8px; border-radius:10px; background:${mieter ? '#e2f5e9' : '#f8d7da'};">
+                            ${mieter ? 'Belegt' : 'Leer'}
+                        </span>
+                    </div>
+                    <p style="margin:10px 0; color:#666;">Mieter: <strong style="color:#000;">${mieterName}</strong></p>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:15px;">
+                        <button style="padding:10px; cursor:pointer; background:#28a745; color:white; border:none; border-radius:6px; font-weight:bold;" 
+                                onclick="uiService.showZaehlerMaske('${id}')">Zähler</button>
+                        <button style="padding:10px; cursor:pointer; background:#6c757d; color:white; border:none; border-radius:6px; font-weight:bold;" 
+                                onclick="uiService.showMietMaske('${id}')">Miete</button>
+                    </div>
+                </div>`;
         });
         html += '</div>';
         container.innerHTML = html;
     },
 
-    // Öffnet das Modal für die Zählerstand-Eingabe
-    showZaehlerMaske(einheitId) {
+    /**
+     * Öffnet das Modal mit der Zähler-Eingabe
+     */
+    showZaehlerMaske(id) {
+        const unit = dataService.state.einheiten.find(u => String(u.Einheit_ID || u.einheit_id) === String(id));
+        const mieter = dataService.getActiveMieter(id);
         const modal = document.getElementById('modal-container');
         const body = document.getElementById('modal-body');
-        
-        // Letzten Stand aus dem State suchen
-        const tabelle = dataService.state.zaehler_staende || dataService.state.zaehler || [];
-        const letzterStandObj = tabelle.find(z => String(z.einheit_id).trim() === String(einheitId).trim());
-        const letzterWert = letzterStandObj ? (parseFloat(letzterStandObj.wert) || 0) : 0;
-        
-        const einheit = dataService.state.einheiten.find(e => e.einheit_id === einheitId);
 
         body.innerHTML = `
-            <h3>Zählerstand erfassen</h3>
-            <p><strong>Einheit:</strong> ${einheit ? einheit.nummer : einheitId}</p>
-            
-            <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #dee2e6;">
-                <small>Letzter gespeicherter Stand:</small><br>
-                <strong id="prev-val" style="font-size: 1.2em;">${letzterWert}</strong>
-            </div>
-            
-            <div style="margin-bottom: 15px;">
-                <label style="display:block; margin-bottom:5px; font-weight: bold;">Neuer Stand:</label>
-                <input type="number" id="new-stand" step="0.01" placeholder="0.00"
-                       style="width: 100%; padding: 12px; box-sizing: border-box; border: 2px solid #007bff; border-radius: 5px; font-size: 16px;" 
-                       oninput="uiService.updateLiveCalc(${letzterWert})">
-            </div>
-            
-            <div id="calc-preview" style="padding: 10px; background: #fff3cd; border-radius: 5px; margin-bottom: 15px; border-left: 5px solid #ffc107;">
-                Differenz (Verbrauch): <strong id="live-diff">0</strong>
-            </div>
+            <div style="font-family: sans-serif;">
+                <h2 style="margin-top:0;">Zählerstand erfassen</h2>
+                <p style="background:#f8f9fa; padding:10px; border-radius:6px;">
+                    <strong>Einheit:</strong> ${unit.Nummer || unit.nummer} | <strong>Mieter:</strong> ${mieter ? (mieter.Name || mieter.name) : 'Leerstand'}
+                </p>
+                
+                <div style="margin-top:20px; display:flex; flex-direction:column; gap:15px;">
+                    <div>
+                        <label style="display:block; font-weight:bold; margin-bottom:5px;">Kaltwasser (m³)</label>
+                        <input type="number" id="val-kw" step="0.001" placeholder="z.B. 452.123" style="width:100%; padding:12px; border:1px solid #ccc; border-radius:6px; font-size:16px;">
+                    </div>
+                    <div>
+                        <label style="display:block; font-weight:bold; margin-bottom:5px;">Warmwasser (m³)</label>
+                        <input type="number" id="val-ww" step="0.001" placeholder="z.B. 120.450" style="width:100%; padding:12px; border:1px solid #ccc; border-radius:6px; font-size:16px;">
+                    </div>
+                    <div>
+                        <label style="display:block; font-weight:bold; margin-bottom:5px;">Strom (kWh)</label>
+                        <input type="number" id="val-strom" step="1" placeholder="z.B. 12540" style="width:100%; padding:12px; border:1px solid #ccc; border-radius:6px; font-size:16px;">
+                    </div>
+                </div>
 
-            <button class="btn-save" onclick="uiService.saveZaehler('${einheitId}')" 
-                    style="width: 100%; padding: 15px; background: #28a745; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 1.1em;">
-                Speichern & Senden
-            </button>
-        `;
+                <div style="margin-top:25px; display:flex; gap:10px;">
+                    <button onclick="uiService.saveZaehler('${id}')" 
+                            style="flex:2; padding:15px; background:#007bff; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">
+                        Daten speichern
+                    </button>
+                    <button onclick="uiService.closeModal()" 
+                            style="flex:1; padding:15px; background:#6c757d; color:white; border:none; border-radius:8px; cursor:pointer;">
+                        Abbrechen
+                    </button>
+                </div>
+            </div>`;
         modal.style.display = 'block';
     },
 
-    // Berechnet live während der Eingabe den Verbrauch
-    updateLiveCalc(alt) {
-        const neu = parseFloat(document.getElementById('new-stand').value) || 0;
-        const diff = (neu - alt).toFixed(2);
-        document.getElementById('live-diff').innerText = diff > 0 ? diff : "0";
+    /**
+     * Platzhalter für die Miete-Maske (Damit der Button nicht ins Leere läuft)
+     */
+    showMietMaske(id) {
+        alert("Miet-Eingabe (Phase 2) wird gerade implementiert. Fokus aktuell auf Zähler.");
     },
 
-    // Sendet den Zählerstand an den Cloud-Service
-    async saveZaehler(einheitId) {
-        const newStandEl = document.getElementById('new-stand');
-        const newWert = parseFloat(newStandEl.value);
-        
-        if (!newWert && newWert !== 0) {
-            alert("Bitte einen gültigen Wert eingeben.");
-            return;
-        }
+    /**
+     * Sendet die Zählerdaten an den Cloud-Service
+     */
+    async saveZaehler(id) {
+        const btn = event.target;
+        btn.innerText = "Speichere...";
+        btn.disabled = true;
 
-        const saveBtn = document.querySelector('.btn-save');
-        const originalText = saveBtn.innerText;
-        saveBtn.innerText = "Wird gesendet...";
-        saveBtn.disabled = true;
-
-        // Struktur für die Transaktions-Tabelle im Google Sheet
         const transaction = {
+            einheit_id: id,
+            typ: 'ZAEHLERSTAND',
             zeitstempel: new Date().toISOString(),
-            art: "ZAEHLERSTAND",
-            einheit_id: einheitId,
-            betrag: 0,
-            text: `Zählerstand: ${newWert}`,
-            daten_feld: JSON.stringify({ wert: newWert })
+            daten: {
+                kaltwasser: document.getElementById('val-kw').value,
+                warmwasser: document.getElementById('val-ww').value,
+                strom: document.getElementById('val-strom').value
+            }
         };
 
-        try {
-            const success = await cloudService.sendTransaction(transaction);
-            if (success) {
-                alert("Erfolgreich gespeichert!");
-                this.closeModal();
-            } else {
-                alert("Offline gespeichert. Wird später synchronisiert.");
-                this.closeModal();
-            }
-        } catch (e) {
-            console.error("Fehler beim Speichern:", e);
-            alert("Fehler beim Speichern. Bitte Verbindung prüfen.");
-        } finally {
-            saveBtn.innerText = originalText;
-            saveBtn.disabled = false;
+        const success = await cloudService.sendTransaction(transaction);
+        
+        if (success) {
+            alert("Erfolgreich an Google Sheets gesendet!");
+            this.closeModal();
+        } else {
+            alert("Offline: Daten wurden lokal gespeichert und werden synchronisiert, sobald Internet verfügbar ist.");
+            this.closeModal();
         }
     },
 
-    // Platzhalter für die Mietmaske
-    showMietMaske(id) {
-        alert("Mietmaske für " + id + " folgt im nächsten Schritt!");
-    },
-
-    // Schließt das Modal-Fenster
     closeModal() {
         document.getElementById('modal-container').style.display = 'none';
     }
