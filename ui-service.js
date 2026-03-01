@@ -5,26 +5,34 @@
 const uiService = {
     // Hauptfunktion zum Rendern in der UI
     renderAll() {
+        console.log("uiService.renderAll gestartet");
         // Sucht den Container in der index.html
         const container = document.getElementById('object-selector');
-        if (container) {
-            this.renderObjectSelector();
-        } else {
-            console.error("Container 'object-selector' nicht in der index.html gefunden!");
+        if (!container) {
+            console.error("ID 'object-selector' nicht im HTML gefunden!");
+            return;
         }
+        this.renderObjectSelector();
     },
 
     // Erstellt die Buttons für die Haus-Auswahl (z.B. Haus A, Haus B, Allgemein)
     renderObjectSelector() {
         const objects = dataService.getUniqueObjects();
-        let html = '<div class="object-grid">';
+        const container = document.getElementById('object-selector');
+        
+        if (objects.length === 0) {
+            container.innerHTML = "<p style='color:red;'>Keine Objekte in den Daten gefunden.</p>";
+            return;
+        }
+
+        let html = '<div class="object-grid" style="display: flex; gap: 10px; margin-bottom: 20px;">';
         objects.forEach(obj => {
-            html += `<button class="obj-btn" onclick="uiService.selectObject('${obj}')">${obj}</button>`;
+            html += `<button class="obj-btn" style="padding: 15px; cursor: pointer;" onclick="uiService.selectObject('${obj}')">${obj}</button>`;
         });
         html += '</div>';
-        document.getElementById('object-selector').innerHTML = html;
+        container.innerHTML = html;
     },
-
+    
     // Wird aufgerufen, wenn ein Haus angeklickt wird
     selectObject(objName) {
         const units = dataService.getUnitsByObject(objName);
@@ -33,25 +41,21 @@ const uiService = {
 
     // Erstellt die Liste der Wohnungen/Einheiten für das gewählte Haus
     renderUnitList(units) {
-        let html = '<h3>Einheiten / Mieter</h3><div class="unit-grid">';
+        const container = document.getElementById('tenant-list');
+        let html = `<h3>Einheiten für ${units[0].objekt || units[0].Objekt}</h3><div class="unit-grid">`;
+        
         units.forEach(unit => {
-            // Holen des Mieters (Logik prüft jetzt im calcService, ob er aktiv ist)
-            const mieter = dataService.getActiveMieter(unit.einheit_id);
-            const statusText = calcService.getUnitStatus(unit, mieter);
-            
+            const mieter = dataService.getActiveMieter(unit.einheit_id || unit.Einheit_ID);
             html += `
-                <div class="card">
-                    <h4>${unit.nummer}</h4>
-                    <p><strong>Status:</strong> ${statusText}</p>
-                    <div class="card-actions" style="display: flex; gap: 5px; margin-top: 10px;">
-                        <button onclick="uiService.showZaehlerMaske('${unit.einheit_id}')">Zähler</button>
-                        <button onclick="uiService.showMietMaske('${unit.einheit_id}')">Miete</button>
-                    </div>
+                <div class="card" style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; border-radius: 8px;">
+                    <h4>Einheit: ${unit.nummer || unit.Nummer}</h4>
+                    <p>Mieter: ${mieter ? (mieter.name || mieter.Name) : 'Leerstand'}</p>
+                    <button onclick="uiService.showZaehlerMaske('${unit.einheit_id || unit.Einheit_ID}')">Zählerstand</button>
                 </div>
             `;
         });
         html += '</div>';
-        document.getElementById('tenant-list').innerHTML = html;
+        container.innerHTML = html;
     },
 
     // Öffnet das Modal für die Zählerstand-Eingabe
