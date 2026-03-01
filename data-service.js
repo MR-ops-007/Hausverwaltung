@@ -11,10 +11,9 @@ const dataService = {
     },
 
     setInitialData(data) {
-        console.log("DataService: Rohdaten erhalten", data);
+        console.log("DataService: Verarbeite Rohdaten...", data);
         
-        // Google Sheets liefert oft ein Objekt, das die Tabellennamen als Keys hat
-        // Wir mappen hier extrem tolerant gegen Groß-/Kleinschreibung
+        // Helfer-Funktion, die Daten findet, egal ob groß oder klein geschrieben
         const getSheet = (name) => {
             return data[name] || data[name.toLowerCase()] || data[name.charAt(0).toUpperCase() + name.slice(1)] || [];
         };
@@ -24,21 +23,28 @@ const dataService = {
         this.state.zaehler_staende = getSheet('Zaehler_Staende') || getSheet('Zaehler');
         this.state.parameter = getSheet('Parameter');
 
-        console.log("DataService: State befüllt", this.state);
+        console.log("DataService: State erfolgreich befüllt:", this.state);
     },
 
     getUniqueObjects() {
         if (!this.state.einheiten || this.state.einheiten.length === 0) return [];
-        // Wir suchen nach 'Objekt' oder 'objekt' in den Spalten
-        const objects = this.state.einheiten.map(u => u.Objekt || u.objekt || u.Haus);
+        // Sucht in der Tabelle 'Einheiten' nach der Spalte für das Haus/Objekt
+        const objects = this.state.einheiten.map(u => u.Objekt || u.objekt || u.Haus || u.haus);
         return [...new Set(objects)].filter(obj => obj);
     },
 
     getUnitsByObject(objName) {
-        return this.state.einheiten.filter(u => (u.Objekt || u.objekt || u.Haus) === objName);
+        return this.state.einheiten.filter(u => (u.Objekt || u.objekt || u.Haus || u.haus) === objName);
     },
 
     getActiveMieter(einheitId) {
+        if (!einheitId) return null;
+        // Findet den Mieter passend zur Wohnung-ID
         return this.state.mieter.find(m => String(m.Einheit_ID || m.einheit_id) === String(einheitId));
+    },
+
+    getParameter(key) {
+        const param = this.state.parameter.find(p => p.key === key || p.Key === key);
+        return param ? (parseFloat(param.wert || param.Wert) || param.wert || param.Wert) : null;
     }
 };
