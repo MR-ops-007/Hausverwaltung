@@ -70,51 +70,99 @@ const uiService = {
         container.innerHTML = html;
     },
 
+    /**
+     * Öffnet das Modal zur Erfassung aller Zählerstände gemäß DATA_MODEL.md
+     */
     showZaehlerMaske(id) {
-        const unit = dataService.state.einheiten.find(u => String(u.einheit_id || u.Einheit_ID) === String(id));
+        const unit = dataService.state.Einheiten.find(u => String(u.einheit_id) === String(id));
         const mieter = dataService.getActiveMieter(id);
-        const modal = document.getElementById('modal-container');
-        const body = document.getElementById('modal-body');
+        // Wir holen uns die letzten Stände für die Anzeige (Placeholders)
+        const lastStands = dataService.state.Zaehler_Staende.find(z => String(z.einheit_id) === String(id)) || {};
 
-        body.innerHTML = `
-            <div style="font-family: sans-serif;">
-                <h2 style="margin-top:0;">Zählerstand erfassen</h2>
-                <p style="background:#f8f9fa; padding:10px; border-radius:6px;">
-                    <strong>Einheit:</strong> ${id} | <strong>Mieter:</strong> ${mieter ? (mieter.mietername || 'Unbenannt') : 'Leerstand'}
-                </p>
-                <div style="margin-top:20px; display:flex; flex-direction:column; gap:15px;">
-                    <div><label style="display:block; font-weight:bold;">Kaltwasser (m³)</label><input type="number" id="val-kw" step="0.001" style="width:100%; padding:12px; border:1px solid #ccc; border-radius:6px;"></div>
-                    <div><label style="display:block; font-weight:bold;">Warmwasser (m³)</label><input type="number" id="val-ww" step="0.001" style="width:100%; padding:12px; border:1px solid #ccc; border-radius:6px;"></div>
-                    <div><label style="display:block; font-weight:bold;">Strom (kWh)</label><input type="number" id="val-strom" step="1" style="width:100%; padding:12px; border:1px solid #ccc; border-radius:6px;"></div>
+        const modalHtml = `
+            <div class="modal-content">
+                <h3>Zähler erfassen: ${unit ? unit.nummer : id}</h3>
+                <p><small>Aktueller Mieter: <b>${mieter ? mieter.mietername : 'Leerstand/Allgemein'}</b></small></p>
+                <hr>
+                
+                <div class="form-group">
+                    <label>Kaltwasser (m³):</label>
+                    <input type="number" id="val-kw" step="0.001" placeholder="Letzter: ${lastStands.kw_aktuell || '0'}">
                 </div>
-                <div style="margin-top:25px; display:flex; gap:10px;">
-                    <button onclick="uiService.saveZaehler('${id}')" style="flex:2; padding:15px; background:#007bff; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">Daten speichern</button>
-                    <button onclick="uiService.closeModal()" style="flex:1; padding:15px; background:#6c757d; color:white; border:none; border-radius:8px; cursor:pointer;">Abbrechen</button>
+                <div class="form-group">
+                    <label>Warmwasser (m³):</label>
+                    <input type="number" id="val-ww" step="0.001" placeholder="Letzter: ${lastStands.ww_aktuell || '0'}">
                 </div>
-            </div>`;
-        modal.style.display = 'block';
+                <div class="form-group">
+                    <label>Strom HT (kWh):</label>
+                    <input type="number" id="val-ht" step="1" placeholder="Letzter: ${lastStands.st_ht_aktuell || '0'}">
+                </div>
+                <div class="form-group">
+                    <label>Strom NT (kWh):</label>
+                    <input type="number" id="val-nt" step="1" placeholder="Letzter: ${lastStands.st_nt_aktuell || '0'}">
+                </div>
+                <div class="form-group">
+                    <label>Ölstand (Liter):</label>
+                    <input type="number" id="val-oel" step="1" placeholder="Letzter: ${lastStands.oel_aktuell || '0'}">
+                </div>
+                <div class="form-group">
+                    <label>Zusatzwert (z.B. Std):</label>
+                    <input type="number" id="val-zusatz" step="0.1" placeholder="Letzter: ${lastStands.zusatz_aktuell || '0'}">
+                </div>
+                <div class="form-group">
+                    <label>Bezeichnung Zusatz / Bemerkung:</label>
+                    <input type="text" id="val-bezeichnung" value="${lastStands.bezeichnung || ''}" placeholder="z.B. Maschinenstunden">
+                </div>
+
+                <div class="modal-actions">
+                    <button onclick="uiService.saveZaehler('${id}')" class="btn-save">Speichern</button>
+                    <button onclick="uiService.closeModal()" class="btn-cancel">Abbrechen</button>
+                </div>
+            </div>
+        `;
+        
+        const container = document.getElementById('modal-container');
+        container.innerHTML = modalHtml;
+        container.style.display = 'flex';
     },
 
+    /**
+     * Sendet die Daten an das Google Apps Script
+     */
     async saveZaehler(id) {
         const mieter = dataService.getActiveMieter(id);
+        const unit = dataService.state.Einheiten.find(u => String(u.einheit_id) === String(id));
         
+        // Payload exakt nach DATA_MODEL.md Spalten D-K
         const transaction = {
-            zeitstempel: new Date().toISOString(),               // A: zeitstempel
-            einheit_id: id,                                      // B: eindeutige Einheiten ID
-            typ: 'ZAEHLERSTAND',                                 // C: zaehlerstand
-            wert_1: document.getElementById('val-kw').value,     // D: Kaltwasser
-            wert_2: document.getElementById('val-ww').value,     // E: Warmwasser
-            wert_3: document.getElementById('val-strom').value,  // F: Strom
-            mietername: mieter ? (mieter.mietername || mieter.Name) : 'Leerstand', // G: mietername
-            bezeichnung: 'Zählererfassung App'                   // H: bezeichnung
+            zeitstempel: new Date().toISOString(),
+            einheit_id: id,
+            objekt_id: unit ? unit.objekt_id : '',
+            typ: 'ZAEHLERSTAND',
+            kaltwasser_m3: document.getElementById('val-kw').value,
+            warmwasser_m3: document.getElementById('val-ww').value,
+            strom_ht_kwh: document.getElementById('val-ht').value,
+            strom_nt_kwh: document.getElementById('val-nt').value,
+            oel_stand_l: document.getElementById('val-oel').value,
+            zusatz_wert: document.getElementById('val-zusatz').value,
+            mietername: mieter ? mieter.mietername : 'Allgemein/Leerstand',
+            bezeichnung: document.getElementById('val-bezeichnung').value || 'App-Erfassung'
         };
+
+        const btn = event.target;
+        btn.disabled = true;
+        btn.innerText = "Speichere...";
+
         const success = await cloudService.sendTransaction(transaction);
-        if (success) { 
-            alert("Erfolgreich gespeichert!"); 
-            this.closeModal(); }
-        else { 
-            alert("Offline: Wird später gesendet."); 
-            this.closeModal(); }
+        
+        if (success) {
+            alert("Erfolgreich gespeichert!");
+            this.closeModal();
+            location.reload(); // Seite neu laden, um neue Anker-Werte aus Sheets zu holen
+        } else {
+            alert("Offline: Daten lokal gesichert.");
+            this.closeModal();
+        }
     },
 
     closeModal() {
