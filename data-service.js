@@ -1,5 +1,73 @@
 /**
  * DATA-SERVICE: Das Gehirn der App.
+ * Stand: 03.03.2026 - API-Konsistenz Fix
+ */
+const dataService = {
+    state: {
+        Objekte: [],
+        Einheiten: [],
+        Mieter: [],
+        Zaehler_Staende: [],
+        Parameter: [],
+        Fixkosten: [],
+        Transaktionen: []
+    },
+
+    setInitialData(data) {
+        this.state.Objekte = data.Objekte || [];
+        this.state.Einheiten = data.Einheiten || [];
+        this.state.Mieter = data.Mieter || [];
+        this.state.Zaehler_Staende = data.Zaehler_Staende || [];
+        this.state.Parameter = data.Parameter || [];
+        this.state.Fixkosten = data.Fixkosten || [];
+        this.state.Transaktionen = data.Transaktionen || [];
+        console.log("State initialisiert.");
+    },
+
+    /**
+     * Von ui-service.js:12 benötigt (renderAll)
+     */
+    getUniqueObjects() {
+        if (!this.state.Einheiten || this.state.Einheiten.length === 0) return [];
+        const ids = this.state.Einheiten.map(e => e.objekt_id);
+        return [...new Set(ids)].filter(id => id && String(id).trim() !== "");
+    },
+
+    /**
+     * Von ui-service.js:39 benötigt (selectObject)
+     * Wir definieren beide Namen, um Abwärtskompatibilität zu wahren.
+     */
+    getUnitsByObject(objektId) {
+        return this.state.Einheiten.filter(e => String(e.objekt_id) === String(objektId));
+    },
+    
+    // Alias für interne Konsistenz
+    getEinheitenByObjekt(objektId) {
+        return this.getUnitsByObject(objektId);
+    },
+
+    /**
+     * Ermittelt den aktuell gültigen Mieter (Fix für inaktive Mieter)
+     */
+    getActiveMieter(einheitId) {
+        if (!this.state.Mieter) return null;
+        const heute = new Date();
+        heute.setHours(0, 0, 0, 0);
+
+        return this.state.Mieter.find(m => {
+            const isMatch = String(m.einheit_id) === String(einheitId);
+            const istAktiv = String(m.aktiv).toLowerCase() === 'true' || m.aktiv === true;
+            
+            let istNichtAusgezogen = true;
+            if (m.auszug_datum && String(m.auszug_datum).trim() !== "") {
+                const auszug = new Date(m.auszug_datum);
+                if (auszug < heute) istNichtAusgezogen = false;
+            }
+            return isMatch && istAktiv && istNichtAusgezogen;
+        });
+    }
+};/**
+ * DATA-SERVICE: Das Gehirn der App.
  * Stand: 03.03.2026 - Konsolidierte Fassung
  */
 const dataService = {
