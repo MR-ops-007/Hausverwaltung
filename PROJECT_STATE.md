@@ -1,5 +1,53 @@
 # PROJECT_STATE - Hausverwaltung (MR-ops-007)
 
+# Projektstatus: Hausverwaltung App
+
+**Datum:** 03.03.2026
+**Status:** Phase 2 (Datenanbindung & Plausibilität) - In Bearbeitung
+**Entwickler-Level:** Senior Refactoring / Stabilisierung
+
+---
+
+## 1. Aktueller Stand der Komponenten
+
+### Datenmodell (DATA_MODEL.md)
+- **Status:** Finalisiert.
+- **Inhalt:** Alle 7 Tabellen (Objekte, Einheiten, Mieter, Zaehler_Staende, Parameter, Fixkosten, Transaktionen) sind definiert.
+- **Besonderheit:** Tabelle `Zaehler_Staende` wurde um die Spalte `bezeichnung` erweitert.
+
+### Backend (Google Apps Script - Code.gs)
+- **Status:** Bereitgestellt (Version 02.03.2026).
+- **Funktion:** - `doGet`: Liefert alle 7 Tabellen als JSON.
+    - `doPost`: Schreibt in `Transaktionen` UND aktualisiert zeitgleich die Anker-Werte in `Zaehler_Staende`.
+    - Enthält `LockService` gegen Race-Conditions und Datumsformatierung (DD.MM.YYYY).
+
+### Frontend (JavaScript-Services)
+- **data-service.js:** Konsolidiert. Unterstützt nun Kleinschreibung im State (`einheiten`) und bietet die notwendigen API-Methoden `getUniqueObjects` und `getUnitsByObject` (alias `getEinheitenByObjekt`). Mieter-Logik für inaktive Mieter (Auszug in Vergangenheit) ist implementiert.
+- **ui-service.js:** Erweitert um die vollständige Zählermaske (KW, WW, HT, NT, Öl, Zusatz).
+- **cloud-service.js:** Unverändert, übernimmt den Datentransport.
+
+---
+
+## 2. Bekannte Probleme & Blockaden (Blocker)
+
+1. **Datenfluss-Hänger:** Die App meldet beim Öffnen der Zählermaske "Daten werden noch geladen...". Der State im `dataService` scheint trotz erfolgreichem Boot nicht korrekt mit den gelieferten Serverdaten befüllt zu werden (Mapping-Problem zwischen Groß/Kleinschreibung vermutet).
+2. **UI-Logik:** Einheiten vom Typ "Allgemein" werden aktuell noch als "Leerstand" betitelt, wenn kein Mieter zugeordnet ist.
+
+---
+
+## 3. Nächste Schritte (Backlog)
+
+1. **Diagnose & Fix:** Prüfung des Daten-Mappings via Diagnose-Script (Kommen Daten vom Google Sheet an? In welchem Format (Groß/Kleinschreibung) kommen sie an? Wo genau bleibt der Ladevorgang hängen?) in `data-service.js` (Initialisierung des State).
+2. **Plausibilitäts-Check:** Einbau einer Warnung in der UI, wenn der neue Zählerstand niedriger ist als der letzte Wert aus `Zaehler_Staende`.
+3. **UI-Feinschliff:** Differenzierung zwischen "Allgemein" und "Leerstand" basierend auf der Einheit-Bezeichnung oder einem Flag.
+4. **Integrationstest:** Vollständiger Durchlauf: Erfassung -> Google Sheet Check (beide Tabellen).
+
+---
+
+**Anmerkung:** Die Konsistenz zwischen `ui-service.js` (erwartet englische Funktionsnamen & Kleinschreibung) und `data-service.js` wurde wiederhergestellt.
+
+---
+
 ## 📌 Stand: 2026-03-02
 **Status:** Phase 1 (Infrastruktur) nahezu abgeschlossen. Datenmodell finalisiert.
 
