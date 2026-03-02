@@ -74,6 +74,11 @@ const uiService = {
      * Öffnet das Modal zur Erfassung aller Zählerstände gemäß DATA_MODEL.md
      */
     showZaehlerMaske(id) {
+        // Fallback: Falls Daten noch nicht geladen sind
+        if (!dataService.state.Einheiten || dataService.state.Einheiten.length === 0) {
+            alert("Daten werden noch geladen... Bitte einen Moment Geduld.");
+            return;
+        }
         const unit = dataService.state.Einheiten.find(u => String(u.einheit_id) === String(id));
         const mieter = dataService.getActiveMieter(id);
         // Wir holen uns die letzten Stände für die Anzeige (Placeholders)
