@@ -21,15 +21,18 @@ Speichert jeden Schreibvorgang der App.
 
 | Spalte | Feldname | Datentyp | Beschreibung |
 | :--- | :--- | :--- | :--- |
-| **A** | `zeitstempel` | ISO-String | Eindeutiger Zeitstempel der Erfassung |
-| **B** | `einheit_id` | String | Verknüpfung zu 'Einheiten' |
-| **C** | `typ` | String | `ZAEHLERSTAND`, `MIETZAHLUNG`, `AUSGABE`, `SYSTEM` |
-| **D** | `wert_1` | Zahl | Kaltwasser (m³) / Ist-Miete (€) / Betrag (€) |
-| **E** | `wert_2` | Zahl | Warmwasser (m³) / Nebenkostenzahlung (€) |
-| **F** | `wert_3` | Zahl | Strom (kWh) / Heizöl (l) |
-| **G** | `mietername` | String | Name des Mieters zum Zeitpunkt der Erfassung |
-| **H** | `bezeichnung` | String | Freitext oder Sub-Typ (z.B. "Heizöl", "Sonderumlage") |
-| **I** | `rohdaten` | JSON | Das komplette Objekt als Backup (für Debugging) |
+| **A** | `zeitstempel` | Datum/Zeit | Format: `DD.MM.YYYY HH:mm` (vom GAS formatiert) |
+| **B** | `einheit_id` | String | Eindeutige ID der Einheit (z.B. LOK_WE_01) |
+| **C** | `typ` | String | `ZAEHLERSTAND`, `MIETE`, `TANKUNG`, `WARTUNG`, `SYSTEM` |
+| **D** | `kaltwasser_m3` | Zahl | Zählerstand Kaltwasser in m³ |
+| **E** | `warmwasser_m3` | Zahl | Zählerstand Warmwasser in m³ |
+| **F** | `strom_ht_kwh` | Zahl | Zählerstand Strom Hochtarif (HT) in kWh |
+| **G** | `strom_nt_kwh` | Zahl | Zählerstand Strom Niedertarif (NT) in kWh |
+| **H** | `oel_stand_l` | Zahl | Aktueller Heizölstand in Litern |
+| **I** | `zusatz_wert` | Zahl | **Erweiterbarkeit:** (z.B. Maschinenstunden, Solar-Ertrag) | 
+| **J** | `mietername` | String | Name des Mieters zum Zeitpunkt der Erfassung |
+| **K** | `bezeichnung` | String | Freitext / Typ des Zusatzwertes (z.B. "Stundenzähler") |
+| **L** | `rohdaten` | JSON | Backup des vollständigen App-Payloads (für Debugging) |
 
 ---
 
@@ -111,6 +114,19 @@ Wird vom System/Script befüllt (Letzter bekannter Stand).
 | **D** | `kw_stand` | Zahl | Letzter Wert Kaltwasser |
 | **E** | `ww_stand` | Zahl | Letzter Wert Warmwasser |
 | **F** | `strom_stand` | Zahl | Letzter Wert Strom |
+
+| Spalte | Feldname | Datentyp | Beschreibung |
+| :--- | :--- | :--- | :--- |
+| **A** | `objekt_id` | String | Haus-Kürzel (z.B. LOK, Ra-HS-29) |
+| **B** | `einheit_id` | String | Eindeutige ID der Einheit |
+| **C** | `letzte_messung` | Datum/Zeit | Zeitpunkt der letzten Aktualisierung |
+| **D** | `kw_aktuell` | Zahl | Letzter übermittelter Kaltwasserstand |
+| **E** | `ww_aktuell` | Zahl | Letzter übermittelter Warmwasserstand |
+| **F** | `st_ht_aktuell` | Zahl | Letzter übermittelter Stromstand (HT) |
+| **G** | `st_nt_aktuell` | Zahl | Letzter übermittelter Stromstand (NT) |
+| **H** | `oel_aktuell` | Zahl | Letzter übermittelter Ölstand |
+| **I** | `zusatz_aktuell` | Zahl | Letzter übermittelter Wert aus `zusatz_wert` |
+| **J** | `bezeichnung` | String | Freitext / Typ des Zusatzwertes (z.B. "Stundenzähler") |
 
 ### Tabelle: `Fixkosten` 
 Jährliche Kosten des Objekts, die umgelegt werden müssen.
