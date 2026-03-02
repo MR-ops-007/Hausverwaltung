@@ -1,0 +1,12 @@
+{
+  "name": "hausverwaltung",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^1.5.0"
+  }
+}
