@@ -96,19 +96,25 @@ const uiService = {
     },
 
     async saveZaehler(id) {
+        const mieter = dataService.getActiveMieter(id);
+        
         const transaction = {
-            einheit_id: id,
-            typ: 'ZAEHLERSTAND',
-            zeitstempel: new Date().toISOString(),
-            daten: {
-                kw: document.getElementById('val-kw').value,
-                ww: document.getElementById('val-ww').value,
-                strom: document.getElementById('val-strom').value
-            }
+            zeitstempel: new Date().toISOString(),               // A: zeitstempel
+            einheit_id: id,                                      // B: eindeutige Einheiten ID
+            typ: 'ZAEHLERSTAND',                                 // C: zaehlerstand
+            wert_1: document.getElementById('val-kw').value,     // D: Kaltwasser
+            wert_2: document.getElementById('val-ww').value,     // E: Warmwasser
+            wert_3: document.getElementById('val-strom').value,  // F: Strom
+            mietername: mieter ? (mieter.mietername || mieter.Name) : 'Leerstand', // G: mietername
+            bezeichnung: 'Zählererfassung App'                   // H: bezeichnung
         };
         const success = await cloudService.sendTransaction(transaction);
-        if (success) { alert("Erfolgreich gespeichert!"); this.closeModal(); }
-        else { alert("Offline: Wird später gesendet."); this.closeModal(); }
+        if (success) { 
+            alert("Erfolgreich gespeichert!"); 
+            this.closeModal(); }
+        else { 
+            alert("Offline: Wird später gesendet."); 
+            this.closeModal(); }
     },
 
     closeModal() {
