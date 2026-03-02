@@ -87,8 +87,8 @@ Die Stammdaten der Häuser.
 | **D** | `plz` | String | PLZ |
 | **E** | `ort` | String | Ort |
 | **F** | `adresszusatz` | String | Adresszusatz für zusätzliche Informationen |
----
 
+---
 
 ## 5. Konfiguration & Kosten
 Diese Tabellen sind die Grundlage für die Nebenkostenabrechnung.
@@ -105,15 +105,6 @@ Hinterlegt Kostensätze pro Haus (wichtig für die Berechnung).
 
 ### Tabelle: `Zaehler_Staende` (Konsolidierung)
 Wird vom System/Script befüllt (Letzter bekannter Stand).
-
-| Spalte | Feldname | Datentyp | Beschreibung |
-| :--- | :--- | :--- | :--- |
-| **A** | `objekt_id` | String | Zuordnung zum Haus |
-| **B** | `einheit_id` | String | Zuordnung |
-| **C** | `datum_letzte_ablesung`| Datum | Zeitstempel |
-| **D** | `kw_stand` | Zahl | Letzter Wert Kaltwasser |
-| **E** | `ww_stand` | Zahl | Letzter Wert Warmwasser |
-| **F** | `strom_stand` | Zahl | Letzter Wert Strom |
 
 | Spalte | Feldname | Datentyp | Beschreibung |
 | :--- | :--- | :--- | :--- |
