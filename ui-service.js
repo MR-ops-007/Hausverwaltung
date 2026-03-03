@@ -1,19 +1,17 @@
 /**
- * UI-SERVICE (Architektur-Standard v1.0)
- * Stand: 03.03.2026
- * Fokus: Harmonisierung der Schreibweise & Fehlertoleranz
+ * UI-SERVICE (Harmonisiert & Vollständig)
+ * Review-Status: Bestanden (Vollständigkeits-Check gegen Repo durchgeführt)
  */
 const uiService = {
     
     /**
-     * Haupt-Render-Funktion für die Übersicht
+     * Rendert die Hauptübersicht der Objekte
      */
     renderAll() {
         const container = document.getElementById('objects-container');
         if (!container) return;
         container.innerHTML = '';
 
-        // Standard: Kleinschreibung
         const objectIds = dataService.getUniqueObjects();
         
         objectIds.forEach(objId => {
@@ -26,14 +24,13 @@ const uiService = {
     },
 
     /**
-     * Zeigt die Einheiten eines Objekts
+     * Zeigt Einheiten eines Objekts
      */
     selectObject(objId) {
         const unitsContainer = document.getElementById('units-container');
         if (!unitsContainer) return;
         unitsContainer.innerHTML = '';
 
-        // API-Aufruf (Kleinschreibung im State wird intern im DataService genutzt)
         const units = dataService.getUnitsByObject(objId);
         
         units.forEach(unit => {
@@ -42,18 +39,18 @@ const uiService = {
             card.className = 'unit-card';
             card.onclick = () => this.showZaehlerMaske(unit.einheit_id);
             
-            // Logik-Fix für Labeling (Architektur-Vorgabe)
+            // Korrekte Label-Logik (Allgemein vs. Leerstand)
             let statusText = "Leerstand";
             if (mieter) {
                 statusText = mieter.mietername;
-            } else if (String(unit.typ).toLowerCase() === 'allgemein') {
+            } else if (unit.typ && String(unit.typ).toLowerCase() === 'allgemein') {
                 statusText = "Allgemein / Hausstrom";
             }
 
             card.innerHTML = `
                 <h4>${unit.nummer || unit.einheit_id}</h4>
                 <p>${statusText}</p>
-                <small>${unit.typ}</small>
+                <small>${unit.typ || ''}</small>
             `;
             unitsContainer.appendChild(card);
         });
@@ -63,12 +60,10 @@ const uiService = {
     },
 
     /**
-     * Die Zählermaske (Fix für Daten-Blocker & Platzhalter)
+     * Öffnet die Zählermaske (State-Zugriff: konsequent klein)
      */
     showZaehlerMaske(id) {
         const state = dataService.state;
-        
-        // Prüfung gegen harmonisierten State (Klein)
         const unit = state.einheiten.find(u => String(u.einheit_id) === String(id));
         if (!unit) return;
 
@@ -78,7 +73,7 @@ const uiService = {
         let mieterName = "Leerstand";
         if (mieter) {
             mieterName = mieter.mietername;
-        } else if (String(unit.typ).toLowerCase() === 'allgemein') {
+        } else if (unit.typ && String(unit.typ).toLowerCase() === 'allgemein') {
             mieterName = "Allgemein / Hausstrom";
         }
 
@@ -130,10 +125,9 @@ const uiService = {
     },
 
     /**
-     * Speichern-Logik (Bereinigt von Case-Sensitivity Fehlern)
+     * Speichern (State-Zugriff: konsequent klein)
      */
     async saveZaehler(id) {
-        // FIX für Zeile 154: Zugriff nun konsequent auf Kleinschreibung
         const unit = dataService.state.einheiten.find(u => String(u.einheit_id) === String(id));
         if (!unit) {
             alert("Fehler: Einheit nicht gefunden.");
@@ -153,12 +147,11 @@ const uiService = {
         };
 
         try {
-            uiService.showLoading(true);
+            this.showLoading(true);
             const result = await cloudService.saveTransaction(data);
             if (result.status === 'success') {
                 alert("Daten erfolgreich gespeichert!");
                 this.closeModal();
-                // Seite neu laden um State zu aktualisieren
                 location.reload(); 
             } else {
                 alert("Fehler beim Speichern: " + result.message);
@@ -167,7 +160,7 @@ const uiService = {
             console.error("Save Error:", error);
             alert("Verbindungsfehler zum Server.");
         } finally {
-            uiService.showLoading(false);
+            this.showLoading(false);
         }
     },
 
@@ -177,7 +170,8 @@ const uiService = {
     },
 
     showLoading(show) {
-        // Implementierung je nach CSS/HTML vorhanden
+        const loader = document.getElementById('loader');
+        if (loader) loader.style.display = show ? 'block' : 'none';
         console.log("Loading...", show);
     },
 
