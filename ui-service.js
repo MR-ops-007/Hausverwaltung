@@ -6,40 +6,38 @@ const uiService = {
     
     renderAll() {
         console.log("UI: renderAll gestartet");
-        const container = document.getElementById('objects-container');
+        
+        // Wir suchen sicherheitshalber BEIDE Varianten (Bindestrich und Unterstrich)
+        let container = document.getElementById('objects-container') || 
+                        document.getElementById('objects_container');
+        
         if (!container) {
-            console.error("UI: Container 'objects-container' nicht gefunden!");
-            return;
+            console.error("UI: WEDER 'objects-container' NOCH 'objects_container' im HTML gefunden!");
+            // Notfall-Fallback: Wir nehmen das erste Element mit der Klasse 'grid'
+            container = document.querySelector('.grid');
         }
 
-        // Zuerst den Ladetext entfernen
-        container.innerHTML = ''; 
+        if (container) {
+            container.innerHTML = ''; // "Lade Objekte..." wird gelöscht
+            console.log("UI: Container gefunden und geleert.");
+        } else {
+            return;
+        }
 
         const objectIds = dataService.getUniqueObjects();
-        console.log("UI: Verarbeite Objekt-IDs:", objectIds);
-
-        if (objectIds.length === 0) {
-            container.innerHTML = '<p style="padding:20px;">Keine Objekte geladen. Bitte Seite aktualisieren.</p>';
-            return;
-        }
+        console.log("UI: Objekt-IDs für Karten:", objectIds);
 
         objectIds.forEach(objId => {
-            // Wir suchen den Namen des Objekts für die Karte
             const objData = dataService.state.objekte.find(o => o.objekt_id === objId);
-            const anzeigename = objData ? (objData.bezeichnung || objData.objekt_id) : objId;
+            const name = objData ? (objData.bezeichnung || objData.objekt_id) : objId;
 
             const card = document.createElement('div');
             card.className = 'object-card';
             card.onclick = () => this.selectObject(objId);
-            card.innerHTML = `
-                <div class="card-content">
-                    <h3>${anzeigename}</h3>
-                    <small>ID: ${objId}</small>
-                </div>
-            `;
+            card.innerHTML = `<h3>${name}</h3><small>${objId}</small>`;
             container.appendChild(card);
         });
-        console.log("UI: Rendering der Karten abgeschlossen.");
+        console.log("UI: Rendering abgeschlossen.");
     },
 
     selectObject(objId) {
