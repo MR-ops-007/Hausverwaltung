@@ -45,24 +45,20 @@
      * BOOT-SEQUENZ v1.3 (Verified by Architecture Review)
      */
     window.onload = async () => {
-        console.log("System: Boot-Vorgang gestartet...");
+        console.log("Start: Lade Daten...");
         try {
-            // 1. Daten über CloudService holen
             const data = await cloudService.loadAllData();
+            console.log("Daten empfangen:", data ? "Ja" : "Nein");
             
-            if (!data) throw new Error("Keine Daten vom Server erhalten.");
-
-            // 2. State im DataService initialisieren (Normalisierung)
-            dataService.setInitialData(data);
-            
-            // 3. UI rendern
-            uiService.renderAll();
-            
-            console.log("System: App erfolgreich initialisiert.");
+            if (data) {
+                dataService.setInitialData(data);
+                console.log("State gesetzt. Starte Rendering...");
+                uiService.renderAll();
+                console.log("Rendering abgeschlossen.");
+            }
         } catch (error) {
-            console.error("System-Fehler beim Start:", error);
-            document.getElementById('objects-container').innerHTML = 
-                `<p style="color:red">Fehler beim Start: ${error.message}</p>`;
+            console.error("KRITISCHER FEHLER BEIM START:", error);
+            alert("Fehler beim Start: " + error.message);
         }
     };
     </script>
