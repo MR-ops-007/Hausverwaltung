@@ -118,12 +118,15 @@ const uiService = {
     async saveZaehler() {
         // Wir holen die Daten aus dem Formular UND aus der vorher gespeicherten Selektion
         const data = {
-            ...this.currentSelection, // Enthält einheit_id, objekt_id, mietername
+            einheit_id: this.currentSelection.einheit_id,
+            objekt_id: this.currentSelection.objekt_id, // Separat gesendet
+            mietername: this.currentSelection.mietername, // Separat gesendet
             kaltwasser_m3: document.getElementById('val-kw').value,
             warmwasser_m3: document.getElementById('val-ww').value,
             strom_ht_kwh: document.getElementById('val-ht').value,
             strom_nt_kwh: document.getElementById('val-nt').value,
-            typ: "ZAEHLERSTAND"
+            typ: "ZAEHLERSTAND",
+            bezeichnung: "" // Bleibt leer oder für Notizen frei
         };
 
         console.log("Sende an GAS gemäß DATA_MODEL:", data);
