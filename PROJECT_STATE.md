@@ -2,6 +2,27 @@
 
 # Projektstatus: Hausverwaltung App
 
+
+**Datum:** 03.03.2026
+
+## Aktueller Stand
+- **Daten-Infrastruktur:** Google Sheets Anbindung steht (doGet/doPost).
+- **Synchronisation:** Transaktionen (Historie) und Zaehler_Staende (Stammdaten-Update) funktionieren konsistent gemäß DATA_MODEL.md.
+- **UI:** Dynamische Generierung von Objekt-Karten und Einheiten-Listen implementiert.
+- **Fixes:** Context-Fehler in ui-service behoben, ID-Mapping zwischen Frontend und GAS stabilisiert.
+
+## Offene To-Dos
+1. **Dynamische Zählermasken:** Anpassung der Inputs basierend auf Einheitstyp (z.B. Heizöl für Zentralheizung, Maschinenstunden für Gewerbe).
+2. **Begrifflichkeiten:** "Einheit" bei Gewerbe-Objekten (GE) durch passendere Begriffe ersetzen.
+3. **Sync-Status UI:** Der "Prüfe Verbindung..." Text wird nach erfolgreichem Laden nicht aktualisiert.
+4. **Refactoring:** GAS-URL zentral in `config.js` konsolidieren.
+
+## Nächste Schritte
+- Implementierung der Logik in `ui-service.js`, die prüft, welche Zähler für eine Einheit relevant sind.
+- Update der `index.html` Initialisierung für den Status-Text.
+  
+---
+
 **Datum:** 03.03.2026
 **Status:** Phase 2 (Datenanbindung & Plausibilität) - In Bearbeitung
 **Entwickler-Level:** Senior Refactoring / Stabilisierung
