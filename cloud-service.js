@@ -4,7 +4,7 @@
  */
 const cloudService = {
     // Die URL muss von dir hier eingesetzt werden
-    scriptUrl: 'DEINE_GOOGLE_APPS_SCRIPT_URL', 
+    scriptUrl: '"https://script.google.com/macros/s/AKfycbxQ-MpWoJPSh7UHR2WNKhJNqNMKYmxpA1arhQmZc9ulnS4waZYQMG8goEa-JDqHHh_Cqw/', 
 
     /**
      * Lädt alle Daten initial (doGet im Backend)
