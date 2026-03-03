@@ -5,24 +5,18 @@
 const uiService = {
     
     renderAll() {
-        console.log("UI: renderAll gestartet");
+        console.log("UI: renderAll startet mit ID 'object-selector'");
         
-        // Wir suchen sicherheitshalber BEIDE Varianten (Bindestrich und Unterstrich)
-        let container = document.getElementById('objects-container') || 
-                        document.getElementById('objects_container');
+        // Wir nutzen die ID, die dein Browser-Test gerade bestätigt hat!
+        const container = document.getElementById('object-selector');
         
         if (!container) {
-            console.error("UI: WEDER 'objects-container' NOCH 'objects_container' im HTML gefunden!");
-            // Notfall-Fallback: Wir nehmen das erste Element mit der Klasse 'grid'
-            container = document.querySelector('.grid');
-        }
-
-        if (container) {
-            container.innerHTML = ''; // "Lade Objekte..." wird gelöscht
-            console.log("UI: Container gefunden und geleert.");
-        } else {
+            console.error("UI: Auch 'object-selector' nicht gefunden. Vorhanden sind:", 
+                Array.from(document.querySelectorAll('[id]')).map(el => el.id));
             return;
         }
+
+        container.innerHTML = ''; 
 
         const objectIds = dataService.getUniqueObjects();
         console.log("UI: Objekt-IDs für Karten:", objectIds);
@@ -31,13 +25,23 @@ const uiService = {
             const objData = dataService.state.objekte.find(o => o.objekt_id === objId);
             const name = objData ? (objData.bezeichnung || objData.objekt_id) : objId;
 
-            const card = document.createElement('div');
-            card.className = 'object-card';
-            card.onclick = () => this.selectObject(objId);
-            card.innerHTML = `<h3>${name}</h3><small>${objId}</small>`;
-            container.appendChild(card);
+            // Wir erstellen ein <option> Element, falls 'object-selector' ein <select> ist
+            // oder ein <div>, falls es ein Container ist.
+            const item = document.createElement(container.tagName === 'SELECT' ? 'option' : 'div');
+            
+            if (container.tagName === 'SELECT') {
+                item.value = objId;
+                item.textContent = name;
+            } else {
+                item.className = 'object-card';
+                item.onclick = () => this.selectObject(objId);
+                item.innerHTML = `<h3>${name}</h3><small>${objId}</small>`;
+            }
+            
+            container.appendChild(item);
         });
-        console.log("UI: Rendering abgeschlossen.");
+        
+        console.log("UI: Rendering auf 'object-selector' abgeschlossen.");
     },
 
     selectObject(objId) {
