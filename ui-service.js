@@ -6,9 +6,9 @@ const uiService = {
     
     renderAll() {
         console.log("UI: renderAll gestartet");
-        const container = document.getElementById('objects-container');
+        const container = document.getElementById('objects_container');
         if (!container) {
-            console.error("UI: Container 'objects-container' nicht gefunden!");
+            console.error("UI: Container 'objects_container' nicht gefunden!");
             return;
         }
 
