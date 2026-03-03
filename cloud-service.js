@@ -4,7 +4,7 @@
  */
 const cloudService = {
     // HIER MUSS DEINE URL REIN - OHNE DIESE FUNKTIONIERT NICHTS
-    scriptUrl: 'https://script.google.com/macros/s/AKfycbxquYhb2nt1Y7XY_DhwUChG-grCtCRP5lzLhVBat5cW_qgrOzDe8NJQcixSyi2IhosUSw/exec', 
+    scriptUrl: 'https://script.google.com/macros/s/AKfycbycnzcU2aos17TRzxaeBEekqlcRtiH2WK9CV6nK0678AxcW526xG02bC2AB4Eydlnpl/exec', 
 
     async loadAllData() {
         if (this.scriptUrl.includes('HIER_DEINE_SCRIPT_URL')) {
