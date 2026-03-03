@@ -86,9 +86,21 @@ const uiService = {
         const modalBody = document.getElementById('modal-body');
         if (!modal || !modalBody) return;
 
+        // Wir brauchen das Einheiten-Objekt für den Mieternamen und die Objekt-ID
+        const unit = dataService.state.einheiten.find(u => String(u.einheit_id) === String(id));
+        const mieter = dataService.getActiveMieter(id);
+        
+        // Wir speichern die objekt_id und den mieternamen in versteckten Variablen für den Save-Vorgang
+        this.currentSelection = {
+            einheit_id: id,
+            objekt_id: unit ? unit.objekt_id : '',
+            mietername: mieter ? mieter.mietername : 'Leerstand'
+        };
+
         modalBody.innerHTML = `
             <h3 style="margin-top:0;">Zählerstand erfassen</h3>
-            <p style="color:#666;">Einheit: ${id}</p>
+            <p style="color:#666; font-size:0.9em;">Haus: ${this.currentSelection.objekt_id} | Einheit: ${id}</p>
+            <p style="font-weight:bold;">Mieter: ${this.currentSelection.mietername}</p>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:15px;">
                 <div><label style="font-size:0.8em;">Kaltwasser</label><input type="number" id="val-kw" style="width:100%; padding:8px;"></div>
                 <div><label style="font-size:0.8em;">Warmwasser</label><input type="number" id="val-ww" style="width:100%; padding:8px;"></div>
@@ -96,25 +108,28 @@ const uiService = {
                 <div><label style="font-size:0.8em;">Strom NT</label><input type="number" id="val-nt" style="width:100%; padding:8px;"></div>
             </div>
             <div style="margin-top:25px; display:flex; gap:10px;">
-                <button onclick="uiService.saveZaehler('${id}')" style="flex:1; background:#28a745; color:white; border:none; padding:12px; border-radius:5px; cursor:pointer; font-weight:bold;">Speichern</button>
+                <button onclick="uiService.saveZaehler()" style="flex:1; background:#28a745; color:white; border:none; padding:12px; border-radius:5px; cursor:pointer; font-weight:bold;">Speichern</button>
                 <button onclick="uiService.closeModal()" style="flex:1; background:#eee; border:none; padding:12px; border-radius:5px; cursor:pointer;">Abbrechen</button>
             </div>
         `;
         modal.style.display = 'flex';
     },
 
-    async saveZaehler(id) {
+    async saveZaehler() {
+        // Wir holen die Daten aus dem Formular UND aus der vorher gespeicherten Selektion
         const data = {
-            einheit_id: id,
-            kw_aktuell: document.getElementById('val-kw').value,
-            ww_aktuell: document.getElementById('val-ww').value,
-            st_ht_aktuell: document.getElementById('val-ht').value,
-            st_nt_aktuell: document.getElementById('val-nt').value
+            ...this.currentSelection, // Enthält einheit_id, objekt_id, mietername
+            kaltwasser_m3: document.getElementById('val-kw').value,
+            warmwasser_m3: document.getElementById('val-ww').value,
+            strom_ht_kwh: document.getElementById('val-ht').value,
+            strom_nt_kwh: document.getElementById('val-nt').value,
+            typ: "ZAEHLERSTAND"
         };
 
+        console.log("Sende an GAS gemäß DATA_MODEL:", data);
         const res = await cloudService.saveTransaction(data);
         if(res && res.status === 'success') {
-            alert("Erfolgreich im Sheet gespeichert!");
+            alert("Erfolgreich gespeichert!");
             this.closeModal();
         }
     },
