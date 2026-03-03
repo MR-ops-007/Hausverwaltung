@@ -3,7 +3,7 @@
 # Projektstatus: Hausverwaltung App
 
 
-**Datum:** 03.03.2026
+**Datum:** 04.03.2026
 
 ## Aktueller Stand
 - **Daten-Infrastruktur:** Google Sheets Anbindung steht (doGet/doPost).
