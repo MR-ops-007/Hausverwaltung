@@ -27,9 +27,14 @@ const dataService = {
     },
 
     getUniqueObjects() {
-        if (!this.state.einheiten) return [];
-        const ids = this.state.einheiten.map(e => e.objekt_id);
-        return [...new Set(ids)].filter(id => id);
+        // Wir nehmen direkt die IDs aus dem Objekte-Array (laut Log vorhanden!)
+        if (!this.state.objekte || this.state.objekte.length === 0) {
+            console.warn("DataService: Keine Objekte im State gefunden.");
+            return [];
+        }
+        const ids = this.state.objekte.map(o => o.objekt_id);
+        console.log("DataService: IDs aus 'objekte' extrahiert:", ids);
+        return ids;
     },
 
     getUnitsByObject(objektId) {
