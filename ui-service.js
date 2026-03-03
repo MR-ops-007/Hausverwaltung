@@ -5,20 +5,41 @@
 const uiService = {
     
     renderAll() {
+        console.log("UI: renderAll gestartet");
         const container = document.getElementById('objects-container');
-        if (!container) return;
-        container.innerHTML = '';
+        if (!container) {
+            console.error("UI: Container 'objects-container' nicht gefunden!");
+            return;
+        }
+
+        // Zuerst den Ladetext entfernen
+        container.innerHTML = ''; 
 
         const objectIds = dataService.getUniqueObjects();
-        console.log("UI: Rendere Objekte:", objectIds);
-        
+        console.log("UI: Verarbeite Objekt-IDs:", objectIds);
+
+        if (objectIds.length === 0) {
+            container.innerHTML = '<p style="padding:20px;">Keine Objekte geladen. Bitte Seite aktualisieren.</p>';
+            return;
+        }
+
         objectIds.forEach(objId => {
+            // Wir suchen den Namen des Objekts für die Karte
+            const objData = dataService.state.objekte.find(o => o.objekt_id === objId);
+            const anzeigename = objData ? (objData.bezeichnung || objData.objekt_id) : objId;
+
             const card = document.createElement('div');
             card.className = 'object-card';
             card.onclick = () => this.selectObject(objId);
-            card.innerHTML = `<h3>Objekt: ${objId}</h3>`;
+            card.innerHTML = `
+                <div class="card-content">
+                    <h3>${anzeigename}</h3>
+                    <small>ID: ${objId}</small>
+                </div>
+            `;
             container.appendChild(card);
         });
+        console.log("UI: Rendering der Karten abgeschlossen.");
     },
 
     selectObject(objId) {
