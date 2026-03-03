@@ -74,6 +74,9 @@ const uiService = {
      * Öffnet das Modal zur Erfassung aller Zählerstände gemäß DATA_MODEL.md
      */
     showZaehlerMaske(id) {
+        // DIAGNOSE-LOG
+        console.log("State beim Öffnen der Maske:", dataService.state);
+        
         // Fallback: Falls Daten noch nicht geladen sind
         if (!dataService.state.Einheiten || dataService.state.Einheiten.length === 0) {
             alert("Daten werden noch geladen... Bitte einen Moment Geduld.");
