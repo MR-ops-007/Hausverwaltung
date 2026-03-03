@@ -1,10 +1,8 @@
 /**
- * DATA-SERVICE: Zentraler Datenspeicher
- * RESTAURIERTE FASSUNG (Stand 03.03.2026)
- * Fixes: getUnitsByObject wiederhergestellt, Mieter-Logik korrigiert.
+ * REF-20260303-01: Fix für Daten-Mapping & Lade-Blocker
+ * Ziel: Sicherstellen, dass der State unabhängig von der Schreibweise des Backends befüllt wird.
  */
 const dataService = {
-    // Wir behalten die Kleinschreibung bei, da ui-service.js darauf basiert
     state: {
         objekte: [],
         einheiten: [],
@@ -15,40 +13,33 @@ const dataService = {
         transaktionen: []
     },
 
-    /**
-     * Befüllt den State. Mappt Groß- auf Kleinschreibung für Kompatibilität.
-     */
     setInitialData(data) {
-        this.state.objekte = data.Objekte || [];
-        this.state.einheiten = data.Einheiten || [];
-        this.state.mieter = data.Mieter || [];
-        this.state.zaehler_staende = data.Zaehler_Staende || [];
-        this.state.parameter = data.Parameter || [];
-        this.state.fixkosten = data.Fixkosten || [];
-        this.state.transaktionen = data.Transaktionen || [];
-        console.log("State erfolgreich initialisiert.");
+        if (!data) return;
+
+        // Robustes Mapping: Akzeptiert 'Einheiten' (Backend) oder 'einheiten' (State)
+        this.state.objekte = data.Objekte || data.objekte || [];
+        this.state.einheiten = data.Einheiten || data.einheiten || [];
+        this.state.mieter = data.Mieter || data.mieter || [];
+        this.state.zaehler_staende = data.Zaehler_Staende || data.zaehler_staende || [];
+        this.state.parameter = data.Parameter || data.parameter || [];
+        this.state.fixkosten = data.Fixkosten || data.fixkosten || [];
+        this.state.transaktionen = data.Transaktionen || data.transaktionen || [];
+        
+        console.log("State erfolgreich initialisiert. Einheiten geladen:", this.state.einheiten.length);
     },
 
-    /**
-     * KRITISCH: Wird von ui-service.js benötigt.
-     */
+    // ... (getUniqueObjects und getUnitsByObject bleiben UNVERÄNDERT, um API-Bruch zu vermeiden)
     getUniqueObjects() {
         if (!this.state.einheiten) return [];
         const ids = this.state.einheiten.map(e => e.objekt_id);
         return [...new Set(ids)].filter(id => id);
     },
 
-    /**
-     * KRITISCH: Wird von ui-service.js benötigt.
-     */
     getUnitsByObject(objektId) {
         if (!this.state.einheiten) return [];
         return this.state.einheiten.filter(e => String(e.objekt_id) === String(objektId));
     },
 
-    /**
-     * NEU: Findet nur den AKTUELLEN Mieter (Fix für Inaktive).
-     */
     getActiveMieter(einheitId) {
         if (!this.state.mieter) return null;
         const heute = new Date();
