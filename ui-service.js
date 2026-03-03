@@ -5,63 +5,77 @@
 const uiService = {
     
     renderAll() {
-        console.log("UI: Initialisiere Dropdown...");
-        const select = document.getElementById('object-selector');
-        if (!select) {
-            console.error("Fehler: 'object-selector' nicht gefunden!");
-            return;
-        }
+        console.log("UI: renderAll startet");
+        const container = document.getElementById('object-selector');
+        if (!container) return;
 
-        // Dropdown leeren und Standard-Option setzen
-        select.innerHTML = '<option value="">-- Haus auswählen --</option>';
-
+        container.innerHTML = ''; 
         const objectIds = dataService.getUniqueObjects();
-        
+
         objectIds.forEach(objId => {
             const objData = dataService.state.objekte.find(o => o.objekt_id === objId);
             const name = objData ? (objData.bezeichnung || objData.objekt_id) : objId;
 
-            const option = document.createElement('option');
-            option.value = objId;
-            option.textContent = name;
-            select.appendChild(option);
-        });
+            const btn = document.createElement('button');
+            // Wir nutzen die Klasse für das Styling (deine blauen Buttons kommen zurück)
+            btn.className = 'object-card'; 
+            btn.style.width = "100%";
+            btn.style.margin = "10px 0";
+            btn.style.padding = "15px";
+            btn.style.textAlign = "left";
+            
+            // WICHTIG: Hier wird die Funktion beim Klick aufgerufen
+            btn.onclick = () => {
+                console.log("Klick auf Haus:", objId);
+                this.selectObject(objId);
+            };
 
-        // Event-Listener für Auswahl hinzufügen
-        select.onchange = (e) => {
-            if (e.target.value) this.selectObject(e.target.value);
-        };
+            btn.innerHTML = `<strong>${name}</strong><br><small>ID: ${objId}</small>`;
+            container.appendChild(btn);
+        });
     },
 
     selectObject(objId) {
-        console.log("UI: Objekt ausgewählt:", objId);
+        console.log("UI: selectObject ausgeführt für", objId);
+        
+        // Die ID aus deinem Test: Hier kommen die Einheiten rein
         const tenantList = document.getElementById('tenant-list');
-        if (!tenantList) return;
+        // Die Sektionen zum Umschalten (aus deinem Test)
+        const selectorSection = document.getElementById('object-selector-section');
+        const unitSection = document.getElementById('unit-list-section');
+
+        if (!tenantList || !unitSection) {
+            console.error("UI: Einheiten-Container oder Sektion nicht gefunden!");
+            return;
+        }
 
         tenantList.innerHTML = '';
         const units = dataService.getUnitsByObject(objId);
-        
+        console.log(`UI: ${units.length} Einheiten gefunden.`);
+
         units.forEach(unit => {
-            const mieter = dataService.getActiveMieter(unit.einheit_id);
             const card = document.createElement('div');
-            card.className = 'unit-card'; // Nutzt dein CSS für die Anzeige
-            card.style.border = "1px solid #ccc";
-            card.style.padding = "10px";
-            card.style.margin = "5px 0";
+            card.className = 'unit-card';
+            card.style.border = "1px solid #007bff";
+            card.style.padding = "15px";
+            card.style.margin = "10px 0";
+            card.style.borderRadius = "8px";
             card.style.cursor = "pointer";
 
             card.onclick = () => this.showZaehlerMaske(unit.einheit_id);
             
             card.innerHTML = `
-                <strong>Einheit: ${unit.nummer || unit.einheit_id}</strong><br>
-                <span>${mieter ? mieter.mietername : 'Leerstand'}</span>
+                <div style="font-weight: bold; color: #007bff;">Einheit: ${unit.nummer || unit.einheit_id}</div>
+                <div style="font-size: 0.9em;">Mieter: ${dataService.getActiveMieter(unit.einheit_id)?.mietername || 'Leerstand'}</div>
             `;
             tenantList.appendChild(card);
         });
 
-        // Sektionen umschalten
-        document.getElementById('object-selector-section').style.display = 'none';
-        document.getElementById('unit-list-section').style.display = 'block';
+        // UMSCHALTEN DER ANSICHT
+        if (selectorSection) selectorSection.style.display = 'none';
+        unitSection.style.display = 'block';
+        
+        console.log("UI: Ansicht auf Einheiten gewechselt.");
     },
 
     showZaehlerMaske(id) {
