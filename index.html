@@ -41,33 +41,28 @@
     <script src="ui-service.js"></script>
 
     <script>
+    /**
+     * BOOT-SEQUENZ v1.3 (Verified by Architecture Review)
+     */
     window.onload = async () => {
-        const statusEl = document.getElementById('sync-status');
-        
+        console.log("System: Boot-Vorgang gestartet...");
         try {
-            statusEl.innerText = "Lade Daten aus Cloud...";
+            // 1. Daten über CloudService holen
+            const data = await cloudService.loadAllData();
             
-            // 1. Daten laden
-            const data = await cloudService.loadAllDataFromCloud();
+            if (!data) throw new Error("Keine Daten vom Server erhalten.");
+
+            // 2. State im DataService initialisieren (Normalisierung)
+            dataService.setInitialData(data);
             
-            if (data) {
-                // 2. Daten im Speicher ablegen
-                dataService.setInitialData(data);
-                
-                // 3. Status anzeigen
-                statusEl.innerText = "Online - Daten aktuell";
-                statusEl.style.color = "green";
-                
-                // 4. UI zeichnen
-                uiService.renderAll();
-            } else {
-                statusEl.innerText = "Fehler: Keine Daten empfangen";
-                statusEl.style.color = "red";
-            }
+            // 3. UI rendern
+            uiService.renderAll();
+            
+            console.log("System: App erfolgreich initialisiert.");
         } catch (error) {
-            console.error("Boot-Fehler:", error);
-            statusEl.innerText = "Offline oder Verbindungsfehler";
-            statusEl.style.color = "orange";
+            console.error("System-Fehler beim Start:", error);
+            document.getElementById('objects-container').innerHTML = 
+                `<p style="color:red">Fehler beim Start: ${error.message}</p>`;
         }
     };
     </script>
