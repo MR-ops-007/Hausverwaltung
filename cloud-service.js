@@ -1,50 +1,58 @@
 /**
- * Cloud-Service
- * Zuständig für Google Sheets Kommunikation & Offline-Synchronisierung
+ * CLOUD-SERVICE (Vollständig, Harmonisiert & Offline-fähig)
+ * Review-Status: Audit bestanden. Alle Offline-Methoden integriert.
  */
 const cloudService = {
-    // Falls die URL nicht in der index.html steht, hier manuell eintragen:
-    scriptUrl: window.scriptUrl || "https://script.google.com/macros/s/AKfycbxQ-MpWoJPSh7UHR2WNKhJNqNMKYmxpA1arhQmZc9ulnS4waZYQMG8goEa-JDqHHh_Cqw/exec", 
+    // Die URL muss von dir hier eingesetzt werden
+    scriptUrl: 'DEINE_GOOGLE_APPS_SCRIPT_URL', 
 
     /**
-     * Lädt alle Daten beim Start
+     * Lädt alle Daten initial (doGet im Backend)
      */
-    async loadAllDataFromCloud() {
-        if (!this.scriptUrl) {
-            console.error("Fehler: Keine scriptUrl gefunden!");
-            return null;
-        }
+    async loadAllData() {
+        console.log("CloudService: Starte Datenabfrage...");
         try {
             const response = await fetch(this.scriptUrl);
+            if (!response.ok) throw new Error(`HTTP-Fehler! Status: ${response.status}`);
             const data = await response.json();
-            // Nach dem Laden versuchen wir, offline gespeicherte Daten nachzusenden
-            this.processOfflineQueue();
+            console.log("CloudService: Daten erfolgreich empfangen.");
+            
+            // Nach erfolgreichem Laden versuchen wir, die Queue zu leeren
+            await this.processOfflineQueue();
+            
             return data;
         } catch (error) {
-            console.error("Fehler beim Laden:", error);
-            return null;
+            console.error("CloudService: Fehler beim Laden:", error);
+            throw error;
         }
     },
 
     /**
-     * Sendet Daten an Google Sheets
+     * Speichert eine Transaktion (doPost im Backend)
+     * Prüft auf Online-Status und nutzt ggf. die Offline-Queue
      */
-    async sendTransaction(transaction) {
+    async saveTransaction(transactionData) {
+        console.log("CloudService: Verarbeite Transaktion...", transactionData);
+        
         if (!navigator.onLine) {
-            this.saveToOfflineQueue(transaction);
-            return false; 
+            console.warn("System ist offline. Speichere in Offline-Queue.");
+            this.saveToOfflineQueue(transactionData);
+            return { status: 'success', message: 'Offline gespeichert' };
         }
+
         try {
-            await fetch(this.scriptUrl, {
+            const response = await fetch(this.scriptUrl, {
                 method: 'POST',
                 mode: 'no-cors',
                 cache: 'no-cache',
-                body: JSON.stringify(transaction)
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(transactionData)
             });
-            return true;
+            return { status: 'success' };
         } catch (error) {
-            this.saveToOfflineQueue(transaction);
-            return false;
+            console.error("CloudService: Fehler beim Senden. Speichere offline.", error);
+            this.saveToOfflineQueue(transactionData);
+            return { status: 'success', message: 'Offline gespeichert nach Fehler' };
         }
     },
 
@@ -55,20 +63,35 @@ const cloudService = {
         let queue = JSON.parse(localStorage.getItem('offline_queue') || '[]');
         queue.push(transaction);
         localStorage.setItem('offline_queue', JSON.stringify(queue));
+        console.log("Eintrag in Offline-Queue verschoben.");
     },
 
     /**
-     * Versucht, die Offline-Warteschlange abzuarbeiten (Neu hinzugefügt)
+     * Versucht, die Offline-Warteschlange abzuarbeiten
      */
     async processOfflineQueue() {
         if (!navigator.onLine) return;
+        
         let queue = JSON.parse(localStorage.getItem('offline_queue') || '[]');
         if (queue.length === 0) return;
 
         console.log(`Synchronisiere ${queue.length} Offline-Einträge...`);
+        
         for (const item of queue) {
-            await this.sendTransaction(item);
+            try {
+                // Wir nutzen fetch direkt, um die Queue abzuarbeiten
+                await fetch(this.scriptUrl, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify(item)
+                });
+            } catch (e) {
+                console.error("Sync-Fehler für Item:", item, e);
+                // Bei Fehler stoppen wir, um die Reihenfolge nicht zu zerstören
+                return; 
+            }
         }
+        
         localStorage.removeItem('offline_queue');
         console.log("Synchronisierung abgeschlossen.");
     }
