@@ -74,25 +74,36 @@ const uiService = {
      * Öffnet das Modal zur Erfassung aller Zählerstände gemäß DATA_MODEL.md
      */
     showZaehlerMaske(id) {
-        // DIAGNOSE-LOG
-        console.log("State beim Öffnen der Maske:", dataService.state);
+        console.log("Öffne Maske für ID:", id);
         
-        // Fallback: Falls Daten noch nicht geladen sind
-        if (!dataService.state.Einheiten || dataService.state.Einheiten.length === 0) {
+        // 1. Zugriff auf State sicherstellen
+        const state = dataService.state;
+        if (!state.einheiten || state.einheiten.length === 0) {
+            console.error("Daten im State fehlen noch!");
             alert("Daten werden noch geladen... Bitte einen Moment Geduld.");
             return;
         }
-        const unit = dataService.state.Einheiten.find(u => String(u.einheit_id) === String(id));
+
+        // 2. Einheit suchen
+        const unit = state.einheiten.find(u => String(u.einheit_id) === String(id));
+        if (!unit) {
+            console.error("Einheit mit ID " + id + " nicht gefunden.");
+            return;
+        }
+
+        // 3. Mieter und letzte Stände holen
         const mieter = dataService.getActiveMieter(id);
-        // Wir holen uns die letzten Stände für die Anzeige (Placeholders)
-        const lastStands = dataService.state.Zaehler_Staende.find(z => String(z.einheit_id) === String(id)) || {};
+        const lastStands = (state.zaehler_staende || []).find(z => String(z.einheit_id) === String(id)) || {};
+
+        // 4. UI Rendering (Fix: 'Allgemein' Logik integriert)
+        const displayName = unit.nummer ? `Einheit ${unit.nummer}` : unit.einheit_id;
+        const mieterName = mieter ? mieter.mietername : (unit.typ === 'Allgemein' ? 'Allgemein / Hausstrom' : 'Leerstand');
 
         const modalHtml = `
             <div class="modal-content">
-                <h3>Zähler erfassen: ${unit ? unit.nummer : id}</h3>
-                <p><small>Aktueller Mieter: <b>${mieter ? mieter.mietername : 'Leerstand/Allgemein'}</b></small></p>
+                <h3>Zähler erfassen: ${displayName}</h3>
+                <p><small>Status: <b>${mieterName}</b></small></p>
                 <hr>
-                
                 <div class="form-group">
                     <label>Kaltwasser (m³):</label>
                     <input type="number" id="val-kw" step="0.001" placeholder="Letzter: ${lastStands.kw_aktuell || '0'}">
@@ -114,24 +125,25 @@ const uiService = {
                     <input type="number" id="val-oel" step="1" placeholder="Letzter: ${lastStands.oel_aktuell || '0'}">
                 </div>
                 <div class="form-group">
-                    <label>Zusatzwert (z.B. Std):</label>
+                    <label>Zusatzwert:</label>
                     <input type="number" id="val-zusatz" step="0.1" placeholder="Letzter: ${lastStands.zusatz_aktuell || '0'}">
                 </div>
                 <div class="form-group">
-                    <label>Bezeichnung Zusatz / Bemerkung:</label>
-                    <input type="text" id="val-bezeichnung" value="${lastStands.bezeichnung || ''}" placeholder="z.B. Maschinenstunden">
+                    <label>Bemerkung:</label>
+                    <input type="text" id="val-bezeichnung" value="${lastStands.bezeichnung || ''}">
                 </div>
-
                 <div class="modal-actions">
                     <button onclick="uiService.saveZaehler('${id}')" class="btn-save">Speichern</button>
                     <button onclick="uiService.closeModal()" class="btn-cancel">Abbrechen</button>
                 </div>
             </div>
         `;
-        
+
         const container = document.getElementById('modal-container');
-        container.innerHTML = modalHtml;
-        container.style.display = 'flex';
+        if (container) {
+            container.innerHTML = modalHtml;
+            container.style.display = 'flex';
+        }
     },
 
     /**
