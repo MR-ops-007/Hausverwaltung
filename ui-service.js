@@ -5,45 +5,35 @@
 const uiService = {
     
     renderAll() {
-        console.log("UI: renderAll startet mit ID 'object-selector'");
-        
-        // Wir nutzen die ID, die dein Browser-Test gerade bestätigt hat!
+        // Wir nutzen die ID, die dein Browser bestätigt hat
         const container = document.getElementById('object-selector');
-        
-        if (!container) {
-            console.error("UI: Auch 'object-selector' nicht gefunden. Vorhanden sind:", 
-                Array.from(document.querySelectorAll('[id]')).map(el => el.id));
-            return;
-        }
+        if (!container) return;
 
         container.innerHTML = ''; 
 
         const objectIds = dataService.getUniqueObjects();
-        console.log("UI: Objekt-IDs für Karten:", objectIds);
 
         objectIds.forEach(objId => {
             const objData = dataService.state.objekte.find(o => o.objekt_id === objId);
             const name = objData ? (objData.bezeichnung || objData.objekt_id) : objId;
 
-            // Wir erstellen ein <option> Element, falls 'object-selector' ein <select> ist
-            // oder ein <div>, falls es ein Container ist.
-            const item = document.createElement(container.tagName === 'SELECT' ? 'option' : 'div');
+            // Wir erstellen einen BUTTON statt nur Text
+            const btn = document.createElement('button');
+            btn.className = 'object-card'; // Hier greift dein CSS für die blauen Buttons!
+            btn.style.display = "block";
+            btn.style.width = "100%";
+            btn.style.marginBottom = "10px";
             
-            if (container.tagName === 'SELECT') {
-                item.value = objId;
-                item.textContent = name;
-            } else {
-                item.className = 'object-card';
-                item.onclick = () => this.selectObject(objId);
-                item.innerHTML = `<h3>${name}</h3><small>${objId}</small>`;
-            }
-            
-            container.appendChild(item);
-        });
-        
-        console.log("UI: Rendering auf 'object-selector' abgeschlossen.");
-    },
+            btn.onclick = () => {
+                console.log("Klick auf:", objId);
+                this.selectObject(objId);
+            };
 
+            btn.innerHTML = `<strong>${name}</strong><br><small>${objId}</small>`;
+            container.appendChild(btn);
+        });
+    },
+    
     selectObject(objId) {
         const unitsContainer = document.getElementById('units-container');
         if (!unitsContainer) return;
