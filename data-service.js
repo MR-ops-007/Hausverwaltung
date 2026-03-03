@@ -21,11 +21,8 @@ const dataService = {
      * Nimmt Daten vom Backend (Großschreibung) entgegen und mappt sie in den kleingeschriebenen State.
      */
     setInitialData(data) {
-        if (!data) {
-            console.error("DataService: Keine Daten zur Initialisierung empfangen.");
-            return;
-        }
-
+        if (!data) return;
+        
         // Mapping: Backend (Groß) -> State (Klein)
         this.state.objekte = data.Objekte || [];
         this.state.einheiten = data.Einheiten || [];
