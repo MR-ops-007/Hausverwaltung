@@ -4,7 +4,7 @@
  */
 const cloudService = {
     // Die URL muss von dir hier eingesetzt werden
-    scriptUrl: '"https://script.google.com/macros/s/AKfycbxQ-MpWoJPSh7UHR2WNKhJNqNMKYmxpA1arhQmZc9ulnS4waZYQMG8goEa-JDqHHh_Cqw/', 
+    scriptUrl: 'https://script.google.com/macros/s/AKfycbxquYhb2nt1Y7XY_DhwUChG-grCtCRP5lzLhVBat5cW_qgrOzDe8NJQcixSyi2IhosUSw/exec', 
 
     /**
      * Lädt alle Daten initial (doGet im Backend)
