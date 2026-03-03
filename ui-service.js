@@ -1,107 +1,90 @@
 /**
- * UI-Service
- * Verantwortlich für das Rendering der Oberfläche und die Interaktionen
+ * UI-SERVICE (Architektur-Standard v1.0)
+ * Stand: 03.03.2026
+ * Fokus: Harmonisierung der Schreibweise & Fehlertoleranz
  */
 const uiService = {
+    
+    /**
+     * Haupt-Render-Funktion für die Übersicht
+     */
     renderAll() {
-        console.log("uiService: renderAll gestartet");
-        const container = document.getElementById('object-selector');
+        const container = document.getElementById('objects-container');
         if (!container) return;
+        container.innerHTML = '';
 
-        // Wir holen die Objekte aus dem DataService
-        const objects = dataService.getUniqueObjects();
+        // Standard: Kleinschreibung
+        const objectIds = dataService.getUniqueObjects();
         
-        if (objects.length === 0) {
-            // Falls der State noch leer ist, zeigen wir eine Lade-Info statt einer Fehlermeldung
-            container.innerHTML = `
-                <div style="padding:15px; background:#e9ecef; border-radius:8px; color:#495057;">
-                    Warte auf Daten-Synchronisation...
-                </div>`;
-            // Versuche es in 500ms nochmal automatisch
-            setTimeout(() => this.renderAll(), 500);
-            return;
-        }
-
-        let html = '<div class="object-grid" style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px;">';
-        objects.forEach(obj => {
-            html += `
-                <button class="obj-btn" 
-                        style="padding:15px 25px; cursor:pointer; background:#007bff; color:white; border:none; border-radius:8px; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.1);" 
-                        onclick="uiService.selectObject('${obj}')">
-                    ${obj}
-                </button>`;
+        objectIds.forEach(objId => {
+            const card = document.createElement('div');
+            card.className = 'object-card';
+            card.onclick = () => this.selectObject(objId);
+            card.innerHTML = `<h3>Objekt: ${objId}</h3>`;
+            container.appendChild(card);
         });
-        html += '</div>';
-        container.innerHTML = html;
-    },
-
-    selectObject(objId) {
-        const units = dataService.getUnitsByObject(objId);
-        this.renderUnitList(units);
-    },
-
-    renderUnitList(units) {
-        const container = document.getElementById('tenant-list');
-        if (!container) return;
-
-        let html = `
-            <h3 style="margin:20px 0 10px 0;">Einheiten für ${units[0].objekt_id || 'Objekt'}</h3>
-            <div class="unit-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:15px;">`;
-        
-        units.forEach(unit => {
-            const id = unit.einheit_id || unit.Einheit_ID;
-            const mieter = dataService.getActiveMieter(id);
-            // Nutzt 'mietername' aus deinem Log
-            const mieterName = mieter ? (mieter.mietername || 'Unbenannt') : 'Leerstand';
-            
-            html += `
-                <div class="card" style="border:1px solid #ddd; padding:20px; border-radius:12px; background:white; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-                    <h4 style="margin:0; color:#333;">${id}</h4>
-                    <p style="margin:10px 0; color:#666;">Mieter: <strong style="color:#000;">${mieterName}</strong></p>
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:15px;">
-                        <button style="padding:10px; cursor:pointer; background:#28a745; color:white; border:none; border-radius:6px; font-weight:bold;" 
-                                onclick="uiService.showZaehlerMaske('${id}')">Zähler</button>
-                        <button style="padding:10px; cursor:pointer; background:#6c757d; color:white; border:none; border-radius:6px; font-weight:bold;" 
-                                onclick="alert('Miete folgt in Phase 2')">Miete</button>
-                    </div>
-                </div>`;
-        });
-        html += '</div>';
-        container.innerHTML = html;
     },
 
     /**
-     * Öffnet das Modal zur Erfassung aller Zählerstände gemäß DATA_MODEL.md
+     * Zeigt die Einheiten eines Objekts
+     */
+    selectObject(objId) {
+        const unitsContainer = document.getElementById('units-container');
+        if (!unitsContainer) return;
+        unitsContainer.innerHTML = '';
+
+        // API-Aufruf (Kleinschreibung im State wird intern im DataService genutzt)
+        const units = dataService.getUnitsByObject(objId);
+        
+        units.forEach(unit => {
+            const mieter = dataService.getActiveMieter(unit.einheit_id);
+            const card = document.createElement('div');
+            card.className = 'unit-card';
+            card.onclick = () => this.showZaehlerMaske(unit.einheit_id);
+            
+            // Logik-Fix für Labeling (Architektur-Vorgabe)
+            let statusText = "Leerstand";
+            if (mieter) {
+                statusText = mieter.mietername;
+            } else if (String(unit.typ).toLowerCase() === 'allgemein') {
+                statusText = "Allgemein / Hausstrom";
+            }
+
+            card.innerHTML = `
+                <h4>${unit.nummer || unit.einheit_id}</h4>
+                <p>${statusText}</p>
+                <small>${unit.typ}</small>
+            `;
+            unitsContainer.appendChild(card);
+        });
+        
+        document.getElementById('view-objects').style.display = 'none';
+        document.getElementById('view-units').style.display = 'block';
+    },
+
+    /**
+     * Die Zählermaske (Fix für Daten-Blocker & Platzhalter)
      */
     showZaehlerMaske(id) {
-        console.log("Öffne Maske für ID:", id);
-        
-        // 1. Zugriff auf State sicherstellen
         const state = dataService.state;
-        if (!state.einheiten || state.einheiten.length === 0) {
-            console.error("Daten im State fehlen noch!");
-            alert("Daten werden noch geladen... Bitte einen Moment Geduld.");
-            return;
-        }
-
-        // 2. Einheit suchen
+        
+        // Prüfung gegen harmonisierten State (Klein)
         const unit = state.einheiten.find(u => String(u.einheit_id) === String(id));
-        if (!unit) {
-            console.error("Einheit mit ID " + id + " nicht gefunden.");
-            return;
-        }
+        if (!unit) return;
 
-        // 3. Mieter und letzte Stände holen
         const mieter = dataService.getActiveMieter(id);
         const lastStands = (state.zaehler_staende || []).find(z => String(z.einheit_id) === String(id)) || {};
 
-        // 4. UI Rendering (Fix: 'Allgemein' Logik integriert)
-        const displayName = unit.nummer ? `Einheit ${unit.nummer}` : unit.einheit_id;
-        const mieterName = mieter ? mieter.mietername : (unit.typ === 'Allgemein' ? 'Allgemein / Hausstrom' : 'Leerstand');
+        let mieterName = "Leerstand";
+        if (mieter) {
+            mieterName = mieter.mietername;
+        } else if (String(unit.typ).toLowerCase() === 'allgemein') {
+            mieterName = "Allgemein / Hausstrom";
+        }
 
         const modalHtml = `
             <div class="modal-content">
-                <h3>Zähler erfassen: ${displayName}</h3>
+                <h3>Zähler: ${unit.nummer || unit.einheit_id}</h3>
                 <p><small>Status: <b>${mieterName}</b></small></p>
                 <hr>
                 <div class="form-group">
@@ -147,45 +130,59 @@ const uiService = {
     },
 
     /**
-     * Sendet die Daten an das Google Apps Script
+     * Speichern-Logik (Bereinigt von Case-Sensitivity Fehlern)
      */
     async saveZaehler(id) {
-        const mieter = dataService.getActiveMieter(id);
-        const unit = dataService.state.Einheiten.find(u => String(u.einheit_id) === String(id));
-        
-        // Payload exakt nach DATA_MODEL.md Spalten D-K
-        const transaction = {
-            zeitstempel: new Date().toISOString(),
+        // FIX für Zeile 154: Zugriff nun konsequent auf Kleinschreibung
+        const unit = dataService.state.einheiten.find(u => String(u.einheit_id) === String(id));
+        if (!unit) {
+            alert("Fehler: Einheit nicht gefunden.");
+            return;
+        }
+
+        const data = {
             einheit_id: id,
-            objekt_id: unit ? unit.objekt_id : '',
-            typ: 'ZAEHLERSTAND',
-            kaltwasser_m3: document.getElementById('val-kw').value,
-            warmwasser_m3: document.getElementById('val-ww').value,
-            strom_ht_kwh: document.getElementById('val-ht').value,
-            strom_nt_kwh: document.getElementById('val-nt').value,
-            oel_stand_l: document.getElementById('val-oel').value,
-            zusatz_wert: document.getElementById('val-zusatz').value,
-            mietername: mieter ? mieter.mietername : 'Allgemein/Leerstand',
-            bezeichnung: document.getElementById('val-bezeichnung').value || 'App-Erfassung'
+            objekt_id: unit.objekt_id,
+            kw_aktuell: document.getElementById('val-kw').value,
+            ww_aktuell: document.getElementById('val-ww').value,
+            st_ht_aktuell: document.getElementById('val-ht').value,
+            st_nt_aktuell: document.getElementById('val-nt').value,
+            oel_aktuell: document.getElementById('val-oel').value,
+            zusatz_aktuell: document.getElementById('val-zusatz').value,
+            bezeichnung: document.getElementById('val-bezeichnung').value
         };
 
-        const btn = event.target;
-        btn.disabled = true;
-        btn.innerText = "Speichere...";
-
-        const success = await cloudService.sendTransaction(transaction);
-        
-        if (success) {
-            alert("Erfolgreich gespeichert!");
-            this.closeModal();
-            location.reload(); // Seite neu laden, um neue Anker-Werte aus Sheets zu holen
-        } else {
-            alert("Offline: Daten lokal gesichert.");
-            this.closeModal();
+        try {
+            uiService.showLoading(true);
+            const result = await cloudService.saveTransaction(data);
+            if (result.status === 'success') {
+                alert("Daten erfolgreich gespeichert!");
+                this.closeModal();
+                // Seite neu laden um State zu aktualisieren
+                location.reload(); 
+            } else {
+                alert("Fehler beim Speichern: " + result.message);
+            }
+        } catch (error) {
+            console.error("Save Error:", error);
+            alert("Verbindungsfehler zum Server.");
+        } finally {
+            uiService.showLoading(false);
         }
     },
 
     closeModal() {
-        document.getElementById('modal-container').style.display = 'none';
+        const container = document.getElementById('modal-container');
+        if (container) container.style.display = 'none';
+    },
+
+    showLoading(show) {
+        // Implementierung je nach CSS/HTML vorhanden
+        console.log("Loading...", show);
+    },
+
+    backToObjects() {
+        document.getElementById('view-units').style.display = 'none';
+        document.getElementById('view-objects').style.display = 'block';
     }
 };
