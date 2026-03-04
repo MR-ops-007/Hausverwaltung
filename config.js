@@ -1,4 +1,8 @@
 const CONFIG = {
+    // Die zentrale URL (Single Source of Truth)
+    scriptUrl: "https://script.google.com/macros/s/AKfycbxquYhb2nt1Y7XY_DhwUChG-grCtCRP5lzLhVBat5cW_qgrOzDe8NJQcixSyi2IhosUSw/exec",
+
+    // Die Objekt-Einstellungen
     lokschuppen: {
         name: "🏠 Lokschuppen",
         units: 15,
