@@ -7,15 +7,24 @@ const cloudService = {
     scriptUrl: CONFIG.scriptUrl, 
 
     async loadAllData() {
-        if (this.scriptUrl.includes('HIER_DEINE_SCRIPT_URL')) {
-            throw new Error("Konfigurationsfehler: Keine gültige Google-Script-URL hinterlegt.");
-        }
-        console.log("CloudService: Starte Datenabfrage...");
+        console.log("CloudService: Starte Datenabfrage an:", this.scriptUrl);
         try {
-            const response = await fetch(this.scriptUrl);
+            // Wir fügen einen Cache-Buster hinzu, um sicherzugehen, dass wir frische Daten bekommen
+            const urlWithCacheBuster = this.scriptUrl + (this.scriptUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+            
+            const response = await fetch(urlWithCacheBuster, {
+                method: 'GET',
+                redirect: 'follow' // Wichtig für Google Scripts Redirects
+            });
+
             if (!response.ok) throw new Error(`HTTP-Fehler! Status: ${response.status}`);
+            
             const data = await response.json();
-            await this.processOfflineQueue();
+            console.log("CloudService: Daten erfolgreich geladen.");
+            
+            // Offline Queue im Hintergrund abarbeiten
+            this.processOfflineQueue(); 
+            
             return data;
         } catch (error) {
             console.error("CloudService: Fehler beim Laden:", error);
