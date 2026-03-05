@@ -117,7 +117,8 @@ Wird vom System/Script befüllt (Letzter bekannter Stand).
 | **G** | `st_nt_aktuell` | Zahl | Letzter übermittelter Stromstand (NT) |
 | **H** | `oel_aktuell` | Zahl | Letzter übermittelter Ölstand |
 | **I** | `zusatz_aktuell` | Zahl | Letzter übermittelter Wert aus `zusatz_wert` |
-| **J** | `bezeichnung` | String | Freitext / Typ des Zusatzwertes (z.B. "Stundenzähler") |
+| **J** | `mietername` | String | Name des Mieters zum Zeitpunkt der Erfassung |
+| **K** | `bezeichnung` | String | Freitext / Typ des Zusatzwertes (z.B. "Stundenzähler") |
 
 ### Tabelle: `Fixkosten` 
 Jährliche Kosten des Objekts, die umgelegt werden müssen.
