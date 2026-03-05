@@ -47,11 +47,18 @@ const uiService = {
                 style="padding:10px; margin-bottom:20px; cursor:pointer; background:#6c757d; color:white; border:none; border-radius:5px;">
                 ← Zurück zur Auswahl
             </button>
-            <h3 style="margin-bottom:15px;">Einheiten für ${objId}</h3>
+            <h3 style="margin-bottom:15px;">Objekt: ${objId}</h3>
         `;
 
         dataService.getUnitsByObject(objId).forEach(unit => {
             const mieter = dataService.getActiveMieter(unit.einheit_id);
+            
+            // --- KONKRETE ANPASSUNG START ---
+            // Prüfen, ob die ID das Kürzel "GE" für Gewerbe enthält
+            const isGewerbe = String(unit.einheit_id).includes('_GE_');
+            const typBezeichnung = isGewerbe ? "🏢 Gewerbe" : "🏠 Einheit";
+            // --- KONKRETE ANPASSUNG ENDE ---
+
             const card = document.createElement('div');
             card.className = 'unit-card';
             this.applyStyles(card, {
@@ -69,8 +76,8 @@ const uiService = {
             card.onclick = () => uiService.showZaehlerMaske(unit.einheit_id);
             card.innerHTML = `
                 <div>
-                    <div style="font-weight:bold; color:#333;">${unit.nummer || 'Einheit'}</div>
-                    <div style="font-size:0.9em; color:#666;">${mieter ? mieter.mietername : 'Leerstand'}</div>
+                    <div style="font-weight:bold; color:#333;">${typBezeichnung}: ${unit.nummer || unit.einheit_id}</div>
+                    <div style="font-size:0.9em; color:#666;">Mieter: ${mieter ? mieter.mietername : 'Leerstand'}</div>
                 </div>
                 <div style="color:#007bff; font-weight:bold;">➔</div>
             `;
