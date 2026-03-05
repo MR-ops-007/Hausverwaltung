@@ -1,6 +1,6 @@
 const CONFIG = {
     // Die zentrale URL (Single Source of Truth)
-    scriptUrl: "https://script.google.com/macros/s/AKfycbwQDo8XIhlxJETwlO1LoJEi_6paikcd3XJs0_oWKsSrMnPCwl3zp9YiI77_50uhxhvtVg/exec",
+    scriptUrl: "https://script.google.com/macros/s/AKfycbzsD2ZyjrLdyNjJnXPu2tKCAD1R2nfVwOCLZ8Pyg7cRNMhkpJGxBzc_oPApN-896YGoqw/exec",
 
     // Die Objekt-Einstellungen
     "LOK": {
