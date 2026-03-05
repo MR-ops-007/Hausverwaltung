@@ -7,23 +7,26 @@ const cloudService = {
     scriptUrl: CONFIG.scriptUrl, 
 
     async loadAllData() {
-        console.log("CloudService: Starte Datenabfrage an:", this.scriptUrl);
+        console.log("CloudService: Starte Datenabfrage...");
         try {
-            // Wir fügen einen Cache-Buster hinzu, um sicherzugehen, dass wir frische Daten bekommen
-            const urlWithCacheBuster = this.scriptUrl + (this.scriptUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+            // Cache-Buster verhindert, dass der Browser alte Daten aus dem Speicher lädt
+            const url = this.scriptUrl + (this.scriptUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
             
-            const response = await fetch(urlWithCacheBuster, {
+            const response = await fetch(url, {
                 method: 'GET',
-                redirect: 'follow' // Wichtig für Google Scripts Redirects
+                mode: 'cors', // Wir fordern CORS an
+                redirect: 'follow' // WICHTIG: Google leitet die Anfrage intern um
             });
 
-            if (!response.ok) throw new Error(`HTTP-Fehler! Status: ${response.status}`);
-            
+            if (!response.ok) {
+                throw new Error(`HTTP-Fehler! Status: ${response.status}`);
+            }
+
             const data = await response.json();
-            console.log("CloudService: Daten erfolgreich geladen.");
+            console.log("CloudService: Daten erfolgreich empfangen.");
             
-            // Offline Queue im Hintergrund abarbeiten
-            this.processOfflineQueue(); 
+            // Falls noch Dinge in der Warteschlange sind, jetzt senden
+            await this.processOfflineQueue();
             
             return data;
         } catch (error) {
