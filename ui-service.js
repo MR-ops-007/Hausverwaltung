@@ -93,50 +93,67 @@ const uiService = {
         const modalBody = document.getElementById('modal-body');
         if (!modal || !modalBody) return;
 
-        // Wir brauchen das Einheiten-Objekt für den Mieternamen und die Objekt-ID
         const unit = dataService.state.einheiten.find(u => String(u.einheit_id) === String(id));
         const mieter = dataService.getActiveMieter(id);
+        const objId = unit ? unit.objekt_id : id.split('_')[0]; 
         
-        // Wir speichern die objekt_id und den mieternamen in versteckten Variablen für den Save-Vorgang
         this.currentSelection = {
             einheit_id: id,
-            objekt_id: unit ? unit.objekt_id : '',
-            mietername: mieter ? mieter.mietername : 'Leerstand'
+            objekt_id: objId,
+            mietername: mieter ? mieter.mietername : (id.includes('Allgemein') ? 'Haus allgemein' : 'Leerstand')
         };
 
+        // Konfiguration laden
+        const objConfig = CONFIG[objId] || { defaultMeters: ["kaltwasser_m3", "warmwasser_m3", "strom_ht_kwh", "strom_nt_kwh"] };
+        const activeMeters = (objConfig.customMeters && objConfig.customMeters[id]) 
+                             ? objConfig.customMeters[id] 
+                             : objConfig.defaultMeters;
+
+        const labelMap = {
+            "kaltwasser_m3": "Kaltwasser (m³)",
+            "warmwasser_m3": "Warmwasser (m³)",
+            "strom_ht_kwh": "Strom HT (kWh)",
+            "strom_nt_kwh": "Strom NT (kWh)",
+            "oel_stand_l": "Heizöl (Liter)",
+            "maschinenstunden": "Maschinenstunden"
+        };
+
+        let inputsHtml = `<div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:15px;">`;
+        activeMeters.forEach(mKey => {
+            inputsHtml += `
+                <div>
+                    <label style="font-size:0.8em; color:#666;">${labelMap[mKey] || mKey}</label>
+                    <input type="number" id="val-${mKey}" step="0.01" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:4px;">
+                </div>`;
+        });
+        inputsHtml += `</div>`;
+
         modalBody.innerHTML = `
-            <h3 style="margin-top:0;">Zählerstand erfassen</h3>
-            <p style="color:#666; font-size:0.9em;">Haus: ${this.currentSelection.objekt_id} | Einheit: ${id}</p>
-            <p style="font-weight:bold;">Mieter: ${this.currentSelection.mietername}</p>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:15px;">
-                <div><label style="font-size:0.8em;">Kaltwasser</label><input type="number" id="val-kw" style="width:100%; padding:8px;"></div>
-                <div><label style="font-size:0.8em;">Warmwasser</label><input type="number" id="val-ww" style="width:100%; padding:8px;"></div>
-                <div><label style="font-size:0.8em;">Strom HT</label><input type="number" id="val-ht" style="width:100%; padding:8px;"></div>
-                <div><label style="font-size:0.8em;">Strom NT</label><input type="number" id="val-nt" style="width:100%; padding:8px;"></div>
-            </div>
+            <h3 style="margin-top:0;">Zählererfassung</h3>
+            <p style="color:#666; font-size:0.8em; margin-bottom:5px;">${objId} | ${id}</p>
+            <p style="font-weight:bold; margin-top:0;">Nutzer: ${this.currentSelection.mietername}</p>
+            ${inputsHtml}
             <div style="margin-top:25px; display:flex; gap:10px;">
                 <button onclick="uiService.saveZaehler()" style="flex:1; background:#28a745; color:white; border:none; padding:12px; border-radius:5px; cursor:pointer; font-weight:bold;">Speichern</button>
                 <button onclick="uiService.closeModal()" style="flex:1; background:#eee; border:none; padding:12px; border-radius:5px; cursor:pointer;">Abbrechen</button>
             </div>
         `;
         modal.style.display = 'flex';
+        this.currentActiveMeters = activeMeters; 
     },
 
     async saveZaehler() {
-        // Wir holen die Daten aus dem Formular UND aus der vorher gespeicherten Selektion
         const data = {
-            einheit_id: this.currentSelection.einheit_id,
-            objekt_id: this.currentSelection.objekt_id, // Separat gesendet
-            mietername: this.currentSelection.mietername, // Separat gesendet
-            kaltwasser_m3: document.getElementById('val-kw').value,
-            warmwasser_m3: document.getElementById('val-ww').value,
-            strom_ht_kwh: document.getElementById('val-ht').value,
-            strom_nt_kwh: document.getElementById('val-nt').value,
-            typ: "ZAEHLERSTAND",
-            bezeichnung: "" // Bleibt leer oder für Notizen frei
+            ...this.currentSelection,
+            typ: "ZAEHLERSTAND"
         };
 
-        console.log("Sende an GAS gemäß DATA_MODEL:", data);
+        this.currentActiveMeters.forEach(mKey => {
+            const input = document.getElementById(`val-${mKey}`);
+            if (input) data[mKey] = input.value;
+        });
+
+        console.log("Sende dynamische Daten:", data);
         const res = await cloudService.saveTransaction(data);
         if(res && res.status === 'success') {
             alert("Erfolgreich gespeichert!");
