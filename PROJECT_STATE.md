@@ -2,6 +2,33 @@
 
 # Projektstatus: Hausverwaltung App
 
+**Datum:** 04.03.2026
+
+## Stand: 
+Meilenstein: Dynamisierung & Daten-Integrität
+**Status:** Phase 2 (Schreibzugriff & Stabilität) – **Abgeschlossen** ✅
+
+### Erreichte Ergebnisse heute:
+- **Dynamische Zählermaske:** Die UI generiert nun automatisch die passenden Eingabefelder basierend auf der `config.js` (z. B. Heizöl für "Allgemein", Maschinenstunden für Gewerbe).
+- **Intelligentes Labelling:** Automatische Unterscheidung zwischen "Strom (kWh)" (Einzeltarif) und "Strom HT/NT" (Doppeltarif) basierend auf den vorhandenen Zählertypen.
+- **Farbleitsystem:** Visuelle Trennung der Medien (Blau: Kaltwasser, Rot: Warmwasser, Gelb: Strom, Anthrazit: Heizöl) zur Vermeidung von Fehleingaben.
+- **Backend-Optimierung (GAS):** - Das `doPost` Skript verarbeitet nun flexibel Zusatzwerte (`maschinenstunden`, `oel_stand_l`).
+    - Automatische Befüllung der Spalte `bezeichnung` (K) mit Metadaten (z. B. "Maschinenstunden"), um den Kontext der Zusatzwerte in der Tabelle zu wahren.
+    - Trennung von Mietername (J) und Bezeichnung (K) in `Transaktionen` und `Zaehler_Staende`.
+- **Bugfixes:** - CORS-Problematik beim Datenabruf durch `redirect: 'follow'` und Cache-Buster-Strategie gelöst.
+    - `saveZaehler`-Logik von statischen IDs auf dynamische Iteration umgestellt.
+
+### Aktuelle Datenstruktur (synchron mit DATA_MODEL.md):
+- **Spalte I:** Zusatzwert (Maschinenstunden / Öl / etc.)
+- **Spalte J:** Mietername (oder "Haus allgemein" / "Leerstand")
+- **Spalte K:** Bezeichnung/Typ des Zusatzwerts (Sorgt für Klarheit in der Auswertung)
+
+### Nächste Schritte:
+1. **Plausibilitäts-Check:** Einbau einer Warnung in der UI, wenn der neue Zählerstand niedriger ist als der letzte gespeicherte Wert (Verbrauchsrechnung).
+2. **Dashboard-Erweiterung:** Anzeige der letzten Messwerte direkt in der Einheiten-Liste zur Orientierung während der Ablesung.
+3. **PDF-Export:** Erste Entwürfe für die automatisierte Erstellung von Ableseprotokollen.
+   
+---
 
 **Datum:** 04.03.2026
 
