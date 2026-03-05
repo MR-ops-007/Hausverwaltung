@@ -39,23 +39,31 @@
     <script>
     // Wir warten, bis das Dokument wirklich BEREIT ist
     document.addEventListener('DOMContentLoaded', async () => {
-        console.log("System: DOM ist bereit. Starte Initialisierung...");
+        const statusEl = document.getElementById('sync-status');
+        console.log("System: Starte Initialisierung...");
         
         try {
             const data = await cloudService.loadAllData();
-            console.log("Daten empfangen:", data ? "Ja" : "Nein");
             
             if (data) {
                 dataService.setInitialData(data);
                 
-                // Kleiner Timeout (100ms), um sicherzugehen, dass alle IDs registriert sind
+                // Status Update
+                if (statusEl) {
+                    statusEl.textContent = "✅ Daten aktuell (" + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ")";
+                    statusEl.style.color = "green";
+                }
+
                 setTimeout(() => {
-                    console.log("Starte Rendering...");
                     uiService.renderAll();
                 }, 100);
             }
         } catch (error) {
-            console.error("KRITISCHER FEHLER BEIM START:", error);
+            console.error("KRITISCHER FEHLER:", error);
+            if (statusEl) {
+                statusEl.textContent = "❌ Fehler beim Laden der Daten";
+                statusEl.style.color = "red";
+            }
         }
     });
     </script>
