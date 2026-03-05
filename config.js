@@ -3,7 +3,7 @@ const CONFIG = {
     scriptUrl: "https://script.google.com/macros/s/AKfycbwQDo8XIhlxJETwlO1LoJEi_6paikcd3XJs0_oWKsSrMnPCwl3zp9YiI77_50uhxhvtVg/exec",
 
     // Die Objekt-Einstellungen
-    lokschuppen: {
+    "LOK": {
         name: "🏠 Lokschuppen",
         units: 15,
         gewerbe: 1,
