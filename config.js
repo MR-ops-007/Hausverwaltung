@@ -24,6 +24,7 @@ const CONFIG = {
         defaultMeters: ["kaltwasser_m3", "warmwasser_m3", "strom_ht_kwh"],
         customMeters: {
             "Ra-HS-29_Allgemein": ["kaltwasser_m3", "warmwasser_m3", "strom_ht_kwh", "strom_nt_kwh", "oel_stand_l"],
+            "Ra-HS-29_GE_01": ["kaltwasser_m3", "warmwasser_m3", "strom_ht_kwh", "strom_nt_kwh", "maschinenstunden"],
         },
         hasOil: true
     }
