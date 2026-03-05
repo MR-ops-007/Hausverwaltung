@@ -103,43 +103,56 @@ const uiService = {
             mietername: mieter ? mieter.mietername : (id.includes('Allgemein') ? 'Haus allgemein' : 'Leerstand')
         };
 
-        // Konfiguration laden
         const objConfig = CONFIG[objId] || { defaultMeters: ["kaltwasser_m3", "warmwasser_m3", "strom_ht_kwh", "strom_nt_kwh"] };
         const activeMeters = (objConfig.customMeters && objConfig.customMeters[id]) 
                              ? objConfig.customMeters[id] 
                              : objConfig.defaultMeters;
 
-        const labelMap = {
-            "kaltwasser_m3": "Kaltwasser (m³)",
-            "warmwasser_m3": "Warmwasser (m³)",
-            "strom_ht_kwh": "Strom HT (kWh)",
-            "strom_nt_kwh": "Strom NT (kWh)",
-            "oel_stand_l": "Heizöl (Liter)",
-            "maschinenstunden": "Maschinenstunden"
+        // Logik für Strom-Label: Gibt es einen NT Zähler?
+        const hasNT = activeMeters.includes("strom_nt_kwh");
+
+        const meterStyles = {
+            "kaltwasser_m3": { label: "💧 Kaltwasser (m³)", color: "#e3f2fd", border: "#2196f3" },
+            "warmwasser_m3": { label: "♨️ Warmwasser (m³)", color: "#ffebee", border: "#f44336" },
+            "strom_ht_kwh":  { label: hasNT ? "⚡ Strom HT (kWh)" : "⚡ Strom (kWh)", color: "#fffde7", border: "#fbc02d" },
+            "strom_nt_kwh":  { label: "🌙 Strom NT (kWh)", color: "#fffde7", border: "#fbc02d" },
+            "oel_stand_l":   { label: "🛢️ Heizöl (Liter)", color: "#f5f5f5", border: "#424242" },
+            "maschinenstunden": { label: "⚙️ Betriebsstunden", color: "#f3e5f5", border: "#9c27b0" }
         };
 
-        let inputsHtml = `<div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:15px;">`;
+        let inputsHtml = `<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:15px;">`;
         activeMeters.forEach(mKey => {
+            const style = meterStyles[mKey] || { label: mKey, color: "#ffffff", border: "#ccc" };
             inputsHtml += `
-                <div>
-                    <label style="font-size:0.8em; color:#666;">${labelMap[mKey] || mKey}</label>
-                    <input type="number" id="val-${mKey}" step="0.01" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:4px;">
+                <div style="background-color: ${style.color}; padding: 10px; border-radius: 8px; border-left: 5px solid ${style.border};">
+                    <label style="font-size:0.75rem; font-weight:bold; color:#333; display:block; margin-bottom:4px;">${style.label}</label>
+                    <input type="number" id="val-${mKey}" step="0.01" placeholder="0,00"
+                        style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; font-size:16px; box-sizing:border-box;">
                 </div>`;
         });
         inputsHtml += `</div>`;
 
         modalBody.innerHTML = `
-            <h3 style="margin-top:0;">Zählererfassung</h3>
-            <p style="color:#666; font-size:0.8em; margin-bottom:5px;">${objId} | ${id}</p>
-            <p style="font-weight:bold; margin-top:0;">Nutzer: ${this.currentSelection.mietername}</p>
+            <div style="display:flex; justify-content:space-between; align-items:start;">
+                <div>
+                    <h3 style="margin:0; color:#2c3e50;">Zählererfassung</h3>
+                    <p style="margin:4px 0; font-size:0.85rem; color:#7f8c8d;">${objId} | ${id}</p>
+                </div>
+            </div>
+            <div style="margin-top:10px; padding:10px; background:#f8f9fa; border-radius:6px; border:1px solid #eee;">
+                <span style="font-size:0.8rem; color:#666;">Aktueller Nutzer:</span><br>
+                <strong style="font-size:1rem;">${this.currentSelection.mietername}</strong>
+            </div>
+            
             ${inputsHtml}
+
             <div style="margin-top:25px; display:flex; gap:10px;">
-                <button onclick="uiService.saveZaehler()" style="flex:1; background:#28a745; color:white; border:none; padding:12px; border-radius:5px; cursor:pointer; font-weight:bold;">Speichern</button>
-                <button onclick="uiService.closeModal()" style="flex:1; background:#eee; border:none; padding:12px; border-radius:5px; cursor:pointer;">Abbrechen</button>
+                <button onclick="uiService.saveZaehler()" style="flex:2; background:#28a745; color:white; border:none; padding:15px; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">💾 Speichern</button>
+                <button onclick="uiService.closeModal()" style="flex:1; background:#6c757d; color:white; border:none; padding:15px; border-radius:8px; cursor:pointer; font-size:1rem;">Abbrechen</button>
             </div>
         `;
         modal.style.display = 'flex';
-        this.currentActiveMeters = activeMeters; 
+        this.currentActiveMeters = activeMeters;
     },
 
     async saveZaehler() {
