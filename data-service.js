@@ -1,33 +1,39 @@
+// --- START: KOMPLETTES DATA-SERVICE.JS (VERSION 2.0) ---
 /**
- * DATA-SERVICE (v1.5 - Full Integrity)
- * Fokus: Kleinschreibung & Vollständige Mieter-Logik
+ * DATA-SERVICE (v2.0 - Refactoring nach DATA_MODEL.md)
+ * Fokus: Relationales Datenmodell (Vertraege, Personen, Vertragsparteien)
  */
 const dataService = {
     state: {
         objekte: [],
         einheiten: [],
-        mieter: [],
-        zaehler_staende: [],
+        personen: [],
+        vertraege: [],
+        vertragsparteien: [],
+        zaehler: [],
+        zaehlerstaende: [],
+        zahlungen: [],
         parameter: [],
-        fixkosten: [],
-        transaktionen: []
+        fixkosten: []
     },
 
     setInitialData(data) {
-        // Blatt-Namen (Keys) sind GROSS, Inhalte sind KLEIN
+        // Blatt-Namen (Keys) aus GAS sind GROSS/CamelCase, wir mappen auf unsere state-keys (KLEIN)
         this.state.objekte = data.Objekte || [];
         this.state.einheiten = data.Einheiten || [];
-        this.state.mieter = data.Mieter || [];
-        this.state.zaehler_staende = data.Zaehler_Staende || [];
+        this.state.personen = data.Personen || [];
+        this.state.vertraege = data.Vertraege || [];
+        this.state.vertragsparteien = data.Vertragsparteien || [];
+        this.state.zaehler = data.Zaehler || [];
+        this.state.zaehlerstaende = data.Zaehlerstaende || [];
+        this.state.zahlungen = data.Zahlungen || [];
         this.state.parameter = data.Parameter || [];
         this.state.fixkosten = data.Fixkosten || [];
-        this.state.transaktionen = data.Transaktionen || [];
         
         console.log("DataService: State erfolgreich befüllt.", this.state);
     },
 
     getUniqueObjects() {
-        // Wir nehmen direkt die IDs aus dem Objekte-Array (laut Log vorhanden!)
         if (!this.state.objekte || this.state.objekte.length === 0) {
             console.warn("DataService: Keine Objekte im State gefunden.");
             return [];
@@ -42,22 +48,53 @@ const dataService = {
         return this.state.einheiten.filter(e => String(e.objekt_id) === String(objektId));
     },
 
-    getActiveMieter(einheitId) {
-        if (!this.state.mieter) return null;
+    /**
+     * NEU: Löst die alte 'getActiveMieter' Funktion ab.
+     * Gibt ein Objekt zurück, das den Vertrag und ein Array aller Hauptmieter enthält.
+     */
+    getActiveVertragInfo(einheitId) {
+        if (!this.state.vertraege || this.state.vertraege.length === 0) return null;
+        
         const heute = new Date();
         heute.setHours(0, 0, 0, 0);
 
-        return this.state.mieter.find(m => {
-            const matchesId = String(m.einheit_id) === String(einheitId);
-            const istAktiv = String(m.aktiv).toLowerCase() === 'true';
+        // 1. Aktiven Vertrag für diese Einheit finden
+        const aktiverVertrag = this.state.vertraege.find(v => {
+            const matchesId = String(v.einheit_id) === String(einheitId);
+            const istAktiv = String(v.aktiv).toLowerCase() === 'true';
             
-            let nichtAusgezogen = true;
-            if (m.auszug_datum && String(m.auszug_datum).trim() !== "") {
-                const auszug = new Date(m.auszug_datum);
-                if (auszug < heute) nichtAusgezogen = false;
+            let nichtBeendet = true;
+            if (v.end_datum && String(v.end_datum).trim() !== "") {
+                // Konvertierung von DD.MM.YYYY zu Date-Objekt (falls notwendig) oder direkter Parse
+                // Hier gehen wir von einem Standard-Datumsformat aus, das JS parsen kann.
+                const endeTeile = String(v.end_datum).split('.');
+                let ende = new Date(v.end_datum);
+                if(endeTeile.length === 3) {
+                    ende = new Date(`${endeTeile[2]}-${endeTeile[1]}-${endeTeile[0]}`);
+                }
+                if (ende < heute) nichtBeendet = false;
             }
             
-            return matchesId && istAktiv && nichtAusgezogen;
+            return matchesId && istAktiv && nichtBeendet;
         });
+
+        if (!aktiverVertrag) return null;
+
+        // 2. Vertragsparteien (Hauptmieter) zu diesem Vertrag finden
+        const hauptmieterParteien = this.state.vertragsparteien.filter(vp => 
+            String(vp.vertrag_id) === String(aktiverVertrag.vertrag_id) && 
+            String(vp.rolle).toLowerCase() === 'hauptmieter'
+        );
+
+        // 3. Echte Personendaten (Namen) anhand der person_id auflösen
+        const personenDaten = hauptmieterParteien.map(vp => {
+            return this.state.personen.find(p => String(p.person_id) === String(vp.person_id));
+        }).filter(p => p !== undefined); // Nur gültige Treffer behalten
+
+        return {
+            vertrag: aktiverVertrag,
+            hauptmieter: personenDaten
+        };
     }
 };
+// --- ENDE: KOMPLETTES DATA-SERVICE.JS (VERSION 2.0) ---
