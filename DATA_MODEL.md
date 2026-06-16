@@ -85,6 +85,7 @@ Speichert jede Zahlung auf einen Vertrag.
 | **J** | `soll_nebenkosten` | Zahl | Aktuelle Soll-Nebenkosten |
 | **K** | `kaution_soll` | Zahl | Vereinbarte Kaution |
 | **L** | `kaution_ist` | Zahl | Tatsächlich gezahlte Kaution |
+| **M** | `soll_gesamt` | Zahl | Summe aus soll_kaltmiete und soll_nebenkosten |
 
 ### Tabelle: `Vertragsparteien` (N:M zwischen Vertrag und Person)
 **Wichtig:** Ermöglicht mehrere Hauptmieter (z.B. 2 Personen mit Rolle "Hauptmieter").
@@ -106,6 +107,7 @@ Speichert jede Zahlung auf einen Vertrag.
 | **D** | `medium` | String | `Kaltwasser`, `Warmwasser`, `Strom`, `Oel`, `Zusatz` |
 | **E** | `bezeichnung` | String | Freitext/Anzeige (z.B. "Strom HT") |
 | **F** | `einheit` | String | `m3`, `kWh`, `l`, `h` |
+| **G** | `einbauort` | String | Freitext/Anzeige (z.B. "Keller", "Flur", ...) |
 
 ### Tabelle: `Parameter` (Konfiguration)
 | Spalte | Feldname | Datentyp | Beschreibung |
