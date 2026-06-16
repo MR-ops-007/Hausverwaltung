@@ -2,6 +2,26 @@
 
 # Projektstatus: Hausverwaltung App
 
+**Datum:** 16.06.2026
+
+## Stand: 
+Meilenstein: **Datenmodell-Refactoring & Dokumentierung**
+**Status:** Planung abgeschlossen – **Implementierung Phase 3** 🚀
+
+### Erreichte Ergebnisse heute:
+- **Neues Datenmodell:** Finalisierung der `DATA_MODEL.md` mit Trennung von `Personen`, `Vertraege` und `Vertragsparteien`.
+- **Multiple Hauptmieter:** Explizite Unterstützung für mehrere Hauptmieter (Rolle `Hauptmieter`) ohne Schatten-Informationen.
+- **Zähler-Modell:** Trennung von `Zaehler` (Stammdaten) und `Zaehlerstaende` (Messwerte).
+- **Datenschutz-Flag:** Vorhalten von `besitzer_id` in `Objekte` für zukünftige Multi-User-Logik.
+
+### Nächste Schritte (Backlog):
+1. **Sheet-Prüfung:** Google Sheets um neue Tabellen (`Personen`, `Vertraege`, `Vertragsparteien`, `Zaehler`) erweitern und alte (`Mieter`, `Transaktionen`) für Migration markieren.
+2. **GAS-Update:** `Code.gs` (`doGet`, `doPost`) auf neue Tabellenstruktur anpassen.
+3. **Frontend-Migration:** `data-service.js` und `ui-service.js` auf `Vertraege`/`Personen` umstellen.
+4. **Validierung:** Testen, ob 2 Hauptmieter sauber erfasst und angezeigt werden.
+
+---
+
 **Datum:** 04.03.2026
 
 ## Stand: 
