@@ -1,3 +1,4 @@
+// --- START: KOMPLETTES UI-SERVICE.JS (VERSION 2.0) ---
 const uiService = {
     // Hilfsfunktion für schicke Styles
     applyStyles(el, styles) {
@@ -10,12 +11,11 @@ const uiService = {
         container.innerHTML = ''; 
 
         dataService.getUniqueObjects().forEach(objId => {
-            const objData = dataService.state.objekte.find(o => o.objekt_id === objId);
+            const objData = dataService.state.objekte.find(o => String(o.objekt_id) === String(objId));
             const name = objData ? (objData.bezeichnung || objData.objekt_id) : objId;
 
             const btn = document.createElement('button');
             btn.className = 'object-card';
-            // Explizites Styling für die "schönen blauen Buttons"
             this.applyStyles(btn, {
                 width: '100%',
                 padding: '20px',
@@ -51,13 +51,16 @@ const uiService = {
         `;
 
         dataService.getUnitsByObject(objId).forEach(unit => {
-            const mieter = dataService.getActiveMieter(unit.einheit_id);
+            // NEU: Holt Vertrag und die Liste der Hauptmieter
+            const vertragInfo = dataService.getActiveVertragInfo(unit.einheit_id);
+            let bewohnerText = 'Leerstand';
+            if (vertragInfo && vertragInfo.hauptmieter && vertragInfo.hauptmieter.length > 0) {
+                // Verbindet mehrere Namen mit einem "&"
+                bewohnerText = vertragInfo.hauptmieter.map(p => p.name).join(' & ');
+            }
             
-            // --- KONKRETE ANPASSUNG START ---
-            // Prüfen, ob die ID das Kürzel "GE" für Gewerbe enthält
             const isGewerbe = String(unit.einheit_id).includes('_GE_');
             const typBezeichnung = isGewerbe ? "🏢 Gewerbe" : "🏠 Einheit";
-            // --- KONKRETE ANPASSUNG ENDE ---
 
             const card = document.createElement('div');
             card.className = 'unit-card';
@@ -77,7 +80,7 @@ const uiService = {
             card.innerHTML = `
                 <div>
                     <div style="font-weight:bold; color:#333;">${typBezeichnung}: ${unit.nummer || unit.einheit_id}</div>
-                    <div style="font-size:0.9em; color:#666;">Mieter: ${mieter ? mieter.mietername : 'Leerstand'}</div>
+                    <div style="font-size:0.9em; color:#666;">Mieter: ${bewohnerText}</div>
                 </div>
                 <div style="color:#007bff; font-weight:bold;">➔</div>
             `;
@@ -94,13 +97,19 @@ const uiService = {
         if (!modal || !modalBody) return;
 
         const unit = dataService.state.einheiten.find(u => String(u.einheit_id) === String(id));
-        const mieter = dataService.getActiveMieter(id);
         const objId = unit ? unit.objekt_id : id.split('_')[0]; 
+        
+        // NEU: Namens-Logik auch für die Zählermaske
+        const vertragInfo = dataService.getActiveVertragInfo(id);
+        let bewohnerText = id.includes('Allgemein') ? 'Haus allgemein' : 'Leerstand';
+        if (vertragInfo && vertragInfo.hauptmieter && vertragInfo.hauptmieter.length > 0) {
+            bewohnerText = vertragInfo.hauptmieter.map(p => p.name).join(' & ');
+        }
         
         this.currentSelection = {
             einheit_id: id,
             objekt_id: objId,
-            mietername: mieter ? mieter.mietername : (id.includes('Allgemein') ? 'Haus allgemein' : 'Leerstand')
+            mietername: bewohnerText
         };
 
         const objConfig = CONFIG[objId] || { defaultMeters: ["kaltwasser_m3", "warmwasser_m3", "strom_ht_kwh", "strom_nt_kwh"] };
@@ -108,7 +117,6 @@ const uiService = {
                              ? objConfig.customMeters[id] 
                              : objConfig.defaultMeters;
 
-        // Logik für Strom-Label: Gibt es einen NT Zähler?
         const hasNT = activeMeters.includes("strom_nt_kwh");
 
         const meterStyles = {
@@ -156,6 +164,7 @@ const uiService = {
     },
 
     async saveZaehler() {
+        // ACHTUNG: Hier gibt es eine Datenmodell-Kollision (Siehe Notiz unten!)
         const data = {
             ...this.currentSelection,
             typ: "ZAEHLERSTAND"
@@ -183,3 +192,4 @@ const uiService = {
         document.getElementById('object-selector-section').style.display = 'block';
     }
 };
+// --- ENDE: KOMPLETTES UI-SERVICE.JS (VERSION 2.0) ---
