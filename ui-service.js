@@ -1,4 +1,4 @@
-// --- START: KOMPLETTES UI-SERVICE.JS (VERSION 2.0) ---
+// --- START: KOMPLETTES UI-SERVICE.JS (VERSION 2.1 - RELATIONAL) ---
 const uiService = {
     // Hilfsfunktion für schicke Styles
     applyStyles(el, styles) {
@@ -51,11 +51,9 @@ const uiService = {
         `;
 
         dataService.getUnitsByObject(objId).forEach(unit => {
-            // NEU: Holt Vertrag und die Liste der Hauptmieter
             const vertragInfo = dataService.getActiveVertragInfo(unit.einheit_id);
             let bewohnerText = 'Leerstand';
             if (vertragInfo && vertragInfo.hauptmieter && vertragInfo.hauptmieter.length > 0) {
-                // Verbindet mehrere Namen mit einem "&"
                 bewohnerText = vertragInfo.hauptmieter.map(p => p.name).join(' & ');
             }
             
@@ -97,9 +95,8 @@ const uiService = {
         if (!modal || !modalBody) return;
 
         const unit = dataService.state.einheiten.find(u => String(u.einheit_id) === String(id));
-        const objId = unit ? unit.objekt_id : id.split('_')[0]; 
+        const objId = unit ? unit.objekt_id : 'Ra-HS-29'; 
         
-        // NEU: Namens-Logik auch für die Zählermaske
         const vertragInfo = dataService.getActiveVertragInfo(id);
         let bewohnerText = id.includes('Allgemein') ? 'Haus allgemein' : 'Leerstand';
         if (vertragInfo && vertragInfo.hauptmieter && vertragInfo.hauptmieter.length > 0) {
@@ -112,29 +109,44 @@ const uiService = {
             mietername: bewohnerText
         };
 
-        const objConfig = CONFIG[objId] || { defaultMeters: ["kaltwasser_m3", "warmwasser_m3", "strom_ht_kwh", "strom_nt_kwh"] };
-        const activeMeters = (objConfig.customMeters && objConfig.customMeters[id]) 
-                             ? objConfig.customMeters[id] 
-                             : objConfig.defaultMeters;
+        // --- NEU: ZÄHLER DIREKT AUS DEM STATE HOLEN STATT AUS CONFIG ---
+        // Filtert alle Zähler aus der Tabelle 'Zaehler', die zu dieser einheit_id gehören
+        const activeMeters = dataService.state.zaehler.filter(z => String(z.einheit_id) === String(id));
 
-        const hasNT = activeMeters.includes("strom_nt_kwh");
+        // Falls für diese Einheit im Sheet (noch) keine Zähler definiert sind:
+        if (activeMeters.length === 0) {
+            modalBody.innerHTML = `
+                <h3>Zählererfassung</h3>
+                <p style="color:red;">⚠️ Für die Einheit <strong>${id}</strong> wurden im Tabellenblatt 'Zaehler' keine Zähler gefunden.</p>
+                <button onclick="uiService.closeModal()" style="background:#6c757d; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer;">Schließen</button>
+            `;
+            modal.style.display = 'flex';
+            return;
+        }
 
         const meterStyles = {
             "kaltwasser_m3": { label: "💧 Kaltwasser (m³)", color: "#e3f2fd", border: "#2196f3" },
             "warmwasser_m3": { label: "♨️ Warmwasser (m³)", color: "#ffebee", border: "#f44336" },
-            "strom_ht_kwh":  { label: hasNT ? "⚡ Strom HT (kWh)" : "⚡ Strom (kWh)", color: "#fffde7", border: "#fbc02d" },
+            "strom_ht_kwh":  { label: "⚡ Strom HT / Haupt (kWh)", color: "#fffde7", border: "#fbc02d" },
             "strom_nt_kwh":  { label: "🌙 Strom NT (kWh)", color: "#fffde7", border: "#fbc02d" },
-            "oel_stand_l":   { label: "🛢️ Heizöl (Liter)", color: "#f5f5f5", border: "#424242" },
+            "oel_stand_l":   { label: "🛢️ Heizöl (Liter/cm)", color: "#f5f5f5", border: "#424242" },
             "maschinenstunden": { label: "⚙️ Betriebsstunden", color: "#f3e5f5", border: "#9c27b0" }
         };
 
         let inputsHtml = `<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:15px;">`;
-        activeMeters.forEach(mKey => {
-            const style = meterStyles[mKey] || { label: mKey, color: "#ffffff", border: "#ccc" };
+        
+        activeMeters.forEach(zaehler => {
+            const style = meterStyles[zaehler.typ] || { label: zaehler.bezeichnung, color: "#ffffff", border: "#ccc" };
+            // Einbauort-Text vorbereiten, falls vorhanden
+            const ortText = zaehler.einbauort ? `<span style="display:block; font-size:0.7rem; color:#7f8c8d; font-weight:normal; margin-top:2px;">📍 Ort: ${zaehler.einbauort}</span>` : '';
+            
             inputsHtml += `
                 <div style="background-color: ${style.color}; padding: 10px; border-radius: 8px; border-left: 5px solid ${style.border};">
-                    <label style="font-size:0.75rem; font-weight:bold; color:#333; display:block; margin-bottom:4px;">${style.label}</label>
-                    <input type="number" id="val-${mKey}" step="0.01" placeholder="0,00"
+                    <label style="font-size:0.75rem; font-weight:bold; color:#333; display:block; margin-bottom:4px;">
+                        ${style.label}
+                        ${ortText}
+                    </label>
+                    <input type="number" id="input-${zaehler.zaehler_id}" step="0.01" placeholder="0,00"
                         style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; font-size:16px; box-sizing:border-box;">
                 </div>`;
         });
@@ -143,7 +155,7 @@ const uiService = {
         modalBody.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:start;">
                 <div>
-                    <h3 style="margin:0; color:#2c3e50;">Zählererfassung</h3>
+                    <h3 style="margin:0; color:#2c3e50;">Zählererfassung (Relational)</h3>
                     <p style="margin:4px 0; font-size:0.85rem; color:#7f8c8d;">${objId} | ${id}</p>
                 </div>
             </div>
@@ -160,26 +172,45 @@ const uiService = {
             </div>
         `;
         modal.style.display = 'flex';
-        this.currentActiveMeters = activeMeters;
+        // Wir merken uns die geladenen Zähler-Objekte für die Speicher-Funktion
+        this.currentActiveMetersObjects = activeMeters;
     },
 
     async saveZaehler() {
-        // ACHTUNG: Hier gibt es eine Datenmodell-Kollision (Siehe Notiz unten!)
-        const data = {
-            ...this.currentSelection,
-            typ: "ZAEHLERSTAND"
-        };
+        // Wir senden ein Array von Zählerständen, da der Nutzer mehrere Felder gleichzeitig ausfüllen kann
+        const transactions = [];
+        const heute = new Date();
+        const formattedDate = `${String(heute.getDate()).padStart(2, '0')}.${String(heute.getMonth() + 1).padStart(2, '0')}.${String(heute.getFullYear()).substring(2)}`;
 
-        this.currentActiveMeters.forEach(mKey => {
-            const input = document.getElementById(`val-${mKey}`);
-            if (input) data[mKey] = input.value;
+        this.currentActiveMetersObjects.forEach(zaehler => {
+            const input = document.getElementById(`input-${zaehler.zaehler_id}`);
+            if (input && input.value !== "") {
+                transactions.push({
+                    typ: "ZAEHLERSTAND_NEU", // Neues Signal-Wort fürs Backend
+                    zaehler_id: zaehler.zaehler_id,
+                    wert: parseFloat(input.value),
+                    zeitstempel: formattedDate,
+                    quelle: "UI"
+                });
+            }
         });
 
-        console.log("Sende dynamische Daten:", data);
-        const res = await cloudService.saveTransaction(data);
-        if(res && res.status === 'success') {
-            alert("Erfolgreich gespeichert!");
+        if (transactions.length === 0) {
+            alert("Bitte mindestens einen Zählerstand eintragen.");
+            return;
+        }
+
+        console.log("Sende relationale Zählerstände:", transactions);
+        
+        // Da doPost im Google Apps Script ein Objekt erwartet, verpacken wir das Array
+        const res = await cloudService.saveTransaction({ t_list: transactions });
+        
+        if (res && res.status === 'success') {
+            alert("Zählerstände erfolgreich gespeichert!");
             this.closeModal();
+            // Optional: Hier könnte ein dataService.refresh() aufgerufen werden, um Daten neu zu laden
+        } else {
+            alert("Fehler beim Speichern: " + (res ? res.message : "Unbekannter Fehler"));
         }
     },
 
@@ -192,4 +223,4 @@ const uiService = {
         document.getElementById('object-selector-section').style.display = 'block';
     }
 };
-// --- ENDE: KOMPLETTES UI-SERVICE.JS (VERSION 2.0) ---
+// --- ENDE: KOMPLETTES UI-SERVICE.JS (VERSION 2.1) ---
