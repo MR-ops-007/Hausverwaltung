@@ -1,132 +1,129 @@
-# Datenmodell - Hausverwaltung (Google Sheets Backend)
+# Datenmodell - Hausverwaltung (Google Sheets Backend) - AKTUALISIERT
 
 ## 1. Philosophie
-Dieses Modell folgt dem Prinzip eines **Transaction Logs**. Jede Eingabe in der App erzeugt eine neue Zeile in der Tabelle `Transaktionen`. Dies ermöglicht eine lückenlose Historie und einfache Korrekturen.
+Dieses Modell folgt dem Prinzip eines **Transaction Log**. Jede Eingabe in der App erzeugt eine neue Zeile in der Tabelle `Zaehlerstaende` oder `Zahlungen`. Dies ermöglicht eine lückenlose Historie und einfache Korrekturen.
+
+**Wichtige Änderung:** Das alte Sheet `Mieter` wurde in `Personen` und `Vertraege` aufgeteilt. `Vertragsparteien` ermöglicht mehrere Hauptmieter pro Vertrag.
 
 ---
 
-## 2. Erweiterbarkeit (Zukunftssicher)
-Falls neue Messwerte (z.B. Heizöl in Litern) hinzukommen:
-1. Wir nutzen die Spalte `wert_1` und setzen `typ` auf `BRENNSTOFF`.
-2. Die Spalte `bezeichnung` enthält dann den Wert "Heizöl".
-3. Alternativ fügen wir einfach Spalte **J** (`wert_4`) hinzu. Der `dataService` in JS ist bereits so gebaut, dass er neue Felder im JSON ignoriert oder flexibel mappt.
+## 2. Erweiterbarkeit
+Siehe Originalversion (zusatz_wert, bezeichnung).
 
 ---
 
 ## 3. Transaktions-Daten (Dynamisch)
-Ziel-Tabelle für alle POST-Requests der App.
 
-### Tabelle: `Transaktionen`
-Speichert jeden Schreibvorgang der App. 
+### Tabelle: `Zaehlerstaende` (Messwerte)
+Speichert jeden Zählerstand (nicht mehr `Transaktionen`).
 
 | Spalte | Feldname | Datentyp | Beschreibung |
 | :--- | :--- | :--- | :--- |
-| **A** | `zeitstempel` | Datum/Zeit | Format: `DD.MM.YYYY HH:mm` (vom GAS formatiert) |
-| **B** | `einheit_id` | String | Eindeutige ID der Einheit (z.B. LOK_WE_01) |
-| **C** | `typ` | String | `ZAEHLERSTAND`, `MIETE`, `TANKUNG`, `WARTUNG`, `SYSTEM` |
-| **D** | `kaltwasser_m3` | Zahl | Zählerstand Kaltwasser in m³ |
-| **E** | `warmwasser_m3` | Zahl | Zählerstand Warmwasser in m³ |
-| **F** | `strom_ht_kwh` | Zahl | Zählerstand Strom Hochtarif (HT) in kWh |
-| **G** | `strom_nt_kwh` | Zahl | Zählerstand Strom Niedertarif (NT) in kWh |
-| **H** | `oel_stand_l` | Zahl | Aktueller Heizölstand in Litern |
-| **I** | `zusatz_wert` | Zahl | **Erweiterbarkeit:** (z.B. Maschinenstunden, Solar-Ertrag) | 
-| **J** | `mietername` | String | Name des Mieters zum Zeitpunkt der Erfassung |
-| **K** | `bezeichnung` | String | Freitext / Typ des Zusatzwertes (z.B. "Stundenzähler") |
-| **L** | `rohdaten` | JSON | Backup des vollständigen App-Payloads (für Debugging) |
+| **A** | `stand_id` | String | PK: Eindeutige ID (z.B. UUID) |
+| **B** | `zaehler_id` | String | FK -> Zaehler.zaehler_id |
+| **C** | `zeitstempel` | Datum/Zeit | Format: `DD.MM.YYYY HH:mm` |
+| **D** | `wert` | Zahl | Gemessener Wert (m³, kWh, l) |
+| **E** | `quelle` | String | `UI`, `Import`, `Korrektur` |
+
+### Tabelle: `Zahlungen`
+Speichert jede Zahlung auf einen Vertrag.
+
+| Spalte | Feldname | Datentyp | Beschreibung |
+| :--- | :--- | :--- | :--- |
+| **A** | `zahlung_id` | String | PK: Eindeutige ID |
+| **B** | `vertrag_id` | String | FK -> Vertraege.vertrag_id |
+| **C** | `datum` | Datum | Buchungsdatum |
+| **D** | `betrag` | Zahl | Gezahlter Betrag |
+| **E** | `art` | String | `Miete`, `Kaution`, `Nachzahlung`, `Erstattung` |
 
 ---
 
 ## 4. Stammdaten
-Diese Tabellen müssen im Sheet vorhanden sein, damit die App fehlerfrei funktioniert:
 
-### Tabelle: `Einheiten` (Stammdaten)
-Die Aufteilung der Häuser. Die physischen Wohnungen/Gewerbe.
-
+### Tabelle: `Objekte` (Häuser)
 | Spalte | Feldname | Datentyp | Beschreibung |
 | :--- | :--- | :--- | :--- |
-| **A** | `objekt_id` | String | z.B. LOK, Ra-HS-29 |
-| **B** | `einheit_id` | String | Eindeutiger Key (z.B. LOK_WE_01) |
-| **C** | `typ` | String | Wohnung, Gewerbe, Allgemein |
-| **D** | `nummer` | String | Anzeigename (z.B. "1. OG rechts") |
-| **E** | `qm` | Zahl | Wohnfläche für Umlage |
-| **F** | `personen_standard` | Zahl | Standardbelegung (Soll) |
-
----
-
-### Tabelle: `Mieter` (Stammdaten & Verträge)
-Historie der Mietverhältnisse. Einheiten können mehrere Einträge haben (alte vs. neue Mieter).
-
-| Spalte | Feldname | Datentyp | Beschreibung |
-| :--- | :--- | :--- | :--- |
-| **A** | `miet_id` | Zahl | Fortlaufende Nummer |
-| **B** | `einheit_id` | String | Zuordnung zur Wohnung |
-| **C** | `mietername` | String | Name des Mieters |
-| **D** | `aktiv` | Boolean | TRUE = Aktuell |
-| **E** | `personen_aktuell` | Zahl | Tatsächliche Personenanzahl |
-| **F** | `soll_kaltmiete` | Zahl | Aktuelle Soll-Kaltmiete |
-| **G** | `soll_nebenkosten` | Zahl | Aktuelle Soll-Nebenkosten |
-| **H** | `soll_gesamt` | Zahl | Summe F+G |
-| **I** | `miet_modell` | String | `Kalt+NK`, `Pauschal`, `Warmmiete` |
-| **J** | `erhoehungs_typ` | String | `Index`, `Staffel`, `Normal` |
-| **K** | `letzte_anpassung` | Datum | Datum der letzten Mieterhöhung |
-| **L** | `einzug_datum` | Datum | Mietbeginn |
-| **M** | `auszug_datum` | Datum | Mietende (wenn bekannt) |
-| **N** | `kaution_soll` | Zahl | Vereinbarte Kaution |
-| **O** | `kaution_ist` | Zahl | Tatsächlich gezahlte Kaution |
-
----
-
-### Tabelle: `Objekte` (Stammdaten)
-Die Stammdaten der Häuser.
-
-| Spalte | Feldname | Datentyp | Beschreibung |
-| :--- | :--- | :--- | :--- |
-| **A** | `objekt_id` | String | Eindeutiger Key |
+| **A** | `objekt_id` | String | PK: Eindeutiger Key |
 | **B** | `bezeichnung` | String | Name (z.B. "Haus am See") |
 | **C** | `strasse` | String | Anschrift |
 | **D** | `plz` | String | PLZ |
 | **E** | `ort` | String | Ort |
-| **F** | `adresszusatz` | String | Adresszusatz für zusätzliche Informationen |
+| **F** | `adresszusatz` | String | Optional |
+| **G** | `besitzer_id` | String | FK -> Nutzer.nutzer_id (Optional: für Datenschutz) |
 
----
+### Tabelle: `Einheiten` (Wohnungen/Gewerbe)
+| Spalte | Feldname | Datentyp | Beschreibung |
+| :--- | :--- | :--- | :--- |
+| **A** | `einheit_id` | String | PK: Eindeutiger Key |
+| **B** | `objekt_id` | String | FK -> Objekte.objekt_id |
+| **C** | `typ` | String | `Wohnung`, `Gewerbe`, `Allgemein` |
+| **D** | `nummer` | String | Anzeigename (z.B. "1. OG rechts") |
+| **E** | `qm` | Zahl | Wohnfläche |
+| **F** | `personen_standard` | Zahl | Standardbelegung (Soll) |
 
-## 5. Konfiguration & Kosten
-Diese Tabellen sind die Grundlage für die Nebenkostenabrechnung.
+### Tabelle: `Personen` (Natürliche Personen)
+**Wichtig:** Trennt Person von Mietvertrag. Mehr Hauptmieter sind hier möglich.
+| Spalte | Feldname | Datentyp | Beschreibung |
+| :--- | :--- | :--- | :--- |
+| **A** | `person_id` | String | PK: Eindeutiger Key |
+| **B** | `name` | String | Vollständiger Name |
+| **C** | `email` | String | Optional |
+| **D** | `telefon` | String | Optional |
+
+### Tabelle: `Vertraege` (Mietverhältnisse)
+| Spalte | Feldname | Datentyp | Beschreibung |
+| :--- | :--- | :--- | :--- |
+| **A** | `vertrag_id` | String | PK: Eindeutiger Key |
+| **B** | `einheit_id` | String | FK -> Einheiten.einheit_id |
+| **C** | `hauptperson_id` | String | FK -> Personen.person_id (Technischer Anker für 1. Ansprechpartner) |
+| **D** | `start_datum` | Datum | Mietbeginn |
+| **E** | `end_datum` | Datum | Mietende (wenn bekannt) |
+| **F** | `aktiv` | Boolean | TRUE = Aktuell |
+| **G** | `mietmodell` | String | `Kalt+NK`, `Pauschal`, `Warmmiete` |
+| **H** | `erhoehungs_typ` | String | `Index`, `Staffel`, `Normal` |
+| **I** | `soll_kaltmiete` | Zahl | Aktuelle Soll-Kaltmiete |
+| **J** | `soll_nebenkosten` | Zahl | Aktuelle Soll-Nebenkosten |
+| **K** | `kaution_soll` | Zahl | Vereinbarte Kaution |
+| **L** | `kaution_ist` | Zahl | Tatsächlich gezahlte Kaution |
+
+### Tabelle: `Vertragsparteien` (N:M zwischen Vertrag und Person)
+**Wichtig:** Ermöglicht mehrere Hauptmieter (z.B. 2 Personen mit Rolle "Hauptmieter").
+| Spalte | Feldname | Datentyp | Beschreibung |
+| :--- | :--- | :--- | :--- |
+| **A** | `vertrag_id` | String | FK -> Vertraege.vertrag_id (PK) |
+| **B** | `person_id` | String | FK -> Personen.person_id (PK) |
+| **C** | `rolle` | String | `Hauptmieter`, `Mitmieter`, `Eigentümer` |
+| **D** | `ordnet` | Number | Optional: Reihenfolge (1, 2, ...) |
+| **E** | `vollmacht` | Boolean | Optional: Wer darf den Vertrag führen? |
+
+### Tabelle: `Zaehler` (Zähler-Definition)
+**Wichtig:** Trennt den Zähler (Stammdaten) vom Messwert (`Zaehlerstaende`).
+| Spalte | Feldname | Datentyp | Beschreibung |
+| :--- | :--- | :--- | :--- |
+| **A** | `zaehler_id` | String | PK: Eindeutiger Key |
+| **B** | `objekt_id` | String | FK -> Objekte.objekt_id (für Allgemeine Zähler) |
+| **C** | `einheit_id` | String | FK -> Einheiten.einheit_id (nullable, für WE/GE Zähler) |
+| **D** | `medium` | String | `Kaltwasser`, `Warmwasser`, `Strom`, `Oel`, `Zusatz` |
+| **E** | `bezeichnung` | String | Freitext/Anzeige (z.B. "Strom HT") |
+| **F** | `einheit` | String | `m3`, `kWh`, `l`, `h` |
 
 ### Tabelle: `Parameter` (Konfiguration)
-Hinterlegt Kostensätze pro Haus (wichtig für die Berechnung).
-
 | Spalte | Feldname | Datentyp | Beschreibung |
 | :--- | :--- | :--- | :--- |
-| **A** | `objekt_id` | String | Zuordnung zum Haus |
-| **B** | `bezeichnung` | String | z.B. `PREIS_WASSER_M3`, `PREIS_STROM_KWH` |
+| **A** | `objekt_id` | String | FK -> Objekte.objekt_id |
+| **B** | `bezeichnung` | String | z.B. `PREIS_WASSER_M3` |
 | **C** | `wert` | Zahl | Betrag |
 | **D** | `einheit` | String | €, m³, kWh |
+| **E** | `gueltig_ab` | Datum | Beginn der Vertragsperiode |
+| **F** | `gueltig_bis` | Datum | Ende der Vertragsperiode |
+	
 
-### Tabelle: `Zaehler_Staende` (Konsolidierung)
-Wird vom System/Script befüllt (Letzter bekannter Stand).
-
+### Tabelle: `Fixkosten`
 | Spalte | Feldname | Datentyp | Beschreibung |
 | :--- | :--- | :--- | :--- |
-| **A** | `objekt_id` | String | Haus-Kürzel (z.B. LOK, Ra-HS-29) |
-| **B** | `einheit_id` | String | Eindeutige ID der Einheit |
-| **C** | `letzte_messung` | Datum/Zeit | Zeitpunkt der letzten Aktualisierung |
-| **D** | `kw_aktuell` | Zahl | Letzter übermittelter Kaltwasserstand |
-| **E** | `ww_aktuell` | Zahl | Letzter übermittelter Warmwasserstand |
-| **F** | `st_ht_aktuell` | Zahl | Letzter übermittelter Stromstand (HT) |
-| **G** | `st_nt_aktuell` | Zahl | Letzter übermittelter Stromstand (NT) |
-| **H** | `oel_aktuell` | Zahl | Letzter übermittelter Ölstand |
-| **I** | `zusatz_aktuell` | Zahl | Letzter übermittelter Wert aus `zusatz_wert` |
-| **J** | `mietername` | String | Name des Mieters zum Zeitpunkt der Erfassung |
-| **K** | `bezeichnung` | String | Freitext / Typ des Zusatzwertes (z.B. "Stundenzähler") |
-
-### Tabelle: `Fixkosten` 
-Jährliche Kosten des Objekts, die umgelegt werden müssen.
-
-| Spalte | Feldname | Datentyp | Beschreibung |
-| :--- | :--- | :--- | :--- |
-| **A** | `objekt_id` | String | Zuordnung zum Haus |
-| **B** | `jahr` | Zahl | Abrechnungsjahr |
-| **C** | `kategorie` | String | `GRUNDSTEUER`, `VERSICHERUNG`, `REINIGUNG` etc. |
-| **D** | `betrag` | Zahl | Gesamtsumme |
-| **E** | `umlage_key` | String | `QM`, `PERSONEN`, `EINHEIT` |
+| **A** | `kosten_id` | String | PK: Eindeutiger Key |
+| **B** | `objekt_id` | String | FK -> Objekte.objekt_id |
+| **C** | `jahr` | Zahl | Abrechnungsjahr |
+| **D** | `kategorie` | String | `GRUNDSTEUER`, `VERSICHERUNG` |
+| **E** | `betrag` | Zahl | Gesamtsumme |
+| **F** | `umlage_key` | String | `QM`, `PERSONEN`, `EINHEIT` |
