@@ -66,10 +66,11 @@ Speichert jede Zahlung auf einen Vertrag.
 | Spalte | Feldname | Datentyp | Beschreibung |
 | :--- | :--- | :--- | :--- |
 | **A** | `person_id` | String | PK: Eindeutiger Key |
-| **B** | `name` | String | Vollständiger Name |
-| **C** | `email` | String | Optional |
-| **D** | `telefon` | String | Optional |
-| **E** | `personen_aktuell` | Zahl | Reale Anzahl der dort lebenden Personen (für Umlageschlüssel) |
+| **B** | `name` | String | Nachname |
+| **C** | `vorname` | String | Vorname |
+| **D** | `email` | String | Optional |
+| **E** | `telefon` | String | Optional |
+| **F** | `personen_aktuell` | Zahl | Reale Anzahl der dort lebenden Personen (für Umlageschlüssel) |
 
 ### Tabelle: `Vertraege` (Mietverhältnisse)
 | Spalte | Feldname | Datentyp | Beschreibung |
