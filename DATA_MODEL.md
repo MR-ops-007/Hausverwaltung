@@ -69,6 +69,7 @@ Speichert jede Zahlung auf einen Vertrag.
 | **B** | `name` | String | Vollständiger Name |
 | **C** | `email` | String | Optional |
 | **D** | `telefon` | String | Optional |
+| **E** | `personen_aktuell` | Zahl | Reale Anzahl der dort lebenden Personen (für Umlageschlüssel) |
 
 ### Tabelle: `Vertraege` (Mietverhältnisse)
 | Spalte | Feldname | Datentyp | Beschreibung |
@@ -76,16 +77,17 @@ Speichert jede Zahlung auf einen Vertrag.
 | **A** | `vertrag_id` | String | PK: Eindeutiger Key |
 | **B** | `einheit_id` | String | FK -> Einheiten.einheit_id |
 | **C** | `hauptperson_id` | String | FK -> Personen.person_id (Technischer Anker für 1. Ansprechpartner) |
-| **D** | `start_datum` | Datum | Mietbeginn |
-| **E** | `end_datum` | Datum | Mietende (wenn bekannt) |
+| **D** | `start_datum` | Datum | Mietbeginn (Historisch: `einzug_datum`) |
+| **E** | `end_datum` | Datum | Mietende (Historisch: `auszug_datum`, wenn bekannt) |
 | **F** | `aktiv` | Boolean | TRUE = Aktuell |
 | **G** | `mietmodell` | String | `Kalt+NK`, `Pauschal`, `Warmmiete` |
 | **H** | `erhoehungs_typ` | String | `Index`, `Staffel`, `Normal` |
-| **I** | `soll_kaltmiete` | Zahl | Aktuelle Soll-Kaltmiete |
-| **J** | `soll_nebenkosten` | Zahl | Aktuelle Soll-Nebenkosten |
-| **K** | `kaution_soll` | Zahl | Vereinbarte Kaution |
-| **L** | `kaution_ist` | Zahl | Tatsächlich gezahlte Kaution |
-| **M** | `soll_gesamt` | Zahl | Summe aus soll_kaltmiete und soll_nebenkosten |
+| **I** | `letzte_anpassung` | Datum | Letzte vertragliche Mietpreisänderung |
+| **J** | `soll_kaltmiete` | Zahl | Aktuelle Soll-Kaltmiete |
+| **K** | `soll_nebenkosten` | Zahl | Aktuelle Soll-Nebenkosten |
+| **L** | `soll_gesamt` | Zahl | Summe aus soll_kaltmiete und soll_nebenkosten |
+| **M** | `kaution_soll` | Zahl | Vereinbarte Kautionssumme |
+| **N** | `kaution_ist` | Zahl | Tatsächlich bisher gezahlte Kaution |
 
 ### Tabelle: `Vertragsparteien` (N:M zwischen Vertrag und Person)
 **Wichtig:** Ermöglicht mehrere Hauptmieter (z.B. 2 Personen mit Rolle "Hauptmieter").
@@ -118,7 +120,6 @@ Speichert jede Zahlung auf einen Vertrag.
 | **D** | `einheit` | String | €, m³, kWh |
 | **E** | `gueltig_ab` | Datum | Beginn der Vertragsperiode |
 | **F** | `gueltig_bis` | Datum | Ende der Vertragsperiode |
-	
 
 ### Tabelle: `Fixkosten`
 | Spalte | Feldname | Datentyp | Beschreibung |
