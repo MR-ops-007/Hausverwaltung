@@ -1,11 +1,37 @@
 /**
- * CLOUD-SERVICE (v2.5 - Professional Mode)
- * - Offline-Funktionen sind nun über ein Flag steuerbar.
- * - Fehlersuche ist auf 'cors' gestellt, um Backend-Antworten zu sehen.
+ * CLOUD-SERVICE (v2.8 - VOLLSTÄNDIG: Lade-Logik + umschaltbare Offline-Funktion)
  */
 const cloudService = {
     scriptUrl: CONFIG.API_URL,
-    ENABLE_OFFLINE_SYNC: true, // HIER EINFACH AUF FALSE SETZEN, UM OFFLINE ABZUSCHALTEN
+    ENABLE_OFFLINE_SYNC: true, // Auf false setzen, um Offline-Queue abzustellen
+
+    async loadDashboardData() {
+        try {
+            const url = `${this.scriptUrl}?view=dashboard&t=${Date.now()}`;
+            const response = await fetch(url, { method: 'GET', mode: 'cors' });
+            if (!response.ok) throw new Error(`HTTP-Fehler! ${response.status}`);
+            return await response.json();
+        } catch (error) {
+            console.error("CloudService Stufe 1 Fehler:", error);
+            throw error;
+        }
+    },
+
+    async loadBackgroundData() {
+        try {
+            const url = `${this.scriptUrl}?t=${Date.now()}`;
+            const response = await fetch(url, { method: 'GET', mode: 'cors' });
+            if (!response.ok) throw new Error(`HTTP-Fehler! ${response.status}`);
+            const data = await response.json();
+            
+            // WICHTIG: Nach dem Laden der Stammdaten die Queue prüfen
+            await this.processOfflineQueue();
+            return data;
+        } catch (error) {
+            console.error("CloudService Stufe 2 Fehler:", error);
+            throw error;
+        }
+    },
 
     async saveTransaction(transactionData) {
         // Offline-Prüfung nur, wenn Feature aktiv
@@ -15,7 +41,7 @@ const cloudService = {
         }
 
         try {
-            // MODE 'cors' ist notwendig, um echte Rückmeldungen vom Backend zu lesen!
+            // MODE 'cors' für echte Backend-Antworten
             const response = await fetch(this.scriptUrl, {
                 method: 'POST',
                 mode: 'cors', 
@@ -33,7 +59,6 @@ const cloudService = {
         } catch (error) {
             console.error("CloudService Übertragungsfehler:", error);
             
-            // Bei Fehler: Falls Feature aktiv, in die Queue
             if (this.ENABLE_OFFLINE_SYNC) {
                 this.saveToOfflineQueue(transactionData);
                 return { status: 'error', message: "Fehler, in Queue verschoben: " + error.message };
@@ -55,7 +80,20 @@ const cloudService = {
         if (queue.length === 0) return;
         
         console.log(`CloudService: Sende ${queue.length} Queue-Elemente...`);
-        // ... (Logik zum Abarbeiten bleibt unverändert erhalten)
+        for (const item of queue) {
+            try {
+                await fetch(this.scriptUrl, { 
+                    method: 'POST', 
+                    mode: 'cors', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(item) 
+                });
+            } catch (e) { 
+                console.error("CloudService: Fehler beim Senden der Queue", e);
+                return; 
+            }
+        }
         localStorage.removeItem('offline_queue');
+        console.log("CloudService: Queue geleert.");
     }
 };
