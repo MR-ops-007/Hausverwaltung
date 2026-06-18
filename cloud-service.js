@@ -1,5 +1,5 @@
 /**
- * CLOUD-SERVICE (v2.9 - VOLLSTÄNDIG: CORS-Fix durch Text-Plain Workaround)
+ * CLOUD-SERVICE (v2.10 - VOLLSTÄNDIG: Absoluter Preflight-Bypass)
  */
 const cloudService = {
     scriptUrl: CONFIG.API_URL,
@@ -8,7 +8,8 @@ const cloudService = {
     async loadDashboardData() {
         try {
             const url = `${this.scriptUrl}?view=dashboard&t=${Date.now()}`;
-            const response = await fetch(url, { method: 'GET', mode: 'cors' });
+            // Keine Header, Standard-GET
+            const response = await fetch(url);
             if (!response.ok) throw new Error(`HTTP-Fehler! ${response.status}`);
             return await response.json();
         } catch (error) {
@@ -20,11 +21,11 @@ const cloudService = {
     async loadBackgroundData() {
         try {
             const url = `${this.scriptUrl}?t=${Date.now()}`;
-            const response = await fetch(url, { method: 'GET', mode: 'cors' });
+            const response = await fetch(url);
             if (!response.ok) throw new Error(`HTTP-Fehler! ${response.status}`);
             const data = await response.json();
             
-            // WICHTIG: Nach dem Laden der Stammdaten die Queue prüfen
+            // Queue nach dem Laden abarbeiten
             await this.processOfflineQueue();
             return data;
         } catch (error) {
@@ -34,18 +35,16 @@ const cloudService = {
     },
 
     async saveTransaction(transactionData) {
-        // Offline-Prüfung nur, wenn Feature aktiv
         if (this.ENABLE_OFFLINE_SYNC && !navigator.onLine) {
             this.saveToOfflineQueue(transactionData);
             return { status: 'success', message: 'Offline gespeichert (Queue)' };
         }
 
         try {
-            // CORS-FIX: 'text/plain' verhindert den blockierten Preflight-Request bei Google Apps Script!
+            // DER FIX: Keine 'headers', kein 'mode'. 
+            // Der Browser sendet den String automatisch als simplen Text (ohne Preflight-Blockade).
             const response = await fetch(this.scriptUrl, {
                 method: 'POST',
-                mode: 'cors', 
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(transactionData)
             });
 
@@ -82,11 +81,9 @@ const cloudService = {
         console.log(`CloudService: Sende ${queue.length} Queue-Elemente...`);
         for (const item of queue) {
             try {
+                // DER FIX für die Queue: Ebenfalls ohne explizite Header
                 await fetch(this.scriptUrl, { 
                     method: 'POST', 
-                    mode: 'cors', 
-                    // Auch hier den Fix anwenden
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify(item) 
                 });
             } catch (e) { 
