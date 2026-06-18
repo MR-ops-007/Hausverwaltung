@@ -2,7 +2,9 @@
 
 # Projektstatus: Hausverwaltung App
 
-## [18.06.2026] Architektur-Entscheidung: Einführung von Performance-Views
+[18.06.2026] 
+
+## Architektur-Entscheidung: Einführung von Performance-Views
 
 ### Problemstellung
 Nach der erfolgreichen Normalisierung des Datenmodells (Aufteilung der Mieter-Stammdaten in `Personen`, `Vertraege` und `Vertragsparteien`) stiegen die Ladezeiten des Frontends spürbar an. Da Google Apps Script (GAS) keine native indizierte SQL-Datenbank ist, verursachten die notwendigen Multi-Tabellen-Joins (Suchen und Verknüpfen über 4 Sheets hinweg) bei jedem `doGet()`-Aufruf hohe CPU-Laufzeiten und Latenzen.
