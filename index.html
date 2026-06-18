@@ -18,7 +18,7 @@
             <div id="object-selector">Lade Objekte...</div>
         </section>
 
-        <section id="unit-list-section" style="margin-top: 20px;">
+        <section id="unit-list-section" style="margin-top: 20px; display: none;">
             <div id="tenant-list"></div>
         </section>
 
@@ -37,26 +37,32 @@
     <script src="ui-service.js"></script>
 
     <script>
-    // Wir warten, bis das Dokument wirklich BEREIT ist
     document.addEventListener('DOMContentLoaded', async () => {
         const statusEl = document.getElementById('sync-status');
-        console.log("System: Starte Initialisierung...");
+        console.log("System: Starte Initialisierung (Stufe 1)...");
         
         try {
-            const data = await cloudService.loadAllData();
-            
-            if (data) {
-                dataService.setInitialData(data);
+            // STUFE 1: Schneller Ladevorgang (nur Dashboard-Tabelle)
+            const fastData = await cloudService.loadDashboardData();
+            if (fastData) {
+                dataService.setDashboardData(fastData);
+                uiService.renderAll(); 
                 
-                // Status Update
                 if (statusEl) {
-                    statusEl.textContent = "✅ Daten aktuell (" + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ")";
+                    statusEl.textContent = "✅ UI bereit. Lade Hintergrunddaten...";
+                    statusEl.style.color = "orange";
+                }
+            }
+
+            // STUFE 2: Hintergrund-Ladevorgang (der schwere Rest)
+            const fullData = await cloudService.loadBackgroundData();
+            if (fullData) {
+                dataService.setInitialData(fullData);
+                
+                if (statusEl) {
+                    statusEl.textContent = "✅ System vollständig geladen (" + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ")";
                     statusEl.style.color = "green";
                 }
-
-                setTimeout(() => {
-                    uiService.renderAll();
-                }, 100);
             }
         } catch (error) {
             console.error("KRITISCHER FEHLER:", error);
