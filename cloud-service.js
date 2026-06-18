@@ -1,5 +1,5 @@
 /**
- * CLOUD-SERVICE (v2.19 - VOLLSTÄNDIG - ALLE FUNKTIONEN ENTHALTEN)
+ * CLOUD-SERVICE (v2.20 - VOLLSTÄNDIG)
  */
 const cloudService = {
     scriptUrl: CONFIG.API_URL,
@@ -15,8 +15,6 @@ const cloudService = {
         const response = await fetch(`${this.scriptUrl}?t=${Date.now()}`);
         if (!response.ok) throw new Error(`HTTP-Fehler! ${response.status}`);
         const data = await response.json();
-        
-        // Verarbeite Queue im Hintergrund nach erfolgreichem Laden
         await this.processOfflineQueue();
         return data;
     },
@@ -75,7 +73,7 @@ const cloudService = {
         for (const item of queue) {
             try {
                 const res = await fetch(this.scriptUrl, { method: 'POST', body: JSON.stringify(item) });
-                if (!res.ok) return; // Stop bei Fehler
+                if (!res.ok) return; 
             } catch(e) { return; }
         }
         localStorage.removeItem('offline_queue');
