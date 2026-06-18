@@ -131,3 +131,23 @@ Speichert jede Zahlung auf einen Vertrag.
 | **D** | `kategorie` | String | `GRUNDSTEUER`, `VERSICHERUNG` |
 | **E** | `betrag` | Zahl | Gesamtsumme |
 | **F** | `umlage_key` | String | `QM`, `PERSONEN`, `EINHEIT` |
+
+---
+
+## 5. Performance-Optimierung (Flache Lese-Ansichten)
+
+Um die Ladezeiten der Benutzeroberfläche (UI) zu minimieren, verwendet das System das Prinzip einer **Materialized View**. Die relationalen Tabellen (`Einheiten`, `Vertraege`, `Personen`, `Vertragsparteien`) bleiben die "Single Source of Truth" für Schreiboperationen. Für Leseoperationen der UI wird jedoch eine aggregierte, flache Hilfstabelle automatisiert vom Backend gepflegt.
+
+### Hilfstabelle: `_view_aktive_mieter`
+Diese Tabelle wird bei jeder vertraglichen Änderung oder beim Laden asynchron aktualisiert. Sie bündelt alle für das Dashboard kritischen Mieterdaten in einer einzigen Zeile pro Einheit.
+
+| Spalte | Feldname | Datentyp | Beschreibung | Herkunft / Logik |
+| :--- | :--- | :--- | :--- | :--- |
+| **A** | `einheit_id` | String | PK: Eindeutiger Key der Wohneinheit | `Einheiten.einheit_id` |
+| **B** | `vertrag_id` | String | FK: ID des aktuell aktiven Mietvertrags | `Vertraege.vertrag_id` (wo `aktiv` = TRUE) |
+| **C** | `mieter_name` | String | Vollständiger Name des Hauptmieters | `Personen.name` + ", " + `Personen.vorname` (Format: Nachname, Vorname) |
+| **D** | `start_datum` | Datum | Einzugsdatum / Mietbeginn | `Vertraege.start_datum` |
+| **E** | `soll_gesamt` | Zahl | Aktuelle monatliche Soll-Gesamtmiete | `Vertraege.soll_gesamt` |
+| **F** | `personen_aktuell` | Zahl | Anzahl der aktuell gemeldeten Personen | `Personen.personen_aktuell` |
+
+**Konsistenz-Regel:** Es dürfen niemals manuelle Änderungen in `_view_aktive_mieter` vorgenommen werden. Die Tabelle ist ein reiner Lese-Cache (Read-Only Cache). Schreibzugriffe erfolgen strikt über die Quelltabellen.
