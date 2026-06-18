@@ -20,10 +20,12 @@ Speichert jeden Zählerstand (nicht mehr `Transaktionen`).
 | Spalte | Feldname | Datentyp | Beschreibung |
 | :--- | :--- | :--- | :--- |
 | **A** | `stand_id` | String | PK: Eindeutige ID (z.B. UUID) |
-| **B** | `zaehler_id` | String | FK -> Zaehler.zaehler_id |
-| **C** | `zeitstempel` | Datum/Zeit | Format: `DD.MM.YYYY HH:mm` |
-| **D** | `wert` | Zahl | Gemessener Wert (m³, kWh, l) |
-| **E** | `quelle` | String | `UI`, `Import`, `Korrektur` |
+| **B** | `objekt_id` | String | Fremdschlüssel (FK) (verknüpft mit Objekte) FK -> Zaehler.objekt_id |
+| **C** | `einheit_id` | String | Fremdschlüssel (FK) (verknüpft mit Einheiten) FK -> Zaehler.einheit_id |
+| **D** | `zaehler_id` | String | Fremdschlüssel (FK) (verknüpft mit Zähler) FK -> Zaehler.zaehler_id |
+| **E** | `zeitstempel` | Datum/Zeit | Format: `DD.MM.YYYY HH:mm` |
+| **F** | `wert` | Zahl | Gemessener Wert (m³, kWh, l) |
+| **G** | `quelle` | String | `UI`, `Import`, `Korrektur` |
 
 ### Tabelle: `Zahlungen`
 Speichert jede Zahlung auf einen Vertrag.
