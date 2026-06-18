@@ -1,5 +1,5 @@
 /**
- * UI-SERVICE (v2.3 - FIX: Korrekte Payload-Struktur für Backend-Kommunikation)
+ * UI-SERVICE (v2.7 - Finale relationale Version - VOLLSTÄNDIG)
  */
 const uiService = {
     applyStyles(el, styles) {
@@ -139,20 +139,26 @@ const uiService = {
 
     async saveZaehler() {
         const transactions = [];
+        const zeitstempel = new Date().toLocaleDateString('de-DE');
+
         this.currentActiveMetersObjects.forEach(zaehler => {
             const input = document.getElementById(`input-${zaehler.zaehler_id}`);
+            
             if (input && input.value !== "") {
                 transactions.push({
+                    typ: "ZAEHLERSTAND_NEU",
+                    objekt_id: zaehler.objekt_id,
+                    einheit_id: zaehler.einheit_id,
                     zaehler_id: zaehler.zaehler_id,
                     wert: parseFloat(input.value),
-                    zeitstempel: new Date().toLocaleDateString('de-DE')
+                    zeitstempel: zeitstempel,
+                    quelle: "UI"
                 });
             }
         });
 
-        if (transactions.length === 0) return alert("Bitte Werte eintragen.");
-
-        // WICHTIG: Hier fügen wir den TYP hinzu, damit dein Backend die Tabelle findet!
+        if (transactions.length === 0) return alert("Keine Werte eingetragen.");
+        
         const payload = {
             typ: "ZAEHLERSTAND_NEU", 
             t_list: transactions
@@ -164,11 +170,12 @@ const uiService = {
             alert("Erfolgreich gespeichert!");
             this.closeModal();
         } else {
-            alert("Fehler: " + (res ? res.message : "Unbekannt"));
+            alert("Fehler: " + (res ? res.message : "Unbekannter Fehler"));
         }
     },
 
     closeModal() { document.getElementById('modal-container').style.display = 'none'; },
+    
     backToObjects() {
         document.getElementById('unit-list-section').style.display = 'none';
         document.getElementById('object-selector-section').style.display = 'block';
