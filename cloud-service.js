@@ -1,5 +1,5 @@
 /**
- * CLOUD-SERVICE (v2.10.1 - VOLLSTÄNDIG: Preflight-Bypass & Response-Sicherung)
+ * CLOUD-SERVICE (v2.12 - FIX: Absolute Absicherung der Response-Verarbeitung)
  */
 const cloudService = {
     scriptUrl: CONFIG.API_URL,
@@ -44,21 +44,27 @@ const cloudService = {
                 body: JSON.stringify(transactionData)
             });
 
-            // Sicherstellung, dass der Response-Body existiert und valides JSON ist
+            // 1. Response Text lesen
             const text = await response.text();
+            
+            // 2. Parsen mit expliziter Prüfung auf null/undefined/leer
             let result;
             try {
                 result = text ? JSON.parse(text) : {};
             } catch (e) {
-                console.error("CloudService: Ungültiges JSON empfangen", text);
-                throw new Error("Server antwortete mit ungültigem Format.");
+                console.error("CloudService: Response ist kein valides JSON:", text);
+                throw new Error("Server-Antwort konnte nicht verarbeitet werden.");
             }
-            
-            if (result.status === 'error') {
+
+            // 3. Ergebnis prüfen - Typsichere Prüfung, ob result ein Objekt ist
+            if (result && typeof result === 'object' && result.status === 'error') {
                 throw new Error(result.message || "Backend-Fehler");
             }
             
-            return { status: 'success', message: result.message || "Erfolgreich" };
+            return { 
+                status: 'success', 
+                message: (result && result.message) ? result.message : "Erfolgreich gespeichert" 
+            };
         } catch (error) {
             console.error("CloudService Übertragungsfehler:", error);
             
@@ -83,16 +89,21 @@ const cloudService = {
         const rawQueue = localStorage.getItem('offline_queue');
         if (!rawQueue) return;
         
-        let queue = JSON.parse(rawQueue);
+        let queue;
+        try {
+            queue = JSON.parse(rawQueue);
+        } catch (e) {
+            localStorage.removeItem('offline_queue');
+            return;
+        }
+
         if (!Array.isArray(queue) || queue.length === 0) return;
         
         console.log(`CloudService: Sende ${queue.length} Queue-Elemente...`);
         
         let successfulItems = [];
         for (const item of queue) {
-            // Validierung, ob das Item ein Objekt ist (verhindert TypeError)
             if (!item || typeof item !== 'object') {
-                console.warn("CloudService: Überspringe invalides Queue-Element", item);
                 continue;
             }
 
@@ -105,12 +116,11 @@ const cloudService = {
                 if (response.ok) {
                     successfulItems.push(item);
                 } else {
-                    console.error("CloudService: Queue-Element konnte nicht gesendet werden");
                     break; 
                 }
             } catch (e) { 
                 console.error("CloudService: Fehler beim Senden der Queue", e);
-                return; 
+                break; 
             }
         }
         
@@ -120,6 +130,6 @@ const cloudService = {
             const remaining = queue.slice(successfulItems.length);
             localStorage.setItem('offline_queue', JSON.stringify(remaining));
         }
-        console.log("CloudService: Queue geleert.");
+        console.log("CloudService: Queue-Verarbeitung abgeschlossen.");
     }
 };
