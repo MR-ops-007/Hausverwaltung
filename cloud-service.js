@@ -1,5 +1,5 @@
 /**
- * CLOUD-SERVICE (v2.12 - FIX: Absolute Absicherung der Response-Verarbeitung)
+ * CLOUD-SERVICE (v2.13 - VOLLSTÄNDIG: Null-tolerante Response-Verarbeitung)
  */
 const cloudService = {
     scriptUrl: CONFIG.API_URL,
@@ -44,19 +44,24 @@ const cloudService = {
                 body: JSON.stringify(transactionData)
             });
 
-            // 1. Response Text lesen
+            // 1. Text-Inhalt der Antwort abrufen
             const text = await response.text();
             
-            // 2. Parsen mit expliziter Prüfung auf null/undefined/leer
-            let result;
-            try {
-                result = text ? JSON.parse(text) : {};
-            } catch (e) {
-                console.error("CloudService: Response ist kein valides JSON:", text);
-                throw new Error("Server-Antwort konnte nicht verarbeitet werden.");
+            // 2. Absicherung: Wenn Text leer, betrachte es als Erfolg ohne Payload
+            if (!text || text.trim() === "") {
+                return { status: 'success', message: "Erfolgreich (kein Body)" };
             }
 
-            // 3. Ergebnis prüfen - Typsichere Prüfung, ob result ein Objekt ist
+            // 3. Erst jetzt versuchen zu parsen
+            let result;
+            try {
+                result = JSON.parse(text);
+            } catch (e) {
+                console.error("CloudService: Response Parsing Error", text);
+                throw new Error("Server antwortete mit ungültigem Format.");
+            }
+            
+            // 4. Zugriff nur wenn result existiert
             if (result && typeof result === 'object' && result.status === 'error') {
                 throw new Error(result.message || "Backend-Fehler");
             }
@@ -103,9 +108,7 @@ const cloudService = {
         
         let successfulItems = [];
         for (const item of queue) {
-            if (!item || typeof item !== 'object') {
-                continue;
-            }
+            if (!item || typeof item !== 'object') continue;
 
             try {
                 const response = await fetch(this.scriptUrl, { 
