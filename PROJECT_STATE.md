@@ -17,7 +17,7 @@ Einführung einer hybriden Datenarchitektur:
 ### Technische Auswirkungen
 * **UI-Performance:** Reduzierung der Ladezeit des Dashboards von mehreren Sekunden auf <500ms, da komplexe Suchschleifen im Apps Script entfallen.
 * **Datenkomplexität:** Geringfügig höherer Code-Aufwand im Backend zur Pflege des Caches, dafür eine drastische Reduzierung der Frontend-Logik und massive Einsparung von API-Token durch schlanke JSON-Payloads.
-* **UI-Anpassung:** Das Namensformat im Lese-Cache wurde standardisiert auf `"Nachname, Vorname"` (`Mertin, Darien`), um eine einheitliche, professionelle Sortierung und Darstellung im Frontend zu gewährleisten.
+* **UI-Anpassung:** Das Namensformat im Lese-Cache wurde standardisiert auf `"Nachname, Vorname"` (`Duck, Donald`), um eine einheitliche, professionelle Sortierung und Darstellung im Frontend zu gewährleisten.
 
 **Datum:** 16.06.2026
 
