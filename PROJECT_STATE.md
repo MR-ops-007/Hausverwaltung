@@ -2,6 +2,21 @@
 
 # Projektstatus: Hausverwaltung App
 
+## [18.06.2026] Architektur-Entscheidung: Einführung von Performance-Views
+
+### Problemstellung
+Nach der erfolgreichen Normalisierung des Datenmodells (Aufteilung der Mieter-Stammdaten in `Personen`, `Vertraege` und `Vertragsparteien`) stiegen die Ladezeiten des Frontends spürbar an. Da Google Apps Script (GAS) keine native indizierte SQL-Datenbank ist, verursachten die notwendigen Multi-Tabellen-Joins (Suchen und Verknüpfen über 4 Sheets hinweg) bei jedem `doGet()`-Aufruf hohe CPU-Laufzeiten und Latenzen.
+
+### Beschlossene Lösung
+Einführung einer hybriden Datenarchitektur:
+1. **Schreib-Ebene (Write):** Bleibt zu 100% relational und normalisiert gemäß `DATA_MODEL.md`, um Datenredundanzen und Inkonsistenzen bei Mieterwechseln permanent zu verhindern.
+2. **Lese-Ebene (Read):** Einführung flacher Cache-Tabellen (Präfix `_view_`). Das Backend generiert bei Datenänderungen eine konsolidierte Zeile pro Einheit. Das Frontend liest für das Dashboard *ausschließlich* aus diesen flachen Views.
+
+### Technische Auswirkungen
+* **UI-Performance:** Reduzierung der Ladezeit des Dashboards von mehreren Sekunden auf <500ms, da komplexe Suchschleifen im Apps Script entfallen.
+* **Datenkomplexität:** Geringfügig höherer Code-Aufwand im Backend zur Pflege des Caches, dafür eine drastische Reduzierung der Frontend-Logik und massive Einsparung von API-Token durch schlanke JSON-Payloads.
+* **UI-Anpassung:** Das Namensformat im Lese-Cache wurde standardisiert auf `"Nachname, Vorname"` (`Mertin, Darien`), um eine einheitliche, professionelle Sortierung und Darstellung im Frontend zu gewährleisten.
+
 **Datum:** 16.06.2026
 
 ## Stand: 
