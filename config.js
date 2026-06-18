@@ -6,7 +6,7 @@
 
 const CONFIG = {
     // 1. Die zentrale URL (Single Source of Truth)
-    API_URL: "https://script.google.com/macros/s/AKfycbw5daN93N5t3q2R_vAja7xDRuUqFNpDY3Ajj53ttNF7na7b5RY-3TxZENs5QTbrOoeX7w/exec",
+    API_URL: "https://script.google.com/macros/s/AKfycbxmXQn9z1mLidyC03GR7DlvPxGPcN8vD20f8X8ViUXvhKoq-Hdco2L0f890e2P6w6201A/exec",
     
     // 2. Globale Anwendungseinstellungen
     APP_VERSION: "3.4",
