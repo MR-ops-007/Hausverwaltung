@@ -1,9 +1,9 @@
 /**
- * CLOUD-SERVICE (v2.8 - VOLLSTÄNDIG: Lade-Logik + umschaltbare Offline-Funktion)
+ * CLOUD-SERVICE (v2.9 - VOLLSTÄNDIG: CORS-Fix durch Text-Plain Workaround)
  */
 const cloudService = {
     scriptUrl: CONFIG.API_URL,
-    ENABLE_OFFLINE_SYNC: true, // Auf false setzen, um Offline-Queue abzustellen
+    ENABLE_OFFLINE_SYNC: true,
 
     async loadDashboardData() {
         try {
@@ -41,11 +41,11 @@ const cloudService = {
         }
 
         try {
-            // MODE 'cors' für echte Backend-Antworten
+            // CORS-FIX: 'text/plain' verhindert den blockierten Preflight-Request bei Google Apps Script!
             const response = await fetch(this.scriptUrl, {
                 method: 'POST',
                 mode: 'cors', 
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(transactionData)
             });
 
@@ -85,7 +85,8 @@ const cloudService = {
                 await fetch(this.scriptUrl, { 
                     method: 'POST', 
                     mode: 'cors', 
-                    headers: { 'Content-Type': 'application/json' },
+                    // Auch hier den Fix anwenden
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify(item) 
                 });
             } catch (e) { 
