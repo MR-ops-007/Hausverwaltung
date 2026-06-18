@@ -2,7 +2,20 @@
 
 # Projektstatus: Hausverwaltung App
 
-[18.06.2026] 
+**Datum:** 18.06.2026
+
+## Architektur-Entscheidung: Frontend-Stammdaten-Caching
+
+### Problemstellung
+Statische Informationen wie der `einbauort` oder das `medium` eines Zählers ändern sich im Betrieb nicht. Bisher wurden diese Daten bei Klicks auf UI-Elemente potenziell redundant angefragt, was zu unnötigen Netzwerk-Latenzen (1–2 Sekunden Wartezeit für den Nutzer) führte.
+
+### Beschlossene Lösung
+Einführung eines lokalen State-Managements im Frontend:
+1. **Einmaliges Laden (Initial Load):** Die Tabellen `Objekte`, `Einheiten` und `Zaehler` werden exakt *einmal* beim Start der App oder beim Wechsel des Objekts geladen.
+2. **Lokaler Speicher:** Das Frontend hält diese Daten im Arbeitsspeicher. UI-Komponenten (wie der Zähler-CTA) greifen ohne Netzwerk-Request direkt auf diesen lokalen Zustand zu, wodurch die Anzeige des `einbauort` verzögerungsfrei (<1ms) erfolgt.
+3. **Dynamische Daten:** Nur echte Transaktionen (`Zaehlerstaende`, `Zahlungen`) triggern weiterhin direkte Schreib-Operationen ans Backend.
+
+**Datum:** 18.06.2026
 
 ## Architektur-Entscheidung: Einführung von Performance-Views
 
