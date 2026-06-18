@@ -1,5 +1,5 @@
 /**
- * CLOUD-SERVICE (v2.10 - VOLLSTÄNDIG: Absoluter Preflight-Bypass)
+ * CLOUD-SERVICE (v2.11 - FIX: Validierung der Queue vor Versand)
  */
 const cloudService = {
     scriptUrl: CONFIG.API_URL,
@@ -8,7 +8,6 @@ const cloudService = {
     async loadDashboardData() {
         try {
             const url = `${this.scriptUrl}?view=dashboard&t=${Date.now()}`;
-            // Keine Header, Standard-GET
             const response = await fetch(url);
             if (!response.ok) throw new Error(`HTTP-Fehler! ${response.status}`);
             return await response.json();
@@ -41,8 +40,6 @@ const cloudService = {
         }
 
         try {
-            // DER FIX: Keine 'headers', kein 'mode'. 
-            // Der Browser sendet den String automatisch als simplen Text (ohne Preflight-Blockade).
             const response = await fetch(this.scriptUrl, {
                 method: 'POST',
                 body: JSON.stringify(transactionData)
@@ -75,23 +72,49 @@ const cloudService = {
 
     async processOfflineQueue() {
         if (!this.ENABLE_OFFLINE_SYNC || !navigator.onLine) return;
-        let queue = JSON.parse(localStorage.getItem('offline_queue') || '[]');
-        if (queue.length === 0) return;
+        
+        const rawQueue = localStorage.getItem('offline_queue');
+        if (!rawQueue) return;
+        
+        let queue = JSON.parse(rawQueue);
+        if (!Array.isArray(queue) || queue.length === 0) return;
         
         console.log(`CloudService: Sende ${queue.length} Queue-Elemente...`);
+        
+        let successfulItems = [];
         for (const item of queue) {
+            // FIX: Validierung, ob das Item ein Objekt ist (verhindert TypeError)
+            if (!item || typeof item !== 'object') {
+                console.warn("CloudService: Überspringe invalides Queue-Element", item);
+                continue;
+            }
+
             try {
-                // DER FIX für die Queue: Ebenfalls ohne explizite Header
-                await fetch(this.scriptUrl, { 
+                const response = await fetch(this.scriptUrl, { 
                     method: 'POST', 
                     body: JSON.stringify(item) 
                 });
+                
+                if (response.ok) {
+                    successfulItems.push(item);
+                } else {
+                    console.error("CloudService: Queue-Element konnte nicht gesendet werden");
+                    break; // Stoppe bei Serverfehler, um Reihenfolge zu wahren
+                }
             } catch (e) { 
                 console.error("CloudService: Fehler beim Senden der Queue", e);
                 return; 
             }
         }
-        localStorage.removeItem('offline_queue');
-        console.log("CloudService: Queue geleert.");
+        
+        // Bereinige nur erfolgreich gesendete Items
+        if (successfulItems.length === queue.length) {
+            localStorage.removeItem('offline_queue');
+        } else {
+            // Falls nur ein Teil erfolgreich war, behalte den Rest
+            const remaining = queue.slice(successfulItems.length);
+            localStorage.setItem('offline_queue', JSON.stringify(remaining));
+        }
+        console.log("CloudService: Queue-Verarbeitung abgeschlossen.");
     }
 };
