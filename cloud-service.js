@@ -1,5 +1,5 @@
 /**
- * CLOUD-SERVICE (v2.13 - VOLLSTÄNDIG: Null-tolerante Response-Verarbeitung)
+ * CLOUD-SERVICE (v2.15 - VOLLSTÄNDIG: Minimale Simple Requests)
  */
 const cloudService = {
     scriptUrl: CONFIG.API_URL,
@@ -7,8 +7,8 @@ const cloudService = {
 
     async loadDashboardData() {
         try {
-            const url = `${this.scriptUrl}?view=dashboard&t=${Date.now()}`;
-            const response = await fetch(url);
+            // URL ohne extra Parameter zum Testen der Stabilität
+            const response = await fetch(`${this.scriptUrl}?view=dashboard&t=${Date.now()}`);
             if (!response.ok) throw new Error(`HTTP-Fehler! ${response.status}`);
             return await response.json();
         } catch (error) {
@@ -19,8 +19,7 @@ const cloudService = {
 
     async loadBackgroundData() {
         try {
-            const url = `${this.scriptUrl}?t=${Date.now()}`;
-            const response = await fetch(url);
+            const response = await fetch(`${this.scriptUrl}?t=${Date.now()}`);
             if (!response.ok) throw new Error(`HTTP-Fehler! ${response.status}`);
             const data = await response.json();
             
@@ -39,37 +38,28 @@ const cloudService = {
         }
 
         try {
+            // Simple Request: Kein Content-Type Header, kein Mode
             const response = await fetch(this.scriptUrl, {
                 method: 'POST',
                 body: JSON.stringify(transactionData)
             });
 
-            // 1. Text-Inhalt der Antwort abrufen
             const text = await response.text();
+            if (!text || text.trim() === "") return { status: 'success', message: "Erfolgreich" };
             
-            // 2. Absicherung: Wenn Text leer, betrachte es als Erfolg ohne Payload
-            if (!text || text.trim() === "") {
-                return { status: 'success', message: "Erfolgreich (kein Body)" };
-            }
-
-            // 3. Erst jetzt versuchen zu parsen
             let result;
             try {
                 result = JSON.parse(text);
             } catch (e) {
-                console.error("CloudService: Response Parsing Error", text);
-                throw new Error("Server antwortete mit ungültigem Format.");
+                console.error("CloudService: Parsing Fehler. Response:", text);
+                throw new Error("Antwort ist kein valides JSON.");
             }
             
-            // 4. Zugriff nur wenn result existiert
-            if (result && typeof result === 'object' && result.status === 'error') {
+            if (result && result.status === 'error') {
                 throw new Error(result.message || "Backend-Fehler");
             }
             
-            return { 
-                status: 'success', 
-                message: (result && result.message) ? result.message : "Erfolgreich gespeichert" 
-            };
+            return { status: 'success', message: result.message || "Erfolgreich" };
         } catch (error) {
             console.error("CloudService Übertragungsfehler:", error);
             
