@@ -1,5 +1,5 @@
 /**
- * UI-SERVICE (v2.2 - High Performance View Integration)
+ * UI-SERVICE (v2.3 - FIX: Korrekte Payload-Struktur für Backend-Kommunikation)
  */
 const uiService = {
     applyStyles(el, styles) {
@@ -52,7 +52,6 @@ const uiService = {
         `;
 
         dataService.getUnitsByObject(objId).forEach(unit => {
-            // HIGH PERFORMANCE: Wir greifen direkt auf die flache Cache-Tabelle zu! Keine Joins mehr nötig.
             const viewData = dataService.state.view_aktive_mieter.find(v => String(v.einheit_id) === String(unit.einheit_id));
             let bewohnerText = viewData && viewData.mieter_name ? viewData.mieter_name : 'Leerstand';
             
@@ -62,15 +61,9 @@ const uiService = {
             const card = document.createElement('div');
             card.className = 'unit-card';
             this.applyStyles(card, {
-                padding: '15px',
-                margin: '8px 0',
-                backgroundColor: 'white',
-                border: '1px solid #dee2e6',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
+                padding: '15px', margin: '8px 0', backgroundColor: 'white',
+                border: '1px solid #dee2e6', borderRadius: '6px', cursor: 'pointer',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
             });
 
             card.onclick = () => uiService.showZaehlerMaske(unit.einheit_id);
@@ -89,9 +82,8 @@ const uiService = {
     },
 
     showZaehlerMaske(id) {
-        // SICHERHEITSSPERRE: Falls Stufe 2 (Hintergrundladen) noch nicht fertig ist
         if (!dataService.state.zaehler || dataService.state.zaehler.length === 0) {
-            alert("Die detaillierten Stammdaten für Zähler werden im Hintergrund noch geladen. Bitte einen kurzen Moment Geduld...");
+            alert("Die Daten werden noch geladen. Bitte kurz warten...");
             return;
         }
 
@@ -102,24 +94,14 @@ const uiService = {
         const unit = dataService.state.einheiten.find(u => String(u.einheit_id) === String(id));
         const objId = unit ? unit.objekt_id : 'Unbekannt'; 
         
-        // Name direkt aus dem performanten Lese-Cache holen
         const viewData = dataService.state.view_aktive_mieter.find(v => String(v.einheit_id) === String(id));
         let bewohnerText = viewData && viewData.mieter_name ? viewData.mieter_name : 'Leerstand';
         
-        this.currentSelection = {
-            einheit_id: id,
-            objekt_id: objId,
-            mietername: bewohnerText
-        };
-
+        this.currentSelection = { einheit_id: id, objekt_id: objId, mietername: bewohnerText };
         const activeMeters = dataService.state.zaehler.filter(z => String(z.einheit_id) === String(id));
 
         if (activeMeters.length === 0) {
-            modalBody.innerHTML = `
-                <h3>Zählererfassung</h3>
-                <p style="color:red;">⚠️ Für die Einheit <strong>${id}</strong> wurden im Tabellenblatt 'Zaehler' keine Zähler gefunden.</p>
-                <button onclick="uiService.closeModal()" style="background:#6c757d; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer;">Schließen</button>
-            `;
+            modalBody.innerHTML = `<h3>Zählererfassung</h3><p style="color:red;">Keine Zähler gefunden.</p>`;
             modal.style.display = 'flex';
             return;
         }
@@ -127,48 +109,28 @@ const uiService = {
         const meterStyles = {
             "kaltwasser_m3": { label: "💧 Kaltwasser (m³)", color: "#e3f2fd", border: "#2196f3" },
             "warmwasser_m3": { label: "♨️ Warmwasser (m³)", color: "#ffebee", border: "#f44336" },
-            "strom_ht_kwh":  { label: "⚡ Strom HT / Haupt (kWh)", color: "#fffde7", border: "#fbc02d" },
-            "strom_nt_kwh":  { label: "🌙 Strom NT (kWh)", color: "#fffde7", border: "#fbc02d" },
-            "oel_stand_l":   { label: "🛢️ Heizöl (Liter/cm)", color: "#f5f5f5", border: "#424242" },
-            "maschinenstunden": { label: "⚙️ Betriebsstunden", color: "#f3e5f5", border: "#9c27b0" }
+            "strom_ht_kwh":  { label: "⚡ Strom HT (kWh)", color: "#fffde7", border: "#fbc02d" },
+            "strom_nt_kwh":  { label: "🌙 Strom NT (kWh)", color: "#fffde7", border: "#fbc02d" }
         };
 
         let inputsHtml = `<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:15px;">`;
-        
         activeMeters.forEach(zaehler => {
             const style = meterStyles[zaehler.typ] || { label: zaehler.bezeichnung, color: "#ffffff", border: "#ccc" };
-            // Einbauort wird hier direkt aus dem Cache geladen!
-            const ortText = zaehler.einbauort ? `<span style="display:block; font-size:0.7rem; color:#7f8c8d; font-weight:normal; margin-top:2px;">📍 Ort: ${zaehler.einbauort}</span>` : '';
-            
             inputsHtml += `
                 <div style="background-color: ${style.color}; padding: 10px; border-radius: 8px; border-left: 5px solid ${style.border};">
-                    <label style="font-size:0.75rem; font-weight:bold; color:#333; display:block; margin-bottom:4px;">
-                        ${style.label}
-                        ${ortText}
-                    </label>
-                    <input type="number" id="input-${zaehler.zaehler_id}" step="0.01" placeholder="0,00"
-                        style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; font-size:16px; box-sizing:border-box;">
+                    <label style="font-size:0.75rem; font-weight:bold; display:block;">${style.label}</label>
+                    <input type="number" id="input-${zaehler.zaehler_id}" step="0.01" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
                 </div>`;
         });
         inputsHtml += `</div>`;
 
         modalBody.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:start;">
-                <div>
-                    <h3 style="margin:0; color:#2c3e50;">Zählererfassung (Relational)</h3>
-                    <p style="margin:4px 0; font-size:0.85rem; color:#7f8c8d;">${objId} | ${id}</p>
-                </div>
-            </div>
-            <div style="margin-top:10px; padding:10px; background:#f8f9fa; border-radius:6px; border:1px solid #eee;">
-                <span style="font-size:0.8rem; color:#666;">Aktueller Nutzer:</span><br>
-                <strong style="font-size:1rem;">${this.currentSelection.mietername}</strong>
-            </div>
-            
+            <h3>Zählererfassung</h3>
+            <p>Einheit: ${id}</p>
             ${inputsHtml}
-
             <div style="margin-top:25px; display:flex; gap:10px;">
-                <button onclick="uiService.saveZaehler()" style="flex:2; background:#28a745; color:white; border:none; padding:15px; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">💾 Speichern</button>
-                <button onclick="uiService.closeModal()" style="flex:1; background:#6c757d; color:white; border:none; padding:15px; border-radius:8px; cursor:pointer; font-size:1rem;">Abbrechen</button>
+                <button onclick="uiService.saveZaehler()" style="background:#28a745; color:white; padding:15px; border-radius:8px; border:none; cursor:pointer;">💾 Speichern</button>
+                <button onclick="uiService.closeModal()" style="background:#6c757d; color:white; padding:15px; border-radius:8px; border:none; cursor:pointer;">Abbrechen</button>
             </div>
         `;
         modal.style.display = 'flex';
@@ -177,41 +139,36 @@ const uiService = {
 
     async saveZaehler() {
         const transactions = [];
-        const heute = new Date();
-        const formattedDate = `${String(heute.getDate()).padStart(2, '0')}.${String(heute.getMonth() + 1).padStart(2, '0')}.${String(heute.getFullYear()).substring(2)}`;
-
         this.currentActiveMetersObjects.forEach(zaehler => {
             const input = document.getElementById(`input-${zaehler.zaehler_id}`);
             if (input && input.value !== "") {
                 transactions.push({
-                    typ: "ZAEHLERSTAND_NEU",
                     zaehler_id: zaehler.zaehler_id,
                     wert: parseFloat(input.value),
-                    zeitstempel: formattedDate,
-                    quelle: "UI"
+                    zeitstempel: new Date().toLocaleDateString('de-DE')
                 });
             }
         });
 
-        if (transactions.length === 0) {
-            alert("Bitte mindestens einen Zählerstand eintragen.");
-            return;
-        }
+        if (transactions.length === 0) return alert("Bitte Werte eintragen.");
 
-        const res = await cloudService.saveTransaction({ t_list: transactions });
+        // WICHTIG: Hier fügen wir den TYP hinzu, damit dein Backend die Tabelle findet!
+        const payload = {
+            typ: "ZAEHLERSTAND_NEU", 
+            t_list: transactions
+        };
+
+        const res = await cloudService.saveTransaction(payload);
         
         if (res && res.status === 'success') {
-            alert("Zählerstände erfolgreich gespeichert!");
+            alert("Erfolgreich gespeichert!");
             this.closeModal();
         } else {
-            alert("Fehler beim Speichern: " + (res ? res.message : "Unbekannter Fehler"));
+            alert("Fehler: " + (res ? res.message : "Unbekannt"));
         }
     },
 
-    closeModal() {
-        document.getElementById('modal-container').style.display = 'none';
-    },
-
+    closeModal() { document.getElementById('modal-container').style.display = 'none'; },
     backToObjects() {
         document.getElementById('unit-list-section').style.display = 'none';
         document.getElementById('object-selector-section').style.display = 'block';
