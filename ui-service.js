@@ -1,6 +1,7 @@
-// --- START: KOMPLETTES UI-SERVICE.JS (VERSION 2.1 - RELATIONAL) ---
+/**
+ * UI-SERVICE (v2.2 - High Performance View Integration)
+ */
 const uiService = {
-    // Hilfsfunktion für schicke Styles
     applyStyles(el, styles) {
         Object.assign(el.style, styles);
     },
@@ -51,11 +52,9 @@ const uiService = {
         `;
 
         dataService.getUnitsByObject(objId).forEach(unit => {
-            const vertragInfo = dataService.getActiveVertragInfo(unit.einheit_id);
-            let bewohnerText = 'Leerstand';
-            if (vertragInfo && vertragInfo.hauptmieter && vertragInfo.hauptmieter.length > 0) {
-                bewohnerText = vertragInfo.hauptmieter.map(p => p.name).join(' & ');
-            }
+            // HIGH PERFORMANCE: Wir greifen direkt auf die flache Cache-Tabelle zu! Keine Joins mehr nötig.
+            const viewData = dataService.state.view_aktive_mieter.find(v => String(v.einheit_id) === String(unit.einheit_id));
+            let bewohnerText = viewData && viewData.mieter_name ? viewData.mieter_name : 'Leerstand';
             
             const isGewerbe = String(unit.einheit_id).includes('_GE_');
             const typBezeichnung = isGewerbe ? "🏢 Gewerbe" : "🏠 Einheit";
@@ -90,18 +89,22 @@ const uiService = {
     },
 
     showZaehlerMaske(id) {
+        // SICHERHEITSSPERRE: Falls Stufe 2 (Hintergrundladen) noch nicht fertig ist
+        if (!dataService.state.zaehler || dataService.state.zaehler.length === 0) {
+            alert("Die detaillierten Stammdaten für Zähler werden im Hintergrund noch geladen. Bitte einen kurzen Moment Geduld...");
+            return;
+        }
+
         const modal = document.getElementById('modal-container');
         const modalBody = document.getElementById('modal-body');
         if (!modal || !modalBody) return;
 
         const unit = dataService.state.einheiten.find(u => String(u.einheit_id) === String(id));
-        const objId = unit ? unit.objekt_id : 'Ra-HS-29'; 
+        const objId = unit ? unit.objekt_id : 'Unbekannt'; 
         
-        const vertragInfo = dataService.getActiveVertragInfo(id);
-        let bewohnerText = id.includes('Allgemein') ? 'Haus allgemein' : 'Leerstand';
-        if (vertragInfo && vertragInfo.hauptmieter && vertragInfo.hauptmieter.length > 0) {
-            bewohnerText = vertragInfo.hauptmieter.map(p => p.name).join(' & ');
-        }
+        // Name direkt aus dem performanten Lese-Cache holen
+        const viewData = dataService.state.view_aktive_mieter.find(v => String(v.einheit_id) === String(id));
+        let bewohnerText = viewData && viewData.mieter_name ? viewData.mieter_name : 'Leerstand';
         
         this.currentSelection = {
             einheit_id: id,
@@ -109,11 +112,8 @@ const uiService = {
             mietername: bewohnerText
         };
 
-        // --- NEU: ZÄHLER DIREKT AUS DEM STATE HOLEN STATT AUS CONFIG ---
-        // Filtert alle Zähler aus der Tabelle 'Zaehler', die zu dieser einheit_id gehören
         const activeMeters = dataService.state.zaehler.filter(z => String(z.einheit_id) === String(id));
 
-        // Falls für diese Einheit im Sheet (noch) keine Zähler definiert sind:
         if (activeMeters.length === 0) {
             modalBody.innerHTML = `
                 <h3>Zählererfassung</h3>
@@ -137,7 +137,7 @@ const uiService = {
         
         activeMeters.forEach(zaehler => {
             const style = meterStyles[zaehler.typ] || { label: zaehler.bezeichnung, color: "#ffffff", border: "#ccc" };
-            // Einbauort-Text vorbereiten, falls vorhanden
+            // Einbauort wird hier direkt aus dem Cache geladen!
             const ortText = zaehler.einbauort ? `<span style="display:block; font-size:0.7rem; color:#7f8c8d; font-weight:normal; margin-top:2px;">📍 Ort: ${zaehler.einbauort}</span>` : '';
             
             inputsHtml += `
@@ -172,12 +172,10 @@ const uiService = {
             </div>
         `;
         modal.style.display = 'flex';
-        // Wir merken uns die geladenen Zähler-Objekte für die Speicher-Funktion
         this.currentActiveMetersObjects = activeMeters;
     },
 
     async saveZaehler() {
-        // Wir senden ein Array von Zählerständen, da der Nutzer mehrere Felder gleichzeitig ausfüllen kann
         const transactions = [];
         const heute = new Date();
         const formattedDate = `${String(heute.getDate()).padStart(2, '0')}.${String(heute.getMonth() + 1).padStart(2, '0')}.${String(heute.getFullYear()).substring(2)}`;
@@ -186,7 +184,7 @@ const uiService = {
             const input = document.getElementById(`input-${zaehler.zaehler_id}`);
             if (input && input.value !== "") {
                 transactions.push({
-                    typ: "ZAEHLERSTAND_NEU", // Neues Signal-Wort fürs Backend
+                    typ: "ZAEHLERSTAND_NEU",
                     zaehler_id: zaehler.zaehler_id,
                     wert: parseFloat(input.value),
                     zeitstempel: formattedDate,
@@ -200,15 +198,11 @@ const uiService = {
             return;
         }
 
-        console.log("Sende relationale Zählerstände:", transactions);
-        
-        // Da doPost im Google Apps Script ein Objekt erwartet, verpacken wir das Array
         const res = await cloudService.saveTransaction({ t_list: transactions });
         
         if (res && res.status === 'success') {
             alert("Zählerstände erfolgreich gespeichert!");
             this.closeModal();
-            // Optional: Hier könnte ein dataService.refresh() aufgerufen werden, um Daten neu zu laden
         } else {
             alert("Fehler beim Speichern: " + (res ? res.message : "Unbekannter Fehler"));
         }
@@ -223,4 +217,3 @@ const uiService = {
         document.getElementById('object-selector-section').style.display = 'block';
     }
 };
-// --- ENDE: KOMPLETTES UI-SERVICE.JS (VERSION 2.1) ---
