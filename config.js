@@ -1,8 +1,18 @@
-const CONFIG = {
-    // Die zentrale URL (Single Source of Truth)
-    scriptUrl: "https://script.google.com/macros/s/AKfycbzTZNQ_v25JvAXLRgWdZoqEoUZGe_OmZH_zh0dbheQXCHeIabnZ2ezOmbYGj6tiUBpZoA/exec", 
+ /**
+ * HAUSVERWALTUNG - FRONTEND CONFIGURATION
+ * Version: 3.4 (Fusionierte Stammdaten & Cache-Architektur)
+ * Stand: 18.06.2026
+ */
 
-    // Die Objekt-Einstellungen
+const CONFIG = {
+    // 1. Die zentrale URL (Single Source of Truth)
+    API_URL: "https://script.google.com/macros/s/AKfycbzTZNQ_v25JvAXLRgWdZoqEoUZGe_OmZH_zh0dbheQXCHeIabnZ2ezOmbYGj6tiUBpZoA/exec",
+    
+    // 2. Globale Anwendungseinstellungen
+    APP_VERSION: "3.4",
+    DEBUG_MODE: true,
+
+    // 3. Bestehende Objekt-Einstellungen (DÜRFEN NICHT GELÖSCHT WERDEN!)
     "LOK": {
         name: "🏠 Lokschuppen",
         units: 15,
@@ -28,4 +38,17 @@ const CONFIG = {
         },
         hasOil: true
     }
+};
+
+/**
+ * LOKALER LAUFZEIT-CACHE (STATE MANAGEMENT)
+ * Hier landen die Daten aus der neuen Lese-Ansicht (_view_aktive_mieter)
+ * und die Zähler-Stammdaten (inkl. Einbauort) beim App-Start.
+ */
+const APP_STATE = {
+    objekte: [],
+    einheiten: [],
+    zaehler: [],          // Speichert Zählernummern und statische Einbauorte (<1ms Ladezeit)
+    aktiveMieter: [],     // Speicher für die blitzschnelle Lese-Ansicht aus dem Backend
+    isLoaded: false
 };
