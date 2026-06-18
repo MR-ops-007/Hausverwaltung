@@ -1,5 +1,5 @@
 /**
- * CLOUD-SERVICE (v2.18 - VOLLSTÄNDIG)
+ * CLOUD-SERVICE (v2.19 - VOLLSTÄNDIG - ALLE FUNKTIONEN ENTHALTEN)
  */
 const cloudService = {
     scriptUrl: CONFIG.API_URL,
@@ -9,6 +9,16 @@ const cloudService = {
         const response = await fetch(`${this.scriptUrl}?view=dashboard&t=${Date.now()}`);
         if (!response.ok) throw new Error(`HTTP-Fehler! ${response.status}`);
         return await response.json();
+    },
+
+    async loadBackgroundData() {
+        const response = await fetch(`${this.scriptUrl}?t=${Date.now()}`);
+        if (!response.ok) throw new Error(`HTTP-Fehler! ${response.status}`);
+        const data = await response.json();
+        
+        // Verarbeite Queue im Hintergrund nach erfolgreichem Laden
+        await this.processOfflineQueue();
+        return data;
     },
 
     async saveTransaction(transactionData) {
@@ -57,11 +67,16 @@ const cloudService = {
         if (!this.ENABLE_OFFLINE_SYNC || !navigator.onLine) return;
         const raw = localStorage.getItem('offline_queue');
         if (!raw) return;
-        const queue = JSON.parse(raw);
+        
+        let queue;
+        try { queue = JSON.parse(raw); } catch(e) { return; }
+        if (!Array.isArray(queue) || queue.length === 0) return;
         
         for (const item of queue) {
-            const res = await fetch(this.scriptUrl, { method: 'POST', body: JSON.stringify(item) });
-            if (!res.ok) return; 
+            try {
+                const res = await fetch(this.scriptUrl, { method: 'POST', body: JSON.stringify(item) });
+                if (!res.ok) return; // Stop bei Fehler
+            } catch(e) { return; }
         }
         localStorage.removeItem('offline_queue');
     }
