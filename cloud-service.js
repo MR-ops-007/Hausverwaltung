@@ -1,36 +1,35 @@
 /**
- * CLOUD-SERVICE (v1.6 - FULL INTEGRITY)
- * Review: Offline-Queue ist enthalten, Fehlerbehandlung korrigiert.
+ * CLOUD-SERVICE (v2.0 - Zwei-Stufen-Lader)
  */
 const cloudService = {
-    // HIER MUSS DEINE URL REIN - OHNE DIESE FUNKTIONIERT NICHTS
-    scriptUrl: CONFIG.scriptUrl, 
+    // FIX: Nutzt jetzt die korrekte Variable aus der neuen config.js
+    scriptUrl: CONFIG.API_URL, 
 
-    async loadAllData() {
-        console.log("CloudService: Starte Datenabfrage...");
+    async loadDashboardData() {
+        console.log("CloudService: Hole schnelle Dashboard-Daten...");
         try {
-            // Cache-Buster verhindert, dass der Browser alte Daten aus dem Speicher lädt
+            const url = this.scriptUrl + (this.scriptUrl.includes('?') ? '&' : '?') + 'view=dashboard&t=' + Date.now();
+            const response = await fetch(url, { method: 'GET', mode: 'cors', redirect: 'follow' });
+            if (!response.ok) throw new Error(`HTTP-Fehler! Status: ${response.status}`);
+            return await response.json();
+        } catch (error) {
+            console.error("CloudService: Fehler bei Stufe 1:", error);
+            throw error;
+        }
+    },
+
+    async loadBackgroundData() {
+        console.log("CloudService: Hole restliche Stammdaten im Hintergrund...");
+        try {
             const url = this.scriptUrl + (this.scriptUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
-            
-            const response = await fetch(url, {
-                method: 'GET',
-                mode: 'cors', // Wir fordern CORS an
-                redirect: 'follow' // WICHTIG: Google leitet die Anfrage intern um
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP-Fehler! Status: ${response.status}`);
-            }
-
+            const response = await fetch(url, { method: 'GET', mode: 'cors', redirect: 'follow' });
+            if (!response.ok) throw new Error(`HTTP-Fehler! Status: ${response.status}`);
             const data = await response.json();
-            console.log("CloudService: Daten erfolgreich empfangen.");
             
-            // Falls noch Dinge in der Warteschlange sind, jetzt senden
             await this.processOfflineQueue();
-            
             return data;
         } catch (error) {
-            console.error("CloudService: Fehler beim Laden:", error);
+            console.error("CloudService: Fehler bei Stufe 2:", error);
             throw error;
         }
     },
