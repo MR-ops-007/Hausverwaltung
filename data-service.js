@@ -1,5 +1,5 @@
 /**
- * DATA-SERVICE (v2.1 - Integration Lese-Cache & config.js Fallback)
+ * DATA-SERVICE (v2.1.1 - Bugfix: Fallback-Schutz für leere Google Sheets)
  */
 const dataService = {
     state: {
@@ -13,15 +13,13 @@ const dataService = {
         zahlungen: [],
         parameter: [],
         fixkosten: [],
-        view_aktive_mieter: [] // Der neue Hochgeschwindigkeits-Cache
+        view_aktive_mieter: [] 
     },
 
     setDashboardData(data) {
-        // Speichert die flache Tabelle aus dem Backend
         this.state.view_aktive_mieter = data["_view_aktive_mieter"] || [];
 
-        // Generiert die Objekt-Liste temporär aus der config.js, 
-        // damit die UI in Stufe 1 sofort rendern kann (bevor das Google Sheet komplett geladen ist).
+        // Generiert die Objekt-Liste aus der config.js
         this.state.objekte = Object.keys(CONFIG)
             .filter(k => typeof CONFIG[k] === 'object' && CONFIG[k].name)
             .map(k => ({ objekt_id: k, bezeichnung: CONFIG[k].name }));
@@ -44,13 +42,21 @@ const dataService = {
             }
         });
         this.state.einheiten = tempEinheiten;
-        console.log("DataService: Stufe 1 (Dashboard) befüllt.");
+        console.log("DataService: Stufe 1 (Dashboard) mit Config-Fallback befüllt.");
     },
 
     setInitialData(data) {
-        // Überschreibt die temporären config.js Daten nun mit den echten Daten aus dem Google Sheet
-        this.state.objekte = data.Objekte || this.state.objekte;
-        this.state.einheiten = data.Einheiten || this.state.einheiten;
+        // BUGFIX: Überschreibe die funktionierenden Config-Daten NUR, 
+        // wenn das Google Sheet auch WIRKLICH gefüllt ist (mehr als 0 Einträge).
+        if (data.Objekte && data.Objekte.length > 0) {
+            this.state.objekte = data.Objekte;
+        }
+        
+        if (data.Einheiten && data.Einheiten.length > 0) {
+            this.state.einheiten = data.Einheiten;
+        }
+        
+        // Die restlichen Daten wie gewohnt übernehmen
         this.state.personen = data.Personen || [];
         this.state.vertraege = data.Vertraege || [];
         this.state.vertragsparteien = data.Vertragsparteien || [];
@@ -60,7 +66,7 @@ const dataService = {
         this.state.parameter = data.Parameter || [];
         this.state.fixkosten = data.Fixkosten || [];
         
-        console.log("DataService: Stufe 2 (Hintergrund-State) komplett befüllt.");
+        console.log("DataService: Stufe 2 (Hintergrund-State) geschützt befüllt.");
     },
 
     getUniqueObjects() {
