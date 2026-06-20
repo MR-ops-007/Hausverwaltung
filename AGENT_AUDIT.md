@@ -2,7 +2,7 @@
 
 ## Zweck dieses Dokuments
 
-Dieses Dokument dient als Bestandsaufnahme für die Arbeit mit KI-Assistenten, Coding Agents und Code Reviews.
+Dieses Dokument dient als Bestandsaufnahme und Regelwerk für die Arbeit mit KI-Assistenten, Coding Agents und Code Reviews.
 
 Ziel ist, dass Änderungen nachvollziehbar, klein und prüfbar bleiben. Bereits funktionierende Funktionen sollen nicht durch unkontrollierte Refactorings oder automatische Änderungen verloren gehen.
 
@@ -11,51 +11,56 @@ Ziel ist, dass Änderungen nachvollziehbar, klein und prüfbar bleiben. Bereits 
 - Keine direkten Änderungen auf `main`.
 - Jede Änderung erfolgt in einem eigenen Branch.
 - Änderungen müssen per Git-Diff geprüft werden.
+- Vor Pull Requests soll lokal `npm test` ausgeführt werden.
 - Bestehende Funktionalität darf nicht ohne ausdrücklichen Grund entfernt werden.
 - Keine großen Refactorings zusammen mit Feature-Änderungen.
 - Keine Umbenennungen von Dateien, Funktionen oder Datenfeldern ohne dokumentierten Grund.
 - Datenmodelländerungen müssen in `DATA_MODEL.md` dokumentiert werden.
 - Relevante Projektentscheidungen müssen in `PROJECT_STATE.md` dokumentiert werden.
-- Tests sollen vor Feature-Erweiterungen aufgebaut und erweitert werden.
+- Tests sollen vor oder zusammen mit Feature-Erweiterungen ergänzt werden.
+- Doku-Dateien sollen am Ende jedes Branches auf Aktualität geprüft werden.
 
 ## Aktueller technischer Stand
 
-Frontend:
+### Frontend
 
 - Vanilla JavaScript
 - HTML
 - CSS
 
-Backend:
+### Backend
 
 - Google Apps Script
 - Google Sheets als Datenbank
 - Apps Script wird zunächst manuell unter `apps-script/Code.gs` versioniert
 - `clasp` wird später optional geprüft
 
-Tests:
+### Tests
 
-- Vitest ist eingerichtet
-- GitHub Actions führt `npm test` bei Pull Requests und Pushes auf `main` aus
-- Eine erste Smoke-Test-Datei stellt sicher, dass die Testumgebung grün läuft
+- Vitest ist eingerichtet.
+- GitHub Actions führt `npm test` bei Pull Requests und Pushes auf `main` aus.
+- `tests/smoke.test.js` stellt sicher, dass die Testumgebung grundsätzlich läuft.
+- `tests/validation-service.test.js` testet die isolierte Zähler-Plausibilitätslogik.
+- `validation-service.js` enthält die erste isolierte Prüf-Logik für Zählerstände.
 
 ## Wichtige Projektdateien
 
 | Datei / Ordner | Bedeutung |
 | :--- | :--- |
-| `DATA_MODEL.md` | Referenz für das Datenmodell |
-| `PROJECT_STATE.md` | Aktueller Projektstand und nächste Schritte |
 | `README.md` | Überblick für Menschen |
+| `PROJECT_STATE.md` | Aktueller Projektstand und nächste Schritte |
+| `DATA_MODEL.md` | Referenz für das fachliche Datenmodell |
 | `AGENT_AUDIT.md` | Leitplanken für KI-/Agentenarbeit |
-| `apps-script/Code.gs` | Manuell versionierter Stand des Google Apps Script Backends |
+| `apps-script/Code.gs` | Geplante manuell versionierte Kopie des Google Apps Script Backends |
+| `validation-service.js` | Isolierte Plausibilitätsprüfung für Zählerstände |
 | `tests/` | Automatisierte Tests |
 | `config.js` | Konfiguration, aktuell inklusive Apps-Script-URL |
 
 ## Bekannte Risiken
 
-### Google Apps Script nicht automatisch synchronisiert
+### Google Apps Script ist noch nicht automatisch synchronisiert
 
-Der produktive Apps-Script-Code liegt weiterhin im Google Apps Script Editor. Das Repository enthält nur eine manuell gepflegte Kopie.
+Der produktive Apps-Script-Code liegt weiterhin im Google Apps Script Editor. Das Repository soll zunächst eine manuell gepflegte Kopie enthalten.
 
 Regel:
 
@@ -71,8 +76,9 @@ Die Web-App-URL steht aktuell in `config.js`. Für den Entwicklungsstand ist das
 Zu beachten:
 
 - Das Backend muss serverseitig robust gegen unerwünschte Schreibzugriffe sein.
-- Langfristig sollte geprüft werden, ob Zugriffsschutz, Token oder Deployment-Konzept verbessert werden.
-- Neue Apps-Script-Deployments sollten möglichst vermieden werden; stattdessen sollte ein bestehendes Deployment aktualisiert werden, damit die URL stabil bleibt.
+- Langfristig sollte Zugriffsschutz, Token oder Deployment-Konzept geprüft werden.
+- Neue Apps-Script-Deployments sollten möglichst vermieden werden.
+- Stattdessen sollte ein bestehendes Deployment aktualisiert werden, damit die URL stabil bleibt.
 
 ### Datenmodell ist eng mit Google Sheets gekoppelt
 
@@ -82,6 +88,7 @@ Regel:
 
 - Keine Änderung an Sheet-Strukturen ohne Anpassung von `DATA_MODEL.md`.
 - Keine Codeänderung an Feldnamen ohne Prüfung gegen das Datenmodell.
+- Testdaten im Repository dürfen keine echten personenbezogenen Daten enthalten.
 
 ### Zählerstände benötigen Sonderlogik
 
@@ -92,31 +99,27 @@ Mögliche legitime Fälle:
 - Erstablesung
 - Zählerwechsel
 - 4-stelliger oder 5-stelliger Zählerüberlauf
-- historischer / ersetzter Zähler
+- historischer oder ersetzter Zähler
 
-Deshalb soll die spätere Plausibilitätsprüfung zwischen `OK`, `Warnung` und `Fehler` unterscheiden.
+Deshalb soll die Plausibilitätsprüfung zwischen `OK`, `Warnung` und `Fehler` unterscheiden.
 
-## Nächste sinnvolle Arbeitspakete
+## Erledigte Arbeitspakete
 
-### 1. Testbasis stabilisieren
+### Testbasis stabilisiert
 
-- `tests/test-runner.html` entfernen, solange es nicht aktiv genutzt wird
-- `tests/smoke.test.js` anlegen
+- `tests/test-runner.html` entfernt
+- `tests/smoke.test.js` angelegt
 - GitHub Actions grün bekommen
+- `package-lock.json` ergänzt
+- `.gitignore` ergänzt
 
-### 2. Apps-Script-Basisstand versionieren
+### Plausibilitätsprüfung vorbereitet
 
-- aktuellen produktiven Apps-Script-Code nach `apps-script/Code.gs` kopieren
-- Diff prüfen
-- committen
+- `validation-service.js` angelegt
+- `tests/validation-service.test.js` angelegt
+- Tests für zentrale Zählerstand-Sonderfälle erstellt
 
-### 3. Plausibilitätsprüfung vorbereiten
-
-- `validation-service.js` anlegen
-- Tests für Zählerstände schreiben
-- Logik zunächst unabhängig von UI und Backend testen
-
-Geplante Testfälle:
+Getestete Fälle:
 
 - Erstablesung
 - normal steigender Zählerstand
@@ -125,12 +128,23 @@ Geplante Testfälle:
 - 5-stelliger Überlauf
 - Zählerwechsel
 - unrealistisch hoher Verbrauch
+- ungültige Eingabe
+- negativer neuer Wert
+- deutsche Komma-Dezimalwerte
 
-## Review-Checkliste vor Pull Request
+## Nächste sinnvolle Arbeitspakete
 
-- Läuft `npm test` lokal?
-- Sind alle Änderungen im Diff nachvollziehbar?
-- Wurde keine bestehende Funktion ohne Grund entfernt?
-- Wurde `DATA_MODEL.md` angepasst, falls Datenstrukturen geändert wurden?
-- Wurde `PROJECT_STATE.md` angepasst, falls sich Projektstand oder Entscheidungen geändert haben?
-- Sind echte personenbezogene Daten aus dem Repository herausgehalten?
+### 1. Apps-Script-Basisstand versionieren
+
+Ziel:
+
+- aktuellen produktiven Apps-Script-Code nach `apps-script/Code.gs` kopieren
+- keine funktionale Änderung
+- Diff prüfen
+- committen und per Pull Request nach `main`
+
+Vorgeschlagener Branch:
+
+```text
+chore/apps-script-baseline
+```
