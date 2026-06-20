@@ -1,29 +1,24 @@
-# PROJECT_STATE - Hausverwaltung (MR-ops-007)
-
-## Projektstatus: Hausverwaltung App
+# PROJECT_STATE - Hausverwaltung
 
 ## Stand: 2026-06-20
 
-### UI-Integration Zähler-Plausibilität
+`main` enthält aktuell eine stabile Basis mit:
 
-- `validation-service.js` wird in der Browser-UI über `window.validationService` verfügbar gemacht.
-- `ui-service.js` prüft neue Zählerstände vor dem Speichern.
-- Fehlerhafte Eingaben werden blockiert.
-- Warnungen müssen bewusst bestätigt werden.
-- Es werden noch keine zusätzlichen Plausibilitätsfelder an das Backend gesendet.
+- dokumentiertem Datenmodell
+- eingerichteter Vitest-Testbasis
+- isolierter Zähler-Plausibilitätsprüfung
+- UI-Integration der Zähler-Plausibilitätsprüfung
+- branchbasiertem Entwicklungsworkflow über Pull Requests
 
-## Stand: 2026-06-20
+Dieses Dokument beschreibt den aktuellen Stand, die nächsten sinnvollen Arbeitspakete und die Historie wichtiger Entscheidungen.
 
-**Branch-Status:** `main` ist aktuell stabil.  
-**Aktueller Arbeitsstand:** Testbasis und erste isolierte Zähler-Plausibilitätslogik sind eingerichtet.
+---
 
-## Projektziel
+## Aktueller Projektstand
 
-Die App dient der Verwaltung von Immobilien, Einheiten, Mietverhältnissen, Zählerständen und später auch Mieteingängen bzw. Auswertungen.
+Die App dient der Verwaltung von Immobilien, Einheiten, Mietverhältnissen, Zählerständen und perspektivisch Mieteingängen sowie Auswertungen.
 
-Der aktuelle Fokus liegt auf einer stabilen Weiterentwicklung mit GitHub, VS Code, Tests und nachvollziehbaren Pull Requests.
-
-## Technischer Aufbau
+Aktueller technischer Aufbau:
 
 - Frontend: Vanilla JavaScript, HTML, CSS
 - Backend: Google Apps Script
@@ -32,43 +27,75 @@ Der aktuelle Fokus liegt auf einer stabilen Weiterentwicklung mit GitHub, VS Cod
 - Versionierung: GitHub
 - Entwicklung: Branch-basiert über Pull Requests nach `main`
 
-## Aktuell erreichte Meilensteine
+---
 
-### Dokumentation und Projektstruktur
+## Erreichte Meilensteine
 
-- `README.md` ist als Projektüberblick vorhanden.
-- `DATA_MODEL.md` beschreibt das fachliche Datenmodell.
-- `PROJECT_STATE.md` hält den aktuellen Projektstand fest.
-- `AGENT_AUDIT.md` enthält Leitplanken für KI-/Agentenarbeit.
-- `apps-script/` ist für die manuelle Versionierung des Google Apps Script Backends vorgesehen.
+### Projektstruktur und Dokumentation
+
+Vorhandene zentrale Dateien:
+
+- `README.md`
+- `DATA_MODEL.md`
+- `PROJECT_STATE.md`
+- `AGENT_AUDIT.md`
+- `.gitignore`
+- `package.json`
+- `package-lock.json`
+
+Das Projekt ist damit für eine nachvollziehbare Weiterentwicklung in VS Code und GitHub vorbereitet.
 
 ### Testbasis
 
-- `package.json` ist vorhanden.
-- `npm test` führt `vitest run` aus.
-- GitHub Actions führt Tests bei Pull Requests und Pushes auf `main` aus.
-- `tests/smoke.test.js` stellt sicher, dass die Testumgebung grundsätzlich funktioniert.
-- Der frühere leere `tests/test-runner.html` wurde entfernt.
+Die Testbasis ist eingerichtet.
+
+Vorhanden:
+
+- `tests/smoke.test.js`
+- `tests/validation-service.test.js`
+
+`npm test` führt `vitest run` aus.
+
+GitHub Actions führt die Tests bei Pull Requests und Pushes auf `main` automatisch aus.
+
+Der frühere leere `tests/test-runner.html` wurde entfernt.
 
 ### Zähler-Plausibilitätslogik
 
-- `validation-service.js` wurde eingeführt.
-- `tests/validation-service.test.js` testet die isolierte Plausibilitätslogik.
-- Die Logik unterscheidet zwischen:
-  - Erstablesung
-  - normal steigendem Zählerstand
-  - niedrigerem Wert ohne Erklärung
-  - 4-stelligem Überlauf
-  - 5-stelligem Überlauf
-  - Zählerwechsel
-  - unrealistisch hohem Verbrauch
-  - ungültigen Eingaben
-  - negativen Eingaben
-  - deutscher Komma-Dezimalschreibweise
+`validation-service.js` enthält eine isolierte Plausibilitätsprüfung für neue Zählerstände.
+
+Getestete Fälle:
+
+- Erstablesung
+- normal steigender Zählerstand
+- niedrigerer Wert ohne Erklärung
+- 4-stelliger Überlauf
+- 5-stelliger Überlauf
+- Zählerwechsel
+- unrealistisch hoher Verbrauch
+- ungültige Eingaben
+- negative Eingaben
+- deutsche Komma-Dezimalwerte
+
+### UI-Integration der Zähler-Plausibilität
+
+Die Plausibilitätsprüfung ist in die Zählererfassung integriert.
+
+Aktueller Stand:
+
+- `validation-service.js` wird im Browser über `window.validationService` bereitgestellt.
+- `ui-service.js` prüft neue Zählerstände vor dem Speichern.
+- Fehlerhafte Eingaben blockieren die Speicherung.
+- Plausibilitätswarnungen müssen bewusst bestätigt werden.
+- Die UI nutzt robuste Zählerlabels über `bezeichnung`, `medium`, `typ` oder `zaehler_id`.
+- Zeitstempel werden als `DD.MM.YYYY HH:mm` gespeichert.
+- Es werden aktuell keine zusätzlichen Plausibilitätsfelder an das Backend gesendet.
+
+---
 
 ## Datenmodell: Zähler-Plausibilität
 
-Die Tabelle `Zaehler` wurde um technische Stammdaten für die Plausibilitätsprüfung erweitert:
+Die Tabelle `Zaehler` enthält technische Stammdaten für die Plausibilitätsprüfung:
 
 - `stellen`
 - `ueberlauf_erlaubt`
@@ -77,7 +104,18 @@ Die Tabelle `Zaehler` wurde um technische Stammdaten für die Plausibilitätspr�
 - `ersetzt_durch_zaehler_id`
 - `hinweis`
 
-Wichtig: Ein niedrigerer neuer Zählerstand ist nicht automatisch falsch. Er kann bei Zählerwechsel oder Überlauf plausibel sein. Die spätere UI soll deshalb nicht pauschal blockieren, sondern zwischen `OK`, `Warnung` und `Fehler` unterscheiden.
+Wichtig: Ein niedrigerer neuer Zählerstand ist nicht automatisch falsch.
+
+Mögliche legitime Fälle:
+
+- Erstablesung
+- Zählerwechsel
+- 4-stelliger oder 5-stelliger Überlauf
+- historischer oder ersetzter Zähler
+
+Die UI soll daher zwischen `OK`, `Warnung` und `Fehler` unterscheiden.
+
+---
 
 ## Google Apps Script Versionierung
 
@@ -89,282 +127,3 @@ Geplante Struktur:
 apps-script/
   Code.gs
   README.md
-```
-
-## Stand: 2026-06-20
-
-**Branch:** `audit-regression-basis`  
-**Status:** Stabilisierung, Dokumentation und Vorbereitung Regressionstests
-
-## Aktueller Fokus
-
-Das Projekt wird aktuell für eine sauberere Weiterentwicklung mit KI-/Editor-Unterstützung vorbereitet. Ziel ist, Änderungen künftig nachvollziehbar per Git-Diff prüfen zu können, bevor sie in GitHub oder im Google Apps Script Backend produktiv übernommen werden.
-
-## Erreichte bzw. getroffene Entscheidungen
-
-- Das Datenmodell wurde auf die neue relationale Struktur mit `Personen`, `Vertraege`, `Vertragsparteien`, `Zaehler` und `Zaehlerstaende` ausgerichtet.
-- `DATA_MODEL.md` ist die fachliche Referenz für das Google-Sheets-Backend.
-- `package.json` ist vorhanden und nutzt `vitest run` als Testbefehl.
-- `tests/test-runner.html` existiert aktuell als Platzhalter, wird aber nicht als primärer Regressionstest-Mechanismus betrachtet.
-- Automatisierte Tests sollen bevorzugt über Vitest laufen.
-- Google Apps Script wird zunächst ohne `clasp` manuell versioniert.
-- Dafür wird ein Verzeichnis `apps-script/` genutzt.
-- `apps-script/Code.gs` dient als manuell versionierte Review- und Diff-Quelle für das Apps-Script-Backend.
-- `appsscript.json` wird aktuell nicht künstlich angelegt oder versioniert, solange keine bewussten Änderungen an Manifest, Scopes, Runtime oder Libraries notwendig sind.
-
-## Erweiterung Datenmodell: Zähler-Plausibilität
-
-Die Tabelle `Zaehler` wurde um technische Stammdaten für die Plausibilitätsprüfung erweitert:
-
-- `stellen`
-- `ueberlauf_erlaubt`
-- `max_plausibler_verbrauch`
-- `aktiv`
-- `ersetzt_durch_zaehler_id`
-- `hinweis`
-
-Damit können reale Sonderfälle sauber abgebildet werden:
-
-- normale steigende Zählerstände
-- Erstablesungen
-- neue Zähler nach Zählerwechsel
-- 4- oder 5-stellige Zwischenzähler mit Überlauf
-- unrealistisch hohe Verbrauchswerte als Warnfall
-
-Wichtig: Ein niedrigerer neuer Zählerstand ist nicht automatisch falsch. Er kann bei Zählerwechsel oder Überlauf plausibel sein. Die UI soll daher nicht pauschal blockieren, sondern zwischen `OK`, `Warnung` und `Fehler` unterscheiden.
-
-## Aktuelle Arbeitsregel für Google Apps Script
-
-1. Der geplante vollständige Code-Stand wird lokal in `apps-script/Code.gs` gepflegt.
-2. Änderungen werden per Git-Diff geprüft.
-3. Änderungen werden im Google Apps Script Editor getestet.
-4. Erst nach erfolgreichem Test wird committed.
-
-## Nächste Schritte
-
-1. Branch `audit-regression-basis` nach GitHub pushen, damit der Stand extern prüfbar ist.
-2. `apps-script/Code.gs` mit dem aktuellen produktiven Apps-Script-Code befüllen.
-3. `DATA_MODEL.md` mit den erweiterten Zähler-Spalten aktualisieren.
-4. Erste Vitest-Teststruktur anlegen.
-5. Plausibilitätslogik für Zählerstände als eigenständigen Service vorbereiten.
-6. Tests für folgende Fälle erstellen:
-   - Erstablesung
-   - normal steigender Zählerstand
-   - niedrigerer Wert ohne Sonderfall
-   - 4-stelliger Überlauf
-   - 5-stelliger Überlauf
-   - neuer Zähler / Zählerwechsel
-   - unrealistisch hoher Verbrauch
-
-**Datum:** 18.06.2026
-
-## Architektur-Entscheidung: Frontend-Stammdaten-Caching
-
-### Problemstellung
-Statische Informationen wie der `einbauort` oder das `medium` eines Zählers ändern sich im Betrieb nicht. Bisher wurden diese Daten bei Klicks auf UI-Elemente potenziell redundant angefragt, was zu unnötigen Netzwerk-Latenzen (1–2 Sekunden Wartezeit für den Nutzer) führte.
-
-### Beschlossene Lösung
-Einführung eines lokalen State-Managements im Frontend:
-1. **Einmaliges Laden (Initial Load):** Die Tabellen `Objekte`, `Einheiten` und `Zaehler` werden exakt *einmal* beim Start der App oder beim Wechsel des Objekts geladen.
-2. **Lokaler Speicher:** Das Frontend hält diese Daten im Arbeitsspeicher. UI-Komponenten (wie der Zähler-CTA) greifen ohne Netzwerk-Request direkt auf diesen lokalen Zustand zu, wodurch die Anzeige des `einbauort` verzögerungsfrei (<1ms) erfolgt.
-3. **Dynamische Daten:** Nur echte Transaktionen (`Zaehlerstaende`, `Zahlungen`) triggern weiterhin direkte Schreib-Operationen ans Backend.
-
-**Datum:** 18.06.2026
-
-## Architektur-Entscheidung: Einführung von Performance-Views
-
-### Problemstellung
-Nach der erfolgreichen Normalisierung des Datenmodells (Aufteilung der Mieter-Stammdaten in `Personen`, `Vertraege` und `Vertragsparteien`) stiegen die Ladezeiten des Frontends spürbar an. Da Google Apps Script (GAS) keine native indizierte SQL-Datenbank ist, verursachten die notwendigen Multi-Tabellen-Joins (Suchen und Verknüpfen über 4 Sheets hinweg) bei jedem `doGet()`-Aufruf hohe CPU-Laufzeiten und Latenzen.
-
-### Beschlossene Lösung
-Einführung einer hybriden Datenarchitektur:
-1. **Schreib-Ebene (Write):** Bleibt zu 100% relational und normalisiert gemäß `DATA_MODEL.md`, um Datenredundanzen und Inkonsistenzen bei Mieterwechseln permanent zu verhindern.
-2. **Lese-Ebene (Read):** Einführung flacher Cache-Tabellen (Präfix `_view_`). Das Backend generiert bei Datenänderungen eine konsolidierte Zeile pro Einheit. Das Frontend liest für das Dashboard *ausschließlich* aus diesen flachen Views.
-
-### Technische Auswirkungen
-* **UI-Performance:** Reduzierung der Ladezeit des Dashboards von mehreren Sekunden auf <500ms, da komplexe Suchschleifen im Apps Script entfallen.
-* **Datenkomplexität:** Geringfügig höherer Code-Aufwand im Backend zur Pflege des Caches, dafür eine drastische Reduzierung der Frontend-Logik und massive Einsparung von API-Token durch schlanke JSON-Payloads.
-* **UI-Anpassung:** Das Namensformat im Lese-Cache wurde standardisiert auf `"Nachname, Vorname"` (`Duck, Donald`), um eine einheitliche, professionelle Sortierung und Darstellung im Frontend zu gewährleisten.
-
-**Datum:** 16.06.2026
-
-## Stand: 
-Meilenstein: **Datenmodell-Refactoring & Dokumentierung**
-**Status:** Planung abgeschlossen – **Implementierung Phase 3** 🚀
-
-### Erreichte Ergebnisse heute:
-- **Neues Datenmodell:** Finalisierung der `DATA_MODEL.md` mit Trennung von `Personen`, `Vertraege` und `Vertragsparteien`.
-- **Multiple Hauptmieter:** Explizite Unterstützung für mehrere Hauptmieter (Rolle `Hauptmieter`) ohne Schatten-Informationen.
-- **Zähler-Modell:** Trennung von `Zaehler` (Stammdaten) und `Zaehlerstaende` (Messwerte).
-- **Datenschutz-Flag:** Vorhalten von `besitzer_id` in `Objekte` für zukünftige Multi-User-Logik.
-
-### Nächste Schritte (Backlog):
-1. **Sheet-Prüfung:** Google Sheets um neue Tabellen (`Personen`, `Vertraege`, `Vertragsparteien`, `Zaehler`) erweitern und alte (`Mieter`, `Transaktionen`) für Migration markieren.
-2. **GAS-Update:** `Code.gs` (`doGet`, `doPost`) auf neue Tabellenstruktur anpassen.
-3. **Frontend-Migration:** `data-service.js` und `ui-service.js` auf `Vertraege`/`Personen` umstellen.
-4. **Validierung:** Testen, ob 2 Hauptmieter sauber erfasst und angezeigt werden.
-
----
-
-**Datum:** 04.03.2026
-
-## Stand: 
-Meilenstein: Dynamisierung & Daten-Integrität
-**Status:** Phase 2 (Schreibzugriff & Stabilität) – **Abgeschlossen** ✅
-
-### Erreichte Ergebnisse heute:
-- **Dynamische Zählermaske:** Die UI generiert nun automatisch die passenden Eingabefelder basierend auf der `config.js` (z. B. Heizöl für "Allgemein", Maschinenstunden für Gewerbe).
-- **Intelligentes Labelling:** Automatische Unterscheidung zwischen "Strom (kWh)" (Einzeltarif) und "Strom HT/NT" (Doppeltarif) basierend auf den vorhandenen Zählertypen.
-- **Farbleitsystem:** Visuelle Trennung der Medien (Blau: Kaltwasser, Rot: Warmwasser, Gelb: Strom, Anthrazit: Heizöl) zur Vermeidung von Fehleingaben.
-- **Backend-Optimierung (GAS):** - Das `doPost` Skript verarbeitet nun flexibel Zusatzwerte (`maschinenstunden`, `oel_stand_l`).
-    - Automatische Befüllung der Spalte `bezeichnung` (K) mit Metadaten (z. B. "Maschinenstunden"), um den Kontext der Zusatzwerte in der Tabelle zu wahren.
-    - Trennung von Mietername (J) und Bezeichnung (K) in `Transaktionen` und `Zaehler_Staende`.
-- **Bugfixes:** - CORS-Problematik beim Datenabruf durch `redirect: 'follow'` und Cache-Buster-Strategie gelöst.
-    - `saveZaehler`-Logik von statischen IDs auf dynamische Iteration umgestellt.
-
-### Aktuelle Datenstruktur (synchron mit DATA_MODEL.md):
-- **Spalte I:** Zusatzwert (Maschinenstunden / Öl / etc.)
-- **Spalte J:** Mietername (oder "Haus allgemein" / "Leerstand")
-- **Spalte K:** Bezeichnung/Typ des Zusatzwerts (Sorgt für Klarheit in der Auswertung)
-
-### Nächste Schritte:
-1. **Plausibilitäts-Check:** Einbau einer Warnung in der UI, wenn der neue Zählerstand niedriger ist als der letzte gespeicherte Wert (Verbrauchsrechnung).
-2. **Dashboard-Erweiterung:** Anzeige der letzten Messwerte direkt in der Einheiten-Liste zur Orientierung während der Ablesung.
-3. **PDF-Export:** Erste Entwürfe für die automatisierte Erstellung von Ableseprotokollen.
-   
----
-
-**Datum:** 04.03.2026
-
-## Aktueller Stand
-- **Daten-Infrastruktur:** Google Sheets Anbindung steht (doGet/doPost).
-- **Synchronisation:** Transaktionen (Historie) und Zaehler_Staende (Stammdaten-Update) funktionieren konsistent gemäß DATA_MODEL.md.
-- **UI:** Dynamische Generierung von Objekt-Karten und Einheiten-Listen implementiert.
-- **Fixes:** Context-Fehler in ui-service behoben, ID-Mapping zwischen Frontend und GAS stabilisiert.
-
-## Offene To-Dos
-1. **Dynamische Zählermasken:** Anpassung der Inputs basierend auf Einheitstyp (z.B. Heizöl für Zentralheizung, Maschinenstunden für Gewerbe).
-2. **Begrifflichkeiten:** "Einheit" bei Gewerbe-Objekten (GE) durch passendere Begriffe ersetzen.
-3. **Sync-Status UI:** Der "Prüfe Verbindung..." Text wird nach erfolgreichem Laden nicht aktualisiert.
-4. **Refactoring:** GAS-URL zentral in `config.js` konsolidieren.
-
-## Nächste Schritte
-- Implementierung der Logik in `ui-service.js`, die prüft, welche Zähler für eine Einheit relevant sind.
-- Update der `index.html` Initialisierung für den Status-Text.
-  
----
-
-**Datum:** 03.03.2026
-**Status:** Phase 2 (Datenanbindung & Plausibilität) - In Bearbeitung
-**Entwickler-Level:** Senior Refactoring / Stabilisierung
-
----
-
-## 1. Aktueller Stand der Komponenten
-
-### Datenmodell (DATA_MODEL.md)
-- **Status:** Finalisiert.
-- **Inhalt:** Alle 7 Tabellen (Objekte, Einheiten, Mieter, Zaehler_Staende, Parameter, Fixkosten, Transaktionen) sind definiert.
-- **Besonderheit:** Tabelle `Zaehler_Staende` wurde um die Spalte `bezeichnung` erweitert.
-
-### Backend (Google Apps Script - Code.gs)
-- **Status:** Bereitgestellt (Version 02.03.2026).
-- **Funktion:** - `doGet`: Liefert alle 7 Tabellen als JSON.
-    - `doPost`: Schreibt in `Transaktionen` UND aktualisiert zeitgleich die Anker-Werte in `Zaehler_Staende`.
-    - Enthält `LockService` gegen Race-Conditions und Datumsformatierung (DD.MM.YYYY).
-
-### Frontend (JavaScript-Services)
-- **data-service.js:** Konsolidiert. Unterstützt nun Kleinschreibung im State (`einheiten`) und bietet die notwendigen API-Methoden `getUniqueObjects` und `getUnitsByObject` (alias `getEinheitenByObjekt`). Mieter-Logik für inaktive Mieter (Auszug in Vergangenheit) ist implementiert.
-- **ui-service.js:** Erweitert um die vollständige Zählermaske (KW, WW, HT, NT, Öl, Zusatz).
-- **cloud-service.js:** Unverändert, übernimmt den Datentransport.
-
----
-
-## 2. Bekannte Probleme & Blockaden (Blocker)
-
-1. **Datenfluss-Hänger:** Die App meldet beim Öffnen der Zählermaske "Daten werden noch geladen...". Der State im `dataService` scheint trotz erfolgreichem Boot nicht korrekt mit den gelieferten Serverdaten befüllt zu werden (Mapping-Problem zwischen Groß/Kleinschreibung vermutet).
-2. **UI-Logik:** Einheiten vom Typ "Allgemein" werden aktuell noch als "Leerstand" betitelt, wenn kein Mieter zugeordnet ist.
-
----
-
-## 3. Nächste Schritte (Backlog)
-
-1. **Diagnose & Fix:** Prüfung des Daten-Mappings via Diagnose-Script (Kommen Daten vom Google Sheet an? In welchem Format (Groß/Kleinschreibung) kommen sie an? Wo genau bleibt der Ladevorgang hängen?) in `data-service.js` (Initialisierung des State).
-2. **Plausibilitäts-Check:** Einbau einer Warnung in der UI, wenn der neue Zählerstand niedriger ist als der letzte Wert aus `Zaehler_Staende`.
-3. **UI-Feinschliff:** Differenzierung zwischen "Allgemein" und "Leerstand" basierend auf der Einheit-Bezeichnung oder einem Flag.
-4. **Integrationstest:** Vollständiger Durchlauf: Erfassung -> Google Sheet Check (beide Tabellen).
-
----
-
-**Anmerkung:** Die Konsistenz zwischen `ui-service.js` (erwartet englische Funktionsnamen & Kleinschreibung) und `data-service.js` wurde wiederhergestellt.
-
----
-
-## 📌 Stand: 2026-03-02
-**Status:** Phase 1 (Infrastruktur) nahezu abgeschlossen. Datenmodell finalisiert.
-
-### 1) Projektziel & Fokus
-- **Ziel:** Zentrale Cloud-Verwaltung für **mehrere Mehrfamilienhäuser (MFH)**.
-- **Skalierung:** Pro Objekt bis zu 15 Wohneinheiten (WE) und 3 Gewerbeeinheiten (GE).
-- **Plattform:** macOS/iOS Browser (Safari-optimiert).
-- **Kern-Features:** Objektwahl, Mieterübersicht, Zählerstandserfassung (KW, WW, Strom).
-- **Prinzip:** Vanilla JS (ES6 Module) mit Google Sheets als Backend (GET/POST).
-
-### 2) Architektur & Files
-- **index.html:** Zentrale Einstiegsseite. Beinhaltet das Grundlayout und die Container für die dynamischen Views.
-- **NEU:** **app.js:** (Main Entry) Initialisiert die App, lädt die initialen Daten über den Cloud-Service und steuert das Routing/Modul-Setup. (ToDo)
-- **config.js:** Zentrale Konfiguration (API-URLs, Sheet-IDs, statische Parameter).
-- **cloud-service.js:** Schnittstelle zum Google Apps Script (GET/POST). Kernfunktion: `loadAllDataFromCloud` und `sendDataToCloud`.
-- **data-service.js:** Das "Gehirn". Hält den aktuellen State im Speicher. Filtert Daten nach der aktuellen Objekt-Wahl (Multi-Objekt-Logik).
-- **ui-service.js:** (In Überarbeitung) Generiert HTML-Fragmente dynamisch. Verantwortlich für den Objekt-Umschalter und die Darstellung der Einheiten/Mieter.
-- **NEU:** **utils.js:** Hilfsfunktionen für kaufmännische Rundung, Währungsformatierung und Datumsvalidierung. (ToDo)
-- **style.css:** Responsives Design, optimiert für die mobile Nutzung auf iOS (Safari).
-- **NEU:** `tests/`: Verzeichnis für automatisierte Unit-Tests. (ToDo)
-
-### 3) Datenmodell (Relational / Google Sheets)
-Die Daten liegen in einem Google Sheet mit folgenden Tabellen (kurze Zusammenfassung, Orientierung am `DATA_MODEL.md` (7 Tabellen)):
-- **Objekte:** Stammdaten der verschiedenen Häuser (z.B. Adresse, Baujahr).
-- **Einheiten:** Zuordnung zu Objekten, inkl. m² und Typ (WE/GE).
-- **Mieter:** Aktive Mietverhältnisse pro Einheit (Soll-Miete, NK-Pauschale).
-- **Zaehler_Staende:** Historie der Werte für KW, WW, Strom, Öl je Einheit/Haus.
-- **Parameter:** Kostensätze (Strom/Wasser/Öl) mit `gueltig_ab/bis` pro Objekt.
-- **Fixkosten:** Jährliche Kosten (Grundsteuer, Versicherung etc.) pro Objekt.
-- **Transaktionen:** Log-Datei für alle Eingänge (Miete, Zähler-Updates) mit Zeitstempel.
-
-- Zentraler Anker: `einheit_id` & `objekt_id`.
-- Transaktions-Log (Spalten A-I) für lückenlose Historie. 
-  
-
-### 4) Roadmap & Fortschritt
-- [x] **Phase 1: Infrastruktur & Modellierung**
-  - [x] Cloud-Anbindung (GET/POST Basis).
-  - [x] Finales Datenmodell (`DATA_MODEL.md`).
-  - [x] Dynamische UI für Objektwahl.
-  - [>] Google Apps Script an neue Datenstruktur anpassen.
-  - [ ] Dateistruktur anpassen (idealerweise nach Implementierung Unit Tests)
-- [ ] **Phase 2: Schreibzugriff & Stabilität (TDD-Fokus)**
-  - [ ] Update `Code.gs` für 9-Spalten-Layout.
-  - [ ] **Unit-Tests:** Validierung der Zähler-Eingaben (Neu >= Alt).
-  - [ ] **Unit-Tests:** Korrektes Mapping der Sheet-Daten in den State.
-  - [ ] Bugfix: Zähler-Speicherung (aktuell nur Zeitstempel).
-- [ ] **Phase 3: Mieter-Management & Validierung**
-  - [ ] UI für Mieter-Einzug/Auszug.
-  - [ ] Plausibilitäts-Check-Service (Warnung bei Extrem-Verbräuchen).
-- [ ] **Phase 4: Finanzen & Abrechnung**
-  - [ ] Mieteingangs-Maske (Soll/Ist).
-  - [ ] PDF-Export für Nebenkostenabrechnung.
-
-### 5) Qualitätssicherung (Testing-Strategie)
-* Wir nutzen kleine Test-Skripte, um die Logik der `services` zu prüfen, ohne die echte Cloud zu belasten (Mocking).
-* Ziel: "Green-Light-Check" vor jedem Major-Commit.
-  
-### 6) Gesammelte To-Dos (Backlog)
-- [ ] **Objekt-Umschalter:** UI-Komponente zur Wahl des Hauses (Daten-Refresh im UI-Service).
-- [ ] **Mieteingang 2.0:** Erweiterung von Checkbox auf **Betrags-Logik** (Soll/Ist/Teilzahlung).
-- [ ] **Zähler-Validierung:** Plausibilitätsprüfung (Neu-Wert >= Alt-Wert).
-- [ ] **Dashboard-View:** "Wer hat diesen Monat noch nicht gezahlt?" (Haus-übergreifend oder pro Objekt).
-- [ ] **Historie:** Pro Einheit die letzten 12 Monate Mietstatus anzeigen.
-
-### 7) Offene Fragen / Entscheidungen
-- **Gewerbe-Besonderheit:** Wie behandeln wir die MwSt.-Ausweisung für die 3 GE in der Abrechnung?
-- **Sync-Indikator:** Brauchen wir eine optische Anzeige, ob die Daten gerade mit dem Google Sheet synchronisiert werden?
