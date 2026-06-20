@@ -113,11 +113,13 @@ Deshalb soll die Plausibilitätsprüfung zwischen `OK`, `Warnung` und `Fehler` u
 - `package-lock.json` ergänzt
 - `.gitignore` ergänzt
 
-### Plausibilitätsprüfung vorbereitet
+### Plausibilitätsprüfung in UI integriert
 
-- `validation-service.js` angelegt
-- `tests/validation-service.test.js` angelegt
-- Tests für zentrale Zählerstand-Sonderfälle erstellt
+- `validation-service.js` wird in der UI genutzt.
+- `saveZaehler()` prüft Eingaben vor dem Speichern.
+- Fehler blockieren die Speicherung.
+- Warnungen können bewusst bestätigt werden.
+- Backend-Schreibstruktur bleibt unverändert.
 
 Getestete Fälle:
 

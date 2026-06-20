@@ -4,6 +4,16 @@
 
 ## Stand: 2026-06-20
 
+### UI-Integration Zähler-Plausibilität
+
+- `validation-service.js` wird in der Browser-UI über `window.validationService` verfügbar gemacht.
+- `ui-service.js` prüft neue Zählerstände vor dem Speichern.
+- Fehlerhafte Eingaben werden blockiert.
+- Warnungen müssen bewusst bestätigt werden.
+- Es werden noch keine zusätzlichen Plausibilitätsfelder an das Backend gesendet.
+
+## Stand: 2026-06-20
+
 **Branch-Status:** `main` ist aktuell stabil.  
 **Aktueller Arbeitsstand:** Testbasis und erste isolierte Zähler-Plausibilitätslogik sind eingerichtet.
 
