@@ -114,6 +114,51 @@ Speichert jede Zahlung auf einen Vertrag.
 | **F** | `einheit` | String | `m3`, `kWh`, `l`, `h` |
 | **G** | `einbauort` | String | Freitext/Anzeige (z.B. "Keller", "Flur", ...) |
 
+### Tabelle: `Zaehler` (Zähler-Definition)
+
+**Wichtig:** Trennt den Zähler (Stammdaten) vom Messwert (`Zaehlerstaende`).
+
+Diese Tabelle beschreibt, **welche Zähler existieren**, zu welchem Objekt bzw. welcher Einheit sie gehören und welche Regeln für die Plausibilitätsprüfung gelten. Die eigentlichen Ablesewerte werden ausschließlich in `Zaehlerstaende` gespeichert.
+
+| Spalte | Feldname | Datentyp | Beschreibung |
+| :--- | :--- | :--- | :--- |
+| **A** | `zaehler_id` | String | PK: Eindeutiger Key |
+| **B** | `objekt_id` | String | FK -> Objekte.objekt_id; Pflichtfeld, da jeder Zähler einem Objekt zugeordnet ist |
+| **C** | `einheit_id` | String | FK -> Einheiten.einheit_id; nullable für Allgemein-/Hauszähler |
+| **D** | `medium` | String | `Kaltwasser`, `Warmwasser`, `Strom`, `Oel`, `Zusatz` |
+| **E** | `bezeichnung` | String | Freitext/Anzeige, z. B. `Strom HT`, `Strom NT`, `Kaltwasser Bad`, `Öltank` |
+| **F** | `einheit` | String | `m3`, `kWh`, `l`, `h` |
+| **G** | `einbauort` | String | Freitext/Anzeige, z. B. `Keller`, `Flur`, `Wohnung`, `Zählerschrank` |
+| **H** | `stellen` | Zahl | Anzahl der sichtbaren Zählerstellen vor dem Überlauf, z. B. `4` bei Zählern von `0000` bis `9999`; nullable, wenn nicht relevant |
+| **I** | `ueberlauf_erlaubt` | Boolean | `TRUE`, wenn ein niedrigerer neuer Wert durch Zählerüberlauf plausibel sein kann; sonst `FALSE` |
+| **J** | `max_plausibler_verbrauch` | Zahl | Optionaler Schwellenwert für maximal plausiblen Verbrauch je Ableseintervall; dient zur Warnung bei Extremwerten |
+| **K** | `aktiv` | Boolean | `TRUE` = Zähler wird aktuell verwendet; `FALSE` = historischer/ersetzter Zähler |
+| **L** | `ersetzt_durch_zaehler_id` | String | Optional: FK -> Zaehler.zaehler_id, wenn dieser Zähler durch einen neuen Zähler ersetzt wurde |
+| **M** | `hinweis` | String | Freitext für Besonderheiten, z. B. `4-stelliger Zwischenzähler`, `OVAG-Hauptzähler`, `Zählerwechsel 2024` |
+
+#### Plausibilitätsregeln für Zählerstände
+
+Die Validierung neuer Zählerstände basiert auf den Stammdaten aus `Zaehler` und den letzten gespeicherten Messwerten aus `Zaehlerstaende`.
+
+Grundregeln:
+
+1. **Erstablesung:** Wenn kein vorheriger Wert vorhanden ist, wird der neue Wert akzeptiert.
+2. **Normalfall:** Wenn `neuer_wert >= letzter_wert`, ist der Wert grundsätzlich plausibel.
+3. **Zählerüberlauf:** Wenn `neuer_wert < letzter_wert`, `ueberlauf_erlaubt = TRUE` und `stellen` gesetzt ist, kann ein Überlauf berechnet werden.
+4. **Zählerwechsel:** Wenn ein alter Zähler durch einen neuen ersetzt wurde, darf der neue Zähler mit einem niedrigeren Wert starten. Dies muss über `aktiv`, `ersetzt_durch_zaehler_id` oder einen dokumentierten Hinweis nachvollziehbar sein.
+5. **Warnung statt harter Blockade:** Bei unklaren Fällen soll die UI zunächst warnen und eine bewusste Bestätigung ermöglichen, statt Eingaben pauschal zu verhindern.
+6. **Extremverbrauch:** Wenn `max_plausibler_verbrauch` gesetzt ist und der berechnete Verbrauch diesen Wert überschreitet, soll eine Warnung angezeigt werden.
+
+Beispiel Überlauf bei 4-stelligem Zähler:
+
+```text
+letzter_wert = 9876
+neuer_wert = 123
+stellen = 4
+max_wert = 10000
+
+verbrauch = 10000 - 9876 + 123 = 247
+
 ### Tabelle: `Parameter` (Konfiguration)
 | Spalte | Feldname | Datentyp | Beschreibung |
 | :--- | :--- | :--- | :--- |

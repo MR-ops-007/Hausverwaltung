@@ -1,6 +1,71 @@
 # PROJECT_STATE - Hausverwaltung (MR-ops-007)
 
-# Projektstatus: Hausverwaltung App
+## Projektstatus: Hausverwaltung App
+
+## Stand: 2026-06-20
+
+**Branch:** `audit-regression-basis`  
+**Status:** Stabilisierung, Dokumentation und Vorbereitung Regressionstests
+
+## Aktueller Fokus
+
+Das Projekt wird aktuell für eine sauberere Weiterentwicklung mit KI-/Editor-Unterstützung vorbereitet. Ziel ist, Änderungen künftig nachvollziehbar per Git-Diff prüfen zu können, bevor sie in GitHub oder im Google Apps Script Backend produktiv übernommen werden.
+
+## Erreichte bzw. getroffene Entscheidungen
+
+- Das Datenmodell wurde auf die neue relationale Struktur mit `Personen`, `Vertraege`, `Vertragsparteien`, `Zaehler` und `Zaehlerstaende` ausgerichtet.
+- `DATA_MODEL.md` ist die fachliche Referenz für das Google-Sheets-Backend.
+- `package.json` ist vorhanden und nutzt `vitest run` als Testbefehl.
+- `tests/test-runner.html` existiert aktuell als Platzhalter, wird aber nicht als primärer Regressionstest-Mechanismus betrachtet.
+- Automatisierte Tests sollen bevorzugt über Vitest laufen.
+- Google Apps Script wird zunächst ohne `clasp` manuell versioniert.
+- Dafür wird ein Verzeichnis `apps-script/` genutzt.
+- `apps-script/Code.gs` dient als manuell versionierte Review- und Diff-Quelle für das Apps-Script-Backend.
+- `appsscript.json` wird aktuell nicht künstlich angelegt oder versioniert, solange keine bewussten Änderungen an Manifest, Scopes, Runtime oder Libraries notwendig sind.
+
+## Erweiterung Datenmodell: Zähler-Plausibilität
+
+Die Tabelle `Zaehler` wurde um technische Stammdaten für die Plausibilitätsprüfung erweitert:
+
+- `stellen`
+- `ueberlauf_erlaubt`
+- `max_plausibler_verbrauch`
+- `aktiv`
+- `ersetzt_durch_zaehler_id`
+- `hinweis`
+
+Damit können reale Sonderfälle sauber abgebildet werden:
+
+- normale steigende Zählerstände
+- Erstablesungen
+- neue Zähler nach Zählerwechsel
+- 4- oder 5-stellige Zwischenzähler mit Überlauf
+- unrealistisch hohe Verbrauchswerte als Warnfall
+
+Wichtig: Ein niedrigerer neuer Zählerstand ist nicht automatisch falsch. Er kann bei Zählerwechsel oder Überlauf plausibel sein. Die UI soll daher nicht pauschal blockieren, sondern zwischen `OK`, `Warnung` und `Fehler` unterscheiden.
+
+## Aktuelle Arbeitsregel für Google Apps Script
+
+1. Der geplante vollständige Code-Stand wird lokal in `apps-script/Code.gs` gepflegt.
+2. Änderungen werden per Git-Diff geprüft.
+3. Änderungen werden im Google Apps Script Editor getestet.
+4. Erst nach erfolgreichem Test wird committed.
+
+## Nächste Schritte
+
+1. Branch `audit-regression-basis` nach GitHub pushen, damit der Stand extern prüfbar ist.
+2. `apps-script/Code.gs` mit dem aktuellen produktiven Apps-Script-Code befüllen.
+3. `DATA_MODEL.md` mit den erweiterten Zähler-Spalten aktualisieren.
+4. Erste Vitest-Teststruktur anlegen.
+5. Plausibilitätslogik für Zählerstände als eigenständigen Service vorbereiten.
+6. Tests für folgende Fälle erstellen:
+   - Erstablesung
+   - normal steigender Zählerstand
+   - niedrigerer Wert ohne Sonderfall
+   - 4-stelliger Überlauf
+   - 5-stelliger Überlauf
+   - neuer Zähler / Zählerwechsel
+   - unrealistisch hoher Verbrauch
 
 **Datum:** 18.06.2026
 
