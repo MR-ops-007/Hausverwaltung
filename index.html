@@ -34,6 +34,16 @@
     <script src="data-service.js"></script>
     <script src="cloud-service.js"></script>
     <script src="calc-service.js"></script>
+
+    <script type="module">
+      import { VALIDATION_STATUS, validateZaehlerstand } from './validation-service.js';
+
+      window.validationService = {
+        VALIDATION_STATUS,
+        validateZaehlerstand
+      };
+    </script>
+
     <script src="ui-service.js"></script>
 
     <script>

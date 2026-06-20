@@ -5,6 +5,57 @@ const uiService = {
     currentSelection: null,
     currentActiveMetersObjects: [],
 
+    parseGermanDate(value) {
+        if (!value) return 0;
+
+        if (value instanceof Date) {
+            return value.getTime();
+        }
+
+        const text = String(value).trim();
+
+        const match = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/);
+
+        if (match) {
+            const [, day, month, year, hour = '0', minute = '0'] = match;
+            return new Date(
+            Number(year),
+            Number(month) - 1,
+            Number(day),
+            Number(hour),
+            Number(minute)
+            ).getTime();
+        }
+
+        const fallback = Date.parse(text);
+        return Number.isFinite(fallback) ? fallback : 0;
+        },
+
+        getLatestZaehlerstand(zaehlerId) {
+        const readings = Array.isArray(dataService.state.zaehlerstaende)
+            ? dataService.state.zaehlerstaende
+            : [];
+
+        const matchingReadings = readings
+            .filter(row => String(row.zaehler_id) === String(zaehlerId))
+            .sort((a, b) => this.parseGermanDate(b.zeitstempel) - this.parseGermanDate(a.zeitstempel));
+
+        return matchingReadings[0] || null;
+        },
+
+        formatValidationMessage(zaehler, latestReading, result, neuerWert) {
+        const name = zaehler.bezeichnung || zaehler.medium || zaehler.zaehler_id;
+        const alterWert = latestReading ? latestReading.wert : 'kein Vorwert';
+
+        return [
+            `${name}`,
+            `Alt: ${alterWert}`,
+            `Neu: ${neuerWert}`,
+            result.delta !== null ? `Differenz: ${result.delta}` : null,
+            result.message
+        ].filter(Boolean).join(' | ');
+    },
+
     applyStyles(el, styles) {
         Object.assign(el.style, styles);
     },
@@ -101,39 +152,98 @@ const uiService = {
     },
 
     async saveZaehler() {
-        const transactions = [];
-        const zeitstempel = new Date().toLocaleDateString('de-DE');
+  const transactions = [];
+  const warnings = [];
+  const errors = [];
+  const zeitstempel = new Date().toLocaleDateString('de-DE');
 
-        this.currentActiveMetersObjects.forEach(zaehler => {
-            const input = document.getElementById(`input-${zaehler.zaehler_id}`);
-            if (input && input.value !== "") {
-                transactions.push({
-                    objekt_id: zaehler.objekt_id,
-                    einheit_id: zaehler.einheit_id,
-                    zaehler_id: zaehler.zaehler_id,
-                    wert: parseFloat(input.value),
-                    zeitstempel: zeitstempel,
-                    quelle: "UI"
-                });
-            }
-        });
+  const validator = window.validationService;
 
-        if (transactions.length === 0) return alert("Keine Werte eingetragen.");
-        
-        const res = await cloudService.saveTransaction({
-            typ: "ZAEHLERSTAND_NEU", 
-            data: transactions
-        });
-        
-        if (res && res.status === 'success') {
-            alert("Erfolgreich gespeichert!");
-            this.closeModal();
-        } else {
-            alert("Fehler: " + (res ? res.message : "Unbekannter Fehler"));
-        }
-    },
-    
-    closeModal() { document.getElementById('modal-container').style.display = 'none'; },
+  if (!validator || typeof validator.validateZaehlerstand !== 'function') {
+    alert("Plausibilitätsprüfung konnte nicht geladen werden. Speicherung wurde aus Sicherheitsgründen abgebrochen.");
+    return;
+  }
+
+  this.currentActiveMetersObjects.forEach(zaehler => {
+    const input = document.getElementById(`input-${zaehler.zaehler_id}`);
+
+    if (!input || input.value === "") {
+      return;
+    }
+
+    const latestReading = this.getLatestZaehlerstand(zaehler.zaehler_id);
+
+    const validationResult = validator.validateZaehlerstand({
+      letzterWert: latestReading ? latestReading.wert : null,
+      neuerWert: input.value,
+      zaehler
+    });
+
+    const message = this.formatValidationMessage(
+      zaehler,
+      latestReading,
+      validationResult,
+      input.value
+    );
+
+    if (validationResult.status === validator.VALIDATION_STATUS.FEHLER) {
+      errors.push(message);
+      return;
+    }
+
+    if (
+      validationResult.status === validator.VALIDATION_STATUS.WARNUNG ||
+      validationResult.needsConfirmation
+    ) {
+      warnings.push(message);
+    }
+
+    transactions.push({
+      objekt_id: zaehler.objekt_id,
+      einheit_id: zaehler.einheit_id,
+      zaehler_id: zaehler.zaehler_id,
+      wert: parseFloat(String(input.value).replace(',', '.')),
+      zeitstempel: zeitstempel,
+      quelle: "UI"
+    });
+  });
+
+  if (errors.length > 0) {
+    alert(
+      "Folgende Eingaben sind fehlerhaft und wurden nicht gespeichert:\n\n" +
+      errors.join("\n\n")
+    );
+    return;
+  }
+
+  if (transactions.length === 0) {
+    return alert("Keine Werte eingetragen.");
+  }
+
+  if (warnings.length > 0) {
+    const confirmed = confirm(
+      "Es gibt Plausibilitätswarnungen:\n\n" +
+      warnings.join("\n\n") +
+      "\n\nTrotzdem speichern?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+  }
+
+  const res = await cloudService.saveTransaction({
+    typ: "ZAEHLERSTAND_NEU",
+    data: transactions
+  });
+
+  if (res && res.status === 'success') {
+    alert("Erfolgreich gespeichert!");
+    this.closeModal();
+  } else {
+    alert("Fehler: " + (res ? res.message : "Unbekannter Fehler"));
+  }
+},
     backToObjects() { 
         document.getElementById('unit-list-section').style.display = 'none'; 
         document.getElementById('object-selector-section').style.display = 'block'; 
