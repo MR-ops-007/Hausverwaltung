@@ -103,18 +103,6 @@ Speichert jede Zahlung auf einen Vertrag.
 | **E** | `vollmacht` | Boolean | Optional: Wer darf den Vertrag führen? |
 
 ### Tabelle: `Zaehler` (Zähler-Definition)
-**Wichtig:** Trennt den Zähler (Stammdaten) vom Messwert (`Zaehlerstaende`).
-| Spalte | Feldname | Datentyp | Beschreibung |
-| :--- | :--- | :--- | :--- |
-| **A** | `zaehler_id` | String | PK: Eindeutiger Key |
-| **B** | `objekt_id` | String | FK -> Objekte.objekt_id (für Allgemeine Zähler) |
-| **C** | `einheit_id` | String | FK -> Einheiten.einheit_id (nullable, für WE/GE Zähler) |
-| **D** | `medium` | String | `Kaltwasser`, `Warmwasser`, `Strom`, `Oel`, `Zusatz` |
-| **E** | `bezeichnung` | String | Freitext/Anzeige (z.B. "Strom HT") |
-| **F** | `einheit` | String | `m3`, `kWh`, `l`, `h` |
-| **G** | `einbauort` | String | Freitext/Anzeige (z.B. "Keller", "Flur", ...) |
-
-### Tabelle: `Zaehler` (Zähler-Definition)
 
 **Wichtig:** Trennt den Zähler (Stammdaten) vom Messwert (`Zaehlerstaende`).
 
