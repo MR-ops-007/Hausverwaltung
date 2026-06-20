@@ -1,6 +1,6 @@
 # PROJECT_STATE - Hausverwaltung (MR-ops-007)
 
-# Projektstatus: Hausverwaltung App
+## Projektstatus: Hausverwaltung App
 
 ## Stand: 2026-06-20
 
