@@ -1,6 +1,6 @@
 # Hausverwaltung
 
-Private Web-App zur Verwaltung von Immobilien, Einheiten, Mietverhältnissen, Zählerständen und Mieteingängen.
+Private Web-App zur Verwaltung von Immobilien, Einheiten, Mietverhältnissen, Zählerständen und perspektivisch Mieteingängen und Auswertungen.
 
 ## Ziel des Projekts
 
@@ -22,7 +22,9 @@ Aktueller Stand:
 - Tests: Vitest
 - Versionierung: GitHub
 
-Das Google Sheet dient aktuell als Datenbank. Das Google Apps Script Backend wird zunächst manuell im Repository unter `apps-script/Code.gs` versioniert. `clasp` wird später optional geprüft.
+Das Google Sheet dient aktuell als Datenbank.
+
+Das Google Apps Script Backend wird zunächst manuell im Repository unter `apps-script/Code.gs` versioniert. `clasp` wird später optional geprüft.
 
 ## Wichtige Dateien
 
@@ -34,26 +36,30 @@ Das Google Sheet dient aktuell als Datenbank. Das Google Apps Script Backend wir
 | `data-service.js` | Lokaler Datenzustand und Datenzugriff im Frontend |
 | `ui-service.js` | Rendering und UI-Logik |
 | `calc-service.js` | Berechnungslogik / ältere Hilfsfunktionen |
+| `validation-service.js` | Isolierte Plausibilitätsprüfung für Zählerstände |
 | `DATA_MODEL.md` | Fachliches Datenmodell des Google Sheets |
 | `PROJECT_STATE.md` | Aktueller Projektstand und nächste Schritte |
-| `AGENT_AUDIT.md` | Bestandsaufnahme für KI-/Agentenarbeit |
+| `AGENT_AUDIT.md` | Bestandsaufnahme und Regeln für KI-/Agentenarbeit |
 | `apps-script/` | Manuell versionierte Kopie des Google Apps Script Backends |
 | `tests/` | Automatisierte Tests |
 
 ## Entwicklung
 
-Änderungen erfolgen ab sofort über Branches.
+Änderungen erfolgen über Branches.
 
 Empfohlener Ablauf:
 
-1. Neuen Branch erstellen
-2. Änderungen in VS Code durchführen
-3. Diff prüfen
-4. Lokal testen
-5. Commit erstellen
-6. Branch nach GitHub pushen
-7. Pull Request nach `main`
-8. Nach erfolgreicher Prüfung mergen
+1. `main` aktualisieren
+2. neuen Branch erstellen
+3. Änderungen in VS Code durchführen
+4. Diff prüfen
+5. lokal testen
+6. Commit erstellen
+7. Branch nach GitHub pushen
+8. Pull Request nach `main`
+9. GitHub Actions prüfen
+10. nach erfolgreicher Prüfung mergen
+11. Branch löschen
 
 ## Tests
 
@@ -61,3 +67,4 @@ Tests werden mit Vitest ausgeführt:
 
 ```bash
 npm test
+```

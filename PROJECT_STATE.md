@@ -4,6 +4,85 @@
 
 ## Stand: 2026-06-20
 
+**Branch-Status:** `main` ist aktuell stabil.  
+**Aktueller Arbeitsstand:** Testbasis und erste isolierte Zähler-Plausibilitätslogik sind eingerichtet.
+
+## Projektziel
+
+Die App dient der Verwaltung von Immobilien, Einheiten, Mietverhältnissen, Zählerständen und später auch Mieteingängen bzw. Auswertungen.
+
+Der aktuelle Fokus liegt auf einer stabilen Weiterentwicklung mit GitHub, VS Code, Tests und nachvollziehbaren Pull Requests.
+
+## Technischer Aufbau
+
+- Frontend: Vanilla JavaScript, HTML, CSS
+- Backend: Google Apps Script
+- Datenhaltung: Google Sheets
+- Tests: Vitest
+- Versionierung: GitHub
+- Entwicklung: Branch-basiert über Pull Requests nach `main`
+
+## Aktuell erreichte Meilensteine
+
+### Dokumentation und Projektstruktur
+
+- `README.md` ist als Projektüberblick vorhanden.
+- `DATA_MODEL.md` beschreibt das fachliche Datenmodell.
+- `PROJECT_STATE.md` hält den aktuellen Projektstand fest.
+- `AGENT_AUDIT.md` enthält Leitplanken für KI-/Agentenarbeit.
+- `apps-script/` ist für die manuelle Versionierung des Google Apps Script Backends vorgesehen.
+
+### Testbasis
+
+- `package.json` ist vorhanden.
+- `npm test` führt `vitest run` aus.
+- GitHub Actions führt Tests bei Pull Requests und Pushes auf `main` aus.
+- `tests/smoke.test.js` stellt sicher, dass die Testumgebung grundsätzlich funktioniert.
+- Der frühere leere `tests/test-runner.html` wurde entfernt.
+
+### Zähler-Plausibilitätslogik
+
+- `validation-service.js` wurde eingeführt.
+- `tests/validation-service.test.js` testet die isolierte Plausibilitätslogik.
+- Die Logik unterscheidet zwischen:
+  - Erstablesung
+  - normal steigendem Zählerstand
+  - niedrigerem Wert ohne Erklärung
+  - 4-stelligem Überlauf
+  - 5-stelligem Überlauf
+  - Zählerwechsel
+  - unrealistisch hohem Verbrauch
+  - ungültigen Eingaben
+  - negativen Eingaben
+  - deutscher Komma-Dezimalschreibweise
+
+## Datenmodell: Zähler-Plausibilität
+
+Die Tabelle `Zaehler` wurde um technische Stammdaten für die Plausibilitätsprüfung erweitert:
+
+- `stellen`
+- `ueberlauf_erlaubt`
+- `max_plausibler_verbrauch`
+- `aktiv`
+- `ersetzt_durch_zaehler_id`
+- `hinweis`
+
+Wichtig: Ein niedrigerer neuer Zählerstand ist nicht automatisch falsch. Er kann bei Zählerwechsel oder Überlauf plausibel sein. Die spätere UI soll deshalb nicht pauschal blockieren, sondern zwischen `OK`, `Warnung` und `Fehler` unterscheiden.
+
+## Google Apps Script Versionierung
+
+Google Apps Script wird zunächst ohne `clasp` manuell versioniert.
+
+Geplante Struktur:
+
+```text
+apps-script/
+  Code.gs
+  README.md
+```
+
+## Stand: 2026-06-20
+
 **Branch:** `audit-regression-basis`  
 **Status:** Stabilisierung, Dokumentation und Vorbereitung Regressionstests
 
