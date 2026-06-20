@@ -158,6 +158,7 @@ stellen = 4
 max_wert = 10000
 
 verbrauch = 10000 - 9876 + 123 = 247
+```
 
 ### Tabelle: `Parameter` (Konfiguration)
 | Spalte | Feldname | Datentyp | Beschreibung |
