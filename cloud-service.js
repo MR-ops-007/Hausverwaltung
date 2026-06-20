@@ -1,5 +1,5 @@
 /**
- * CLOUD-SERVICE (v2.20 - VOLLSTÄNDIG)
+ * CLOUD-SERVICE (v2.21 - KOMPLETT)
  */
 const cloudService = {
     scriptUrl: CONFIG.API_URL,
@@ -24,27 +24,16 @@ const cloudService = {
             this.saveToOfflineQueue(transactionData);
             return { status: 'success', message: 'Offline gespeichert' };
         }
-
         try {
             const response = await fetch(this.scriptUrl, {
                 method: 'POST',
                 body: JSON.stringify(transactionData)
             });
-
             const text = await response.text();
             if (!text || text.trim() === "") return { status: 'success', message: "OK" };
-
             let result;
-            try {
-                result = JSON.parse(text);
-            } catch (e) {
-                throw new Error("Antwortformat nicht lesbar.");
-            }
-            
-            if (result && result.status === 'error') {
-                throw new Error(result.message || "Backend-Fehler");
-            }
-            
+            try { result = JSON.parse(text); } catch (e) { throw new Error("Antwortformat nicht lesbar."); }
+            if (result && result.status === 'error') throw new Error(result.message || "Backend-Fehler");
             return { status: 'success', message: result.message || "Erfolgreich" };
         } catch (error) {
             if (this.ENABLE_OFFLINE_SYNC) {
@@ -65,11 +54,9 @@ const cloudService = {
         if (!this.ENABLE_OFFLINE_SYNC || !navigator.onLine) return;
         const raw = localStorage.getItem('offline_queue');
         if (!raw) return;
-        
         let queue;
         try { queue = JSON.parse(raw); } catch(e) { return; }
         if (!Array.isArray(queue) || queue.length === 0) return;
-        
         for (const item of queue) {
             try {
                 const res = await fetch(this.scriptUrl, { method: 'POST', body: JSON.stringify(item) });
