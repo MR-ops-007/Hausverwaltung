@@ -38,7 +38,7 @@ Das Google Apps Script Backend wird zunächst manuell im Repository unter `apps-
 | `calc-service.js` | Berechnungslogik / ältere Hilfsfunktionen |
 | `validation-service.js` | Isolierte Plausibilitätsprüfung für Zählerstände |
 | `DATA_MODEL.md` | Fachliches Datenmodell des Google Sheets |
-| `PROJECT_STATE.md` | Aktueller Projektstand und nächste Schritte |
+| `PROJECT_STATE.md` | Aktueller Projektstand, nächste Schritte und Historie |
 | `AGENT_AUDIT.md` | Bestandsaufnahme und Regeln für KI-/Agentenarbeit |
 | `apps-script/` | Manuell versionierte Kopie des Google Apps Script Backends |
 | `tests/` | Automatisierte Tests |
@@ -60,6 +60,7 @@ Empfohlener Ablauf:
 9. GitHub Actions prüfen
 10. nach erfolgreicher Prüfung mergen
 11. Branch löschen
+12. lokal `main` aktualisieren
 
 ## Tests
 
@@ -67,4 +68,3 @@ Tests werden mit Vitest ausgeführt:
 
 ```bash
 npm test
-```

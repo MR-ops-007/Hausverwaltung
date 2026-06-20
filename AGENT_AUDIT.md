@@ -6,6 +6,8 @@ Dieses Dokument dient als Bestandsaufnahme und Regelwerk für die Arbeit mit KI-
 
 Ziel ist, dass Änderungen nachvollziehbar, klein und prüfbar bleiben. Bereits funktionierende Funktionen sollen nicht durch unkontrollierte Refactorings oder automatische Änderungen verloren gehen.
 
+---
+
 ## Grundregeln für KI-/Agentenarbeit
 
 - Keine direkten Änderungen auf `main`.
@@ -19,6 +21,9 @@ Ziel ist, dass Änderungen nachvollziehbar, klein und prüfbar bleiben. Bereits 
 - Relevante Projektentscheidungen müssen in `PROJECT_STATE.md` dokumentiert werden.
 - Tests sollen vor oder zusammen mit Feature-Erweiterungen ergänzt werden.
 - Doku-Dateien sollen am Ende jedes Branches auf Aktualität geprüft werden.
+- Bei Codeänderungen sollen vollständige Dateien als Kopiervorlage bevorzugt werden, nicht einzelne verstreute Schnipsel.
+
+---
 
 ## Aktueller technischer Stand
 
@@ -41,20 +46,25 @@ Ziel ist, dass Änderungen nachvollziehbar, klein und prüfbar bleiben. Bereits 
 - GitHub Actions führt `npm test` bei Pull Requests und Pushes auf `main` aus.
 - `tests/smoke.test.js` stellt sicher, dass die Testumgebung grundsätzlich läuft.
 - `tests/validation-service.test.js` testet die isolierte Zähler-Plausibilitätslogik.
-- `validation-service.js` enthält die erste isolierte Prüf-Logik für Zählerstände.
+- `validation-service.js` enthält die Prüf-Logik für Zählerstände.
+
+---
 
 ## Wichtige Projektdateien
 
 | Datei / Ordner | Bedeutung |
 | :--- | :--- |
 | `README.md` | Überblick für Menschen |
-| `PROJECT_STATE.md` | Aktueller Projektstand und nächste Schritte |
+| `PROJECT_STATE.md` | Aktueller Projektstand, nächste Schritte und Historie |
 | `DATA_MODEL.md` | Referenz für das fachliche Datenmodell |
 | `AGENT_AUDIT.md` | Leitplanken für KI-/Agentenarbeit |
 | `apps-script/Code.gs` | Geplante manuell versionierte Kopie des Google Apps Script Backends |
 | `validation-service.js` | Isolierte Plausibilitätsprüfung für Zählerstände |
 | `tests/` | Automatisierte Tests |
 | `config.js` | Konfiguration, aktuell inklusive Apps-Script-URL |
+| `ui-service.js` | UI-Logik inklusive Zählererfassung |
+
+---
 
 ## Bekannte Risiken
 
@@ -101,7 +111,21 @@ Mögliche legitime Fälle:
 - 4-stelliger oder 5-stelliger Zählerüberlauf
 - historischer oder ersetzter Zähler
 
-Deshalb soll die Plausibilitätsprüfung zwischen `OK`, `Warnung` und `Fehler` unterscheiden.
+Deshalb unterscheidet die Plausibilitätsprüfung zwischen `OK`, `Warnung` und `Fehler`.
+
+### UI-Prüfung ersetzt keine Backend-Prüfung
+
+Die aktuelle Plausibilitätsprüfung läuft im Frontend.
+
+Das verbessert die Bedienung, ersetzt aber keine spätere Backend-Validierung.
+
+Zu beachten:
+
+- Das Frontend kann manipuliert werden.
+- Kritische Schreiblogik sollte langfristig auch im Apps Script abgesichert werden.
+- Warnungen werden aktuell nicht zusätzlich im Backend gespeichert.
+
+---
 
 ## Erledigte Arbeitspakete
 
@@ -113,13 +137,11 @@ Deshalb soll die Plausibilitätsprüfung zwischen `OK`, `Warnung` und `Fehler` u
 - `package-lock.json` ergänzt
 - `.gitignore` ergänzt
 
-### Plausibilitätsprüfung in UI integriert
+### Plausibilitätsprüfung vorbereitet
 
-- `validation-service.js` wird in der UI genutzt.
-- `saveZaehler()` prüft Eingaben vor dem Speichern.
-- Fehler blockieren die Speicherung.
-- Warnungen können bewusst bestätigt werden.
-- Backend-Schreibstruktur bleibt unverändert.
+- `validation-service.js` angelegt
+- `tests/validation-service.test.js` angelegt
+- Tests für zentrale Zählerstand-Sonderfälle erstellt
 
 Getestete Fälle:
 
@@ -133,6 +155,17 @@ Getestete Fälle:
 - ungültige Eingabe
 - negativer neuer Wert
 - deutsche Komma-Dezimalwerte
+
+### Plausibilitätsprüfung in UI integriert
+
+- `validation-service.js` wird im Browser über `window.validationService` bereitgestellt.
+- `saveZaehler()` prüft Eingaben vor dem Speichern.
+- Fehler blockieren die Speicherung.
+- Warnungen können bewusst bestätigt werden.
+- Zeitstempel werden als `DD.MM.YYYY HH:mm` gespeichert.
+- Backend-Schreibstruktur bleibt unverändert.
+
+---
 
 ## Nächste sinnvolle Arbeitspakete
 
@@ -149,4 +182,3 @@ Vorgeschlagener Branch:
 
 ```text
 chore/apps-script-baseline
-```
