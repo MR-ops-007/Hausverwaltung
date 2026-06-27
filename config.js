@@ -1,15 +1,15 @@
  /**
  * HAUSVERWALTUNG - FRONTEND CONFIGURATION
- * Version: 3.4 (Fusionierte Stammdaten & Cache-Architektur)
- * Stand: 18.06.2026
+ * Version: 3.5 (Backend 4.3.1 Deployment)
+ * Stand: 27.06.2026
  */
 
 const CONFIG = {
     // 1. Die zentrale URL (Single Source of Truth)
-    API_URL: "https://script.google.com/macros/s/AKfycbwVM7BLTQ7IRaxeJnyZXFGOflEToa9c_f2EAumuTXxFbjWfKGjW1fod7-Msz45Yfs7lag/exec",
+    API_URL: "https://script.google.com/macros/s/AKfycbxP1AzOxbGQH3aFYEJzSwxbsQkaUQQ4EKXLpMJvdJYc0TD7sTEw6C_9h1SZshG7A9USog/exec",
     
     // 2. Globale Anwendungseinstellungen
-    APP_VERSION: "3.4",
+    APP_VERSION: "3.5",
     DEBUG_MODE: true,
 
     // 3. Bestehende Objekt-Einstellungen (DÜRFEN NICHT GELÖSCHT WERDEN!)
