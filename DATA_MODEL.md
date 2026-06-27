@@ -230,9 +230,9 @@ Bestehende importierte `Zaehlerstaende` enthalten alte `stand_id`-Werte in einem
 Da die bisherigen Produktivdaten im Wesentlichen aus einem Objekt stammen, ist die Migration überschaubar:
 
 1. Fehlende `objekt_id` mit dem bekannten Bestandsobjekt ergänzen.
-2. Fehlende `einheit_id` deterministisch aus der vorhandenen `zaehler_id` ableiten.
+2. Fehlende `einheit_id` zuerst aus bereits vorbereiteten Bestandszeilen lernen, danach deterministisch aus der vorhandenen `zaehler_id` ableiten.
 3. `stand_id` auf das neue Format `ST_{objekt_id}_{einheit_id}_{zaehler_id}_{YYYY-MM-DD HH:mm}` umstellen.
-4. Per `writeStandIdMigrationReport` das Sheet `_migration_stand_id_report` erzeugen und prüfen, dass keine ungelösten Zuordnungen und keine doppelten neuen `stand_id`s existieren.
+4. Per `writeStandIdMigrationReport` das Sheet `_migration_stand_id_report` erzeugen und prüfen, dass keine Mapping-Konflikte, keine ungelösten Zuordnungen und keine doppelten neuen `stand_id`s existieren.
 5. Für neue Objekte kurze, wiederverwendbare `zaehler_id`s bevorzugen.
 
 ### Tabelle: `Parameter` (Konfiguration)

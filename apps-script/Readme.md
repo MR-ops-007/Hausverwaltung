@@ -9,7 +9,7 @@ Die aktuelle Backend-Version steht im Kopf von `Code.gs` und zusätzlich in der 
 Aktueller Stand:
 
 ```text
-4.4.1
+4.4.2
 ```
 
 Regel:
@@ -21,6 +21,7 @@ Regel:
 - Version `4.3.1` repariert das zeitzonenstabile Parsing von JavaScript-Date-Strings für generierte `stand_id`-Zeitstempel.
 - Version `4.4.0` ergänzt eine Preview-/Apply-Migration für Bestands-Zählerstände.
 - Version `4.4.1` ergänzt ein Report-Sheet für die Migrationsanalyse.
+- Version `4.4.2` lernt eindeutige `zaehler_id`/`einheit_id`-Mappings aus bereits vorbereiteten Bestandsdaten.
 
 ## Zweck
 
@@ -87,13 +88,13 @@ Ziel:
 ST_{objekt_id}_{einheit_id}_{zaehler_id}_{YYYY-MM-DD HH:mm}
 ```
 
-Die bestehenden 1.910 Produktivzeilen haben bereits alte `stand_id`-Werte im einheitlichen historischen Format. Für die neue Logik wird zuerst `einheit_id` deterministisch aus der vorhandenen `zaehler_id` abgeleitet. Dadurch hängt die Migration nicht von später veränderbaren Stammdaten ab.
+Die bestehenden 1.910 Produktivzeilen haben bereits alte `stand_id`-Werte im einheitlichen historischen Format. Für die neue Logik wird zuerst `einheit_id` aus bereits vorbereiteten Bestandszeilen gelernt. Falls es dafür kein eindeutiges Mapping gibt, wird deterministisch aus der vorhandenen `zaehler_id` abgeleitet. Dadurch hängt die Migration nicht von später veränderbaren Stammdaten ab.
 
 Ablauf im Apps Script Editor:
 
 1. `writeStandIdMigrationReport` ausführen.
 2. Sheet `_migration_stand_id_report` prüfen.
-3. Offene `Unresolved Rows` und `Duplicate New stand_id Rows` klären.
+3. Offene `Unresolved Rows`, `Mapping Conflicts` und `Duplicate New stand_id Rows` klären.
 4. Optional `previewStandIdMigration` erneut ausführen.
 5. Erst danach `applyStandIdMigration` ausführen.
 

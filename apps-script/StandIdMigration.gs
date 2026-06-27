@@ -55,6 +55,73 @@ function deriveEinheitIdFromLegacyZaehlerId(zaehlerId, objektId) {
   return "";
 }
 
+function getMigrationMappingKey(objektId, zaehlerId) {
+  return normalizeMigrationKey(objektId) + "|" + normalizeMigrationKey(zaehlerId);
+}
+
+function buildExistingEinheitMappingFromRows(headers, rows, options) {
+  const opts = options || {};
+  const indexes = getMigrationHeaderIndexes(headers);
+  const mappingCandidates = {};
+  const mapping = {};
+  const conflicts = [];
+
+  if (indexes.zaehler_id === undefined || indexes.einheit_id === undefined) {
+    return {
+      mapping: mapping,
+      conflicts: conflicts
+    };
+  }
+
+  rows.forEach((row, index) => {
+    const zaehlerId = row[indexes.zaehler_id];
+    const einheitId = row[indexes.einheit_id];
+    const objektId = indexes.objekt_id === undefined || isBlankValue(row[indexes.objekt_id])
+      ? (opts.defaultObjektId || STAND_ID_MIGRATION_DEFAULT_OBJEKT_ID)
+      : row[indexes.objekt_id];
+
+    if (isBlankValue(zaehlerId) || isBlankValue(einheitId)) {
+      return;
+    }
+
+    const key = getMigrationMappingKey(objektId, zaehlerId);
+
+    if (!mappingCandidates[key]) {
+      mappingCandidates[key] = {
+        objekt_id: String(objektId).trim(),
+        zaehler_id: String(zaehlerId).trim(),
+        einheit_ids: {},
+        rows: []
+      };
+    }
+
+    mappingCandidates[key].einheit_ids[String(einheitId).trim()] = true;
+    mappingCandidates[key].rows.push(index + 2);
+  });
+
+  Object.keys(mappingCandidates).forEach(key => {
+    const candidate = mappingCandidates[key];
+    const einheitIds = Object.keys(candidate.einheit_ids);
+
+    if (einheitIds.length === 1) {
+      mapping[key] = einheitIds[0];
+    } else if (einheitIds.length > 1) {
+      conflicts.push({
+        key: key,
+        objekt_id: candidate.objekt_id,
+        zaehler_id: candidate.zaehler_id,
+        einheit_ids: einheitIds.join(", "),
+        rows: candidate.rows.join(", ")
+      });
+    }
+  });
+
+  return {
+    mapping: mapping,
+    conflicts: conflicts
+  };
+}
+
 function getMigrationHeaderIndexes(headers) {
   const indexes = {};
 
@@ -80,8 +147,10 @@ function buildMigratedZaehlerstandItem(item, options) {
   const objektId = isBlankValue(item.objekt_id)
     ? (opts.defaultObjektId || STAND_ID_MIGRATION_DEFAULT_OBJEKT_ID)
     : String(item.objekt_id).trim();
+  const existingMapping = opts.existingEinheitMapping || {};
+  const mappedEinheitId = existingMapping[getMigrationMappingKey(objektId, item.zaehler_id)];
   const einheitId = isBlankValue(item.einheit_id)
-    ? deriveEinheitIdFromLegacyZaehlerId(item.zaehler_id, objektId)
+    ? (mappedEinheitId || deriveEinheitIdFromLegacyZaehlerId(item.zaehler_id, objektId))
     : String(item.einheit_id).trim();
 
   if (isBlankValue(item.zaehler_id)) {
@@ -140,6 +209,8 @@ function analyzeStandIdMigrationRows(headers, rows, options) {
     unresolvedRows: 0,
     duplicateRows: 0,
     missingHeaders: missingHeaders,
+    mappingConflictRows: 0,
+    mappingConflicts: [],
     unresolved: [],
     duplicates: [],
     changes: []
@@ -150,11 +221,18 @@ function analyzeStandIdMigrationRows(headers, rows, options) {
   }
 
   const seenStandIds = {};
+  const mappingResult = buildExistingEinheitMappingFromRows(headers, rows, options);
+  const migrationOptions = Object.assign({}, options || {}, {
+    existingEinheitMapping: mappingResult.mapping
+  });
+
+  result.mappingConflicts = mappingResult.conflicts;
+  result.mappingConflictRows = mappingResult.conflicts.length;
 
   rows.forEach((row, index) => {
     const sheetRow = index + 2;
     const item = getMigrationItemFromRow(row, headers);
-    const migration = buildMigratedZaehlerstandItem(item, options);
+    const migration = buildMigratedZaehlerstandItem(item, migrationOptions);
 
     if (migration.status !== "ok") {
       result.unresolvedRows++;
@@ -224,6 +302,7 @@ function previewStandIdMigration(options) {
     unchangedRows: result.unchangedRows,
     unresolvedRows: result.unresolvedRows,
     duplicateRows: result.duplicateRows,
+    mappingConflictRows: result.mappingConflictRows,
     missingHeaders: result.missingHeaders
   }));
 
@@ -252,14 +331,18 @@ function applyStandIdMigration(options) {
     throw new Error("Fehlende Spalten: " + preview.missingHeaders.join(", "));
   }
 
-  if (preview.unresolvedRows > 0 || preview.duplicateRows > 0) {
-    throw new Error("Migration abgebrochen: " + preview.unresolvedRows + " unklare Zeilen, " + preview.duplicateRows + " doppelte neue stand_id.");
+  if (preview.unresolvedRows > 0 || preview.duplicateRows > 0 || preview.mappingConflictRows > 0) {
+    throw new Error("Migration abgebrochen: " + preview.unresolvedRows + " unklare Zeilen, " + preview.duplicateRows + " doppelte neue stand_id, " + preview.mappingConflictRows + " Mapping-Konflikte.");
   }
 
   const indexes = getMigrationHeaderIndexes(headers);
+  const mappingResult = buildExistingEinheitMappingFromRows(headers, rows, options);
+  const migrationOptions = Object.assign({}, options || {}, {
+    existingEinheitMapping: mappingResult.mapping
+  });
   const migratedRows = rows.map(row => {
     const item = getMigrationItemFromRow(row, headers);
-    const migration = buildMigratedZaehlerstandItem(item, options);
+    const migration = buildMigratedZaehlerstandItem(item, migrationOptions);
     const nextRow = row.slice();
 
     nextRow[indexes.stand_id] = migration.item.stand_id;
@@ -315,6 +398,7 @@ function writeStandIdMigrationReport(options) {
     ["unchangedRows", preview.unchangedRows],
     ["unresolvedRows", preview.unresolvedRows],
     ["duplicateRows", preview.duplicateRows],
+    ["mappingConflictRows", preview.mappingConflictRows],
     ["missingHeaders", preview.missingHeaders.join(", ")]
   ];
 
@@ -337,6 +421,20 @@ function writeStandIdMigrationReport(options) {
       item.stand_id,
       item.zaehler_id,
       item.zeitstempel
+    ])
+  );
+
+  nextRow = writeStandIdMigrationSection(
+    reportSheet,
+    nextRow,
+    "Mapping Conflicts",
+    ["key", "objekt_id", "zaehler_id", "einheit_ids", "rows"],
+    preview.mappingConflicts.map(item => [
+      item.key,
+      item.objekt_id,
+      item.zaehler_id,
+      item.einheit_ids,
+      item.rows
     ])
   );
 
@@ -376,6 +474,7 @@ function writeStandIdMigrationReport(options) {
     migratableRows: preview.migratableRows,
     changedRows: preview.changedRows,
     unresolvedRows: preview.unresolvedRows,
-    duplicateRows: preview.duplicateRows
+    duplicateRows: preview.duplicateRows,
+    mappingConflictRows: preview.mappingConflictRows
   };
 }

@@ -182,7 +182,7 @@ Google Apps Script wird weiterhin manuell versioniert.
 Aktuelle Backend-Version:
 
 ```text
-4.4.1
+4.4.2
 ```
 
 Die Version steht im Kopf von `apps-script/Code.gs` und in `BACKEND_VERSION`.
@@ -194,6 +194,7 @@ Wichtige Regel:
 - `4.3.1` repariert das zeitzonenstabile Parsing von JavaScript-Date-Strings für `stand_id`.
 - `4.4.0` ergänzt eine Preview-/Apply-Migration für Bestands-Zählerstände.
 - `4.4.1` ergänzt ein Report-Sheet für die Migrationsanalyse.
+- `4.4.2` lernt eindeutige `zaehler_id`/`einheit_id`-Mappings aus bereits vorbereiteten Bestandsdaten.
 - `clasp` ist lokal mit dem bestehenden GAS-Projekt verbunden; `npm run clasp:pull` funktioniert unter Node 22.
 
 ---
@@ -235,8 +236,8 @@ Geplanter Migrationsablauf:
 
 1. `writeStandIdMigrationReport` im Apps Script Editor ausführen.
 2. Sheet `_migration_stand_id_report` prüfen.
-3. Offene `Unresolved Rows` und `Duplicate New stand_id Rows` klären.
-4. Prüfen, dass `unresolvedRows` und `duplicateRows` jeweils `0` sind.
+3. Offene `Unresolved Rows`, `Mapping Conflicts` und `Duplicate New stand_id Rows` klären.
+4. Prüfen, dass `unresolvedRows`, `mappingConflictRows` und `duplicateRows` jeweils `0` sind.
 5. `applyStandIdMigration` ausführen.
 6. Danach optional kürzere `zaehler_id`s wie `STROM`, `KW`, `WW` erst in einem separaten Schritt einführen.
 

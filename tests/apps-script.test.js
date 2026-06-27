@@ -12,7 +12,7 @@ function loadAppsScriptHelpers() {
   );
 
   const factory = new Function(
-    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildMigratedZaehlerstandItem, buildStandId, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getItemValueForHeader, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
+    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildMigratedZaehlerstandItem, buildStandId, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getItemValueForHeader, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
   );
 
   return factory();
@@ -22,7 +22,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
   it('declares the current backend version', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
 
-    expect(BACKEND_VERSION).toBe('4.4.1');
+    expect(BACKEND_VERSION).toBe('4.4.2');
   });
 
   it('formats German timestamps for stand_id values', () => {
@@ -384,5 +384,49 @@ describe('Apps Script Zaehlerstaende helpers', () => {
       duplicateOfRow: 2,
       stand_id: 'ST_Ra-HS-29_Ra-HS-29_WE_01_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00',
     });
+  });
+
+  it('learns existing unit mappings from already prepared meter readings', () => {
+    const { analyzeStandIdMigrationRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert'];
+    const rows = [
+      ['ST_PREPARED', 'Ra-HS-29', 'Ra-HS-29_GE_01', 'Z_SONDERZAEHLER_GEWERBE', '01.01.2026 00:00', 10],
+      ['ST_LEGACY', '', '', 'Z_SONDERZAEHLER_GEWERBE', '02.01.2026 00:00', 11],
+    ];
+
+    const result = analyzeStandIdMigrationRows(headers, rows);
+
+    expect(result).toMatchObject({
+      totalRows: 2,
+      migratableRows: 2,
+      unresolvedRows: 0,
+      mappingConflictRows: 0,
+    });
+    expect(result.changes[1]).toMatchObject({
+      row: 3,
+      einheit_id: 'Ra-HS-29_GE_01',
+      zaehler_id: 'Z_SONDERZAEHLER_GEWERBE',
+    });
+  });
+
+  it('reports conflicting learned unit mappings instead of guessing', () => {
+    const { buildExistingEinheitMappingFromRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert'];
+    const rows = [
+      ['ST_ONE', 'Ra-HS-29', 'Ra-HS-29_WE_01', 'Z_MEHRDEUTIG', '01.01.2026 00:00', 10],
+      ['ST_TWO', 'Ra-HS-29', 'Ra-HS-29_WE_02', 'Z_MEHRDEUTIG', '02.01.2026 00:00', 11],
+    ];
+
+    const result = buildExistingEinheitMappingFromRows(headers, rows);
+
+    expect(result.mapping).toEqual({});
+    expect(result.conflicts).toEqual([
+      expect.objectContaining({
+        objekt_id: 'Ra-HS-29',
+        zaehler_id: 'Z_MEHRDEUTIG',
+        einheit_ids: 'Ra-HS-29_WE_01, Ra-HS-29_WE_02',
+        rows: '2, 3',
+      }),
+    ]);
   });
 });
