@@ -4,10 +4,10 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "clasp:login": "clasp --auth .clasprc.json login",
-    "clasp:status": "clasp --auth .clasprc.json status",
-    "clasp:pull": "clasp --auth .clasprc.json pull",
-    "clasp:push": "clasp --auth .clasprc.json push",
+    "clasp:login": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && clasp --auth .clasprc.json login'",
+    "clasp:status": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && clasp --auth .clasprc.json status'",
+    "clasp:pull": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && clasp --auth .clasprc.json pull'",
+    "clasp:push": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && clasp --auth .clasprc.json push'",
     "test": "vitest run"
   },
   "devDependencies": {

@@ -210,7 +210,7 @@ Ziel:
 Aktueller Stand:
 
 - `@google/clasp` ist als Dev-Dependency installiert.
-- npm-Skripte für Login, Pull, Push und Status verwenden die lokale `.clasprc.json`.
+- npm-Skripte für Login, Pull, Push und Status verwenden Node 22 aus `.nvmrc` und die lokale `.clasprc.json`.
 - `.clasp.example.json`, `.claspignore` und `.gitignore` sind vorbereitet.
 - Die echte Script-ID ist lokal in `.clasp.json` hinterlegt und wird nicht committed.
 - Der produktive GAS-Stand wurde per Apps-Script-API abgerufen und lokal nachvollzogen.
@@ -219,8 +219,8 @@ Aktueller Stand:
 
 Noch erforderlich:
 
-1. Node-/`clasp`-HTTP-Fehler `Premature close` weiter eingrenzen.
-2. `npm run clasp:pull` erfolgreich ausführen oder den dokumentierten API-Fallback nutzen.
+1. Vor jedem `npm run clasp:push` erst `npm run clasp:pull` ausführen.
+2. Pull-Diff prüfen.
 3. Erst danach `npm run clasp:push` nutzen.
 
 ### 2. Bestandsdatenmigration vorbereiten

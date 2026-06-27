@@ -38,14 +38,16 @@ Dieses Verzeichnis dient dazu, den Apps-Script-Code im GitHub-Repository nachvol
 ## `clasp` Setup
 
 `@google/clasp` ist als Dev-Dependency eingerichtet.
+Die `clasp:*` npm-Skripte verwenden die Node-Version aus `.nvmrc`.
 
 Einmalig pro lokaler Arbeitskopie:
 
 1. `.clasp.example.json` im Repository-Root nach `.clasp.json` kopieren.
 2. In `.clasp.json` die echte `scriptId` aus den Google-Apps-Script-Projekteinstellungen eintragen.
-3. `npm run clasp:login` ausführen.
-4. `npm run clasp:pull` ausführen.
-5. Den Git-Diff prüfen, besonders `apps-script/appsscript.json`.
+3. Bei Bedarf `nvm install` ausführen.
+4. `npm run clasp:login` ausführen.
+5. `npm run clasp:pull` ausführen.
+6. Den Git-Diff prüfen, besonders `apps-script/appsscript.json`.
 
 Wichtig: Vor dem ersten `npm run clasp:push` muss der Pull-Diff geprüft sein. Das verhindert, dass ein lokal angenommenes Manifest den produktiven GAS-Stand überschreibt.
 

@@ -46,13 +46,15 @@ Das Google Apps Script Backend wird im Repository unter `apps-script/Code.gs` ve
 ## Apps Script Sync
 
 `clasp` ist als lokale Dev-Dependency eingerichtet.
+Die `clasp:*` npm-Skripte verwenden die Node-Version aus `.nvmrc`.
 
 Einmalige Einrichtung:
 
 1. `.clasp.example.json` nach `.clasp.json` kopieren.
 2. `scriptId` aus den Google-Apps-Script-Projekteinstellungen eintragen.
-3. `npm run clasp:login` ausführen.
-4. `npm run clasp:pull` ausführen und den Diff prüfen.
+3. Bei Bedarf `nvm install` ausführen.
+4. `npm run clasp:login` ausführen.
+5. `npm run clasp:pull` ausführen und den Diff prüfen.
 
 Die Dateien `.clasp.json` und `.clasprc.json` enthalten lokale Projekt- bzw. OAuth-Daten und werden nicht committed.
 
