@@ -211,6 +211,7 @@ Grundregeln:
 4. **Zählerwechsel:** Wenn ein alter Zähler durch einen neuen ersetzt wurde, darf der neue Zähler mit einem niedrigeren Wert starten. Dies muss über `aktiv`, `ersetzt_durch_zaehler_id` oder einen dokumentierten Hinweis nachvollziehbar sein.
 5. **Warnung statt harter Blockade:** Bei unklaren Fällen soll die UI zunächst warnen und eine bewusste Bestätigung ermöglichen, statt Eingaben pauschal zu verhindern.
 6. **Extremverbrauch:** Wenn `max_plausibler_verbrauch` gesetzt ist und der berechnete Verbrauch diesen Wert überschreitet, soll eine Warnung angezeigt werden.
+7. **Rückläufige Füllstandszähler:** Bei `oel_stand_cm` ist ein niedrigerer Folgewert normaler Verbrauch. Ein höherer Folgewert bedeutet Betankung, Korrektur oder Messfehler und muss mit eigener Logik geprüft werden. Ein Überlauf ist hier fachlich nicht plausibel.
 
 Beispiel Überlauf bei 4-stelligem Zähler:
 

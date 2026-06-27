@@ -81,6 +81,11 @@ Getestete Fälle:
 - negative Eingaben
 - deutsche Komma-Dezimalwerte
 
+Offen:
+
+- Ölstand in cm (`oel_stand_cm`) braucht eine eigene Plausibilitätslogik: sinkende Werte sind normaler Verbrauch, steigende Werte bedeuten Betankung/Korrektur und dürfen nicht als Überlauf behandelt werden.
+- Für Ölstand darf ein niedrigerer Folgewert nicht automatisch als Fehler oder Überlauf bewertet werden; ein steigender Wert sollte gegen plausible Tank-/Korrekturregeln geprüft werden.
+
 ### UI-Integration der Zähler-Plausibilität
 
 Die Plausibilitätsprüfung ist in die Zählererfassung integriert.
@@ -231,23 +236,30 @@ Noch erforderlich:
 2. Pull-Diff prüfen.
 3. Erst danach `npm run clasp:push` nutzen.
 
-### 2. Bestandsdatenmigration ausführen
+### 2. Bestandsdatenmigration abgeschlossen
 
-Bestehende `Zaehlerstaende` enthalten bereits alte `stand_id`-Werte in einem einheitlichen historischen Format.
-Teilweise fehlen noch `einheit_id`s.
+Die Migration der 1.910 bestehenden `Zaehlerstaende` auf die neue `stand_id`-Logik wurde am 2026-06-28 erfolgreich ausgeführt.
 
-Geplanter Migrationsablauf:
+Finaler Prüfstand:
 
-1. `writeStandIdMigrationReport` im Apps Script Editor ausführen.
-2. Sheet `_migration_stand_id_report` prüfen.
-3. Offene `Unresolved Rows`, `Mapping Conflicts` und `Duplicate New stand_id Rows` klären.
-4. Bei vorhandenen Duplikaten `writeStandIdDuplicateReport` ausführen und Sheet `_migration_duplicate_report` prüfen.
-5. Historische Doppelwerte mit niedrigerem Verbrauchswert und höherem Zählerstand werden automatisch in getrennte virtuelle Verbrauchszähler umgeschlüsselt; sonst Duplikate bewusst bereinigen oder behalten.
-6. Prüfen, dass `unresolvedRows`, `mappingConflictRows` und `duplicateRows` jeweils `0` sind.
-7. Bei Bedarf `ensureHistoricalCalculatedMeters` ausführen.
-8. `applyStandIdMigration` ausführen.
-9. Danach optional kürzere `zaehler_id`s wie `STROM`, `KW`, `WW` erst in einem separaten Schritt einführen.
+```json
+{"totalRows":1910,"migratableRows":1910,"changedRows":0,"unchangedRows":1910,"unresolvedRows":0,"duplicateRows":0,"mappingConflictRows":0,"missingHeaders":[]}
+```
 
-### 3. Dashboard/Auswertungen
+Historische Doppelwerte mit niedrigerem Verbrauchswert und höherem Zählerstand wurden automatisch in getrennte virtuelle Verbrauchszähler umgeschlüsselt.
+
+Optionaler Folgeschritt: Kürzere `zaehler_id`s wie `STROM`, `KW`, `WW` erst in einem separaten Schritt einführen.
+
+### 3. Ölstand-Plausibilität korrigieren
+
+Der Zähler `oel_stand_cm` ist rückläufig: Ein sinkender Stand bedeutet Verbrauch und ist grundsätzlich plausibel. Ein steigender Stand bedeutet Betankung, Korrektur oder Messfehler und braucht eigene Regeln.
+
+Geplanter nächster Schritt:
+
+1. Testfälle in `tests/validation-service.test.js` für `oel_stand_cm` ergänzen.
+2. Plausibilitätslogik in `validation-service.js` um Richtung/Medium erweitern.
+3. UI-Test mit Produktiv-Testzähler `Z_OEL_STAND_IN_CM` wiederholen.
+
+### 4. Dashboard/Auswertungen
 
 Spätere Auswertungen sollen den Testbereich `TEST` sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.
