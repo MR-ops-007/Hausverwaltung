@@ -4,9 +4,14 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "clasp:login": "clasp login",
+    "clasp:status": "clasp status",
+    "clasp:pull": "clasp pull",
+    "clasp:push": "clasp push",
     "test": "vitest run"
   },
   "devDependencies": {
+    "@google/clasp": "^3.3.0",
     "vitest": "^1.5.0"
   }
 }

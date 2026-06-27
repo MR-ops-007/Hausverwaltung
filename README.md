@@ -24,7 +24,7 @@ Aktueller Stand:
 
 Das Google Sheet dient aktuell als Datenbank.
 
-Das Google Apps Script Backend wird zunächst manuell im Repository unter `apps-script/Code.gs` versioniert. `clasp` wird später optional geprüft.
+Das Google Apps Script Backend wird im Repository unter `apps-script/Code.gs` versioniert. `clasp` ist für synchronisierte Pull-/Push-Deployments vorbereitet.
 
 ## Wichtige Dateien
 
@@ -40,8 +40,21 @@ Das Google Apps Script Backend wird zunächst manuell im Repository unter `apps-
 | `DATA_MODEL.md` | Fachliches Datenmodell des Google Sheets |
 | `PROJECT_STATE.md` | Aktueller Projektstand, nächste Schritte und Historie |
 | `AGENT_AUDIT.md` | Bestandsaufnahme und Regeln für KI-/Agentenarbeit |
-| `apps-script/` | Manuell versionierte Kopie des Google Apps Script Backends |
+| `apps-script/` | Versionierte Kopie des Google Apps Script Backends inklusive Manifest |
 | `tests/` | Automatisierte Tests |
+
+## Apps Script Sync
+
+`clasp` ist als lokale Dev-Dependency eingerichtet.
+
+Einmalige Einrichtung:
+
+1. `.clasp.example.json` nach `.clasp.json` kopieren.
+2. `scriptId` aus den Google-Apps-Script-Projekteinstellungen eintragen.
+3. `npm run clasp:login` ausführen.
+4. `npm run clasp:pull` ausführen und den Diff prüfen.
+
+Regel: Vor dem ersten `npm run clasp:push` muss der Pull-Diff geprüft sein, damit das bestehende GAS-Projekt nicht versehentlich mit einem unvollständigen lokalen Manifest überschrieben wird.
 
 ## Entwicklung
 

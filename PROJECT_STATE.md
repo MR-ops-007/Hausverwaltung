@@ -192,26 +192,13 @@ Wichtige Regel:
 - Jede fachliche oder technische Apps-Script-Änderung erhöht die Backend-Version.
 - Tests prüfen die erwartete `BACKEND_VERSION`.
 - `4.3.1` repariert das zeitzonenstabile Parsing von JavaScript-Date-Strings für `stand_id`.
-- `clasp` ist noch nicht eingerichtet und bleibt ein nächstes Arbeitspaket.
+- `clasp` ist lokal vorbereitet; die echte `.clasp.json` mit `scriptId` und der erste Pull aus dem GAS-Projekt stehen noch aus.
 
 ---
 
 ## Offene Arbeitspakete
 
-### 1. Aktuellen Stand committen
-
-Der aktuelle Branch enthält zusammenhängende Änderungen an:
-
-- UI-Regressionstests
-- Zähleridentität
-- `stand_id`-Erzeugung
-- Apps-Script-Versionierung
-- produktivem Testbereich
-- Dokumentation
-
-Vor dem nächsten größeren Arbeitspaket sollte dieser Stand committed werden.
-
-### 2. `clasp` einrichten
+### 1. `clasp` final verbinden
 
 Ziel:
 
@@ -220,7 +207,21 @@ Ziel:
 - `appsscript.json` bewusst versionieren
 - Deployments nachvollziehbarer machen
 
-### 3. Bestandsdatenmigration vorbereiten
+Aktueller Stand:
+
+- `@google/clasp` ist als Dev-Dependency installiert.
+- npm-Skripte für Login, Pull, Push und Status sind vorhanden.
+- `.clasp.example.json`, `.claspignore` und `apps-script/appsscript.json` sind vorbereitet.
+
+Noch erforderlich:
+
+1. `.clasp.example.json` nach `.clasp.json` kopieren.
+2. Echte `scriptId` aus den Google-Apps-Script-Projekteinstellungen eintragen.
+3. `npm run clasp:login` ausführen.
+4. `npm run clasp:pull` ausführen und den Diff prüfen.
+5. Erst danach `npm run clasp:push` nutzen.
+
+### 2. Bestandsdatenmigration vorbereiten
 
 Bestehende `Zaehlerstaende` enthalten teilweise alte `stand_id`-Formate und fehlende `einheit_id`s.
 
@@ -231,6 +232,6 @@ Geplanter Migrationsablauf:
 3. Doppelte IDs prüfen.
 4. Erst danach optional kürzere `zaehler_id`s wie `STROM`, `KW`, `WW` einführen.
 
-### 4. Dashboard/Auswertungen
+### 3. Dashboard/Auswertungen
 
 Spätere Auswertungen sollen den Testbereich `TEST` sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.

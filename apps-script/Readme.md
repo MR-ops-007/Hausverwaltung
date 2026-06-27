@@ -1,6 +1,6 @@
 # Apps Script Backend
 
-Dieses Verzeichnis enthält die manuell versionierte Kopie des Google Apps Script Backends.
+Dieses Verzeichnis enthält die versionierte Kopie des Google Apps Script Backends.
 
 ## Versionierung
 
@@ -22,34 +22,52 @@ Regel:
 
 ## Zweck
 
-Das produktive Backend liegt weiterhin im Google Apps Script Editor.
+Das produktive Backend liegt weiterhin im Google Apps Script Projekt. Die Synchronisierung über `clasp` ist vorbereitet.
 
-Dieses Verzeichnis dient dazu, den Apps-Script-Code im GitHub-Repository nachvollziehbar versionieren und per Git-Diff prüfen zu können.
+Dieses Verzeichnis dient dazu, den Apps-Script-Code im GitHub-Repository nachvollziehbar versionieren, per Git-Diff prüfen und künftig per `clasp` synchronisieren zu können.
 
 ## Aktuelle Dateien
 
 | Datei | Zweck |
 | :--- | :--- |
-| `Code.gs` | Manuell gepflegte Kopie des produktiven Google Apps Script Backends |
-| `Readme.md` | Beschreibung des manuellen Versionierungsprozesses |
+| `Code.gs` | Versionierte Kopie des produktiven Google Apps Script Backends |
+| `appsscript.json` | Versioniertes Apps-Script-Manifest |
+| `Readme.md` | Beschreibung des Versionierungs- und Sync-Prozesses |
+
+## `clasp` Setup
+
+`@google/clasp` ist als Dev-Dependency eingerichtet.
+
+Einmalig pro lokaler Arbeitskopie:
+
+1. `.clasp.example.json` im Repository-Root nach `.clasp.json` kopieren.
+2. In `.clasp.json` die echte `scriptId` aus den Google-Apps-Script-Projekteinstellungen eintragen.
+3. `npm run clasp:login` ausführen.
+4. `npm run clasp:pull` ausführen.
+5. Den Git-Diff prüfen, besonders `apps-script/appsscript.json`.
+
+Wichtig: Vor dem ersten `npm run clasp:push` muss der Pull-Diff geprüft sein. Das verhindert, dass ein lokal angenommenes Manifest den produktiven GAS-Stand überschreibt.
+
+Die echte `.clasp.json` wird nicht committed.
 
 ## Aktuelle Arbeitsregel
 
 Vor Änderungen am produktiven Apps Script gilt:
 
-1. Aktuellen Stand aus dem Google Apps Script Editor nach `apps-script/Code.gs` kopieren.
-2. Änderung lokal in VS Code durchführen oder dort nachvollziehbar einfügen.
-3. Git-Diff prüfen.
-4. Änderung im Google Apps Script Editor testen.
-5. Erst nach erfolgreichem Test committen.
+1. Aktuellen Stand per `npm run clasp:pull` holen, sobald `.clasp.json` eingerichtet ist.
+2. Änderung lokal in VS Code durchführen.
+3. `npm test` ausführen.
+4. Git-Diff prüfen.
+5. Änderung per `npm run clasp:push` ins Apps-Script-Projekt übertragen.
+6. Änderung im Google Apps Script Editor oder über das Web-App-Deployment testen.
+7. Erst nach erfolgreichem Test committen.
 
 ## Wichtig
 
 - `apps-script/Code.gs` ist die Review- und Versionsquelle.
 - Das laufende Deployment liegt weiterhin im Google Apps Script Projekt.
-- Änderungen im Google Apps Script Editor gelten erst dann als sauber dokumentiert, wenn sie auch in `apps-script/Code.gs` stehen.
-- `clasp` wird später optional eingeführt.
-- `appsscript.json` wird aktuell nicht manuell versioniert, solange keine bewussten Änderungen an Manifest, Scopes, Runtime oder Libraries erforderlich sind.
+- Änderungen im Google Apps Script Editor gelten erst dann als sauber dokumentiert, wenn sie auch per `clasp:pull` oder manuell in `apps-script/Code.gs` nachvollzogen sind.
+- `appsscript.json` wird bewusst versioniert, weil Runtime, Zeitzone, Scopes und Libraries Teil des Backend-Verhaltens sind.
 
 ## Plausibilitätswarnungen
 
@@ -120,11 +138,10 @@ Wichtig: Der Testbereich verwendet teilweise dieselben Zähler-IDs wie echte Woh
 
 Falls die Test-Stammdaten in einer neuen Umgebung fehlen, können sie über Apps Script angelegt werden:
 
-1. Aktualisierten Inhalt aus `apps-script/Code.gs` in den Apps Script Editor übernehmen.
-2. Speichern und bereitstellen.
-3. Im Apps Script Editor die Funktion `ensureProdTestData` auswählen.
-4. Funktion ausführen.
-5. Danach in der App das Objekt `Test für Produktivsystem` auswählen und Testwerte dort erfassen.
+1. Aktuellen Backend-Stand per `npm run clasp:push` ins Apps-Script-Projekt übertragen.
+2. Im Apps Script Editor die Funktion `ensureProdTestData` auswählen.
+3. Funktion ausführen.
+4. Danach in der App das Objekt `Test für Produktivsystem` auswählen und Testwerte dort erfassen.
 
 Die Funktion legt die Stammdaten nur an, wenn sie noch nicht vorhanden sind. Bereits bestehende Test-Stammdaten werden nicht doppelt angelegt. Für Zähler prüft sie die zusammengesetzte Identität aus `objekt_id`, `einheit_id` und `zaehler_id`.
 
