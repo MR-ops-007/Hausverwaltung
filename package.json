@@ -4,10 +4,10 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "clasp:login": "clasp login",
-    "clasp:status": "clasp status",
-    "clasp:pull": "clasp pull",
-    "clasp:push": "clasp push",
+    "clasp:login": "clasp --auth .clasprc.json login",
+    "clasp:status": "clasp --auth .clasprc.json status",
+    "clasp:pull": "clasp --auth .clasprc.json pull",
+    "clasp:push": "clasp --auth .clasprc.json push",
     "test": "vitest run"
   },
   "devDependencies": {

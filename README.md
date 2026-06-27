@@ -54,7 +54,9 @@ Einmalige Einrichtung:
 3. `npm run clasp:login` ausführen.
 4. `npm run clasp:pull` ausführen und den Diff prüfen.
 
-Regel: Vor dem ersten `npm run clasp:push` muss der Pull-Diff geprüft sein, damit das bestehende GAS-Projekt nicht versehentlich mit einem unvollständigen lokalen Manifest überschrieben wird.
+Die Dateien `.clasp.json` und `.clasprc.json` enthalten lokale Projekt- bzw. OAuth-Daten und werden nicht committed.
+
+Regel: Vor jedem `npm run clasp:push` muss der Pull-Diff geprüft sein, damit das bestehende GAS-Projekt nicht versehentlich mit einem unvollständigen lokalen Stand überschrieben wird.
 
 ## Entwicklung
 

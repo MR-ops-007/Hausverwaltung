@@ -31,6 +31,7 @@ Dieses Verzeichnis dient dazu, den Apps-Script-Code im GitHub-Repository nachvol
 | Datei | Zweck |
 | :--- | :--- |
 | `Code.gs` | Versionierte Kopie des produktiven Google Apps Script Backends |
+| `Migration.gs.gs` | Bestehende historische GAS-Migrationsfunktion aus dem produktiven Projekt |
 | `appsscript.json` | Versioniertes Apps-Script-Manifest |
 | `Readme.md` | Beschreibung des Versionierungs- und Sync-Prozesses |
 
@@ -48,7 +49,9 @@ Einmalig pro lokaler Arbeitskopie:
 
 Wichtig: Vor dem ersten `npm run clasp:push` muss der Pull-Diff geprüft sein. Das verhindert, dass ein lokal angenommenes Manifest den produktiven GAS-Stand überschreibt.
 
-Die echte `.clasp.json` wird nicht committed.
+Die echten `.clasp.json`- und `.clasprc.json`-Dateien werden nicht committed.
+
+Hinweis: `Migration.gs.gs` wirkt doppelt benannt, weil die Datei im bestehenden GAS-Projekt bereits `Migration.gs` heißt und `clasp` für Script-Dateien lokal erneut `.gs` verwendet. Der Name bleibt so erhalten, damit ein späterer Push die produktive Datei nicht umbenennt oder löscht.
 
 ## Aktuelle Arbeitsregel
 

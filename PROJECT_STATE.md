@@ -210,16 +210,18 @@ Ziel:
 Aktueller Stand:
 
 - `@google/clasp` ist als Dev-Dependency installiert.
-- npm-Skripte für Login, Pull, Push und Status sind vorhanden.
-- `.clasp.example.json`, `.claspignore` und `apps-script/appsscript.json` sind vorbereitet.
+- npm-Skripte für Login, Pull, Push und Status verwenden die lokale `.clasprc.json`.
+- `.clasp.example.json`, `.claspignore` und `.gitignore` sind vorbereitet.
+- Die echte Script-ID ist lokal in `.clasp.json` hinterlegt und wird nicht committed.
+- Der produktive GAS-Stand wurde per Apps-Script-API abgerufen und lokal nachvollzogen.
+- `apps-script/appsscript.json` entspricht dem produktiven Manifest.
+- `apps-script/Migration.gs.gs` bildet die bestehende produktive Migrationsdatei ab.
 
 Noch erforderlich:
 
-1. `.clasp.example.json` nach `.clasp.json` kopieren.
-2. Echte `scriptId` aus den Google-Apps-Script-Projekteinstellungen eintragen.
-3. `npm run clasp:login` ausführen.
-4. `npm run clasp:pull` ausführen und den Diff prüfen.
-5. Erst danach `npm run clasp:push` nutzen.
+1. Node-/`clasp`-HTTP-Fehler `Premature close` weiter eingrenzen.
+2. `npm run clasp:pull` erfolgreich ausführen oder den dokumentierten API-Fallback nutzen.
+3. Erst danach `npm run clasp:push` nutzen.
 
 ### 2. Bestandsdatenmigration vorbereiten
 
