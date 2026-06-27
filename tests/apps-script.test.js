@@ -22,7 +22,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
   it('declares the current backend version', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
 
-    expect(BACKEND_VERSION).toBe('4.4.2');
+    expect(BACKEND_VERSION).toBe('4.4.3');
   });
 
   it('formats German timestamps for stand_id values', () => {
@@ -327,6 +327,10 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     expect(deriveEinheitIdFromLegacyZaehlerId('Z_STROM_KWH_ALLGEMEIN', 'Ra-HS-29')).toBe('Ra-HS-29_Allgemein');
     expect(deriveEinheitIdFromLegacyZaehlerId('Z_KALTWASSER_KW_HAUPTZAEHLER', 'Ra-HS-29')).toBe('Ra-HS-29_Allgemein');
     expect(deriveEinheitIdFromLegacyZaehlerId('Z_STROM_KWH_PRIVAT_NT', 'Ra-HS-29')).toBe('Ra-HS-29_GE_02');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_STROM_KWH_FLUR', 'Ra-HS-29')).toBe('Ra-HS-29_Allgemein_Flur');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_STROM_KWH_HEIZUNG', 'Ra-HS-29')).toBe('Ra-HS-29_Allgemein_Heizung');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_WARMWASSER_WW_WOHNUNG_10', 'Ra-HS-29')).toBe('Ra-HS-29_WE_10');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_WARMWASSER_WW_WOHNUNG_11', 'Ra-HS-29')).toBe('Ra-HS-29_WE_11');
   });
 
   it('builds migrated meter readings with object, unit and new stand_id', () => {
@@ -428,5 +432,22 @@ describe('Apps Script Zaehlerstaende helpers', () => {
         rows: '2, 3',
       }),
     ]);
+  });
+
+  it('uses explicit overrides to resolve known incorrect historical mappings', () => {
+    const { buildExistingEinheitMappingFromRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert'];
+    const rows = [
+      ['ST_BAD', 'Ra-HS-29', 'Ra-HS-29_WE_010', 'Z_WARMWASSER_WW_WOHNUNG_10', '01.01.2026 00:00', 10],
+      ['ST_GOOD', 'Ra-HS-29', 'Ra-HS-29_WE_10', 'Z_WARMWASSER_WW_WOHNUNG_10', '02.01.2026 00:00', 11],
+      ['ST_FLUR_OLD', 'Ra-HS-29', 'Ra-HS-29_Allgemein', 'Z_STROM_KWH_FLUR', '01.01.2026 00:00', 12],
+      ['ST_FLUR_NEW', 'Ra-HS-29', 'Ra-HS-29_Allgemein_Flur', 'Z_STROM_KWH_FLUR', '02.01.2026 00:00', 13],
+    ];
+
+    const result = buildExistingEinheitMappingFromRows(headers, rows);
+
+    expect(result.conflicts).toEqual([]);
+    expect(result.mapping['RA-HS-29|Z_WARMWASSER_WW_WOHNUNG_10']).toBe('Ra-HS-29_WE_10');
+    expect(result.mapping['RA-HS-29|Z_STROM_KWH_FLUR']).toBe('Ra-HS-29_Allgemein_Flur');
   });
 });

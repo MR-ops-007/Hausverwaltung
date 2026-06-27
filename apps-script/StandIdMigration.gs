@@ -3,7 +3,11 @@ const STAND_ID_MIGRATION_DEFAULT_OBJEKT_ID = "Ra-HS-29";
 const STAND_ID_MIGRATION_EINHEIT_OVERRIDES = {
   Z_STROM_KWH_PRIVAT_NT: "Ra-HS-29_GE_02",
   Z_STROM_KWH_PRIVAT_HT: "Ra-HS-29_GE_02",
-  Z_MASCHINENSTUNDEN_PRIVAT: "Ra-HS-29_GE_02"
+  Z_MASCHINENSTUNDEN_PRIVAT: "Ra-HS-29_GE_02",
+  Z_STROM_KWH_FLUR: "Ra-HS-29_Allgemein_Flur",
+  Z_STROM_KWH_HEIZUNG: "Ra-HS-29_Allgemein_Heizung",
+  Z_WARMWASSER_WW_WOHNUNG_10: "Ra-HS-29_WE_10",
+  Z_WARMWASSER_WW_WOHNUNG_11: "Ra-HS-29_WE_11"
 };
 
 function normalizeMigrationKey(value) {
@@ -103,7 +107,9 @@ function buildExistingEinheitMappingFromRows(headers, rows, options) {
     const candidate = mappingCandidates[key];
     const einheitIds = Object.keys(candidate.einheit_ids);
 
-    if (einheitIds.length === 1) {
+    if (STAND_ID_MIGRATION_EINHEIT_OVERRIDES[normalizeMigrationKey(candidate.zaehler_id)]) {
+      mapping[key] = STAND_ID_MIGRATION_EINHEIT_OVERRIDES[normalizeMigrationKey(candidate.zaehler_id)];
+    } else if (einheitIds.length === 1) {
       mapping[key] = einheitIds[0];
     } else if (einheitIds.length > 1) {
       conflicts.push({

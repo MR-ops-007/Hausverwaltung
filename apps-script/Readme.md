@@ -9,7 +9,7 @@ Die aktuelle Backend-Version steht im Kopf von `Code.gs` und zusätzlich in der 
 Aktueller Stand:
 
 ```text
-4.4.2
+4.4.3
 ```
 
 Regel:
@@ -22,6 +22,7 @@ Regel:
 - Version `4.4.0` ergänzt eine Preview-/Apply-Migration für Bestands-Zählerstände.
 - Version `4.4.1` ergänzt ein Report-Sheet für die Migrationsanalyse.
 - Version `4.4.2` lernt eindeutige `zaehler_id`/`einheit_id`-Mappings aus bereits vorbereiteten Bestandsdaten.
+- Version `4.4.3` löst bekannte fehlerhafte Bestands-Mappings per Override auf.
 
 ## Zweck
 

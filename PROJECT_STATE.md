@@ -182,7 +182,7 @@ Google Apps Script wird weiterhin manuell versioniert.
 Aktuelle Backend-Version:
 
 ```text
-4.4.2
+4.4.3
 ```
 
 Die Version steht im Kopf von `apps-script/Code.gs` und in `BACKEND_VERSION`.
@@ -195,6 +195,7 @@ Wichtige Regel:
 - `4.4.0` ergänzt eine Preview-/Apply-Migration für Bestands-Zählerstände.
 - `4.4.1` ergänzt ein Report-Sheet für die Migrationsanalyse.
 - `4.4.2` lernt eindeutige `zaehler_id`/`einheit_id`-Mappings aus bereits vorbereiteten Bestandsdaten.
+- `4.4.3` löst bekannte fehlerhafte Bestands-Mappings per Override auf.
 - `clasp` ist lokal mit dem bestehenden GAS-Projekt verbunden; `npm run clasp:pull` funktioniert unter Node 22.
 
 ---
