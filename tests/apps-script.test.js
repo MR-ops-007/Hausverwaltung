@@ -12,7 +12,7 @@ function loadAppsScriptHelpers() {
   );
 
   const factory = new Function(
-    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildMigratedZaehlerstandItem, buildStandId, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
+    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildMigratedZaehlerstandItem, buildStandId, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedConsumptionMeterSeedDataFromRows, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
   );
 
   return factory();
@@ -22,7 +22,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
   it('declares the current backend version', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
 
-    expect(BACKEND_VERSION).toBe('4.4.5');
+    expect(BACKEND_VERSION).toBe('4.4.6');
   });
 
   it('formats German timestamps for stand_id values', () => {
@@ -447,6 +447,73 @@ describe('Apps Script Zaehlerstaende helpers', () => {
       valueStatus: 'VALUE_DIFFERS',
       wert: 101,
     });
+  });
+
+  it('resolves historical duplicate readings as meter stand plus calculated consumption', () => {
+    const { analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert', 'quelle'];
+    const rows = [
+      ['ST_LOW', '', '', 'Z_WARMWASSER_WW_WOHNUNG_4', '19.06.2026 00:00', 12, 'Migration'],
+      ['ST_HIGH', '', '', 'Z_WARMWASSER_WW_WOHNUNG_4', '19.06.2026 00:00', 456, 'Migration'],
+    ];
+
+    const duplicateReport = analyzeStandIdDuplicateRows(headers, rows);
+    const migrationReport = analyzeStandIdMigrationRows(headers, rows);
+
+    expect(duplicateReport).toMatchObject({
+      duplicateGroups: 1,
+      duplicateRows: 1,
+      conversionRows: 1,
+      deleteCandidateRows: 0,
+      reviewRows: 0,
+    });
+    expect(duplicateReport.rows.map(row => row.recommendation)).toEqual([
+      'CONVERT_LOWER_VALUE_TO_CALCULATED_CONSUMPTION',
+      'KEEP',
+    ]);
+    expect(duplicateReport.rows[0]).toMatchObject({
+      calculated_zaehler_id: 'Z_WARMWASSER_WW_WOHNUNG_4_VERBRAUCH_BERECHNET',
+      wert: 12,
+    });
+
+    expect(migrationReport).toMatchObject({
+      totalRows: 2,
+      migratableRows: 2,
+      duplicateRows: 0,
+      unresolvedRows: 0,
+    });
+    expect(migrationReport.changes[0]).toMatchObject({
+      zaehler_id: 'Z_WARMWASSER_WW_WOHNUNG_4_VERBRAUCH_BERECHNET',
+      migrationNote: 'LOWER_VALUE_IS_CALCULATED_CONSUMPTION',
+    });
+    expect(migrationReport.changes[1]).toMatchObject({
+      zaehler_id: 'Z_WARMWASSER_WW_WOHNUNG_4',
+      migrationNote: '',
+    });
+  });
+
+  it('creates virtual meter seed data for calculated duplicate consumption rows', () => {
+    const { getHistoricalCalculatedConsumptionMeterSeedDataFromRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert', 'quelle'];
+    const rows = [
+      ['ST_LOW', '', '', 'Z_WARMWASSER_WW_WOHNUNG_4', '19.06.2026 00:00', 12, 'Migration'],
+      ['ST_HIGH', '', '', 'Z_WARMWASSER_WW_WOHNUNG_4', '19.06.2026 00:00', 456, 'Migration'],
+    ];
+
+    const seed = getHistoricalCalculatedConsumptionMeterSeedDataFromRows(headers, rows);
+
+    expect(seed).toEqual([
+      expect.objectContaining({
+        zaehler_id: 'Z_WARMWASSER_WW_WOHNUNG_4_VERBRAUCH_BERECHNET',
+        objekt_id: 'Ra-HS-29',
+        einheit_id: 'Ra-HS-29_WE_04',
+        medium: 'warmwasser_m3',
+        einheit: 'm3',
+        einbauort: 'berechneter Wert, kein Zaehler',
+        erfassbar: false,
+        berechnet: true,
+      }),
+    ]);
   });
 
   it('learns existing unit mappings from already prepared meter readings', () => {

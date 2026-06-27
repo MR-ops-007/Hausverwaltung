@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.4.5
+ * Version: 4.4.6
  * Stand: 2026-06-27
  *
  * Änderungen seit v4.1:
@@ -31,8 +31,11 @@
  *
  * Änderungen seit v4.4.4:
  * - Duplikat-Report für stand_id-Migration ergänzt
+ *
+ * Änderungen seit v4.4.5:
+ * - Historische Doppelwerte werden als Zählerstand plus berechneter Verbrauch aufgelöst
  */
-const BACKEND_VERSION = "4.4.5";
+const BACKEND_VERSION = "4.4.6";
 
 function sendJSON(obj) {
   return ContentService

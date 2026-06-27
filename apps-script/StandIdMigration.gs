@@ -33,6 +33,52 @@ function getHistoricalCalculatedMeterSeedData() {
   ];
 }
 
+function getHistoricalCalculatedConsumptionZaehlerId(zaehlerId) {
+  return String(zaehlerId || "").trim() + "_VERBRAUCH_BERECHNET";
+}
+
+function getHistoricalCalculatedConsumptionMedium(zaehlerId) {
+  const key = normalizeMigrationKey(zaehlerId);
+
+  if (key.indexOf("KALTWASSER") !== -1 || key.indexOf("_KW_") !== -1) {
+    return "kaltwasser_m3";
+  }
+
+  if (key.indexOf("WARMWASSER") !== -1 || key.indexOf("_WW_") !== -1) {
+    return "warmwasser_m3";
+  }
+
+  if (key.indexOf("STROM") !== -1 || key.indexOf("KWH") !== -1) {
+    return "strom_ht_kwh";
+  }
+
+  if (key.indexOf("OEL") !== -1) {
+    return "oel_stand_l";
+  }
+
+  return "";
+}
+
+function getHistoricalCalculatedConsumptionUnit(medium) {
+  if (String(medium || "").indexOf("kwh") !== -1) {
+    return "kWh";
+  }
+
+  if (String(medium || "").indexOf("_m3") !== -1) {
+    return "m3";
+  }
+
+  if (String(medium || "").indexOf("_l") !== -1) {
+    return "l";
+  }
+
+  return "";
+}
+
+function getHistoricalCalculatedConsumptionLabel(zaehlerId) {
+  return String(zaehlerId || "").trim() + " Verbrauch berechnet";
+}
+
 function ensureHistoricalCalculatedMeters() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName("Zaehler");
@@ -44,6 +90,12 @@ function ensureHistoricalCalculatedMeters() {
   let created = 0;
 
   getHistoricalCalculatedMeterSeedData().forEach(row => {
+    if (appendIfMissingByKeys(sheet, ["objekt_id", "einheit_id", "zaehler_id"], row)) {
+      created++;
+    }
+  });
+
+  getHistoricalCalculatedConsumptionMeterSeedDataFromSpreadsheet(ss).forEach(row => {
     if (appendIfMissingByKeys(sheet, ["objekt_id", "einheit_id", "zaehler_id"], row)) {
       created++;
     }
@@ -233,6 +285,13 @@ function buildMigratedZaehlerstandItem(item, options) {
     objekt_id: objektId,
     einheit_id: einheitId
   });
+  const calculatedConsumptionResolution = opts.calculatedConsumptionDuplicateResolutions &&
+    opts.calculatedConsumptionDuplicateResolutions[opts.sheetRow];
+
+  if (calculatedConsumptionResolution) {
+    migrated.zaehler_id = calculatedConsumptionResolution.zaehler_id;
+  }
+
   const newStandId = buildStandId(migrated);
 
   migrated.stand_id = newStandId;
@@ -243,10 +302,156 @@ function buildMigratedZaehlerstandItem(item, options) {
     oldStandId: item.stand_id || item["stand.id"] || "",
     newStandId: newStandId,
     item: migrated,
+    calculatedConsumptionResolution: calculatedConsumptionResolution || null,
     changed: String(item.stand_id || item["stand.id"] || "") !== String(newStandId) ||
       String(item.objekt_id || "") !== String(objektId) ||
-      String(item.einheit_id || "") !== String(einheitId)
+      String(item.einheit_id || "") !== String(einheitId) ||
+      String(item.zaehler_id || "") !== String(migrated.zaehler_id || "")
   };
+}
+
+function parseMigrationNumber(value) {
+  if (typeof value === "number") {
+    return value;
+  }
+
+  const parsed = parseFloat(String(value || "").replace(",", ".").trim());
+  return isNaN(parsed) ? null : parsed;
+}
+
+function buildCalculatedConsumptionDuplicateResolutions(headers, rows, options) {
+  const indexes = getMigrationHeaderIndexes(headers);
+  const resolutions = {};
+  const groups = {};
+
+  if (indexes.wert === undefined) {
+    return resolutions;
+  }
+
+  rows.forEach((row, index) => {
+    const sheetRow = index + 2;
+    const item = getMigrationItemFromRow(row, headers);
+    const migration = buildMigratedZaehlerstandItem(item, options);
+
+    if (migration.status !== "ok") {
+      return;
+    }
+
+    if (!groups[migration.newStandId]) {
+      groups[migration.newStandId] = [];
+    }
+
+    groups[migration.newStandId].push({
+      row: sheetRow,
+      item: migration.item,
+      numericValue: parseMigrationNumber(migration.item.wert)
+    });
+  });
+
+  Object.keys(groups).forEach(newStandId => {
+    const group = groups[newStandId];
+
+    if (group.length !== 2) {
+      return;
+    }
+
+    if (group[0].numericValue === null || group[1].numericValue === null) {
+      return;
+    }
+
+    if (group[0].numericValue === group[1].numericValue) {
+      return;
+    }
+
+    const lowerEntry = group[0].numericValue < group[1].numericValue
+      ? group[0]
+      : group[1];
+    const higherEntry = group[0].numericValue < group[1].numericValue
+      ? group[1]
+      : group[0];
+
+    resolutions[lowerEntry.row] = {
+      reason: "LOWER_VALUE_IS_CALCULATED_CONSUMPTION",
+      original_zaehler_id: lowerEntry.item.zaehler_id,
+      zaehler_id: getHistoricalCalculatedConsumptionZaehlerId(lowerEntry.item.zaehler_id),
+      referenceRow: higherEntry.row,
+      referenceValue: higherEntry.numericValue
+    };
+  });
+
+  return resolutions;
+}
+
+function getHistoricalCalculatedConsumptionMeterSeedDataFromRows(headers, rows, options) {
+  const mappingResult = buildExistingEinheitMappingFromRows(headers, rows, options);
+  const baseOptions = Object.assign({}, options || {}, {
+    existingEinheitMapping: mappingResult.mapping
+  });
+  const resolutions = buildCalculatedConsumptionDuplicateResolutions(headers, rows, baseOptions);
+  const seedsByKey = {};
+
+  rows.forEach((row, index) => {
+    const sheetRow = index + 2;
+    const resolution = resolutions[sheetRow];
+
+    if (!resolution) {
+      return;
+    }
+
+    const item = getMigrationItemFromRow(row, headers);
+    const migration = buildMigratedZaehlerstandItem(item, Object.assign({}, baseOptions, {
+      sheetRow: sheetRow,
+      calculatedConsumptionDuplicateResolutions: resolutions
+    }));
+
+    if (migration.status !== "ok") {
+      return;
+    }
+
+    const medium = getHistoricalCalculatedConsumptionMedium(resolution.original_zaehler_id);
+    const key = [
+      migration.item.objekt_id,
+      migration.item.einheit_id,
+      migration.item.zaehler_id
+    ].join("|");
+
+    seedsByKey[key] = {
+      zaehler_id: migration.item.zaehler_id,
+      objekt_id: migration.item.objekt_id,
+      einheit_id: migration.item.einheit_id,
+      medium: medium,
+      bezeichnung: getHistoricalCalculatedConsumptionLabel(resolution.original_zaehler_id),
+      einheit: getHistoricalCalculatedConsumptionUnit(medium),
+      einbauort: "berechneter Wert, kein Zaehler",
+      stellen: "",
+      ueberlauf_erlaubt: false,
+      max_plausibler_verbrauch: "",
+      aktiv: true,
+      ersetzt_durch_zaehler_id: "",
+      hinweis: "Historischer berechneter Verbrauch aus Import-Duplikat; niedriger Wert der Doppelzeile",
+      erfassbar: false,
+      berechnet: true
+    };
+  });
+
+  return Object.keys(seedsByKey).map(key => seedsByKey[key]);
+}
+
+function getHistoricalCalculatedConsumptionMeterSeedDataFromSpreadsheet(ss) {
+  const staendeSheet = ss.getSheetByName("Zaehlerstaende");
+
+  if (!staendeSheet) {
+    return [];
+  }
+
+  const values = staendeSheet.getDataRange().getValues();
+
+  if (values.length <= 1) {
+    return [];
+  }
+
+  const headers = values[0].map(header => String(header).trim().toLowerCase());
+  return getHistoricalCalculatedConsumptionMeterSeedDataFromRows(headers, values.slice(1));
 }
 
 function analyzeStandIdMigrationRows(headers, rows, options) {
@@ -277,6 +482,8 @@ function analyzeStandIdMigrationRows(headers, rows, options) {
   const migrationOptions = Object.assign({}, options || {}, {
     existingEinheitMapping: mappingResult.mapping
   });
+  migrationOptions.calculatedConsumptionDuplicateResolutions =
+    buildCalculatedConsumptionDuplicateResolutions(headers, rows, migrationOptions);
 
   result.mappingConflicts = mappingResult.conflicts;
   result.mappingConflictRows = mappingResult.conflicts.length;
@@ -284,7 +491,9 @@ function analyzeStandIdMigrationRows(headers, rows, options) {
   rows.forEach((row, index) => {
     const sheetRow = index + 2;
     const item = getMigrationItemFromRow(row, headers);
-    const migration = buildMigratedZaehlerstandItem(item, migrationOptions);
+    const migration = buildMigratedZaehlerstandItem(item, Object.assign({}, migrationOptions, {
+      sheetRow: sheetRow
+    }));
 
     if (migration.status !== "ok") {
       result.unresolvedRows++;
@@ -319,7 +528,10 @@ function analyzeStandIdMigrationRows(headers, rows, options) {
         newStandId: migration.newStandId,
         objekt_id: migration.item.objekt_id,
         einheit_id: migration.item.einheit_id,
-        zaehler_id: migration.item.zaehler_id
+        zaehler_id: migration.item.zaehler_id,
+        migrationNote: migration.calculatedConsumptionResolution
+          ? migration.calculatedConsumptionResolution.reason
+          : ""
       });
     } else {
       result.unchangedRows++;
@@ -355,6 +567,7 @@ function analyzeStandIdDuplicateRows(headers, rows, options) {
     totalRows: rows.length,
     duplicateGroups: 0,
     duplicateRows: 0,
+    conversionRows: 0,
     deleteCandidateRows: 0,
     reviewRows: 0,
     missingHeaders: missingHeaders,
@@ -369,9 +582,12 @@ function analyzeStandIdDuplicateRows(headers, rows, options) {
   const migrationOptions = Object.assign({}, options || {}, {
     existingEinheitMapping: mappingResult.mapping
   });
+  const calculatedConsumptionDuplicateResolutions =
+    buildCalculatedConsumptionDuplicateResolutions(headers, rows, migrationOptions);
   const groups = {};
 
   rows.forEach((row, index) => {
+    const sheetRow = index + 2;
     const item = getMigrationItemFromRow(row, headers);
     const migration = buildMigratedZaehlerstandItem(item, migrationOptions);
 
@@ -384,10 +600,11 @@ function analyzeStandIdDuplicateRows(headers, rows, options) {
     }
 
     groups[migration.newStandId].push({
-      row: index + 2,
+      row: sheetRow,
       oldStandId: migration.oldStandId,
       newStandId: migration.newStandId,
-      item: migration.item
+      item: migration.item,
+      calculatedConsumptionResolution: calculatedConsumptionDuplicateResolutions[sheetRow] || null
     });
   });
 
@@ -403,17 +620,24 @@ function analyzeStandIdDuplicateRows(headers, rows, options) {
 
     const first = group[0];
     const groupId = "DUP_" + pad2(result.duplicateGroups);
+    const hasCalculatedConsumptionResolution = group.some(entry => entry.calculatedConsumptionResolution);
 
     group.forEach((entry, index) => {
       const isFirst = index === 0;
       const valueStatus = isFirst
         ? "REFERENCE"
         : getDuplicateValueStatus(first.item, entry.item);
-      const recommendation = isFirst
-        ? "KEEP"
-        : (valueStatus === "SAME_VALUE" ? "CANDIDATE_DELETE_EXACT_DUPLICATE" : "REVIEW_VALUE_DIFFERS");
+      const recommendation = entry.calculatedConsumptionResolution
+        ? "CONVERT_LOWER_VALUE_TO_CALCULATED_CONSUMPTION"
+        : (hasCalculatedConsumptionResolution
+          ? "KEEP"
+          : (isFirst
+          ? "KEEP"
+          : (valueStatus === "SAME_VALUE" ? "CANDIDATE_DELETE_EXACT_DUPLICATE" : "REVIEW_VALUE_DIFFERS")));
 
-      if (recommendation === "CANDIDATE_DELETE_EXACT_DUPLICATE") {
+      if (recommendation === "CONVERT_LOWER_VALUE_TO_CALCULATED_CONSUMPTION") {
+        result.conversionRows++;
+      } else if (recommendation === "CANDIDATE_DELETE_EXACT_DUPLICATE") {
         result.deleteCandidateRows++;
       } else if (recommendation === "REVIEW_VALUE_DIFFERS") {
         result.reviewRows++;
@@ -430,6 +654,9 @@ function analyzeStandIdDuplicateRows(headers, rows, options) {
         objekt_id: entry.item.objekt_id,
         einheit_id: entry.item.einheit_id,
         zaehler_id: entry.item.zaehler_id,
+        calculated_zaehler_id: entry.calculatedConsumptionResolution
+          ? entry.calculatedConsumptionResolution.zaehler_id
+          : "",
         zeitstempel: entry.item.zeitstempel,
         wert: entry.item.wert,
         quelle: entry.item.quelle || ""
@@ -494,6 +721,7 @@ function previewStandIdDuplicateRows(options) {
     totalRows: result.totalRows,
     duplicateGroups: result.duplicateGroups,
     duplicateRows: result.duplicateRows,
+    conversionRows: result.conversionRows,
     deleteCandidateRows: result.deleteCandidateRows,
     reviewRows: result.reviewRows,
     missingHeaders: result.missingHeaders
@@ -533,14 +761,20 @@ function applyStandIdMigration(options) {
   const migrationOptions = Object.assign({}, options || {}, {
     existingEinheitMapping: mappingResult.mapping
   });
-  const migratedRows = rows.map(row => {
+  migrationOptions.calculatedConsumptionDuplicateResolutions =
+    buildCalculatedConsumptionDuplicateResolutions(headers, rows, migrationOptions);
+  const migratedRows = rows.map((row, index) => {
+    const sheetRow = index + 2;
     const item = getMigrationItemFromRow(row, headers);
-    const migration = buildMigratedZaehlerstandItem(item, migrationOptions);
+    const migration = buildMigratedZaehlerstandItem(item, Object.assign({}, migrationOptions, {
+      sheetRow: sheetRow
+    }));
     const nextRow = row.slice();
 
     nextRow[indexes.stand_id] = migration.item.stand_id;
     nextRow[indexes.objekt_id] = migration.item.objekt_id;
     nextRow[indexes.einheit_id] = migration.item.einheit_id;
+    nextRow[indexes.zaehler_id] = migration.item.zaehler_id;
 
     return nextRow;
   });
@@ -647,18 +881,19 @@ function writeStandIdMigrationReport(options) {
     reportSheet,
     nextRow,
     "Changed Rows",
-    ["row", "oldStandId", "newStandId", "objekt_id", "einheit_id", "zaehler_id"],
+    ["row", "oldStandId", "newStandId", "objekt_id", "einheit_id", "zaehler_id", "migrationNote"],
     preview.changes.map(item => [
       item.row,
       item.oldStandId,
       item.newStandId,
       item.objekt_id,
       item.einheit_id,
-      item.zaehler_id
+      item.zaehler_id,
+      item.migrationNote
     ])
   );
 
-  reportSheet.autoResizeColumns(1, 6);
+  reportSheet.autoResizeColumns(1, 7);
   Logger.log("Migrationsreport geschrieben: _migration_stand_id_report");
 
   return {
@@ -694,6 +929,7 @@ function writeStandIdDuplicateReport(options) {
     ["totalRows", preview.totalRows],
     ["duplicateGroups", preview.duplicateGroups],
     ["duplicateRows", preview.duplicateRows],
+    ["conversionRows", preview.conversionRows],
     ["deleteCandidateRows", preview.deleteCandidateRows],
     ["reviewRows", preview.reviewRows],
     ["missingHeaders", preview.missingHeaders.join(", ")]
@@ -722,6 +958,7 @@ function writeStandIdDuplicateReport(options) {
       "objekt_id",
       "einheit_id",
       "zaehler_id",
+      "calculated_zaehler_id",
       "zeitstempel",
       "wert",
       "quelle"
@@ -737,13 +974,14 @@ function writeStandIdDuplicateReport(options) {
       item.objekt_id,
       item.einheit_id,
       item.zaehler_id,
+      item.calculated_zaehler_id,
       item.zeitstempel,
       item.wert,
       item.quelle
     ])
   );
 
-  reportSheet.autoResizeColumns(1, 13);
+  reportSheet.autoResizeColumns(1, 14);
   Logger.log("Duplikatreport geschrieben: _migration_duplicate_report");
 
   return {
@@ -751,6 +989,7 @@ function writeStandIdDuplicateReport(options) {
     totalRows: preview.totalRows,
     duplicateGroups: preview.duplicateGroups,
     duplicateRows: preview.duplicateRows,
+    conversionRows: preview.conversionRows,
     deleteCandidateRows: preview.deleteCandidateRows,
     reviewRows: preview.reviewRows
   };

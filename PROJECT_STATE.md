@@ -182,7 +182,7 @@ Google Apps Script wird weiterhin manuell versioniert.
 Aktuelle Backend-Version:
 
 ```text
-4.4.5
+4.4.6
 ```
 
 Die Version steht im Kopf von `apps-script/Code.gs` und in `BACKEND_VERSION`.
@@ -198,6 +198,7 @@ Wichtige Regel:
 - `4.4.3` löst bekannte fehlerhafte Bestands-Mappings per Override auf.
 - `4.4.4` ergänzt den virtuellen Warmwasser-Gesamtzähler für historische Werte.
 - `4.4.5` ergänzt einen separaten Duplikat-Report für die `stand_id`-Migration.
+- `4.4.6` löst historische Doppelwerte als Zählerstand plus berechneten Verbrauch auf.
 - `clasp` ist lokal mit dem bestehenden GAS-Projekt verbunden; `npm run clasp:pull` funktioniert unter Node 22.
 
 ---
@@ -241,7 +242,7 @@ Geplanter Migrationsablauf:
 2. Sheet `_migration_stand_id_report` prüfen.
 3. Offene `Unresolved Rows`, `Mapping Conflicts` und `Duplicate New stand_id Rows` klären.
 4. Bei vorhandenen Duplikaten `writeStandIdDuplicateReport` ausführen und Sheet `_migration_duplicate_report` prüfen.
-5. Duplikate bewusst bereinigen oder behalten.
+5. Historische Doppelwerte mit niedrigerem Verbrauchswert und höherem Zählerstand werden automatisch in getrennte virtuelle Verbrauchszähler umgeschlüsselt; sonst Duplikate bewusst bereinigen oder behalten.
 6. Prüfen, dass `unresolvedRows`, `mappingConflictRows` und `duplicateRows` jeweils `0` sind.
 7. Bei Bedarf `ensureHistoricalCalculatedMeters` ausführen.
 8. `applyStandIdMigration` ausführen.

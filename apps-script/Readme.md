@@ -9,7 +9,7 @@ Die aktuelle Backend-Version steht im Kopf von `Code.gs` und zusätzlich in der 
 Aktueller Stand:
 
 ```text
-4.4.5
+4.4.6
 ```
 
 Regel:
@@ -25,6 +25,7 @@ Regel:
 - Version `4.4.3` löst bekannte fehlerhafte Bestands-Mappings per Override auf.
 - Version `4.4.4` ergänzt den virtuellen Warmwasser-Gesamtzähler für historische Werte.
 - Version `4.4.5` ergänzt einen separaten Duplikat-Report für die `stand_id`-Migration.
+- Version `4.4.6` löst historische Doppelwerte als Zählerstand plus berechneten Verbrauch auf.
 
 ## Zweck
 
@@ -106,7 +107,7 @@ Ablauf im Apps Script Editor:
 
 `applyStandIdMigration` bricht automatisch ab, wenn unklare oder doppelte neue IDs gefunden werden.
 
-Der Duplikat-Report arbeitet konservativ: Die erste Zeile einer neuen `stand_id`-Gruppe erhält `KEEP`. Weitere Zeilen werden nur bei identischem `wert` als `CANDIDATE_DELETE_EXACT_DUPLICATE` markiert. Abweichende Werte erhalten `REVIEW_VALUE_DIFFERS`.
+Der Duplikat-Report arbeitet konservativ: Exakte Doppelungen werden als `CANDIDATE_DELETE_EXACT_DUPLICATE` markiert. Historische Doppelwerte mit genau zwei unterschiedlichen numerischen Werten werden als Zählerstand plus berechneter Verbrauch interpretiert: Der höhere Wert bleibt beim ursprünglichen Zähler, der niedrigere Wert erhält eine virtuelle `zaehler_id` mit Suffix `_VERBRAUCH_BERECHNET` und wird als `CONVERT_LOWER_VALUE_TO_CALCULATED_CONSUMPTION` markiert. Alle anderen abweichenden Werte erhalten `REVIEW_VALUE_DIFFERS`.
 
 Der virtuelle Zähler `Z_WARMWASSER_WW_GESAMT_BERECHNET` ist als `berechnet = TRUE` und `erfassbar = FALSE` definiert. Als `einbauort` wird `berechneter Wert, kein Zaehler` verwendet.
 
