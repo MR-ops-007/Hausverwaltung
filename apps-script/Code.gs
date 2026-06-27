@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.3.1
+ * Version: 4.4.0
  * Stand: 2026-06-27
  *
  * Änderungen seit v4.1:
@@ -13,8 +13,11 @@
  *
  * Änderungen seit v4.3:
  * - JavaScript-Date-Strings werden für stand_id zeitzonenstabil geparst
+ *
+ * Änderungen seit v4.3.1:
+ * - Preview-/Apply-Migration für Bestands-Zaehlerstaende ergänzt
  */
-const BACKEND_VERSION = "4.3.1";
+const BACKEND_VERSION = "4.4.0";
 
 function sendJSON(obj) {
   return ContentService

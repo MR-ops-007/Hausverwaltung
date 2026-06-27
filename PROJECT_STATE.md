@@ -182,7 +182,7 @@ Google Apps Script wird weiterhin manuell versioniert.
 Aktuelle Backend-Version:
 
 ```text
-4.3.1
+4.4.0
 ```
 
 Die Version steht im Kopf von `apps-script/Code.gs` und in `BACKEND_VERSION`.
@@ -192,7 +192,8 @@ Wichtige Regel:
 - Jede fachliche oder technische Apps-Script-Änderung erhöht die Backend-Version.
 - Tests prüfen die erwartete `BACKEND_VERSION`.
 - `4.3.1` repariert das zeitzonenstabile Parsing von JavaScript-Date-Strings für `stand_id`.
-- `clasp` ist lokal vorbereitet; die echte `.clasp.json` mit `scriptId` und der erste Pull aus dem GAS-Projekt stehen noch aus.
+- `4.4.0` ergänzt eine Preview-/Apply-Migration für Bestands-Zählerstände.
+- `clasp` ist lokal mit dem bestehenden GAS-Projekt verbunden; `npm run clasp:pull` funktioniert unter Node 22.
 
 ---
 
@@ -216,6 +217,7 @@ Aktueller Stand:
 - Der produktive GAS-Stand wurde per Apps-Script-API abgerufen und lokal nachvollzogen.
 - `apps-script/appsscript.json` entspricht dem produktiven Manifest.
 - `apps-script/Migration.gs.gs` bildet die bestehende produktive Migrationsdatei ab.
+- `apps-script/StandIdMigration.gs` ergänzt die neue Bestandsdatenmigration.
 
 Noch erforderlich:
 
@@ -223,16 +225,17 @@ Noch erforderlich:
 2. Pull-Diff prüfen.
 3. Erst danach `npm run clasp:push` nutzen.
 
-### 2. Bestandsdatenmigration vorbereiten
+### 2. Bestandsdatenmigration ausführen
 
-Bestehende `Zaehlerstaende` enthalten teilweise alte `stand_id`-Formate und fehlende `einheit_id`s.
+Bestehende `Zaehlerstaende` enthalten bereits alte `stand_id`-Werte in einem einheitlichen historischen Format.
+Teilweise fehlen noch `einheit_id`s.
 
 Geplanter Migrationsablauf:
 
-1. Fehlende `objekt_id` und `einheit_id` ergänzen.
-2. Neue `stand_id` aus `objekt_id + einheit_id + zaehler_id + zeitstempel` erzeugen.
-3. Doppelte IDs prüfen.
-4. Erst danach optional kürzere `zaehler_id`s wie `STROM`, `KW`, `WW` einführen.
+1. `previewStandIdMigration` im Apps Script Editor ausführen.
+2. Prüfen, dass `unresolvedRows` und `duplicateRows` jeweils `0` sind.
+3. `applyStandIdMigration` ausführen.
+4. Danach optional kürzere `zaehler_id`s wie `STROM`, `KW`, `WW` erst in einem separaten Schritt einführen.
 
 ### 3. Dashboard/Auswertungen
 

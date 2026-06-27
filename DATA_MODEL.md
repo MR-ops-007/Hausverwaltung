@@ -225,14 +225,15 @@ verbrauch = 10000 - 9876 + 123 = 247
 
 #### Migration bestehender Zählerstände
 
-Bestehende importierte `Zaehlerstaende` können noch alte `stand_id`-Formate enthalten, die nur auf `zaehler_id` und Datum basieren.
+Bestehende importierte `Zaehlerstaende` enthalten alte `stand_id`-Werte in einem einheitlichen historischen Format, das nur auf `zaehler_id` und Datum basiert.
 
 Da die bisherigen Produktivdaten im Wesentlichen aus einem Objekt stammen, ist die Migration überschaubar:
 
-1. Fehlende `objekt_id` und `einheit_id` aus der Tabelle `Zaehler` bzw. aus der bekannten Migration ergänzen.
-2. `stand_id` auf das neue Format `ST_{objekt_id}_{einheit_id}_{zaehler_id}_{YYYY-MM-DD HH:mm}` umstellen.
-3. Prüfen, dass keine doppelten `stand_id`s mehr existieren.
-4. Für neue Objekte kurze, wiederverwendbare `zaehler_id`s bevorzugen.
+1. Fehlende `objekt_id` mit dem bekannten Bestandsobjekt ergänzen.
+2. Fehlende `einheit_id` deterministisch aus der vorhandenen `zaehler_id` ableiten.
+3. `stand_id` auf das neue Format `ST_{objekt_id}_{einheit_id}_{zaehler_id}_{YYYY-MM-DD HH:mm}` umstellen.
+4. Vor dem Schreiben per Preview prüfen, dass keine ungelösten Zuordnungen und keine doppelten neuen `stand_id`s existieren.
+5. Für neue Objekte kurze, wiederverwendbare `zaehler_id`s bevorzugen.
 
 ### Tabelle: `Parameter` (Konfiguration)
 | Spalte | Feldname | Datentyp | Beschreibung |

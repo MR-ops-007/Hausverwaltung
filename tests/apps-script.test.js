@@ -6,9 +6,13 @@ function loadAppsScriptHelpers() {
     new URL('../apps-script/Code.gs', import.meta.url),
     'utf8'
   );
+  const standIdMigrationCode = readFileSync(
+    new URL('../apps-script/StandIdMigration.gs', import.meta.url),
+    'utf8'
+  );
 
   const factory = new Function(
-    `${code}; return { BACKEND_VERSION, appendIfMissingByKeys, buildStandId, formatStandIdTimestamp, getItemValueForHeader, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
+    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildMigratedZaehlerstandItem, buildStandId, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getItemValueForHeader, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
   );
 
   return factory();
@@ -18,7 +22,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
   it('declares the current backend version', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
 
-    expect(BACKEND_VERSION).toBe('4.3.1');
+    expect(BACKEND_VERSION).toBe('4.4.0');
   });
 
   it('formats German timestamps for stand_id values', () => {
@@ -312,5 +316,73 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     );
 
     expect(result).toBe('Duck, Donald');
+  });
+
+  it('derives unit ids from historical meter ids without relying on mutable master data', () => {
+    const { deriveEinheitIdFromLegacyZaehlerId } = loadAppsScriptHelpers();
+
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_STROM_KWH_WOHNUNG_1', 'Ra-HS-29')).toBe('Ra-HS-29_WE_01');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_KALTWASSER_M3_WOHNUNG_11', 'Ra-HS-29')).toBe('Ra-HS-29_WE_11');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_STROM_KWH_GEWERBE_2', 'Ra-HS-29')).toBe('Ra-HS-29_GE_02');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_STROM_KWH_ALLGEMEIN', 'Ra-HS-29')).toBe('Ra-HS-29_Allgemein');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_KALTWASSER_KW_HAUPTZAEHLER', 'Ra-HS-29')).toBe('Ra-HS-29_Allgemein');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_STROM_KWH_PRIVAT_NT', 'Ra-HS-29')).toBe('Ra-HS-29_GE_02');
+  });
+
+  it('builds migrated meter readings with object, unit and new stand_id', () => {
+    const { buildMigratedZaehlerstandItem } = loadAppsScriptHelpers();
+
+    const result = buildMigratedZaehlerstandItem({
+      stand_id: 'ST_Z_STROM_KWH_WOHNUNG_1_20260619',
+      objekt_id: '',
+      einheit_id: '',
+      zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+      zeitstempel: '19.06.2026 00:00',
+      wert: 1234,
+    });
+
+    expect(result).toMatchObject({
+      status: 'ok',
+      changed: true,
+      oldStandId: 'ST_Z_STROM_KWH_WOHNUNG_1_20260619',
+      newStandId: 'ST_Ra-HS-29_Ra-HS-29_WE_01_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00',
+    });
+    expect(result.item).toMatchObject({
+      objekt_id: 'Ra-HS-29',
+      einheit_id: 'Ra-HS-29_WE_01',
+      stand_id: 'ST_Ra-HS-29_Ra-HS-29_WE_01_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00',
+      wert: 1234,
+    });
+  });
+
+  it('previews stand_id migration and blocks unresolved or duplicate rows', () => {
+    const { analyzeStandIdMigrationRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert'];
+    const rows = [
+      ['ST_Z_STROM_KWH_WOHNUNG_1_20260619', '', '', 'Z_STROM_KWH_WOHNUNG_1', '19.06.2026 00:00', 100],
+      ['ST_Z_STROM_KWH_WOHNUNG_1_20260619_COPY', '', '', 'Z_STROM_KWH_WOHNUNG_1', '19.06.2026 00:00', 100],
+      ['ST_Z_UNKNOWN_20260619', '', '', 'Z_UNBEKANNT', '19.06.2026 00:00', 100],
+    ];
+
+    const result = analyzeStandIdMigrationRows(headers, rows);
+
+    expect(result).toMatchObject({
+      totalRows: 3,
+      migratableRows: 2,
+      changedRows: 2,
+      unresolvedRows: 1,
+      duplicateRows: 1,
+      missingHeaders: [],
+    });
+    expect(result.unresolved[0]).toMatchObject({
+      row: 4,
+      reason: 'UNKNOWN_EINHEIT_ID',
+      zaehler_id: 'Z_UNBEKANNT',
+    });
+    expect(result.duplicates[0]).toMatchObject({
+      row: 3,
+      duplicateOfRow: 2,
+      stand_id: 'ST_Ra-HS-29_Ra-HS-29_WE_01_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00',
+    });
   });
 });

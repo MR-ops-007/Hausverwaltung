@@ -9,7 +9,7 @@ Die aktuelle Backend-Version steht im Kopf von `Code.gs` und zusätzlich in der 
 Aktueller Stand:
 
 ```text
-4.3.1
+4.4.0
 ```
 
 Regel:
@@ -19,6 +19,7 @@ Regel:
 - Minor-Version (`x.Y.0`) für neues Verhalten, Datenmodelländerungen oder neue Hilfsfunktionen.
 - Die Tests prüfen die erwartete `BACKEND_VERSION`, damit vergessene Versionsupdates auffallen.
 - Version `4.3.1` repariert das zeitzonenstabile Parsing von JavaScript-Date-Strings für generierte `stand_id`-Zeitstempel.
+- Version `4.4.0` ergänzt eine Preview-/Apply-Migration für Bestands-Zählerstände.
 
 ## Zweck
 
@@ -32,6 +33,7 @@ Dieses Verzeichnis dient dazu, den Apps-Script-Code im GitHub-Repository nachvol
 | :--- | :--- |
 | `Code.gs` | Versionierte Kopie des produktiven Google Apps Script Backends |
 | `Migration.gs.gs` | Bestehende historische GAS-Migrationsfunktion aus dem produktiven Projekt |
+| `StandIdMigration.gs` | Preview-/Apply-Migration für `objekt_id`, `einheit_id` und neue `stand_id` in Bestandsdaten |
 | `appsscript.json` | Versioniertes Apps-Script-Manifest |
 | `Readme.md` | Beschreibung des Versionierungs- und Sync-Prozesses |
 
@@ -73,6 +75,26 @@ Vor Änderungen am produktiven Apps Script gilt:
 - Das laufende Deployment liegt weiterhin im Google Apps Script Projekt.
 - Änderungen im Google Apps Script Editor gelten erst dann als sauber dokumentiert, wenn sie auch per `clasp:pull` oder manuell in `apps-script/Code.gs` nachvollzogen sind.
 - `appsscript.json` wird bewusst versioniert, weil Runtime, Zeitzone, Scopes und Libraries Teil des Backend-Verhaltens sind.
+
+## Bestandsmigration `stand_id`
+
+Die aktuelle Bestandsmigration liegt in `StandIdMigration.gs`.
+
+Ziel:
+
+```text
+ST_{objekt_id}_{einheit_id}_{zaehler_id}_{YYYY-MM-DD HH:mm}
+```
+
+Die bestehenden 1.910 Produktivzeilen haben bereits alte `stand_id`-Werte im einheitlichen historischen Format. Für die neue Logik wird zuerst `einheit_id` deterministisch aus der vorhandenen `zaehler_id` abgeleitet. Dadurch hängt die Migration nicht von später veränderbaren Stammdaten ab.
+
+Ablauf im Apps Script Editor:
+
+1. `previewStandIdMigration` ausführen.
+2. Ergebnis prüfen: `unresolvedRows` und `duplicateRows` müssen `0` sein.
+3. Erst danach `applyStandIdMigration` ausführen.
+
+`applyStandIdMigration` bricht automatisch ab, wenn unklare oder doppelte neue IDs gefunden werden.
 
 ## Plausibilitätswarnungen
 
