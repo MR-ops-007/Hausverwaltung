@@ -239,6 +239,8 @@ Bekannte historische Übertragungsfehler bei `einheit_id` werden in der Migratio
 
 Der historische berechnete Warmwasser-Gesamtwert wird als virtueller Zähler `Z_WARMWASSER_WW_GESAMT_BERECHNET` geführt. Er ist `berechnet = TRUE`, `erfassbar = FALSE` und verwendet `einbauort = berechneter Wert, kein Zaehler`.
 
+Duplikate werden vor der Anwendung der Migration separat über `writeStandIdDuplicateReport` in `_migration_duplicate_report` geprüft. Die erste Zeile einer neuen `stand_id`-Gruppe bleibt Referenz (`KEEP`). Weitere Zeilen werden nur bei identischem `wert` als Löschkandidat markiert; abweichende Werte müssen manuell geprüft werden.
+
 ### Tabelle: `Parameter` (Konfiguration)
 | Spalte | Feldname | Datentyp | Beschreibung |
 | :--- | :--- | :--- | :--- |

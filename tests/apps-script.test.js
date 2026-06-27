@@ -12,7 +12,7 @@ function loadAppsScriptHelpers() {
   );
 
   const factory = new Function(
-    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildMigratedZaehlerstandItem, buildStandId, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
+    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildMigratedZaehlerstandItem, buildStandId, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
   );
 
   return factory();
@@ -22,7 +22,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
   it('declares the current backend version', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
 
-    expect(BACKEND_VERSION).toBe('4.4.4');
+    expect(BACKEND_VERSION).toBe('4.4.5');
   });
 
   it('formats German timestamps for stand_id values', () => {
@@ -405,6 +405,47 @@ describe('Apps Script Zaehlerstaende helpers', () => {
       row: 3,
       duplicateOfRow: 2,
       stand_id: 'ST_Ra-HS-29_Ra-HS-29_WE_01_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00',
+    });
+  });
+
+  it('reports duplicate migration groups with conservative recommendations', () => {
+    const { analyzeStandIdDuplicateRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert', 'quelle'];
+    const rows = [
+      ['ST_A', '', '', 'Z_STROM_KWH_WOHNUNG_1', '19.06.2026 00:00', 100, 'Import'],
+      ['ST_B', '', '', 'Z_STROM_KWH_WOHNUNG_1', '19.06.2026 00:00', 100, 'Import'],
+      ['ST_C', '', '', 'Z_STROM_KWH_WOHNUNG_1', '19.06.2026 00:00', 101, 'Import'],
+      ['ST_D', '', '', 'Z_STROM_KWH_WOHNUNG_1', '20.06.2026 00:00', 102, 'Import'],
+    ];
+
+    const result = analyzeStandIdDuplicateRows(headers, rows);
+
+    expect(result).toMatchObject({
+      totalRows: 4,
+      duplicateGroups: 1,
+      duplicateRows: 2,
+      deleteCandidateRows: 1,
+      reviewRows: 1,
+      missingHeaders: [],
+    });
+    expect(result.rows.map(row => row.recommendation)).toEqual([
+      'KEEP',
+      'CANDIDATE_DELETE_EXACT_DUPLICATE',
+      'REVIEW_VALUE_DIFFERS',
+    ]);
+    expect(result.rows[1]).toMatchObject({
+      group: 'DUP_01',
+      row: 3,
+      duplicateOfRow: 2,
+      valueStatus: 'SAME_VALUE',
+      wert: 100,
+    });
+    expect(result.rows[2]).toMatchObject({
+      group: 'DUP_01',
+      row: 4,
+      duplicateOfRow: 2,
+      valueStatus: 'VALUE_DIFFERS',
+      wert: 101,
     });
   });
 

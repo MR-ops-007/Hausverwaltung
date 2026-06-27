@@ -329,6 +329,117 @@ function analyzeStandIdMigrationRows(headers, rows, options) {
   return result;
 }
 
+function normalizeDuplicateCompareValue(value) {
+  if (value instanceof Date) {
+    return formatStandIdTimestamp(value);
+  }
+
+  return String(value === null || value === undefined ? "" : value).trim();
+}
+
+function getDuplicateCompareValue(item, header) {
+  return normalizeDuplicateCompareValue(item[String(header).trim().toLowerCase()]);
+}
+
+function getDuplicateValueStatus(firstItem, duplicateItem) {
+  return getDuplicateCompareValue(firstItem, "wert") === getDuplicateCompareValue(duplicateItem, "wert")
+    ? "SAME_VALUE"
+    : "VALUE_DIFFERS";
+}
+
+function analyzeStandIdDuplicateRows(headers, rows, options) {
+  const indexes = getMigrationHeaderIndexes(headers);
+  const requiredHeaders = ["stand_id", "objekt_id", "einheit_id", "zaehler_id", "zeitstempel", "wert"];
+  const missingHeaders = requiredHeaders.filter(header => indexes[header] === undefined);
+  const result = {
+    totalRows: rows.length,
+    duplicateGroups: 0,
+    duplicateRows: 0,
+    deleteCandidateRows: 0,
+    reviewRows: 0,
+    missingHeaders: missingHeaders,
+    rows: []
+  };
+
+  if (missingHeaders.length > 0) {
+    return result;
+  }
+
+  const mappingResult = buildExistingEinheitMappingFromRows(headers, rows, options);
+  const migrationOptions = Object.assign({}, options || {}, {
+    existingEinheitMapping: mappingResult.mapping
+  });
+  const groups = {};
+
+  rows.forEach((row, index) => {
+    const item = getMigrationItemFromRow(row, headers);
+    const migration = buildMigratedZaehlerstandItem(item, migrationOptions);
+
+    if (migration.status !== "ok") {
+      return;
+    }
+
+    if (!groups[migration.newStandId]) {
+      groups[migration.newStandId] = [];
+    }
+
+    groups[migration.newStandId].push({
+      row: index + 2,
+      oldStandId: migration.oldStandId,
+      newStandId: migration.newStandId,
+      item: migration.item
+    });
+  });
+
+  Object.keys(groups).forEach(newStandId => {
+    const group = groups[newStandId];
+
+    if (group.length <= 1) {
+      return;
+    }
+
+    result.duplicateGroups++;
+    result.duplicateRows += group.length - 1;
+
+    const first = group[0];
+    const groupId = "DUP_" + pad2(result.duplicateGroups);
+
+    group.forEach((entry, index) => {
+      const isFirst = index === 0;
+      const valueStatus = isFirst
+        ? "REFERENCE"
+        : getDuplicateValueStatus(first.item, entry.item);
+      const recommendation = isFirst
+        ? "KEEP"
+        : (valueStatus === "SAME_VALUE" ? "CANDIDATE_DELETE_EXACT_DUPLICATE" : "REVIEW_VALUE_DIFFERS");
+
+      if (recommendation === "CANDIDATE_DELETE_EXACT_DUPLICATE") {
+        result.deleteCandidateRows++;
+      } else if (recommendation === "REVIEW_VALUE_DIFFERS") {
+        result.reviewRows++;
+      }
+
+      result.rows.push({
+        group: groupId,
+        row: entry.row,
+        duplicateOfRow: isFirst ? "" : first.row,
+        recommendation: recommendation,
+        valueStatus: valueStatus,
+        oldStandId: entry.oldStandId,
+        newStandId: newStandId,
+        objekt_id: entry.item.objekt_id,
+        einheit_id: entry.item.einheit_id,
+        zaehler_id: entry.item.zaehler_id,
+        zeitstempel: entry.item.zeitstempel,
+        wert: entry.item.wert,
+        quelle: entry.item.quelle || ""
+      });
+    });
+  });
+
+  return result;
+}
+
 function previewStandIdMigration(options) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName("Zaehlerstaende");
@@ -355,6 +466,36 @@ function previewStandIdMigration(options) {
     unresolvedRows: result.unresolvedRows,
     duplicateRows: result.duplicateRows,
     mappingConflictRows: result.mappingConflictRows,
+    missingHeaders: result.missingHeaders
+  }));
+
+  return result;
+}
+
+function previewStandIdDuplicateRows(options) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Zaehlerstaende");
+
+  if (!sheet) {
+    throw new Error("Sheet 'Zaehlerstaende' fehlt.");
+  }
+
+  const values = sheet.getDataRange().getValues();
+
+  if (values.length <= 1) {
+    return analyzeStandIdDuplicateRows([], [], options);
+  }
+
+  const headers = values[0].map(header => String(header).trim().toLowerCase());
+  const rows = values.slice(1);
+  const result = analyzeStandIdDuplicateRows(headers, rows, options);
+
+  Logger.log(JSON.stringify({
+    totalRows: result.totalRows,
+    duplicateGroups: result.duplicateGroups,
+    duplicateRows: result.duplicateRows,
+    deleteCandidateRows: result.deleteCandidateRows,
+    reviewRows: result.reviewRows,
     missingHeaders: result.missingHeaders
   }));
 
@@ -528,5 +669,89 @@ function writeStandIdMigrationReport(options) {
     unresolvedRows: preview.unresolvedRows,
     duplicateRows: preview.duplicateRows,
     mappingConflictRows: preview.mappingConflictRows
+  };
+}
+
+function getOrCreateStandIdDuplicateReportSheet(ss) {
+  const sheetName = "_migration_duplicate_report";
+  let sheet = ss.getSheetByName(sheetName);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+  }
+
+  sheet.clear();
+  return sheet;
+}
+
+function writeStandIdDuplicateReport(options) {
+  const preview = previewStandIdDuplicateRows(options);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const reportSheet = getOrCreateStandIdDuplicateReportSheet(ss);
+  let nextRow = 1;
+
+  const summaryRows = [
+    ["totalRows", preview.totalRows],
+    ["duplicateGroups", preview.duplicateGroups],
+    ["duplicateRows", preview.duplicateRows],
+    ["deleteCandidateRows", preview.deleteCandidateRows],
+    ["reviewRows", preview.reviewRows],
+    ["missingHeaders", preview.missingHeaders.join(", ")]
+  ];
+
+  nextRow = writeStandIdMigrationSection(
+    reportSheet,
+    nextRow,
+    "Summary",
+    ["metric", "value"],
+    summaryRows
+  );
+
+  writeStandIdMigrationSection(
+    reportSheet,
+    nextRow,
+    "Duplicate Groups",
+    [
+      "group",
+      "row",
+      "duplicateOfRow",
+      "recommendation",
+      "valueStatus",
+      "oldStandId",
+      "newStandId",
+      "objekt_id",
+      "einheit_id",
+      "zaehler_id",
+      "zeitstempel",
+      "wert",
+      "quelle"
+    ],
+    preview.rows.map(item => [
+      item.group,
+      item.row,
+      item.duplicateOfRow,
+      item.recommendation,
+      item.valueStatus,
+      item.oldStandId,
+      item.newStandId,
+      item.objekt_id,
+      item.einheit_id,
+      item.zaehler_id,
+      item.zeitstempel,
+      item.wert,
+      item.quelle
+    ])
+  );
+
+  reportSheet.autoResizeColumns(1, 13);
+  Logger.log("Duplikatreport geschrieben: _migration_duplicate_report");
+
+  return {
+    sheetName: "_migration_duplicate_report",
+    totalRows: preview.totalRows,
+    duplicateGroups: preview.duplicateGroups,
+    duplicateRows: preview.duplicateRows,
+    deleteCandidateRows: preview.deleteCandidateRows,
+    reviewRows: preview.reviewRows
   };
 }

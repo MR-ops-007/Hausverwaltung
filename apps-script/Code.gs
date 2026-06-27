@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.4.4
+ * Version: 4.4.5
  * Stand: 2026-06-27
  *
  * Änderungen seit v4.1:
@@ -28,8 +28,11 @@
  *
  * Änderungen seit v4.4.3:
  * - Virtueller Warmwasser-Gesamtzähler für historische Migration ergänzt
+ *
+ * Änderungen seit v4.4.4:
+ * - Duplikat-Report für stand_id-Migration ergänzt
  */
-const BACKEND_VERSION = "4.4.4";
+const BACKEND_VERSION = "4.4.5";
 
 function sendJSON(obj) {
   return ContentService
