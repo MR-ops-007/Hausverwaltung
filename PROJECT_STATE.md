@@ -182,7 +182,7 @@ Google Apps Script wird weiterhin manuell versioniert.
 Aktuelle Backend-Version:
 
 ```text
-4.3.0
+4.3.1
 ```
 
 Die Version steht im Kopf von `apps-script/Code.gs` und in `BACKEND_VERSION`.
@@ -191,6 +191,7 @@ Wichtige Regel:
 
 - Jede fachliche oder technische Apps-Script-Änderung erhöht die Backend-Version.
 - Tests prüfen die erwartete `BACKEND_VERSION`.
+- `4.3.1` repariert das zeitzonenstabile Parsing von JavaScript-Date-Strings für `stand_id`.
 - `clasp` ist noch nicht eingerichtet und bleibt ein nächstes Arbeitspaket.
 
 ---

@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.3.0
+ * Version: 4.3.1
  * Stand: 2026-06-27
  *
  * Änderungen seit v4.1:
@@ -10,8 +10,11 @@
  *
  * Änderungen seit v4.2:
  * - Produktive Testzähler auf Wasser, Allgemein und Öl erweitert
+ *
+ * Änderungen seit v4.3:
+ * - JavaScript-Date-Strings werden für stand_id zeitzonenstabil geparst
  */
-const BACKEND_VERSION = "4.3.0";
+const BACKEND_VERSION = "4.3.1";
 
 function sendJSON(obj) {
   return ContentService
@@ -85,6 +88,44 @@ function pad2(value) {
   return String(value).padStart(2, "0");
 }
 
+function parseJavaScriptDateStringForStandId(text) {
+  const jsDateMatch = text.match(/^[A-Za-z]{3}\s+([A-Za-z]{3})\s+(\d{1,2})\s+(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s+GMT[+-]\d{4}/);
+
+  if (!jsDateMatch) {
+    return null;
+  }
+
+  const monthNumbers = {
+    Jan: 0,
+    Feb: 1,
+    Mar: 2,
+    Apr: 3,
+    May: 4,
+    Jun: 5,
+    Jul: 6,
+    Aug: 7,
+    Sep: 8,
+    Oct: 9,
+    Nov: 10,
+    Dec: 11
+  };
+
+  const month = monthNumbers[jsDateMatch[1]];
+
+  if (month === undefined) {
+    return null;
+  }
+
+  return new Date(
+    Number(jsDateMatch[3]),
+    month,
+    Number(jsDateMatch[2]),
+    Number(jsDateMatch[4]),
+    Number(jsDateMatch[5]),
+    Number(jsDateMatch[6] || 0)
+  );
+}
+
 function parseTimestampForStandId(value, fallbackDate) {
   if (value instanceof Date && !isNaN(value.getTime())) {
     return value;
@@ -102,6 +143,12 @@ function parseTimestampForStandId(value, fallbackDate) {
       const minute = Number(germanMatch[5] || 0);
 
       return new Date(year, month - 1, day, hour, minute);
+    }
+
+    const jsDate = parseJavaScriptDateStringForStandId(text);
+
+    if (jsDate) {
+      return jsDate;
     }
 
     const parsed = new Date(text);

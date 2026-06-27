@@ -9,7 +9,7 @@ Die aktuelle Backend-Version steht im Kopf von `Code.gs` und zusätzlich in der 
 Aktueller Stand:
 
 ```text
-4.3.0
+4.3.1
 ```
 
 Regel:
@@ -18,6 +18,7 @@ Regel:
 - Patch-Version (`x.y.Z`) für kleine Korrekturen ohne neues Verhalten.
 - Minor-Version (`x.Y.0`) für neues Verhalten, Datenmodelländerungen oder neue Hilfsfunktionen.
 - Die Tests prüfen die erwartete `BACKEND_VERSION`, damit vergessene Versionsupdates auffallen.
+- Version `4.3.1` repariert das zeitzonenstabile Parsing von JavaScript-Date-Strings für generierte `stand_id`-Zeitstempel.
 
 ## Zweck
 
