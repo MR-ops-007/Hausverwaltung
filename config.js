@@ -6,7 +6,7 @@
 
 const CONFIG = {
     // 1. Die zentrale URL (Single Source of Truth)
-    API_URL: "https://script.google.com/macros/s/AKfycbwO3nZ9XuNMxXJunZlPkEu9KR-DjVZ3TFjZTsx7r3JEpbkICZ81BHczpBZbwhKESkHX1A/exec",
+    API_URL: "https://script.google.com/macros/s/AKfycbwVM7BLTQ7IRaxeJnyZXFGOflEToa9c_f2EAumuTXxFbjWfKGjW1fod7-Msz45Yfs7lag/exec",
     
     // 2. Globale Anwendungseinstellungen
     APP_VERSION: "3.4",
@@ -37,6 +37,13 @@ const CONFIG = {
             "Ra-HS-29_GE_01": ["kaltwasser_m3", "warmwasser_m3", "strom_ht_kwh", "strom_nt_kwh", "maschinenstunden"],
         },
         hasOil: true
+    },
+    "TEST": {
+        name: "Test für Produktivsystem",
+        units: 2,
+        meterTypes: ["KW", "WW", "Strom"],
+        defaultMeters: ["kaltwasser_m3", "warmwasser_m3", "strom_ht_kwh"],
+        hasOil: false
     }
 };
 
