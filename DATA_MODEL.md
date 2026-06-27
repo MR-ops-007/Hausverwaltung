@@ -19,10 +19,10 @@ Speichert jeden Zählerstand (nicht mehr `Transaktionen`).
 
 | Spalte | Feldname | Datentyp | Beschreibung |
 | :--- | :--- | :--- | :--- |
-| **A** | `stand_id` | String | PK: Eindeutige ID (z.B. UUID) |
+| **A** | `stand_id` | String | PK: Eindeutige ID im Format `ST_{objekt_id}_{einheit_id}_{zaehler_id}_{YYYY-MM-DD HH:mm}` |
 | **B** | `objekt_id` | String | Fremdschlüssel (FK) (verknüpft mit Objekte) FK -> Zaehler.objekt_id |
 | **C** | `einheit_id` | String | Fremdschlüssel (FK) (verknüpft mit Einheiten) FK -> Zaehler.einheit_id |
-| **D** | `zaehler_id` | String | Fremdschlüssel (FK) (verknüpft mit Zähler) FK -> Zaehler.zaehler_id |
+| **D** | `zaehler_id` | String | Zählercode innerhalb der Einheit; zusammen mit `objekt_id` und `einheit_id` eindeutig |
 | **E** | `zeitstempel` | Datum/Zeit | Format: `DD.MM.YYYY HH:mm` |
 | **F** | `wert` | Zahl | Gemessener Wert (m³, kWh, l) |
 | **G** | `quelle` | String | `UI`, `Import`, `Korrektur` |
@@ -52,6 +52,34 @@ Speichert jede Zahlung auf einen Vertrag.
 | **E** | `ort` | String | Ort |
 | **F** | `adresszusatz` | String | Optional |
 | **G** | `besitzer_id` | String | FK -> Nutzer.nutzer_id (Optional: für Datenschutz) |
+
+#### Reservierter Testbereich
+
+Das Objekt `TEST` ist als dauerhaft getrennter Testbereich reserviert. Es dient zur Prüfung produktiver Schreibwege, ohne reale Objekt-, Einheiten- oder Zählerdaten zu verändern.
+
+Zugehörige Stammdaten:
+
+```text
+objekt_id: TEST
+einheit_id: TEST_WE_01
+einheit_id: TEST_WE_02
+einheit_id: TEST_Allgemein
+zaehler_id: Z_STROM_KWH_WOHNUNG_1
+zaehler_id: Z_KALTWASSER_KW_WOHNUNG_1
+zaehler_id: Z_WARMWASSER_WW_WOHNUNG_1
+zaehler_id: Z_STROM_KWH_WOHNUNG_2
+zaehler_id: Z_KALTWASSER_KW_WOHNUNG_2
+zaehler_id: Z_WARMWASSER_WW_WOHNUNG_2
+zaehler_id: Z_STROM_KWH_ALLGEMEIN
+zaehler_id: Z_KALTWASSER_KW_HAUPTZAEHLER
+zaehler_id: Z_WARMWASSER_WW_ZULAUF
+zaehler_id: Z_OEL_STAND_IN_CM
+zaehler_id: Z_OEL_GETANKT_LITER
+```
+
+Der Testbereich enthält eine belegte Testwohnung (`TEST_WE_01`), einen Leerstand (`TEST_WE_02`) und einen Allgemeinbereich (`TEST_Allgemein`). Er verwendet bewusst fachlich wiederverwendbare Zählercodes. Da diese `zaehler_id`s auch in echten Objekten vorkommen können, muss die UI bei Vorwerten immer nach `zaehler_id`, `objekt_id` und `einheit_id` filtern. Andernfalls würden Testeingaben versehentlich gegen echte Wohnungshistorie plausibilisiert.
+
+Auswertungen und spätere Dashboards sollen diesen Testbereich entweder sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.
 
 ### Tabelle: `Einheiten` (Wohnungen/Gewerbe)
 | Spalte | Feldname | Datentyp | Beschreibung |
@@ -110,7 +138,7 @@ Diese Tabelle beschreibt, **welche Zähler existieren**, zu welchem Objekt bzw. 
 
 | Spalte | Feldname | Datentyp | Beschreibung |
 | :--- | :--- | :--- | :--- |
-| **A** | `zaehler_id` | String | PK: Eindeutiger Key |
+| **A** | `zaehler_id` | String | Zählercode innerhalb von Objekt/Einheit, z. B. `STROM`, `KW`, `WW` oder historisch längere IDs |
 | **B** | `objekt_id` | String | FK -> Objekte.objekt_id; Pflichtfeld, da jeder Zähler einem Objekt zugeordnet ist |
 | **C** | `einheit_id` | String | FK -> Einheiten.einheit_id; nullable für Allgemein-/Hauszähler |
 | **D** | `medium` | String | `Kaltwasser`, `Warmwasser`, `Strom`, `Oel`, `Zusatz` |
@@ -123,6 +151,53 @@ Diese Tabelle beschreibt, **welche Zähler existieren**, zu welchem Objekt bzw. 
 | **K** | `aktiv` | Boolean | `TRUE` = Zähler wird aktuell verwendet; `FALSE` = historischer/ersetzter Zähler |
 | **L** | `ersetzt_durch_zaehler_id` | String | Optional: FK -> Zaehler.zaehler_id, wenn dieser Zähler durch einen neuen Zähler ersetzt wurde |
 | **M** | `hinweis` | String | Freitext für Besonderheiten, z. B. `4-stelliger Zwischenzähler`, `OVAG-Hauptzähler`, `Zählerwechsel 2024` |
+| **N** | `erfassbar` | Boolean | `TRUE`/leer = erscheint in der manuellen Eingabemaske; `FALSE` = wird nicht manuell erfasst |
+| **O** | `berechnet` | Boolean | `TRUE` = berechneter/virtueller Wert; `FALSE`/leer = normaler physischer Zähler |
+
+#### Zähleridentität
+
+`zaehler_id` ist nicht global eindeutig. Die fachliche Identität eines Zählers entsteht aus:
+
+```text
+objekt_id + einheit_id + zaehler_id
+```
+
+Damit können neue Objekte dieselben kurzen Zählercodes verwenden, z. B. `STROM`, `KW` und `WW`, ohne lange globale IDs bilden zu müssen.
+
+Für neue Daten wird empfohlen:
+
+```text
+objekt_id: Ra-HS-29
+einheit_id: Ra-HS-29_WE_01
+zaehler_id: STROM
+
+objekt_id: TEST
+einheit_id: TEST_WE_01
+zaehler_id: STROM
+```
+
+Historische längere `zaehler_id`s bleiben gültig. Migrationen sollten sie schrittweise auf kürzere Codes abbilden, sobald die betroffenen `Zaehlerstaende` eindeutig über `objekt_id` und `einheit_id` ergänzt wurden.
+
+#### Erfassbare und berechnete Zähler
+
+Die UI-Eingabemaske zeigt nur Zähler an, die aktiv und manuell erfassbar sind.
+
+Ein Zähler wird in der Eingabemaske angezeigt, wenn:
+
+```text
+aktiv ist nicht FALSE
+erfassbar ist nicht FALSE
+berechnet ist nicht TRUE
+```
+
+Berechnete oder virtuelle Werte bleiben Teil des Datenmodells und können für Auswertungen, Verbrauchsberechnungen und Dashboards genutzt werden. Sie werden aber nicht als Eingabefeld in der manuellen Zählererfassung angezeigt.
+
+Beispiel:
+
+| zaehler_id | Bedeutung | erfassbar | berechnet |
+| :--- | :--- | :--- | :--- |
+| `Z_KALTWASSER_KW_WOHNUNG_4` | Physischer Kaltwasserzähler Wohnung 4 | `TRUE` | `FALSE` |
+| `Z_KALTWASSER_VERBRAUCH_WOHNUNG_4` | Berechneter Verbrauch zur Ermittlung des Warmwasser-Zulaufs | `FALSE` | `TRUE` |
 
 #### Plausibilitätsregeln für Zählerstände
 
@@ -147,6 +222,17 @@ max_wert = 10000
 
 verbrauch = 10000 - 9876 + 123 = 247
 ```
+
+#### Migration bestehender Zählerstände
+
+Bestehende importierte `Zaehlerstaende` können noch alte `stand_id`-Formate enthalten, die nur auf `zaehler_id` und Datum basieren.
+
+Da die bisherigen Produktivdaten im Wesentlichen aus einem Objekt stammen, ist die Migration überschaubar:
+
+1. Fehlende `objekt_id` und `einheit_id` aus der Tabelle `Zaehler` bzw. aus der bekannten Migration ergänzen.
+2. `stand_id` auf das neue Format `ST_{objekt_id}_{einheit_id}_{zaehler_id}_{YYYY-MM-DD HH:mm}` umstellen.
+3. Prüfen, dass keine doppelten `stand_id`s mehr existieren.
+4. Für neue Objekte kurze, wiederverwendbare `zaehler_id`s bevorzugen.
 
 ### Tabelle: `Parameter` (Konfiguration)
 | Spalte | Feldname | Datentyp | Beschreibung |

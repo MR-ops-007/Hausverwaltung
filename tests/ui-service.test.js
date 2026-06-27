@@ -45,11 +45,18 @@ function loadUiService({
       display: 'flex',
     },
   };
+  const modalBodyElement = {
+    innerHTML: '',
+  };
 
   const document = {
     getElementById(id) {
       if (id === 'modal-container') {
         return modalElement;
+      }
+
+      if (id === 'modal-body') {
+        return modalBodyElement;
       }
 
       if (id.startsWith('input-')) {
@@ -107,6 +114,7 @@ function loadUiService({
     confirms,
     saveCalls,
     modalElement,
+    modalBodyElement,
   };
 }
 
@@ -156,6 +164,120 @@ describe('uiService helper methods', () => {
 
     expect(result.wert).toBe(150);
   });
+
+  it('scopes latest meter readings by object and unit when meter context is provided', () => {
+    const { uiService } = loadUiService({
+      zaehlerstaende: [
+        {
+          objekt_id: 'Ra-HS-29',
+          einheit_id: 'Ra-HS-29_WE_01',
+          zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+          wert: 6647,
+          zeitstempel: '20.06.2026 09:00',
+        },
+        {
+          objekt_id: 'TEST',
+          einheit_id: 'TEST_WE_01',
+          zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+          wert: 100,
+          zeitstempel: '20.06.2026 10:00',
+        },
+      ],
+    });
+
+    const result = uiService.getLatestZaehlerstand({
+      objekt_id: 'TEST',
+      einheit_id: 'TEST_WE_01',
+      zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+    });
+
+    expect(result.wert).toBe(100);
+  });
+
+  it('does not use real meter history for production test meters with reused zaehler_id', () => {
+    const { uiService } = loadUiService({
+      zaehlerstaende: [
+        {
+          objekt_id: 'Ra-HS-29',
+          einheit_id: 'Ra-HS-29_WE_01',
+          zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+          wert: 6647,
+          zeitstempel: '20.06.2026 09:00',
+        },
+      ],
+    });
+
+    const result = uiService.getLatestZaehlerstand({
+      objekt_id: 'TEST',
+      einheit_id: 'TEST_WE_01',
+      zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+    });
+
+    expect(result).toBe(null);
+  });
+
+  it('detects manually enterable active meters for the input mask', () => {
+    const { uiService } = loadUiService();
+
+    expect(uiService.isZaehlerManuellErfassbar({ aktiv: true })).toBe(true);
+    expect(uiService.isZaehlerManuellErfassbar({ aktiv: 'TRUE' })).toBe(true);
+    expect(uiService.isZaehlerManuellErfassbar({ aktiv: false })).toBe(false);
+    expect(uiService.isZaehlerManuellErfassbar({ aktiv: 'FALSE' })).toBe(false);
+    expect(uiService.isZaehlerManuellErfassbar({ erfassbar: false })).toBe(false);
+    expect(uiService.isZaehlerManuellErfassbar({ erfassbar: 'FALSE' })).toBe(false);
+    expect(uiService.isZaehlerManuellErfassbar({ berechnet: true })).toBe(false);
+    expect(uiService.isZaehlerManuellErfassbar({ berechnet: 'TRUE' })).toBe(false);
+  });
+});
+
+describe('uiService.showZaehlerMaske', () => {
+  it('renders only active manually enterable meters', () => {
+    const { uiService, modalBodyElement, modalElement } = loadUiService({
+      currentMeters: [
+        {
+          zaehler_id: 'Z_NORMAL',
+          einheit_id: 'WE001',
+          bezeichnung: 'Normaler Zähler',
+          aktiv: 'TRUE',
+          erfassbar: 'TRUE',
+          berechnet: 'FALSE',
+        },
+        {
+          zaehler_id: 'Z_INAKTIV',
+          einheit_id: 'WE001',
+          bezeichnung: 'Alter Zähler',
+          aktiv: 'FALSE',
+        },
+        {
+          zaehler_id: 'Z_NICHT_ERFASSBAR',
+          einheit_id: 'WE001',
+          bezeichnung: 'Nicht erfassbarer Zähler',
+          erfassbar: 'FALSE',
+        },
+        {
+          zaehler_id: 'Z_BERECHNET',
+          einheit_id: 'WE001',
+          bezeichnung: 'Berechneter Verbrauch',
+          berechnet: 'TRUE',
+        },
+        {
+          zaehler_id: 'Z_ANDERE_EINHEIT',
+          einheit_id: 'WE002',
+          bezeichnung: 'Andere Einheit',
+        },
+      ],
+    });
+
+    uiService.showZaehlerMaske('WE001');
+
+    expect(uiService.currentActiveMetersObjects).toHaveLength(1);
+    expect(uiService.currentActiveMetersObjects[0].zaehler_id).toBe('Z_NORMAL');
+    expect(modalBodyElement.innerHTML).toContain('Normaler Zähler');
+    expect(modalBodyElement.innerHTML).not.toContain('Alter Zähler');
+    expect(modalBodyElement.innerHTML).not.toContain('Nicht erfassbarer Zähler');
+    expect(modalBodyElement.innerHTML).not.toContain('Berechneter Verbrauch');
+    expect(modalElement.style.display).toBe('flex');
+  });
 });
 
 describe('uiService.saveZaehler', () => {
@@ -179,6 +301,8 @@ describe('uiService.saveZaehler', () => {
       },
       zaehlerstaende: [
         {
+          objekt_id: 'OBJ001',
+          einheit_id: 'WE001',
           zaehler_id: 'Z001',
           wert: 1200,
           zeitstempel: '20.06.2026 09:00',
@@ -221,6 +345,8 @@ describe('uiService.saveZaehler', () => {
       },
       zaehlerstaende: [
         {
+          objekt_id: 'OBJ001',
+          einheit_id: 'WE001',
           zaehler_id: 'Z001',
           wert: 1200,
           zeitstempel: '20.06.2026 09:00',
@@ -250,6 +376,8 @@ describe('uiService.saveZaehler', () => {
       },
       zaehlerstaende: [
         {
+          objekt_id: 'OBJ001',
+          einheit_id: 'WE001',
           zaehler_id: 'Z001',
           wert: 1200,
           zeitstempel: '20.06.2026 09:00',
@@ -281,6 +409,8 @@ describe('uiService.saveZaehler', () => {
       },
       zaehlerstaende: [
         {
+          objekt_id: 'OBJ001',
+          einheit_id: 'WE001',
           zaehler_id: 'Z001',
           wert: 1200,
           zeitstempel: '20.06.2026 09:00',
@@ -315,6 +445,8 @@ describe('uiService.saveZaehler', () => {
       },
       zaehlerstaende: [
         {
+          objekt_id: 'OBJ001',
+          einheit_id: 'WE001',
           zaehler_id: 'Z001',
           wert: 9876,
           zeitstempel: '20.06.2026 09:00',

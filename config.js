@@ -1,15 +1,15 @@
  /**
  * HAUSVERWALTUNG - FRONTEND CONFIGURATION
- * Version: 3.4 (Fusionierte Stammdaten & Cache-Architektur)
- * Stand: 18.06.2026
+ * Version: 3.5 (Backend 4.3.1 Deployment)
+ * Stand: 27.06.2026
  */
 
 const CONFIG = {
     // 1. Die zentrale URL (Single Source of Truth)
-    API_URL: "https://script.google.com/macros/s/AKfycbwO3nZ9XuNMxXJunZlPkEu9KR-DjVZ3TFjZTsx7r3JEpbkICZ81BHczpBZbwhKESkHX1A/exec",
+    API_URL: "https://script.google.com/macros/s/AKfycbxP1AzOxbGQH3aFYEJzSwxbsQkaUQQ4EKXLpMJvdJYc0TD7sTEw6C_9h1SZshG7A9USog/exec",
     
     // 2. Globale Anwendungseinstellungen
-    APP_VERSION: "3.4",
+    APP_VERSION: "3.5",
     DEBUG_MODE: true,
 
     // 3. Bestehende Objekt-Einstellungen (DÜRFEN NICHT GELÖSCHT WERDEN!)
@@ -37,6 +37,13 @@ const CONFIG = {
             "Ra-HS-29_GE_01": ["kaltwasser_m3", "warmwasser_m3", "strom_ht_kwh", "strom_nt_kwh", "maschinenstunden"],
         },
         hasOil: true
+    },
+    "TEST": {
+        name: "Test für Produktivsystem",
+        units: 2,
+        meterTypes: ["KW", "WW", "Strom"],
+        defaultMeters: ["kaltwasser_m3", "warmwasser_m3", "strom_ht_kwh"],
+        hasOil: false
     }
 };
 

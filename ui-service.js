@@ -56,13 +56,46 @@ const uiService = {
     );
   },
 
-  getLatestZaehlerstand(zaehlerId) {
+  isTrueValue(value) {
+    return value === true || value === 'TRUE' || value === 'true' || value === 1 || value === '1';
+  },
+
+  isFalseValue(value) {
+    return value === false || value === 'FALSE' || value === 'false' || value === 0 || value === '0';
+  },
+
+  isZaehlerManuellErfassbar(zaehler) {
+    return (
+      !this.isFalseValue(zaehler.aktiv) &&
+      !this.isFalseValue(zaehler.erfassbar) &&
+      !this.isTrueValue(zaehler.berechnet)
+    );
+  },
+
+  getLatestZaehlerstand(zaehlerOrId) {
     const readings = Array.isArray(dataService.state.zaehlerstaende)
       ? dataService.state.zaehlerstaende
       : [];
+    const zaehler = typeof zaehlerOrId === 'object' && zaehlerOrId !== null
+      ? zaehlerOrId
+      : { zaehler_id: zaehlerOrId };
 
     const matchingReadings = readings
-      .filter(row => String(row.zaehler_id) === String(zaehlerId))
+      .filter(row => {
+        if (String(row.zaehler_id) !== String(zaehler.zaehler_id)) {
+          return false;
+        }
+
+        if (zaehler.objekt_id && String(row.objekt_id) !== String(zaehler.objekt_id)) {
+          return false;
+        }
+
+        if (zaehler.einheit_id && String(row.einheit_id) !== String(zaehler.einheit_id)) {
+          return false;
+        }
+
+        return true;
+      })
       .sort((a, b) => this.parseGermanDate(b.zeitstempel) - this.parseGermanDate(a.zeitstempel));
 
     return matchingReadings[0] || null;
@@ -175,7 +208,10 @@ const uiService = {
 
     if (!modal || !modalBody) return;
 
-    const activeMeters = dataService.state.zaehler.filter(z => String(z.einheit_id) === String(id));
+    const activeMeters = dataService.state.zaehler.filter(z =>
+      String(z.einheit_id) === String(id) &&
+      this.isZaehlerManuellErfassbar(z)
+    );
 
     let inputsHtml = `<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:15px;">`;
 
@@ -228,7 +264,7 @@ const uiService = {
         return;
       }
 
-      const latestReading = this.getLatestZaehlerstand(zaehler.zaehler_id);
+      const latestReading = this.getLatestZaehlerstand(zaehler);
 
       const validationResult = validator.validateZaehlerstand({
         letzterWert: latestReading ? latestReading.wert : null,

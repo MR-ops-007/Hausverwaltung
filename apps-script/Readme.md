@@ -2,6 +2,24 @@
 
 Dieses Verzeichnis enthält die manuell versionierte Kopie des Google Apps Script Backends.
 
+## Versionierung
+
+Die aktuelle Backend-Version steht im Kopf von `Code.gs` und zusätzlich in der Konstante `BACKEND_VERSION`.
+
+Aktueller Stand:
+
+```text
+4.3.1
+```
+
+Regel:
+
+- Jede fachliche oder technische Änderung am Apps-Script-Backend erhöht die Version.
+- Patch-Version (`x.y.Z`) für kleine Korrekturen ohne neues Verhalten.
+- Minor-Version (`x.Y.0`) für neues Verhalten, Datenmodelländerungen oder neue Hilfsfunktionen.
+- Die Tests prüfen die erwartete `BACKEND_VERSION`, damit vergessene Versionsupdates auffallen.
+- Version `4.3.1` repariert das zeitzonenstabile Parsing von JavaScript-Date-Strings für generierte `stand_id`-Zeitstempel.
+
 ## Zweck
 
 Das produktive Backend liegt weiterhin im Google Apps Script Editor.
@@ -44,6 +62,71 @@ Aktuelle Entscheidung:
 - Es gibt aktuell kein separates Log für bestätigte Warnungen.
 - Eine Warnbestätigung wird aktuell nicht revisionssicher gespeichert.
 - Ein Zählerwechsel wird fachlich über einen neuen Zähler dokumentiert, der den bisherigen Zähler ersetzt.
+
+## `stand_id` für Zählerstände
+
+Das Backend ergänzt bei Schreibzugriffen auf `Zaehlerstaende` automatisch eine fehlende oder leere `stand_id`.
+
+Format:
+
+```text
+ST_{objekt_id}_{einheit_id}_{zaehler_id}_{YYYY-MM-DD HH:mm}
+```
+
+Beispiel:
+
+```text
+ST_Ra-HS-29_Ra-HS-29_WE_01_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00
+```
+
+Vorhandene `stand_id`-Werte bleiben unverändert. Das verhindert, dass UI-Eingaben ohne ID in der Tabelle landen.
+
+Wichtig: `zaehler_id` ist nicht global eindeutig. Die eindeutige fachliche Zähleridentität ist `objekt_id + einheit_id + zaehler_id`.
+
+## Produktiver Testbereich
+
+Für Tests im produktiven System gibt es einen dauerhaft getrennten Testbereich.
+
+Die Stammdaten sind bereits in der Live-DB angelegt:
+
+```text
+objekt_id: TEST
+bezeichnung: Test für Produktivsystem
+einheit_id: TEST_WE_01
+einheit_id: TEST_WE_02
+einheit_id: TEST_Allgemein
+zaehler_id: Z_STROM_KWH_WOHNUNG_1
+zaehler_id: Z_KALTWASSER_KW_WOHNUNG_1
+zaehler_id: Z_WARMWASSER_WW_WOHNUNG_1
+zaehler_id: Z_STROM_KWH_WOHNUNG_2
+zaehler_id: Z_KALTWASSER_KW_WOHNUNG_2
+zaehler_id: Z_WARMWASSER_WW_WOHNUNG_2
+zaehler_id: Z_STROM_KWH_ALLGEMEIN
+zaehler_id: Z_KALTWASSER_KW_HAUPTZAEHLER
+zaehler_id: Z_WARMWASSER_WW_ZULAUF
+zaehler_id: Z_OEL_STAND_IN_CM
+zaehler_id: Z_OEL_GETANKT_LITER
+```
+
+Der Testbereich dient dazu, UI- und Backend-Schreibvorgänge in der produktiven Umgebung zu prüfen, ohne echte Objekt-, Einheiten- oder Zählerwerte zu verfälschen.
+
+Der Testbereich enthält:
+
+- eine belegte Testwohnung: `TEST_WE_01`
+- einen Leerstand: `TEST_WE_02`
+- einen Allgemeinbereich: `TEST_Allgemein`
+
+Wichtig: Der Testbereich verwendet teilweise dieselben Zähler-IDs wie echte Wohnungen, aber mit `objekt_id = TEST` und eigenen `einheit_id`s. Die UI muss letzte Vorwerte daher immer nach Zähler, Objekt und Einheit eingrenzen.
+
+Falls die Test-Stammdaten in einer neuen Umgebung fehlen, können sie über Apps Script angelegt werden:
+
+1. Aktualisierten Inhalt aus `apps-script/Code.gs` in den Apps Script Editor übernehmen.
+2. Speichern und bereitstellen.
+3. Im Apps Script Editor die Funktion `ensureProdTestData` auswählen.
+4. Funktion ausführen.
+5. Danach in der App das Objekt `Test für Produktivsystem` auswählen und Testwerte dort erfassen.
+
+Die Funktion legt die Stammdaten nur an, wenn sie noch nicht vorhanden sind. Bereits bestehende Test-Stammdaten werden nicht doppelt angelegt. Für Zähler prüft sie die zusammengesetzte Identität aus `objekt_id`, `einheit_id` und `zaehler_id`.
 
 ## Zählerwechsel
 
