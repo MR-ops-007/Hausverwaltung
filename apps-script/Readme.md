@@ -9,7 +9,7 @@ Die aktuelle Backend-Version steht im Kopf von `Code.gs` und zusätzlich in der 
 Aktueller Stand:
 
 ```text
-4.4.0
+4.4.1
 ```
 
 Regel:
@@ -20,6 +20,7 @@ Regel:
 - Die Tests prüfen die erwartete `BACKEND_VERSION`, damit vergessene Versionsupdates auffallen.
 - Version `4.3.1` repariert das zeitzonenstabile Parsing von JavaScript-Date-Strings für generierte `stand_id`-Zeitstempel.
 - Version `4.4.0` ergänzt eine Preview-/Apply-Migration für Bestands-Zählerstände.
+- Version `4.4.1` ergänzt ein Report-Sheet für die Migrationsanalyse.
 
 ## Zweck
 
@@ -90,9 +91,11 @@ Die bestehenden 1.910 Produktivzeilen haben bereits alte `stand_id`-Werte im ein
 
 Ablauf im Apps Script Editor:
 
-1. `previewStandIdMigration` ausführen.
-2. Ergebnis prüfen: `unresolvedRows` und `duplicateRows` müssen `0` sein.
-3. Erst danach `applyStandIdMigration` ausführen.
+1. `writeStandIdMigrationReport` ausführen.
+2. Sheet `_migration_stand_id_report` prüfen.
+3. Offene `Unresolved Rows` und `Duplicate New stand_id Rows` klären.
+4. Optional `previewStandIdMigration` erneut ausführen.
+5. Erst danach `applyStandIdMigration` ausführen.
 
 `applyStandIdMigration` bricht automatisch ab, wenn unklare oder doppelte neue IDs gefunden werden.
 

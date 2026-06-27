@@ -273,3 +273,109 @@ function applyStandIdMigration(options) {
 
   return preview;
 }
+
+function getOrCreateStandIdMigrationReportSheet(ss) {
+  const sheetName = "_migration_stand_id_report";
+  let sheet = ss.getSheetByName(sheetName);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+  }
+
+  sheet.clear();
+  return sheet;
+}
+
+function writeStandIdMigrationSection(sheet, startRow, title, headers, rows) {
+  sheet.getRange(startRow, 1).setValue(title);
+  sheet.getRange(startRow, 1).setFontWeight("bold");
+
+  if (headers.length > 0) {
+    sheet.getRange(startRow + 1, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(startRow + 1, 1, 1, headers.length).setFontWeight("bold");
+  }
+
+  if (rows.length > 0) {
+    sheet.getRange(startRow + 2, 1, rows.length, headers.length).setValues(rows);
+  }
+
+  return startRow + Math.max(rows.length, 1) + 4;
+}
+
+function writeStandIdMigrationReport(options) {
+  const preview = previewStandIdMigration(options);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const reportSheet = getOrCreateStandIdMigrationReportSheet(ss);
+  let nextRow = 1;
+
+  const summaryRows = [
+    ["totalRows", preview.totalRows],
+    ["migratableRows", preview.migratableRows],
+    ["changedRows", preview.changedRows],
+    ["unchangedRows", preview.unchangedRows],
+    ["unresolvedRows", preview.unresolvedRows],
+    ["duplicateRows", preview.duplicateRows],
+    ["missingHeaders", preview.missingHeaders.join(", ")]
+  ];
+
+  nextRow = writeStandIdMigrationSection(
+    reportSheet,
+    nextRow,
+    "Summary",
+    ["metric", "value"],
+    summaryRows
+  );
+
+  nextRow = writeStandIdMigrationSection(
+    reportSheet,
+    nextRow,
+    "Unresolved Rows",
+    ["row", "reason", "stand_id", "zaehler_id", "zeitstempel"],
+    preview.unresolved.map(item => [
+      item.row,
+      item.reason,
+      item.stand_id,
+      item.zaehler_id,
+      item.zeitstempel
+    ])
+  );
+
+  nextRow = writeStandIdMigrationSection(
+    reportSheet,
+    nextRow,
+    "Duplicate New stand_id Rows",
+    ["row", "duplicateOfRow", "new stand_id"],
+    preview.duplicates.map(item => [
+      item.row,
+      item.duplicateOfRow,
+      item.stand_id
+    ])
+  );
+
+  writeStandIdMigrationSection(
+    reportSheet,
+    nextRow,
+    "Changed Rows",
+    ["row", "oldStandId", "newStandId", "objekt_id", "einheit_id", "zaehler_id"],
+    preview.changes.map(item => [
+      item.row,
+      item.oldStandId,
+      item.newStandId,
+      item.objekt_id,
+      item.einheit_id,
+      item.zaehler_id
+    ])
+  );
+
+  reportSheet.autoResizeColumns(1, 6);
+  Logger.log("Migrationsreport geschrieben: _migration_stand_id_report");
+
+  return {
+    sheetName: "_migration_stand_id_report",
+    totalRows: preview.totalRows,
+    migratableRows: preview.migratableRows,
+    changedRows: preview.changedRows,
+    unresolvedRows: preview.unresolvedRows,
+    duplicateRows: preview.duplicateRows
+  };
+}

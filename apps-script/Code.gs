@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.4.0
+ * Version: 4.4.1
  * Stand: 2026-06-27
  *
  * Änderungen seit v4.1:
@@ -16,8 +16,11 @@
  *
  * Änderungen seit v4.3.1:
  * - Preview-/Apply-Migration für Bestands-Zaehlerstaende ergänzt
+ *
+ * Änderungen seit v4.4:
+ * - Report-Sheet für stand_id-Migrationsanalyse ergänzt
  */
-const BACKEND_VERSION = "4.4.0";
+const BACKEND_VERSION = "4.4.1";
 
 function sendJSON(obj) {
   return ContentService
