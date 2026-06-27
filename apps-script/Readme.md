@@ -9,7 +9,7 @@ Die aktuelle Backend-Version steht im Kopf von `Code.gs` und zusätzlich in der 
 Aktueller Stand:
 
 ```text
-4.4.3
+4.4.4
 ```
 
 Regel:
@@ -23,6 +23,7 @@ Regel:
 - Version `4.4.1` ergänzt ein Report-Sheet für die Migrationsanalyse.
 - Version `4.4.2` lernt eindeutige `zaehler_id`/`einheit_id`-Mappings aus bereits vorbereiteten Bestandsdaten.
 - Version `4.4.3` löst bekannte fehlerhafte Bestands-Mappings per Override auf.
+- Version `4.4.4` ergänzt den virtuellen Warmwasser-Gesamtzähler für historische Werte.
 
 ## Zweck
 
@@ -97,9 +98,12 @@ Ablauf im Apps Script Editor:
 2. Sheet `_migration_stand_id_report` prüfen.
 3. Offene `Unresolved Rows`, `Mapping Conflicts` und `Duplicate New stand_id Rows` klären.
 4. Optional `previewStandIdMigration` erneut ausführen.
-5. Erst danach `applyStandIdMigration` ausführen.
+5. Bei Bedarf `ensureHistoricalCalculatedMeters` ausführen, um den virtuellen Warmwasser-Gesamtzähler in `Zaehler` anzulegen.
+6. Erst danach `applyStandIdMigration` ausführen.
 
 `applyStandIdMigration` bricht automatisch ab, wenn unklare oder doppelte neue IDs gefunden werden.
+
+Der virtuelle Zähler `Z_WARMWASSER_WW_GESAMT_BERECHNET` ist als `berechnet = TRUE` und `erfassbar = FALSE` definiert. Als `einbauort` wird `berechneter Wert, kein Zaehler` verwendet.
 
 ## Plausibilitätswarnungen
 

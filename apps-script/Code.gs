@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.4.3
+ * Version: 4.4.4
  * Stand: 2026-06-27
  *
  * Änderungen seit v4.1:
@@ -25,8 +25,11 @@
  *
  * Änderungen seit v4.4.2:
  * - Bekannte fehlerhafte Bestands-Mappings werden per Override aufgelöst
+ *
+ * Änderungen seit v4.4.3:
+ * - Virtueller Warmwasser-Gesamtzähler für historische Migration ergänzt
  */
-const BACKEND_VERSION = "4.4.3";
+const BACKEND_VERSION = "4.4.4";
 
 function sendJSON(obj) {
   return ContentService

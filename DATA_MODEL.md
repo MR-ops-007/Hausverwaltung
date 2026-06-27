@@ -237,6 +237,8 @@ Da die bisherigen Produktivdaten im Wesentlichen aus einem Objekt stammen, ist d
 
 Bekannte historische Übertragungsfehler bei `einheit_id` werden in der Migration per Override korrigiert, z. B. `Ra-HS-29_WE_010` -> `Ra-HS-29_WE_10` und Flur-/Heizungszähler auf eigene Allgemein-Einheiten.
 
+Der historische berechnete Warmwasser-Gesamtwert wird als virtueller Zähler `Z_WARMWASSER_WW_GESAMT_BERECHNET` geführt. Er ist `berechnet = TRUE`, `erfassbar = FALSE` und verwendet `einbauort = berechneter Wert, kein Zaehler`.
+
 ### Tabelle: `Parameter` (Konfiguration)
 | Spalte | Feldname | Datentyp | Beschreibung |
 | :--- | :--- | :--- | :--- |

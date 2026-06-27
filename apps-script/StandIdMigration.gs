@@ -6,9 +6,55 @@ const STAND_ID_MIGRATION_EINHEIT_OVERRIDES = {
   Z_MASCHINENSTUNDEN_PRIVAT: "Ra-HS-29_GE_02",
   Z_STROM_KWH_FLUR: "Ra-HS-29_Allgemein_Flur",
   Z_STROM_KWH_HEIZUNG: "Ra-HS-29_Allgemein_Heizung",
+  Z_WARMWASSER_WW_GESAMT_BERECHNET: "Ra-HS-29_Allgemein_Heizung",
   Z_WARMWASSER_WW_WOHNUNG_10: "Ra-HS-29_WE_10",
   Z_WARMWASSER_WW_WOHNUNG_11: "Ra-HS-29_WE_11"
 };
+
+function getHistoricalCalculatedMeterSeedData() {
+  return [
+    {
+      zaehler_id: "Z_WARMWASSER_WW_GESAMT_BERECHNET",
+      objekt_id: "Ra-HS-29",
+      einheit_id: "Ra-HS-29_Allgemein_Heizung",
+      medium: "warmwasser_m3",
+      bezeichnung: "Warmwasser gesamt berechnet",
+      einheit: "m3",
+      einbauort: "berechneter Wert, kein Zaehler",
+      stellen: "",
+      ueberlauf_erlaubt: false,
+      max_plausibler_verbrauch: "",
+      aktiv: true,
+      ersetzt_durch_zaehler_id: "",
+      hinweis: "Historischer berechneter Wert: Warmwasser gesamt abzüglich Verbrauch Wohnung 4 KW",
+      erfassbar: false,
+      berechnet: true
+    }
+  ];
+}
+
+function ensureHistoricalCalculatedMeters() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Zaehler");
+
+  if (!sheet) {
+    throw new Error("Sheet 'Zaehler' fehlt.");
+  }
+
+  let created = 0;
+
+  getHistoricalCalculatedMeterSeedData().forEach(row => {
+    if (appendIfMissingByKeys(sheet, ["objekt_id", "einheit_id", "zaehler_id"], row)) {
+      created++;
+    }
+  });
+
+  Logger.log("Historische berechnete Zähler angelegt: " + created);
+
+  return {
+    created: created
+  };
+}
 
 function normalizeMigrationKey(value) {
   return String(value || "").trim().toUpperCase();

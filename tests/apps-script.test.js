@@ -12,7 +12,7 @@ function loadAppsScriptHelpers() {
   );
 
   const factory = new Function(
-    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildMigratedZaehlerstandItem, buildStandId, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getItemValueForHeader, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
+    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildMigratedZaehlerstandItem, buildStandId, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
   );
 
   return factory();
@@ -22,7 +22,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
   it('declares the current backend version', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
 
-    expect(BACKEND_VERSION).toBe('4.4.3');
+    expect(BACKEND_VERSION).toBe('4.4.4');
   });
 
   it('formats German timestamps for stand_id values', () => {
@@ -329,8 +329,26 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     expect(deriveEinheitIdFromLegacyZaehlerId('Z_STROM_KWH_PRIVAT_NT', 'Ra-HS-29')).toBe('Ra-HS-29_GE_02');
     expect(deriveEinheitIdFromLegacyZaehlerId('Z_STROM_KWH_FLUR', 'Ra-HS-29')).toBe('Ra-HS-29_Allgemein_Flur');
     expect(deriveEinheitIdFromLegacyZaehlerId('Z_STROM_KWH_HEIZUNG', 'Ra-HS-29')).toBe('Ra-HS-29_Allgemein_Heizung');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_WARMWASSER_WW_GESAMT_BERECHNET', 'Ra-HS-29')).toBe('Ra-HS-29_Allgemein_Heizung');
     expect(deriveEinheitIdFromLegacyZaehlerId('Z_WARMWASSER_WW_WOHNUNG_10', 'Ra-HS-29')).toBe('Ra-HS-29_WE_10');
     expect(deriveEinheitIdFromLegacyZaehlerId('Z_WARMWASSER_WW_WOHNUNG_11', 'Ra-HS-29')).toBe('Ra-HS-29_WE_11');
+  });
+
+  it('defines the historical calculated warm water meter as non-manual', () => {
+    const { getHistoricalCalculatedMeterSeedData } = loadAppsScriptHelpers();
+
+    expect(getHistoricalCalculatedMeterSeedData()).toEqual([
+      expect.objectContaining({
+        zaehler_id: 'Z_WARMWASSER_WW_GESAMT_BERECHNET',
+        objekt_id: 'Ra-HS-29',
+        einheit_id: 'Ra-HS-29_Allgemein_Heizung',
+        medium: 'warmwasser_m3',
+        einbauort: 'berechneter Wert, kein Zaehler',
+        erfassbar: false,
+        berechnet: true,
+        aktiv: true,
+      }),
+    ]);
   });
 
   it('builds migrated meter readings with object, unit and new stand_id', () => {
