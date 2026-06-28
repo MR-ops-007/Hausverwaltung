@@ -72,6 +72,174 @@ const uiService = {
     );
   },
 
+  createFallbackValidationService() {
+    const VALIDATION_STATUS = {
+      OK: 'OK',
+      WARNUNG: 'WARNUNG',
+      FEHLER: 'FEHLER',
+    };
+    const toNumber = value => {
+      if (value === null || value === undefined || value === '') {
+        return null;
+      }
+
+      const normalized = typeof value === 'string'
+        ? value.replace(',', '.').trim()
+        : value;
+      const number = Number(normalized);
+
+      return Number.isFinite(number) ? number : null;
+    };
+    const toBoolean = value => (
+      value === true ||
+      value === 'TRUE' ||
+      value === 'true' ||
+      value === 1 ||
+      value === '1'
+    );
+    const normalizeKey = value => String(value || '').trim().toLowerCase();
+    const buildResult = (status, code, message, options = {}) => ({
+      status,
+      code,
+      message,
+      delta: options.delta ?? null,
+      needsConfirmation: options.needsConfirmation ?? false,
+    });
+    const calculateOverflowDelta = (lastValue, newValue, digits) => {
+      const maxValueExclusive = Math.pow(10, digits);
+      return maxValueExclusive - lastValue + newValue;
+    };
+    const isReverseFillLevelMeter = zaehler => {
+      const medium = normalizeKey(zaehler.medium);
+      const zaehlerId = normalizeKey(zaehler.zaehler_id);
+
+      return medium === 'oel_stand_cm' || zaehlerId.includes('oel_stand_in_cm');
+    };
+
+    return {
+      VALIDATION_STATUS,
+      validateZaehlerstand({ letzterWert, neuerWert, zaehler = {}, context = {} }) {
+        const previous = toNumber(letzterWert);
+        const current = toNumber(neuerWert);
+
+        if (current === null) {
+          return buildResult(VALIDATION_STATUS.FEHLER, 'INVALID_NEW_VALUE', 'Der neue Zählerstand ist keine gültige Zahl.');
+        }
+
+        if (current < 0) {
+          return buildResult(VALIDATION_STATUS.FEHLER, 'NEGATIVE_NEW_VALUE', 'Der neue Zählerstand darf nicht negativ sein.');
+        }
+
+        if (previous === null) {
+          return buildResult(VALIDATION_STATUS.OK, 'FIRST_READING', 'Erstablesung ohne vorherigen Vergleichswert.', { delta: null });
+        }
+
+        if (previous < 0) {
+          return buildResult(VALIDATION_STATUS.FEHLER, 'INVALID_PREVIOUS_VALUE', 'Der vorherige Zählerstand ist ungültig.');
+        }
+
+        const maxPlausibleConsumption = toNumber(zaehler.max_plausibler_verbrauch);
+        const isMeterChange = toBoolean(context.zaehlerwechsel) || toBoolean(zaehler.zaehlerwechsel);
+
+        if (isReverseFillLevelMeter(zaehler)) {
+          if (current <= previous) {
+            const delta = previous - current;
+
+            if (maxPlausibleConsumption !== null && delta > maxPlausibleConsumption) {
+              return buildResult(
+                VALIDATION_STATUS.WARNUNG,
+                'HIGH_FILL_LEVEL_CONSUMPTION',
+                'Der Füllstand ist stärker gesunken als der definierte plausible Maximalverbrauch.',
+                { delta, needsConfirmation: true }
+              );
+            }
+
+            return buildResult(VALIDATION_STATUS.OK, 'FILL_LEVEL_DECREASE', 'Der niedrigere Füllstand ist als Verbrauch plausibel.', { delta });
+          }
+
+          return buildResult(
+            VALIDATION_STATUS.WARNUNG,
+            'FILL_LEVEL_INCREASE',
+            'Der Füllstand ist höher als der vorherige Wert. Bitte Betankung, Korrektur oder Eingabefehler prüfen.',
+            { delta: current - previous, needsConfirmation: true }
+          );
+        }
+
+        if (current >= previous) {
+          const delta = current - previous;
+
+          if (maxPlausibleConsumption !== null && delta > maxPlausibleConsumption) {
+            return buildResult(
+              VALIDATION_STATUS.WARNUNG,
+              'HIGH_CONSUMPTION',
+              'Der Verbrauch ist höher als der definierte plausible Maximalwert.',
+              { delta, needsConfirmation: true }
+            );
+          }
+
+          return buildResult(VALIDATION_STATUS.OK, 'NORMAL_INCREASE', 'Der neue Zählerstand ist plausibel.', { delta });
+        }
+
+        if (isMeterChange) {
+          return buildResult(VALIDATION_STATUS.OK, 'METER_CHANGE', 'Der niedrigere Wert ist durch einen Zählerwechsel erklärbar.', { delta: null });
+        }
+
+        const overflowAllowed = toBoolean(zaehler.ueberlauf_erlaubt);
+        const digits = toNumber(zaehler.stellen);
+
+        if (overflowAllowed && digits !== null && digits > 0) {
+          const delta = calculateOverflowDelta(previous, current, digits);
+
+          if (maxPlausibleConsumption !== null && delta > maxPlausibleConsumption) {
+            return buildResult(
+              VALIDATION_STATUS.WARNUNG,
+              'HIGH_OVERFLOW_CONSUMPTION',
+              'Der niedrigere Wert kann durch Überlauf erklärbar sein, der berechnete Verbrauch ist aber ungewöhnlich hoch.',
+              { delta, needsConfirmation: true }
+            );
+          }
+
+          return buildResult(VALIDATION_STATUS.OK, 'OVERFLOW', 'Der niedrigere Wert ist durch einen Zählerüberlauf erklärbar.', { delta });
+        }
+
+        return buildResult(
+          VALIDATION_STATUS.WARNUNG,
+          'LOWER_VALUE_WITHOUT_EXPLANATION',
+          'Der neue Zählerstand ist niedriger als der vorherige Wert. Bitte Zählerwechsel, Überlauf oder Eingabefehler prüfen.',
+          { delta: null, needsConfirmation: true }
+        );
+      }
+    };
+  },
+
+  async getValidationService() {
+    let validator = window.validationService;
+
+    if (validator && typeof validator.validateZaehlerstand === 'function') {
+      return validator;
+    }
+
+    try {
+      let validationModule;
+
+      try {
+        validationModule = await import('./validation-service.js?v=20260628-validation-fallback-v2');
+      } catch (versionedError) {
+        validationModule = await import('./validation-service.js');
+      }
+
+      validator = {
+        VALIDATION_STATUS: validationModule.VALIDATION_STATUS,
+        validateZaehlerstand: validationModule.validateZaehlerstand
+      };
+    } catch (error) {
+      validator = this.createFallbackValidationService();
+    }
+
+    window.validationService = validator;
+    return validator;
+  },
+
   getLatestZaehlerstand(zaehlerOrId) {
     const readings = Array.isArray(dataService.state.zaehlerstaende)
       ? dataService.state.zaehlerstaende
@@ -250,27 +418,7 @@ const uiService = {
     const errors = [];
     const zeitstempel = this.formatGermanTimestamp(new Date());
 
-    let validator = window.validationService;
-
-    if (!validator || typeof validator.validateZaehlerstand !== 'function') {
-      try {
-        let validationModule;
-
-        try {
-          validationModule = await import('./validation-service.js?v=20260628-validation-fallback-v1');
-        } catch (versionedError) {
-          validationModule = await import('./validation-service.js');
-        }
-
-        validator = {
-          VALIDATION_STATUS: validationModule.VALIDATION_STATUS,
-          validateZaehlerstand: validationModule.validateZaehlerstand
-        };
-        window.validationService = validator;
-      } catch (error) {
-        console.error('Plausibilitätsprüfung konnte nicht nachgeladen werden.', error);
-      }
-    }
+    const validator = await this.getValidationService();
 
     if (!validator || typeof validator.validateZaehlerstand !== 'function') {
       alert('Plausibilitätsprüfung konnte nicht geladen werden. Speicherung wurde aus Sicherheitsgründen abgebrochen.');

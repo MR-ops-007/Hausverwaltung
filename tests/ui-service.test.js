@@ -8,6 +8,7 @@ function loadUiService({
   currentMeters = [],
   saveResponse = { status: 'success' },
   confirmResult = true,
+  validationServiceAvailable = true,
 } = {}) {
   const uiServiceCode = readFileSync(
     new URL('../ui-service.js', import.meta.url),
@@ -72,10 +73,12 @@ function loadUiService({
   };
 
   const window = {
-    validationService: {
-      validateZaehlerstand,
-      VALIDATION_STATUS,
-    },
+    validationService: validationServiceAvailable
+      ? {
+        validateZaehlerstand,
+        VALIDATION_STATUS,
+      }
+      : undefined,
   };
 
   const alert = (message) => {
@@ -547,6 +550,41 @@ describe('uiService.saveZaehler', () => {
     expect(firstRun.confirms[0]).toContain('Alt: 100');
     expect(firstRun.confirms[0]).toContain('Neu: 90');
     expect(firstRun.saveCalls).toHaveLength(1);
+  });
+
+  it('uses built-in validation fallback if the browser module did not initialize', async () => {
+    const meter = {
+      zaehler_id: 'Z_OEL_STAND_IN_CM',
+      objekt_id: 'TEST',
+      einheit_id: 'TEST_Allgemein',
+      bezeichnung: 'Heizung Ölstand (cm) TEST',
+      medium: 'oel_stand_cm',
+    };
+
+    const { uiService, saveCalls, confirms, alerts } = loadUiService({
+      validationServiceAvailable: false,
+      currentMeters: [meter],
+      inputValuesByZaehlerId: {
+        Z_OEL_STAND_IN_CM: '55',
+      },
+      zaehlerstaende: [
+        {
+          objekt_id: 'TEST',
+          einheit_id: 'TEST_Allgemein',
+          zaehler_id: 'Z_OEL_STAND_IN_CM',
+          wert: 33,
+          zeitstempel: '28.06.2026 10:00',
+        },
+      ],
+      confirmResult: false,
+    });
+
+    await uiService.saveZaehler();
+
+    expect(confirms).toHaveLength(1);
+    expect(confirms[0]).toContain('Füllstand ist höher');
+    expect(saveCalls).toHaveLength(0);
+    expect(alerts).not.toContain('Plausibilitätsprüfung konnte nicht geladen werden. Speicherung wurde aus Sicherheitsgründen abgebrochen.');
   });
 
   it('ignores empty inputs and alerts if no values were entered', async () => {

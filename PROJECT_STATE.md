@@ -99,6 +99,7 @@ Aktueller Stand:
 - Berechnete, inaktive oder nicht erfassbare Zähler werden nicht in der Eingabemaske angezeigt.
 - Letzte Vorwerte werden über `objekt_id + einheit_id + zaehler_id` gesucht.
 - Erfolgreich gespeicherte Zählerstände werden direkt in den lokalen UI-State übernommen, damit Folgeeingaben im Testbereich ohne Neuladen plausibilisiert werden.
+- Falls der Browser die modulare Plausibilitätsprüfung nicht initialisiert, nutzt die UI eine eingebaute Fallback-Validierung statt die Speicherung pauschal abzubrechen.
 
 ---
 
