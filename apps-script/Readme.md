@@ -9,7 +9,7 @@ Die aktuelle Backend-Version steht im Kopf von `Code.gs` und zusätzlich in der 
 Aktueller Stand:
 
 ```text
-4.4.6
+4.5.0
 ```
 
 Regel:
@@ -26,6 +26,7 @@ Regel:
 - Version `4.4.4` ergänzt den virtuellen Warmwasser-Gesamtzähler für historische Werte.
 - Version `4.4.5` ergänzt einen separaten Duplikat-Report für die `stand_id`-Migration.
 - Version `4.4.6` löst historische Doppelwerte als Zählerstand plus berechneten Verbrauch auf.
+- Version `4.5.0` ergänzt die LOK-Zählerstruktur und Eingang-Stammdaten.
 
 ## Zweck
 
@@ -199,3 +200,15 @@ Vorgehen:
 4. Besonderheiten werden im Feld `hinweis` dokumentiert.
 
 Die eigentlichen Messwerte bleiben weiterhin in `Zaehlerstaende`.
+
+## LOK-Zählerstruktur
+
+Für den Lokschuppen (`LOK`) gibt es die Wartungsfunktion `ensureLokStructureData`.
+
+Sie ergänzt:
+
+- `Objekte.eingange = A,B,C`
+- `Einheiten.eingang` für `LOK_WE_01` bis `LOK_WE_15`, `LOK_GE_01` und `LOK_Allgemein`
+- fehlende Zähler mit kurzen, wiederverwendbaren Codes wie `STROM`, `KW`, `WW`, `STROM_ALLGEMEIN`, `KW_HAUPTZAEHLER`, `WW_ZULAUF`, `OEL_STAND_CM` und `OEL_GETANKT_L`
+
+Die Funktion ist idempotent. Bestehende Eingangswerte werden nicht überschrieben, fehlende Zähler werden anhand von `objekt_id + einheit_id + zaehler_id` ergänzt.

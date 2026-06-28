@@ -52,6 +52,7 @@ Speichert jede Zahlung auf einen Vertrag.
 | **E** | `ort` | String | Ort |
 | **F** | `adresszusatz` | String | Optional |
 | **G** | `besitzer_id` | String | FK -> Nutzer.nutzer_id (Optional: für Datenschutz) |
+| **H** | `eingange` | String | Optional: kommagetrennte Gebäudeeingänge, z. B. `A,B,C` |
 
 #### Reservierter Testbereich
 
@@ -90,6 +91,23 @@ Auswertungen und spätere Dashboards sollen diesen Testbereich entweder sichtbar
 | **D** | `nummer` | String | Anzeigename (z.B. "1. OG rechts") |
 | **E** | `qm` | Zahl | Wohnfläche |
 | **F** | `personen_standard` | Zahl | Standardbelegung (Soll) |
+| **G** | `eingang` | String | Optional: Gebäudeeingang, z. B. `A`, `B`, `C` oder `Allgemein` |
+
+#### LOK Eingänge
+
+Das Objekt `LOK` nutzt die optionalen Gebäudeeingänge `A`, `B` und `C`.
+
+Aktuelle Zuordnung:
+
+```text
+LOK_WE_01 bis LOK_WE_05 -> Eingang A
+LOK_WE_06 bis LOK_WE_10 -> Eingang B
+LOK_WE_11 bis LOK_WE_15 -> Eingang C
+LOK_GE_01 -> Eingang A
+LOK_Allgemein -> Allgemein
+```
+
+Die Zuordnung wird in Apps Script zentral über `getLokEinheitEntranceMapping` gepflegt, damit Korrekturen nicht an mehreren Stellen erfolgen müssen.
 
 ### Tabelle: `Personen` (Natürliche Personen)
 **Wichtig:** Trennt Person von Mietvertrag. Mehr Hauptmieter sind hier möglich.

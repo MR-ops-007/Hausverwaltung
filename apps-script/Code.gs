@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.4.6
+ * Version: 4.5.0
  * Stand: 2026-06-27
  *
  * Änderungen seit v4.1:
@@ -34,8 +34,11 @@
  *
  * Änderungen seit v4.4.5:
  * - Historische Doppelwerte werden als Zählerstand plus berechneter Verbrauch aufgelöst
+ *
+ * Änderungen seit v4.4.6:
+ * - LOK-Zählerstruktur und Eingangs-Stammdaten ergänzt
  */
-const BACKEND_VERSION = "4.4.6";
+const BACKEND_VERSION = "4.5.0";
 
 function sendJSON(obj) {
   return ContentService
@@ -475,6 +478,254 @@ function getProdTestSeedData() {
   };
 }
 
+function getLokEinheitEntranceMapping() {
+  return {
+    LOK_WE_01: "A",
+    LOK_WE_02: "A",
+    LOK_WE_03: "A",
+    LOK_WE_04: "A",
+    LOK_WE_05: "A",
+    LOK_WE_06: "B",
+    LOK_WE_07: "B",
+    LOK_WE_08: "B",
+    LOK_WE_09: "B",
+    LOK_WE_10: "B",
+    LOK_WE_11: "C",
+    LOK_WE_12: "C",
+    LOK_WE_13: "C",
+    LOK_WE_14: "C",
+    LOK_WE_15: "C",
+    LOK_GE_01: "A",
+    LOK_Allgemein: "Allgemein"
+  };
+}
+
+function createLokWohnungMeters(einheitId, entrance) {
+  const label = einheitId.replace("LOK_", "").replace("_", " ");
+  const location = entrance === "Allgemein"
+    ? "Allgemein"
+    : "Eingang " + entrance;
+
+  return [
+    {
+      zaehler_id: "STROM",
+      objekt_id: "LOK",
+      einheit_id: einheitId,
+      medium: "strom_ht_kwh",
+      bezeichnung: "Strom " + label,
+      einheit: "kWh",
+      einbauort: location,
+      stellen: 5,
+      ueberlauf_erlaubt: false,
+      max_plausibler_verbrauch: 100,
+      aktiv: true,
+      ersetzt_durch_zaehler_id: "",
+      hinweis: "",
+      erfassbar: true,
+      berechnet: false
+    },
+    {
+      zaehler_id: "KW",
+      objekt_id: "LOK",
+      einheit_id: einheitId,
+      medium: "kaltwasser_m3",
+      bezeichnung: "Kaltwasser " + label,
+      einheit: "m3",
+      einbauort: location,
+      stellen: 4,
+      ueberlauf_erlaubt: true,
+      max_plausibler_verbrauch: 4,
+      aktiv: true,
+      ersetzt_durch_zaehler_id: "",
+      hinweis: "",
+      erfassbar: true,
+      berechnet: false
+    },
+    {
+      zaehler_id: "WW",
+      objekt_id: "LOK",
+      einheit_id: einheitId,
+      medium: "warmwasser_m3",
+      bezeichnung: "Warmwasser " + label,
+      einheit: "m3",
+      einbauort: location,
+      stellen: 4,
+      ueberlauf_erlaubt: true,
+      max_plausibler_verbrauch: 2,
+      aktiv: true,
+      ersetzt_durch_zaehler_id: "",
+      hinweis: "",
+      erfassbar: true,
+      berechnet: false
+    }
+  ];
+}
+
+function getLokSeedData() {
+  const entranceMapping = getLokEinheitEntranceMapping();
+  const unitIds = Object.keys(entranceMapping);
+  const wohnungAndGewerbeUnitIds = unitIds.filter(einheitId => einheitId !== "LOK_Allgemein");
+  const zaehler = [];
+
+  wohnungAndGewerbeUnitIds.forEach(einheitId => {
+    createLokWohnungMeters(einheitId, entranceMapping[einheitId]).forEach(row => zaehler.push(row));
+  });
+
+  [
+    {
+      zaehler_id: "STROM_ALLGEMEIN",
+      medium: "strom_ht_kwh",
+      bezeichnung: "Strom Allgemein",
+      einheit: "kWh",
+      einbauort: "Allgemein",
+      stellen: 5,
+      ueberlauf_erlaubt: false,
+      max_plausibler_verbrauch: 100,
+      hinweis: "Allgemeinstrom Lokschuppen"
+    },
+    {
+      zaehler_id: "STROM_NT",
+      medium: "strom_nt_kwh",
+      bezeichnung: "Strom NT Allgemein",
+      einheit: "kWh",
+      einbauort: "Allgemein",
+      stellen: 5,
+      ueberlauf_erlaubt: false,
+      max_plausibler_verbrauch: 100,
+      hinweis: "Niedertarif Allgemein Lokschuppen"
+    },
+    {
+      zaehler_id: "KW_HAUPTZAEHLER",
+      medium: "kaltwasser_m3",
+      bezeichnung: "Kaltwasser Hauptzähler",
+      einheit: "m3",
+      einbauort: "Allgemein",
+      stellen: 6,
+      ueberlauf_erlaubt: true,
+      max_plausibler_verbrauch: 100,
+      hinweis: "Hauptzähler Lokschuppen"
+    },
+    {
+      zaehler_id: "WW_ZULAUF",
+      medium: "warmwasser_m3",
+      bezeichnung: "Warmwasser Zulauf",
+      einheit: "m3",
+      einbauort: "Allgemein",
+      stellen: 6,
+      ueberlauf_erlaubt: true,
+      max_plausibler_verbrauch: 100,
+      hinweis: "Warmwasser-Zulauf Lokschuppen"
+    },
+    {
+      zaehler_id: "OEL_STAND_CM",
+      medium: "oel_stand_cm",
+      bezeichnung: "Heizung Ölstand (cm)",
+      einheit: "cm",
+      einbauort: "Heizung",
+      stellen: "",
+      ueberlauf_erlaubt: false,
+      max_plausibler_verbrauch: "",
+      hinweis: "Rückläufiger Füllstand"
+    },
+    {
+      zaehler_id: "OEL_GETANKT_L",
+      medium: "oel_stand_l",
+      bezeichnung: "Heizung Öl getankt (Liter)",
+      einheit: "l",
+      einbauort: "Heizung",
+      stellen: "",
+      ueberlauf_erlaubt: false,
+      max_plausibler_verbrauch: "",
+      hinweis: "Erfassung von Öllieferungen"
+    }
+  ].forEach(row => {
+    zaehler.push(Object.assign({
+      objekt_id: "LOK",
+      einheit_id: "LOK_Allgemein",
+      aktiv: true,
+      ersetzt_durch_zaehler_id: "",
+      erfassbar: true,
+      berechnet: false
+    }, row));
+  });
+
+  return {
+    objekte: [
+      {
+        objekt_id: "LOK",
+        eingange: "A,B,C"
+      }
+    ],
+    einheiten: unitIds.map(einheitId => ({
+      einheit_id: einheitId,
+      eingang: entranceMapping[einheitId]
+    })),
+    zaehler: zaehler
+  };
+}
+
+function ensureSheetHeaders(sheet, headerNames) {
+  const lastColumn = sheet.getLastColumn();
+  const existingHeaders = lastColumn > 0
+    ? sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(header => String(header).trim())
+    : [];
+  const normalizedExistingHeaders = existingHeaders.map(header => header.toLowerCase());
+  const missingHeaders = headerNames.filter(headerName =>
+    normalizedExistingHeaders.indexOf(String(headerName).toLowerCase()) === -1
+  );
+
+  if (missingHeaders.length === 0) {
+    return [];
+  }
+
+  sheet.getRange(1, existingHeaders.length + 1, 1, missingHeaders.length).setValues([missingHeaders]);
+
+  return missingHeaders;
+}
+
+function updateExistingRowBlankFieldsByKey(sheet, keyName, item, fieldNames) {
+  const rows = sheet.getDataRange().getValues();
+
+  if (rows.length < 1) {
+    throw new Error("Sheet ohne Header: " + sheet.getName());
+  }
+
+  const headers = rows[0].map(header => String(header).trim());
+  const normalizedHeaders = headers.map(header => header.toLowerCase());
+  const keyIndex = normalizedHeaders.indexOf(String(keyName).toLowerCase());
+
+  if (keyIndex === -1) {
+    throw new Error("Key-Spalte nicht gefunden: " + keyName + " in " + sheet.getName());
+  }
+
+  const rowIndex = rows.findIndex((row, index) =>
+    index > 0 && String(row[keyIndex]).trim() === String(item[keyName]).trim()
+  );
+
+  if (rowIndex === -1) {
+    return false;
+  }
+
+  let changed = false;
+
+  fieldNames.forEach(fieldName => {
+    const columnIndex = normalizedHeaders.indexOf(String(fieldName).toLowerCase());
+
+    if (columnIndex === -1) {
+      return;
+    }
+
+    const currentValue = rows[rowIndex][columnIndex];
+
+    if (isBlankValue(currentValue) && !isBlankValue(item[fieldName])) {
+      sheet.getRange(rowIndex + 1, columnIndex + 1).setValue(item[fieldName]);
+      changed = true;
+    }
+  });
+
+  return changed;
+}
+
 function appendIfMissingByKeys(sheet, keyNames, item) {
   const rows = sheet.getDataRange().getValues();
 
@@ -547,6 +798,64 @@ function ensureProdTestData() {
     status: "success",
     created: created,
     message: "Prod-Testdaten geprueft/angelegt"
+  };
+}
+
+function ensureLokStructureData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const seed = getLokSeedData();
+
+  const sObjekte = ss.getSheetByName("Objekte");
+  const sEinheiten = ss.getSheetByName("Einheiten");
+  const sZaehler = ss.getSheetByName("Zaehler");
+
+  if (!sObjekte || !sEinheiten || !sZaehler) {
+    throw new Error("Mindestens ein Stammdaten-Sheet fehlt: Objekte, Einheiten oder Zaehler");
+  }
+
+  const addedObjectHeaders = ensureSheetHeaders(sObjekte, ["eingange"]);
+  const addedUnitHeaders = ensureSheetHeaders(sEinheiten, ["eingang"]);
+  let updatedObjects = 0;
+  let updatedUnits = 0;
+  let createdMeters = 0;
+
+  seed.objekte.forEach(row => {
+    if (updateExistingRowBlankFieldsByKey(sObjekte, "objekt_id", row, ["eingange"])) {
+      updatedObjects++;
+    }
+  });
+
+  seed.einheiten.forEach(row => {
+    if (updateExistingRowBlankFieldsByKey(sEinheiten, "einheit_id", row, ["eingang"])) {
+      updatedUnits++;
+    }
+  });
+
+  seed.zaehler.forEach(row => {
+    if (appendIfMissingByKeys(sZaehler, ["objekt_id", "einheit_id", "zaehler_id"], row)) {
+      createdMeters++;
+    }
+  });
+
+  updateAktiveMieterView();
+
+  Logger.log("LOK-Struktur aktualisiert: " + JSON.stringify({
+    addedObjectHeaders: addedObjectHeaders,
+    addedUnitHeaders: addedUnitHeaders,
+    updatedObjects: updatedObjects,
+    updatedUnits: updatedUnits,
+    createdMeters: createdMeters
+  }));
+
+  return {
+    status: "success",
+    addedObjectHeaders: addedObjectHeaders,
+    addedUnitHeaders: addedUnitHeaders,
+    updatedObjects: updatedObjects,
+    updatedUnits: updatedUnits,
+    createdMeters: createdMeters,
+    expectedMeters: seed.zaehler.length,
+    message: "LOK-Struktur geprueft/angelegt"
   };
 }
 

@@ -12,7 +12,7 @@ function loadAppsScriptHelpers() {
   );
 
   const factory = new Function(
-    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildMigratedZaehlerstandItem, buildStandId, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedConsumptionMeterSeedDataFromRows, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
+    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildMigratedZaehlerstandItem, buildStandId, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedConsumptionMeterSeedDataFromRows, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getLokEinheitEntranceMapping, getLokSeedData, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
   );
 
   return factory();
@@ -22,7 +22,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
   it('declares the current backend version', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
 
-    expect(BACKEND_VERSION).toBe('4.4.6');
+    expect(BACKEND_VERSION).toBe('4.5.0');
   });
 
   it('formats German timestamps for stand_id values', () => {
@@ -277,6 +277,78 @@ describe('Apps Script Zaehlerstaende helpers', () => {
           zaehler_id: 'Z_OEL_GETANKT_LITER',
           einheit_id: 'TEST_Allgemein',
           medium: 'oel_stand_l',
+        }),
+      ])
+    );
+  });
+
+  it('defines LOK entrance metadata and reusable short meter codes', () => {
+    const { getLokEinheitEntranceMapping, getLokSeedData } = loadAppsScriptHelpers();
+
+    const mapping = getLokEinheitEntranceMapping();
+    const seed = getLokSeedData();
+
+    expect(mapping).toMatchObject({
+      LOK_WE_01: 'A',
+      LOK_WE_05: 'A',
+      LOK_WE_06: 'B',
+      LOK_WE_10: 'B',
+      LOK_WE_11: 'C',
+      LOK_WE_15: 'C',
+      LOK_GE_01: 'A',
+      LOK_Allgemein: 'Allgemein',
+    });
+    expect(seed.objekte).toEqual([
+      expect.objectContaining({
+        objekt_id: 'LOK',
+        eingange: 'A,B,C',
+      }),
+    ]);
+    expect(seed.einheiten).toHaveLength(17);
+    expect(seed.einheiten).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          einheit_id: 'LOK_WE_01',
+          eingang: 'A',
+        }),
+        expect.objectContaining({
+          einheit_id: 'LOK_WE_06',
+          eingang: 'B',
+        }),
+        expect.objectContaining({
+          einheit_id: 'LOK_WE_11',
+          eingang: 'C',
+        }),
+      ])
+    );
+    expect(seed.zaehler).toHaveLength(54);
+    expect(seed.zaehler).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          objekt_id: 'LOK',
+          einheit_id: 'LOK_WE_01',
+          zaehler_id: 'STROM',
+          medium: 'strom_ht_kwh',
+          einbauort: 'Eingang A',
+        }),
+        expect.objectContaining({
+          objekt_id: 'LOK',
+          einheit_id: 'LOK_WE_01',
+          zaehler_id: 'KW',
+          medium: 'kaltwasser_m3',
+        }),
+        expect.objectContaining({
+          objekt_id: 'LOK',
+          einheit_id: 'LOK_WE_01',
+          zaehler_id: 'WW',
+          medium: 'warmwasser_m3',
+        }),
+        expect.objectContaining({
+          objekt_id: 'LOK',
+          einheit_id: 'LOK_Allgemein',
+          zaehler_id: 'OEL_STAND_CM',
+          medium: 'oel_stand_cm',
+          ueberlauf_erlaubt: false,
         }),
       ])
     );

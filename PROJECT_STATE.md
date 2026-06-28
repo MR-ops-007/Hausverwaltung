@@ -187,7 +187,7 @@ Google Apps Script wird weiterhin manuell versioniert.
 Aktuelle Backend-Version:
 
 ```text
-4.4.6
+4.5.0
 ```
 
 Die Version steht im Kopf von `apps-script/Code.gs` und in `BACKEND_VERSION`.
@@ -204,6 +204,7 @@ Wichtige Regel:
 - `4.4.4` ergänzt den virtuellen Warmwasser-Gesamtzähler für historische Werte.
 - `4.4.5` ergänzt einen separaten Duplikat-Report für die `stand_id`-Migration.
 - `4.4.6` löst historische Doppelwerte als Zählerstand plus berechneten Verbrauch auf.
+- `4.5.0` ergänzt die LOK-Zählerstruktur und Eingang-Stammdaten.
 - `clasp` ist lokal mit dem bestehenden GAS-Projekt verbunden; `npm run clasp:pull` funktioniert unter Node 22.
 
 ---
@@ -262,6 +263,26 @@ Umgesetzt:
 4. Steigender Ölstand erzeugt eine Warnung für Betankung, Korrektur oder Messfehler.
 5. Überlauf wird für Ölstand in cm nicht angewendet.
 
-### 4. Dashboard/Auswertungen
+### 4. LOK-Zählerstruktur
+
+Der Lokschuppen (`LOK`) wird analog zur neuen Zähleridentität über kurze, wiederverwendbare `zaehler_id`s aufgebaut.
+
+Aktuelle Modellannahme:
+
+- `LOK_WE_01` bis `LOK_WE_05`: Eingang `A`
+- `LOK_WE_06` bis `LOK_WE_10`: Eingang `B`
+- `LOK_WE_11` bis `LOK_WE_15`: Eingang `C`
+- `LOK_GE_01`: Eingang `A`
+- `LOK_Allgemein`: `Allgemein`
+
+Apps Script `ensureLokStructureData` ergänzt:
+
+- Spalte `eingange` in `Objekte`, falls sie fehlt
+- Spalte `eingang` in `Einheiten`, falls sie fehlt
+- fehlende LOK-Zähler in `Zaehler`
+
+Die Funktion überschreibt bestehende Eingangswerte nicht, sondern ergänzt nur leere Felder.
+
+### 5. Dashboard/Auswertungen
 
 Spätere Auswertungen sollen den Testbereich `TEST` sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.
