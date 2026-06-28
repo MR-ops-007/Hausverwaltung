@@ -313,3 +313,60 @@ Diese Tabelle wird bei jeder vertraglichen Änderung oder beim Laden asynchron a
 | **F** | `personen_aktuell` | Zahl | Anzahl der aktuell gemeldeten Personen | `Personen.personen_aktuell` |
 
 **Konsistenz-Regel:** Es dürfen niemals manuelle Änderungen in `_view_aktive_mieter` vorgenommen werden. Die Tabelle ist ein reiner Lese-Cache (Read-Only Cache). Schreibzugriffe erfolgen strikt über die Quelltabellen.
+
+### Hilfstabelle: `_view_verbrauch_monat`
+Diese Tabelle wird durch `updateVerbrauchViews` im Apps Script neu aufgebaut. Sie ist die prüfbare Detailbasis für Verbrauchsauswertungen.
+
+Zwei aufeinanderfolgende Zählerstände desselben Zählers bilden ein Intervall. Der Verbrauch dieses Intervalls wird tagesgenau auf die betroffenen Kalendermonate verteilt. Lange Ableseabstände werden dadurch geglättet, ohne dass die UI eigene schwere Berechnungen ausführen muss.
+
+Wichtige Felder:
+
+| Feldname | Datentyp | Beschreibung |
+| :--- | :--- | :--- |
+| `jahr` | Zahl | Kalenderjahr des Monatssegments |
+| `monat` | String | Monat im Format `YYYY-MM` |
+| `objekt_id` | String | Objekt des Zählers |
+| `einheit_id` | String | Einheit des Zählers |
+| `einheit_name` | String | Anzeigename der Einheit |
+| `mieter_name` | String | Aktiver Mieter aus `_view_aktive_mieter`, falls vorhanden |
+| `verbrauchsgruppe` | String | Grobe Auswertungsgruppe, z.B. `WOHNUNG`, `ALLGEMEIN`, `HAUPTZAEHLER`, `BERECHNET` |
+| `untergruppe` | String | Weitere Gruppierung, z.B. `FLUR`, `HEIZUNG`, `PRIVAT_HT`, `PRIVAT_NT` |
+| `zaehler_id` | String | Fachliche Zähler-ID |
+| `medium` | String | Medium des Zählers |
+| `start_datum`, `end_datum` | Datum | Ableseintervall |
+| `start_wert`, `end_wert` | Zahl | Rohwerte aus `Zaehlerstaende` |
+| `differenz_gesamt` | Zahl | Verbrauch des gesamten Intervalls |
+| `tage_gesamt` | Zahl | Länge des gesamten Intervalls in Tagen |
+| `tage_im_monat` | Zahl | Anteilstage dieses Monats am Intervall |
+| `anteil_im_monat` | Zahl | Monatsanteil am Intervall |
+| `verbrauch_monat` | Zahl | Auf den Monat verteilter Verbrauch |
+| `berechnungsmethode` | String | z.B. `DIREKT`, `UEBERLAUF`, `OEL_FUELLSTAND`, `NICHT_BERECHENBAR` |
+| `plausibilitaet_status` | String | `OK` oder prüfpflichtiger Warnstatus |
+| `plausibilitaet_hinweis` | String | Erklärung für fachliche Prüfung |
+| `in_summe_beruecksichtigen` | Boolean | Gibt an, ob der Wert in Summen laufen darf |
+
+### Hilfstabelle: `_view_verbrauch_jahr`
+Diese Tabelle wird aus `_view_verbrauch_monat` aggregiert. Sie dient der schnellen Dashboard-Anzeige und späteren Jahresauswertungen.
+
+Gruppiert wird nach `jahr`, `objekt_id`, `einheit_id` und `zaehler_id`. Warnstatus werden nicht verworfen, sondern als Prüfhinweis mitgezählt.
+
+Wichtige Felder:
+
+| Feldname | Datentyp | Beschreibung |
+| :--- | :--- | :--- |
+| `jahr` | Zahl | Abrechnungsjahr |
+| `objekt_id` | String | Objekt des Zählers |
+| `einheit_id` | String | Einheit des Zählers |
+| `mieter_name` | String | Aktiver Mieter, falls vorhanden |
+| `verbrauchsgruppe` | String | Grobe Auswertungsgruppe |
+| `untergruppe` | String | Weitere Gruppierung |
+| `zaehler_id` | String | Fachliche Zähler-ID |
+| `medium` | String | Medium des Zählers |
+| `verbrauch_jahr` | Zahl | Summe der Monatsverbräuche im Jahr |
+| `verbrauch_monat_durchschnitt` | Zahl | Durchschnitt über Monate mit berechnetem Verbrauch |
+| `anzahl_monate_mit_verbrauch` | Zahl | Anzahl betroffener Monatssegmente |
+| `anzahl_warnungen` | Zahl | Anzahl prüfpflichtiger Monatssegmente |
+| `plausibilitaet_status` | String | `OK` oder kombinierte Warnstatus |
+| `in_summe_beruecksichtigen` | Boolean | Gibt an, ob der Wert in Summen laufen darf |
+
+**Konsistenz-Regel:** Beide Verbrauchsviews sind reine Read-Only-Caches. Fachliche Korrekturen erfolgen in den Quelltabellen oder über dokumentierte Migrationsfunktionen, nicht direkt in den View-Sheets.

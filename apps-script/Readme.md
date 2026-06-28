@@ -9,7 +9,7 @@ Die aktuelle Backend-Version steht im Kopf von `Code.gs` und zusätzlich in der 
 Aktueller Stand:
 
 ```text
-4.5.2
+4.6.0
 ```
 
 Regel:
@@ -29,6 +29,7 @@ Regel:
 - Version `4.5.0` ergänzt die LOK-Zählerstruktur und Eingang-Stammdaten.
 - Version `4.5.1` teilt LOK Wohnung 10 in `LOK_WE_10_A`, `LOK_WE_10_B` und `LOK_WE_10_S` und legt fehlende LOK-Einheiten an.
 - Version `4.5.2` stellt LOK auf einheitgebundene `zaehler_id`s nach `Z_{einheit_id}_{medium}` um und deaktiviert alte Kurz-IDs.
+- Version `4.6.0` ergänzt materialisierte Verbrauchsviews für Monats- und Jahreswerte.
 
 ## Zweck
 
@@ -113,6 +114,27 @@ Ablauf im Apps Script Editor:
 Der Duplikat-Report arbeitet konservativ: Exakte Doppelungen werden als `CANDIDATE_DELETE_EXACT_DUPLICATE` markiert. Historische Doppelwerte mit genau zwei unterschiedlichen numerischen Werten werden als Zählerstand plus berechneter Verbrauch interpretiert: Der höhere Wert bleibt beim ursprünglichen Zähler, der niedrigere Wert erhält eine virtuelle `zaehler_id` mit Suffix `_VERBRAUCH_BERECHNET` und wird als `CONVERT_LOWER_VALUE_TO_CALCULATED_CONSUMPTION` markiert. Alle anderen abweichenden Werte erhalten `REVIEW_VALUE_DIFFERS`.
 
 Der virtuelle Zähler `Z_WARMWASSER_WW_GESAMT_BERECHNET` ist als `berechnet = TRUE` und `erfassbar = FALSE` definiert. Als `einbauort` wird `berechneter Wert, kein Zaehler` verwendet.
+
+## Verbrauchsviews
+
+Version `4.6.0` ergänzt die Backend-Funktion `updateVerbrauchViews`.
+
+Die Funktion berechnet aus `Zaehler`, `Zaehlerstaende`, `Einheiten` und `_view_aktive_mieter` zwei materialisierte Lesetabellen:
+
+- `_view_verbrauch_monat`
+- `_view_verbrauch_jahr`
+
+Die Monatsview ist die Detailbasis. Zwei aufeinanderfolgende Zählerstände bilden ein Verbrauchsintervall. Der Intervallverbrauch wird tagesgenau auf die überlappten Monate verteilt. Die Jahresview aggregiert anschließend aus der Monatsview.
+
+Wichtige Fachregeln:
+
+- Verbrauchswerte mit Warnstatus bleiben sichtbar und werden nicht ausgeblendet.
+- Rückläufige Ölstände in `oel_stand_cm` werden als Verbrauch behandelt.
+- Steigende Ölstände in `oel_stand_cm` werden als prüfpflichtiger Hinweis markiert.
+- Rückläufige normale Zähler ohne zulässigen Überlauf werden als nicht berechenbar markiert.
+- Überlaufwerte werden als Warnung markiert, bleiben aber für die fachliche Prüfung sichtbar.
+
+Die Web-App kann die Views schlank über `?view=verbrauch` abrufen. Dadurch muss die UI die historische Intervalllogik nicht selbst nachbauen.
 
 ## Plausibilitätswarnungen
 

@@ -1,7 +1,7 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.5.2
- * Stand: 2026-06-28
+ * Version: 4.6.0
+ * Stand: 2026-06-29
  *
  * Änderungen seit v4.1:
  * - stand_id nutzt zusammengesetzte Zähleridentität
@@ -45,8 +45,11 @@
  * Änderungen seit v4.5.1:
  * - LOK zaehler_id wird einheitgebunden aus einheit_id, medium und optionalem Messpunkt gebildet
  * - Alte LOK-Kurz-IDs werden deaktiviert und auf die neue zaehler_id verwiesen
+ *
+ * Änderungen seit v4.5.2:
+ * - Materialisierte Verbrauchsviews fuer Monats- und Jahreswerte ergänzt
  */
-const BACKEND_VERSION = "4.5.2";
+const BACKEND_VERSION = "4.6.0";
 
 function sendJSON(obj) {
   return ContentService
@@ -1037,6 +1040,478 @@ function getMieterNameForVertrag(vertrag, parteienMap, personenMap) {
   return "Leerstand";
 }
 
+const VERBRAUCH_MONAT_HEADERS = [
+  "jahr",
+  "monat",
+  "objekt_id",
+  "einheit_id",
+  "einheit_name",
+  "mieter_name",
+  "einheit_typ",
+  "verbrauchsgruppe",
+  "untergruppe",
+  "zaehler_id",
+  "medium",
+  "bezeichnung",
+  "einbauort",
+  "start_datum",
+  "start_wert",
+  "end_datum",
+  "end_wert",
+  "differenz_gesamt",
+  "tage_gesamt",
+  "tage_im_monat",
+  "anteil_im_monat",
+  "verbrauch_monat",
+  "einheit",
+  "berechnungsmethode",
+  "plausibilitaet_status",
+  "plausibilitaet_hinweis",
+  "pruefung_erforderlich",
+  "in_summe_beruecksichtigen",
+  "berechnet_am"
+];
+
+const VERBRAUCH_JAHR_HEADERS = [
+  "jahr",
+  "objekt_id",
+  "einheit_id",
+  "einheit_name",
+  "mieter_name",
+  "einheit_typ",
+  "verbrauchsgruppe",
+  "untergruppe",
+  "zaehler_id",
+  "medium",
+  "bezeichnung",
+  "verbrauch_jahr",
+  "verbrauch_monat_durchschnitt",
+  "anzahl_monate_mit_verbrauch",
+  "anzahl_warnungen",
+  "plausibilitaet_status",
+  "in_summe_beruecksichtigen",
+  "berechnet_am"
+];
+
+function toVerbrauchNumber(value) {
+  if (isBlankValue(value)) {
+    return null;
+  }
+
+  const normalized = typeof value === "string"
+    ? value.replace(",", ".").trim()
+    : value;
+  const number = Number(normalized);
+
+  return isFinite(number) ? number : null;
+}
+
+function formatVerbrauchDate(value) {
+  const date = value instanceof Date ? value : parseTimestampForStandId(value);
+
+  return [
+    date.getFullYear(),
+    pad2(date.getMonth() + 1),
+    pad2(date.getDate())
+  ].join("-");
+}
+
+function formatVerbrauchMonth(date) {
+  return [
+    date.getFullYear(),
+    pad2(date.getMonth() + 1)
+  ].join("-");
+}
+
+function daysBetween(startDate, endDate) {
+  return (endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000);
+}
+
+function overlapDays(startA, endA, startB, endB) {
+  const start = Math.max(startA.getTime(), startB.getTime());
+  const end = Math.min(endA.getTime(), endB.getTime());
+
+  return Math.max(0, (end - start) / (24 * 60 * 60 * 1000));
+}
+
+function buildLookupByKey(rows, keyName) {
+  const result = {};
+
+  (rows || []).forEach(row => {
+    if (!isBlankValue(row[keyName])) {
+      result[String(row[keyName]).trim()] = row;
+    }
+  });
+
+  return result;
+}
+
+function getVerbrauchsgruppe(einheit, zaehler) {
+  const typ = String((einheit && einheit.typ) || "").toLowerCase();
+  const einheitId = String(zaehler.einheit_id || "").toLowerCase();
+  const bezeichnung = String(zaehler.bezeichnung || "").toLowerCase();
+
+  if (String(zaehler.berechnet).toLowerCase() === "true" || zaehler.berechnet === true) {
+    return "BERECHNET";
+  }
+
+  if (bezeichnung.indexOf("hauptzähler") !== -1 || bezeichnung.indexOf("gesamt") !== -1 || bezeichnung.indexOf("zulauf") !== -1) {
+    return "HAUPTZAEHLER";
+  }
+
+  if (typ === "gewerbe" || einheitId.indexOf("_ge_") !== -1) {
+    return "GEWERBE";
+  }
+
+  if (typ === "allgemein" || einheitId.indexOf("allgemein") !== -1) {
+    return "ALLGEMEIN";
+  }
+
+  return "WOHNUNG";
+}
+
+function getVerbrauchUntergruppe(einheit, zaehler) {
+  const text = [
+    zaehler.einheit_id || "",
+    zaehler.bezeichnung || "",
+    zaehler.einbauort || ""
+  ].join(" ").toLowerCase();
+
+  if (text.indexOf("flur") !== -1) return "FLUR";
+  if (text.indexOf("heizung") !== -1) return "HEIZUNG";
+  if (text.indexOf("privat nt") !== -1 || text.indexOf(" nt") !== -1) return "PRIVAT_NT";
+  if (text.indexOf("privat ht") !== -1 || text.indexOf(" ht") !== -1) return "PRIVAT_HT";
+  if (text.indexOf("zulauf") !== -1) return "WW_ZULAUF";
+  if (text.indexOf("hauptzähler") !== -1) return "HAUPTZAEHLER";
+
+  return "";
+}
+
+function isReverseFillLevelMedium(zaehler) {
+  const medium = String(zaehler.medium || "").toLowerCase();
+  const zaehlerId = String(zaehler.zaehler_id || "").toLowerCase();
+
+  return medium === "oel_stand_cm" || zaehlerId.indexOf("oel_stand_in_cm") !== -1;
+}
+
+function calculateVerbrauchDifference(startWert, endWert, zaehler) {
+  const start = toVerbrauchNumber(startWert);
+  const end = toVerbrauchNumber(endWert);
+
+  if (start === null || end === null) {
+    return {
+      verbrauch: "",
+      methode: "NICHT_BERECHENBAR",
+      status: "NICHT_BERECHENBAR",
+      hinweis: "Start- oder Endwert ist keine Zahl.",
+      pruefung: true,
+      inSumme: false
+    };
+  }
+
+  if (isReverseFillLevelMedium(zaehler)) {
+    if (end <= start) {
+      return {
+        verbrauch: start - end,
+        methode: "OEL_FUELLSTAND",
+        status: "OK",
+        hinweis: "",
+        pruefung: false,
+        inSumme: true
+      };
+    }
+
+    return {
+      verbrauch: 0,
+      methode: "OEL_FUELLSTAND",
+      status: "WARNUNG_FUELLSTAND_GESTIEGEN",
+      hinweis: "Füllstand ist gestiegen. Bitte Betankung, Korrektur oder Messfehler prüfen.",
+      pruefung: true,
+      inSumme: true
+    };
+  }
+
+  if (end >= start) {
+    return {
+      verbrauch: end - start,
+      methode: "DIREKT",
+      status: "OK",
+      hinweis: "",
+      pruefung: false,
+      inSumme: true
+    };
+  }
+
+  const stellen = toVerbrauchNumber(zaehler.stellen);
+  const ueberlaufErlaubt = zaehler.ueberlauf_erlaubt === true ||
+    String(zaehler.ueberlauf_erlaubt).toLowerCase() === "true";
+
+  if (ueberlaufErlaubt && stellen !== null && stellen > 0) {
+    const basis = Math.pow(10, stellen);
+
+    return {
+      verbrauch: basis - start + end,
+      methode: "UEBERLAUF",
+      status: "WARNUNG_UEBERLAUF",
+      hinweis: "Endwert ist niedriger als Startwert. Verbrauch wurde als Überlauf berechnet und muss fachlich geprüft werden.",
+      pruefung: true,
+      inSumme: true
+    };
+  }
+
+  return {
+    verbrauch: "",
+    methode: "NICHT_BERECHENBAR",
+    status: "WARNUNG_RUECKLAEUFIG",
+    hinweis: "Endwert ist niedriger als Startwert. Bitte Zählerwechsel, Korrektur oder Eingabefehler prüfen.",
+    pruefung: true,
+    inSumme: false
+  };
+}
+
+function buildMonatsSegmente(startDate, endDate) {
+  const segmente = [];
+  let cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+  const totalDays = daysBetween(startDate, endDate);
+
+  while (cursor.getTime() < endDate.getTime()) {
+    const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+    const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+    const tageImMonat = overlapDays(startDate, endDate, monthStart, monthEnd);
+
+    if (tageImMonat > 0) {
+      segmente.push({
+        jahr: monthStart.getFullYear(),
+        monat: formatVerbrauchMonth(monthStart),
+        tageImMonat: tageImMonat,
+        anteil: totalDays > 0 ? tageImMonat / totalDays : 0
+      });
+    }
+
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+  }
+
+  return segmente;
+}
+
+function buildVerbrauchViewData(data, options) {
+  const zaehlerRows = data.zaehler || data.Zaehler || [];
+  const zaehlerstaendeRows = data.zaehlerstaende || data.Zaehlerstaende || [];
+  const einheitenRows = data.einheiten || data.Einheiten || [];
+  const aktiveMieterRows = data.view_aktive_mieter || data._view_aktive_mieter || [];
+  const berechnetAm = (options && options.berechnetAm) || formatVerbrauchDate(new Date());
+
+  const einheitenById = buildLookupByKey(einheitenRows, "einheit_id");
+  const mieterByEinheitId = buildLookupByKey(aktiveMieterRows, "einheit_id");
+  const readingsByMeter = {};
+
+  zaehlerstaendeRows.forEach(row => {
+    const key = [row.objekt_id, row.einheit_id, row.zaehler_id].map(value => String(value || "").trim()).join("||");
+
+    if (!readingsByMeter[key]) {
+      readingsByMeter[key] = [];
+    }
+
+    readingsByMeter[key].push(row);
+  });
+
+  Object.keys(readingsByMeter).forEach(key => {
+    readingsByMeter[key].sort((a, b) => parseTimestampForStandId(a.zeitstempel).getTime() - parseTimestampForStandId(b.zeitstempel).getTime());
+  });
+
+  const monatRows = [];
+
+  zaehlerRows.forEach(zaehler => {
+    const key = [zaehler.objekt_id, zaehler.einheit_id, zaehler.zaehler_id].map(value => String(value || "").trim()).join("||");
+    const readings = readingsByMeter[key] || [];
+    const einheit = einheitenById[String(zaehler.einheit_id || "").trim()] || {};
+    const mieter = mieterByEinheitId[String(zaehler.einheit_id || "").trim()] || {};
+
+    for (let index = 1; index < readings.length; index++) {
+      const startReading = readings[index - 1];
+      const endReading = readings[index];
+      const startDate = parseTimestampForStandId(startReading.zeitstempel);
+      const endDate = parseTimestampForStandId(endReading.zeitstempel);
+
+      if (!(endDate.getTime() > startDate.getTime())) {
+        continue;
+      }
+
+      const totalDays = daysBetween(startDate, endDate);
+      const diff = calculateVerbrauchDifference(startReading.wert, endReading.wert, zaehler);
+      const segmente = buildMonatsSegmente(startDate, endDate);
+      const verbrauchsgruppe = getVerbrauchsgruppe(einheit, zaehler);
+      const untergruppe = getVerbrauchUntergruppe(einheit, zaehler);
+
+      segmente.forEach(segment => {
+        const verbrauchMonat = diff.verbrauch === "" ? "" : diff.verbrauch * segment.anteil;
+
+        monatRows.push({
+          jahr: segment.jahr,
+          monat: segment.monat,
+          objekt_id: zaehler.objekt_id || "",
+          einheit_id: zaehler.einheit_id || "",
+          einheit_name: einheit.nummer || einheit.bezeichnung || zaehler.einheit_id || "",
+          mieter_name: mieter.mieter_name || "",
+          einheit_typ: einheit.typ || "",
+          verbrauchsgruppe: verbrauchsgruppe,
+          untergruppe: untergruppe,
+          zaehler_id: zaehler.zaehler_id || "",
+          medium: zaehler.medium || "",
+          bezeichnung: zaehler.bezeichnung || zaehler.zaehler_id || "",
+          einbauort: zaehler.einbauort || "",
+          start_datum: formatVerbrauchDate(startDate),
+          start_wert: startReading.wert,
+          end_datum: formatVerbrauchDate(endDate),
+          end_wert: endReading.wert,
+          differenz_gesamt: diff.verbrauch,
+          tage_gesamt: totalDays,
+          tage_im_monat: segment.tageImMonat,
+          anteil_im_monat: segment.anteil,
+          verbrauch_monat: verbrauchMonat,
+          einheit: zaehler.einheit || "",
+          berechnungsmethode: diff.methode,
+          plausibilitaet_status: diff.status,
+          plausibilitaet_hinweis: diff.hinweis,
+          pruefung_erforderlich: diff.pruefung,
+          in_summe_beruecksichtigen: diff.inSumme,
+          berechnet_am: berechnetAm
+        });
+      });
+    }
+  });
+
+  const jahrMap = {};
+
+  monatRows.forEach(row => {
+    const key = [
+      row.jahr,
+      row.objekt_id,
+      row.einheit_id,
+      row.zaehler_id
+    ].join("||");
+
+    if (!jahrMap[key]) {
+      jahrMap[key] = {
+        jahr: row.jahr,
+        objekt_id: row.objekt_id,
+        einheit_id: row.einheit_id,
+        einheit_name: row.einheit_name,
+        mieter_name: row.mieter_name,
+        einheit_typ: row.einheit_typ,
+        verbrauchsgruppe: row.verbrauchsgruppe,
+        untergruppe: row.untergruppe,
+        zaehler_id: row.zaehler_id,
+        medium: row.medium,
+        bezeichnung: row.bezeichnung,
+        verbrauch_jahr: 0,
+        monate: {},
+        anzahl_warnungen: 0,
+        statusSet: {},
+        in_summe_beruecksichtigen: true,
+        berechnet_am: row.berechnet_am
+      };
+    }
+
+    const item = jahrMap[key];
+
+    if (row.verbrauch_monat !== "") {
+      item.verbrauch_jahr += Number(row.verbrauch_monat);
+      item.monate[row.monat] = true;
+    }
+
+    if (String(row.plausibilitaet_status) !== "OK") {
+      item.anzahl_warnungen++;
+      item.statusSet[row.plausibilitaet_status] = true;
+    }
+
+    if (row.in_summe_beruecksichtigen === false) {
+      item.in_summe_beruecksichtigen = false;
+    }
+  });
+
+  const jahrRows = Object.keys(jahrMap).map(key => {
+    const item = jahrMap[key];
+    const monateMitVerbrauch = Object.keys(item.monate).length;
+    const statuses = Object.keys(item.statusSet);
+
+    return {
+      jahr: item.jahr,
+      objekt_id: item.objekt_id,
+      einheit_id: item.einheit_id,
+      einheit_name: item.einheit_name,
+      mieter_name: item.mieter_name,
+      einheit_typ: item.einheit_typ,
+      verbrauchsgruppe: item.verbrauchsgruppe,
+      untergruppe: item.untergruppe,
+      zaehler_id: item.zaehler_id,
+      medium: item.medium,
+      bezeichnung: item.bezeichnung,
+      verbrauch_jahr: item.verbrauch_jahr,
+      verbrauch_monat_durchschnitt: monateMitVerbrauch > 0 ? item.verbrauch_jahr / monateMitVerbrauch : "",
+      anzahl_monate_mit_verbrauch: monateMitVerbrauch,
+      anzahl_warnungen: item.anzahl_warnungen,
+      plausibilitaet_status: statuses.length > 0 ? statuses.join("|") : "OK",
+      in_summe_beruecksichtigen: item.in_summe_beruecksichtigen,
+      berechnet_am: item.berechnet_am
+    };
+  });
+
+  return {
+    monatRows: monatRows,
+    jahrRows: jahrRows
+  };
+}
+
+function rowsToValues(rows, headers) {
+  return rows.map(row => headers.map(header => row[header] === undefined ? "" : row[header]));
+}
+
+function writeViewSheet(ss, sheetName, headers, rows) {
+  let sheet = ss.getSheetByName(sheetName);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+  }
+
+  sheet.clearContents();
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, headers.length).setValues(rowsToValues(rows, headers));
+  }
+}
+
+function updateVerbrauchViews() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const data = {
+    Zaehler: getSheetData(ss.getSheetByName("Zaehler")),
+    Zaehlerstaende: getSheetData(ss.getSheetByName("Zaehlerstaende")),
+    Einheiten: getSheetData(ss.getSheetByName("Einheiten")),
+    _view_aktive_mieter: ss.getSheetByName("_view_aktive_mieter")
+      ? getSheetData(ss.getSheetByName("_view_aktive_mieter"))
+      : []
+  };
+  const views = buildVerbrauchViewData(data, {
+    berechnetAm: formatVerbrauchDate(new Date())
+  });
+
+  writeViewSheet(ss, "_view_verbrauch_monat", VERBRAUCH_MONAT_HEADERS, views.monatRows);
+  writeViewSheet(ss, "_view_verbrauch_jahr", VERBRAUCH_JAHR_HEADERS, views.jahrRows);
+
+  Logger.log("Verbrauchsviews aktualisiert: " + JSON.stringify({
+    monatRows: views.monatRows.length,
+    jahrRows: views.jahrRows.length
+  }));
+
+  return {
+    status: "success",
+    monatRows: views.monatRows.length,
+    jahrRows: views.jahrRows.length,
+    message: "Verbrauchsviews aktualisiert"
+  };
+}
+
 function doGet(e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const param = e ? e.parameter : {};
@@ -1046,6 +1521,16 @@ function doGet(e) {
 
     return sendJSON({
       "_view_aktive_mieter": sheetView ? getSheetData(sheetView) : []
+    });
+  }
+
+  if (param.view === "verbrauch") {
+    const sheetMonat = ss.getSheetByName("_view_verbrauch_monat");
+    const sheetJahr = ss.getSheetByName("_view_verbrauch_jahr");
+
+    return sendJSON({
+      "_view_verbrauch_monat": sheetMonat ? getSheetData(sheetMonat) : [],
+      "_view_verbrauch_jahr": sheetJahr ? getSheetData(sheetJahr) : []
     });
   }
 

@@ -12,7 +12,7 @@ function loadAppsScriptHelpers() {
   );
 
   const factory = new Function(
-    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildLokZaehlerId, buildMigratedZaehlerstandItem, buildStandId, deactivateObsoleteLokShortCodeMeters, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedConsumptionMeterSeedDataFromRows, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getLokEinheitEntranceMapping, getLokEinheitSeedData, getLokReplacementZaehlerId, getLokSeedData, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
+    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildLokZaehlerId, buildMigratedZaehlerstandItem, buildStandId, buildVerbrauchViewData, calculateVerbrauchDifference, deactivateObsoleteLokShortCodeMeters, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedConsumptionMeterSeedDataFromRows, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getLokEinheitEntranceMapping, getLokEinheitSeedData, getLokReplacementZaehlerId, getLokSeedData, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
   );
 
   return factory();
@@ -22,7 +22,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
   it('declares the current backend version', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
 
-    expect(BACKEND_VERSION).toBe('4.5.2');
+    expect(BACKEND_VERSION).toBe('4.6.0');
   });
 
   it('formats German timestamps for stand_id values', () => {
@@ -40,6 +40,119 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     );
 
     expect(result).toBe('2026-06-02 00:00');
+  });
+
+  it('builds monthly and yearly consumption view rows from meter intervals', () => {
+    const { buildVerbrauchViewData } = loadAppsScriptHelpers();
+
+    const views = buildVerbrauchViewData(
+      {
+        Zaehler: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_01',
+            zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+            medium: 'strom_ht_kwh',
+            bezeichnung: 'Strom Wohnung 1',
+            einheit: 'kWh',
+            einbauort: 'Wohnung',
+            ueberlauf_erlaubt: false,
+            berechnet: false,
+          },
+        ],
+        Zaehlerstaende: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_01',
+            zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+            zeitstempel: '01.11.2023 00:00',
+            wert: 100,
+          },
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_01',
+            zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+            zeitstempel: '01.03.2024 00:00',
+            wert: 200,
+          },
+        ],
+        Einheiten: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_01',
+            nummer: 'Wohnung 1',
+            typ: 'Wohnung',
+          },
+        ],
+        _view_aktive_mieter: [
+          {
+            einheit_id: 'Ra-HS-29_WE_01',
+            mieter_name: 'Duck, Donald',
+          },
+        ],
+      },
+      { berechnetAm: '2026-06-29' }
+    );
+
+    expect(views.monatRows.map(row => row.monat)).toEqual([
+      '2023-11',
+      '2023-12',
+      '2024-01',
+      '2024-02',
+    ]);
+
+    const january = views.monatRows.find(row => row.monat === '2024-01');
+    const year2024 = views.jahrRows.find(row => row.jahr === 2024);
+
+    expect(january.verbrauch_monat).toBeCloseTo((100 * 31) / 121);
+    expect(january.plausibilitaet_status).toBe('OK');
+    expect(january.mieter_name).toBe('Duck, Donald');
+    expect(year2024.verbrauch_jahr).toBeCloseTo((100 * 60) / 121);
+    expect(year2024.verbrauch_monat_durchschnitt).toBeCloseTo(((100 * 60) / 121) / 2);
+    expect(year2024.anzahl_monate_mit_verbrauch).toBe(2);
+  });
+
+  it('keeps overflow consumption visible as a reviewable warning', () => {
+    const { calculateVerbrauchDifference } = loadAppsScriptHelpers();
+
+    const result = calculateVerbrauchDifference(890, 188, {
+      medium: 'kaltwasser_m3',
+      stellen: 4,
+      ueberlauf_erlaubt: true,
+    });
+
+    expect(result).toMatchObject({
+      verbrauch: 9298,
+      methode: 'UEBERLAUF',
+      status: 'WARNUNG_UEBERLAUF',
+      pruefung: true,
+      inSumme: true,
+    });
+  });
+
+  it('calculates falling oil fill levels as consumption and rising levels as warnings', () => {
+    const { calculateVerbrauchDifference } = loadAppsScriptHelpers();
+
+    const falling = calculateVerbrauchDifference(55, 43, {
+      medium: 'oel_stand_cm',
+    });
+    const rising = calculateVerbrauchDifference(43, 55, {
+      medium: 'oel_stand_cm',
+    });
+
+    expect(falling).toMatchObject({
+      verbrauch: 12,
+      methode: 'OEL_FUELLSTAND',
+      status: 'OK',
+      inSumme: true,
+    });
+    expect(rising).toMatchObject({
+      verbrauch: 0,
+      methode: 'OEL_FUELLSTAND',
+      status: 'WARNUNG_FUELLSTAND_GESTIEGEN',
+      pruefung: true,
+      inSumme: true,
+    });
   });
 
   it('builds compact stand_id values from object, unit, meter and timestamp', () => {

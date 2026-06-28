@@ -187,7 +187,7 @@ Google Apps Script wird weiterhin manuell versioniert.
 Aktuelle Backend-Version:
 
 ```text
-4.5.2
+4.6.0
 ```
 
 Die Version steht im Kopf von `apps-script/Code.gs` und in `BACKEND_VERSION`.
@@ -207,6 +207,7 @@ Wichtige Regel:
 - `4.5.0` ergänzt die LOK-Zählerstruktur und Eingang-Stammdaten.
 - `4.5.1` teilt LOK Wohnung 10 in A/B/S und lässt `ensureLokStructureData` fehlende LOK-Einheiten anlegen.
 - `4.5.2` stellt LOK auf einheitgebundene `zaehler_id`s nach `Z_{einheit_id}_{medium}` um und deaktiviert alte Kurz-IDs.
+- `4.6.0` ergänzt materialisierte Verbrauchsviews für Monats- und Jahreswerte.
 - `clasp` ist lokal mit dem bestehenden GAS-Projekt verbunden; `npm run clasp:pull` funktioniert unter Node 22.
 
 ---
@@ -290,29 +291,24 @@ Die Funktion überschreibt bestehende Eingangswerte nicht, sondern ergänzt nur 
 
 ### 5. Dashboard/Auswertungen
 
-Gestartet ist die Verbrauchsberechnung als reine, testbare Frontend-Logik in `calc-service.js`.
+Die erste Dashboard-Version hatte die Verbrauchsberechnung testbar im Frontend vorbereitet. Wegen der historischen Datenqualität und der notwendigen Nachvollziehbarkeit wird die fachliche Verbrauchsberechnung jetzt ins Apps-Script-Backend verschoben.
 
-Umgesetzt:
+Umgesetzt mit Backend-Version `4.6.0`:
 
-- Verbrauchszeilen je Zähler aus `Zaehler`, `Zaehlerstaende` und `Einheiten`
-- Filter nach `objekt_id` und Jahr
-- Objekt-/Einheiten-/Zähler-scharfe Intervallberechnung
-- Jahresverbrauch wird aus Verbrauchsintervallen berechnet: zwei aufeinanderfolgende Ablesepunkte bilden ein Intervall
-- Intervallverbrauch wird nach Tagesanteilen auf das gewählte Jahr und die Monate verteilt
-- lange Ableseabstände werden dadurch geglättet und als Monatsdurchschnitt ausgewiesen
-- wenn in einem Jahr keine Ablesung vorliegt, kann der letzte bekannte Durchschnitt fortgeschrieben werden
-- Normalverbrauch bei steigenden Zählerintervallen
-- Überlaufberechnung für geeignete Wasserzähler nur, wenn der berechnete Verbrauch plausibel bleibt
-- Legacy-Zähler ohne `max_plausibler_verbrauch` erhalten für Dashboard-Zwecke Medium-Defaults, damit offensichtlich falsche Überläufe nicht in Summen laufen
-- Fortführung wird nur verwendet, wenn kein reales Intervall den ausgewählten Zeitraum überlappt; dadurch wird Doppelzählung verhindert
-- rückläufiger Ölstand in cm als Verbrauch über die Summe der fallenden Intervalle
-- steigender Ölstand als Review-Status, z. B. bei Betankung oder Korrektur
-- optionale Ausblendung berechneter/virtueller Zähler
-- Medium-Summary für spätere Dashboard-Kacheln
+- `updateVerbrauchViews` baut materialisierte Verbrauchsviews aus `Zaehler`, `Zaehlerstaende`, `Einheiten` und `_view_aktive_mieter`.
+- `_view_verbrauch_monat` enthält die prüfbaren Monatssegmente je Zählerintervall.
+- `_view_verbrauch_jahr` aggregiert daraus Jahreswerte je Objekt, Einheit und Zähler.
+- Zwei aufeinanderfolgende Ablesepunkte bilden ein Intervall.
+- Intervallverbrauch wird tagesgenau auf Monate verteilt.
+- Warnwerte bleiben sichtbar und werden nicht aus der View entfernt.
+- Rückläufiger Ölstand in cm wird als Verbrauch behandelt.
+- Steigender Ölstand in cm wird als prüfpflichtiger Hinweis markiert.
+- Die Web-App kann die Verbrauchsviews schlank über `?view=verbrauch` abrufen.
 
 Nächster sinnvoller Schritt:
 
-- Verbrauchsdashboard mit Objekt-/Jahr-Auswahl und Tabelle ist in der UI angebunden.
-- Nächster UI-Ausbau: bessere Gruppierung nach Einheit/Medium, Filter für Statusfälle und später visuelle Auswertung.
+- `updateVerbrauchViews` im produktiven GAS-Projekt ausführen und die erzeugten Sheets prüfen.
+- Frontend-Verbrauchsdashboard auf `_view_verbrauch_jahr` und `_view_verbrauch_monat` umstellen.
+- Danach UI-Gruppierung nach Objekt, Einheit, Medium, Verbrauchergruppe und Warnstatus sauber gestalten.
 
 Spätere Auswertungen sollen den Testbereich `TEST` sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.
