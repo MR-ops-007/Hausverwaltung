@@ -332,6 +332,14 @@ const uiService = {
     });
 
     if (res && res.status === 'success') {
+      if (!Array.isArray(dataService.state.zaehlerstaende)) {
+        dataService.state.zaehlerstaende = [];
+      }
+
+      transactions.forEach(transaction => {
+        dataService.state.zaehlerstaende.push({ ...transaction });
+      });
+
       alert('Erfolgreich gespeichert!');
       this.closeModal();
     } else {

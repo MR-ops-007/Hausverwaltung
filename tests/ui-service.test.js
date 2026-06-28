@@ -110,6 +110,7 @@ function loadUiService({
 
   return {
     uiService,
+    dataService,
     alerts,
     confirms,
     saveCalls,
@@ -460,6 +461,92 @@ describe('uiService.saveZaehler', () => {
     expect(saveCalls).toHaveLength(1);
     expect(saveCalls[0].data[0].wert).toBe(123);
     expect(alerts).toContain('Erfolgreich gespeichert!');
+  });
+
+  it('adds successful saves to local history so production test meters are validated immediately', async () => {
+    const meter = {
+      zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+      objekt_id: 'TEST',
+      einheit_id: 'TEST_WE_01',
+      bezeichnung: 'Strom Wohnung 1 TEST',
+    };
+
+    const firstRun = loadUiService({
+      currentMeters: [meter],
+      inputValuesByZaehlerId: {
+        Z_STROM_KWH_WOHNUNG_1: '100',
+      },
+    });
+
+    await firstRun.uiService.saveZaehler();
+
+    expect(firstRun.saveCalls).toHaveLength(1);
+    expect(firstRun.dataService.state.zaehlerstaende).toEqual([
+      expect.objectContaining({
+        objekt_id: 'TEST',
+        einheit_id: 'TEST_WE_01',
+        zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+        wert: 100,
+      }),
+    ]);
+
+    firstRun.uiService.currentActiveMetersObjects = [meter];
+    firstRun.dataService.state.zaehler = [meter];
+
+    const secondInputDocument = {
+      getElementById(id) {
+        if (id.startsWith('input-')) {
+          return { value: '90' };
+        }
+
+        if (id === 'modal-container') {
+          return { style: { display: 'flex' } };
+        }
+
+        return null;
+      },
+    };
+
+    const secondFactory = new Function(
+      'dataService',
+      'cloudService',
+      'window',
+      'document',
+      'alert',
+      'confirm',
+      `${readFileSync(new URL('../ui-service.js', import.meta.url), 'utf8')}; return uiService;`
+    );
+    const secondUiService = secondFactory(
+      firstRun.dataService,
+      {
+        async saveTransaction(payload) {
+          firstRun.saveCalls.push(payload);
+          return { status: 'success' };
+        },
+      },
+      {
+        validationService: {
+          validateZaehlerstand,
+          VALIDATION_STATUS,
+        },
+      },
+      secondInputDocument,
+      message => firstRun.alerts.push(String(message)),
+      message => {
+        firstRun.confirms.push(String(message));
+        return false;
+      }
+    );
+
+    secondUiService.currentActiveMetersObjects = [meter];
+
+    await secondUiService.saveZaehler();
+
+    expect(firstRun.confirms).toHaveLength(1);
+    expect(firstRun.confirms[0]).toContain('Plausibilitätswarnungen');
+    expect(firstRun.confirms[0]).toContain('Alt: 100');
+    expect(firstRun.confirms[0]).toContain('Neu: 90');
+    expect(firstRun.saveCalls).toHaveLength(1);
   });
 
   it('ignores empty inputs and alerts if no values were entered', async () => {
