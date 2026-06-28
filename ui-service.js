@@ -250,7 +250,27 @@ const uiService = {
     const errors = [];
     const zeitstempel = this.formatGermanTimestamp(new Date());
 
-    const validator = window.validationService;
+    let validator = window.validationService;
+
+    if (!validator || typeof validator.validateZaehlerstand !== 'function') {
+      try {
+        let validationModule;
+
+        try {
+          validationModule = await import('./validation-service.js?v=20260628-validation-fallback-v1');
+        } catch (versionedError) {
+          validationModule = await import('./validation-service.js');
+        }
+
+        validator = {
+          VALIDATION_STATUS: validationModule.VALIDATION_STATUS,
+          validateZaehlerstand: validationModule.validateZaehlerstand
+        };
+        window.validationService = validator;
+      } catch (error) {
+        console.error('Plausibilitätsprüfung konnte nicht nachgeladen werden.', error);
+      }
+    }
 
     if (!validator || typeof validator.validateZaehlerstand !== 'function') {
       alert('Plausibilitätsprüfung konnte nicht geladen werden. Speicherung wurde aus Sicherheitsgründen abgebrochen.');
