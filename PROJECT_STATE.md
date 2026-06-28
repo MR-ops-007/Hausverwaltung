@@ -290,4 +290,23 @@ Die Funktion überschreibt bestehende Eingangswerte nicht, sondern ergänzt nur 
 
 ### 5. Dashboard/Auswertungen
 
+Gestartet ist die Verbrauchsberechnung als reine, testbare Frontend-Logik in `calc-service.js`.
+
+Umgesetzt:
+
+- Verbrauchszeilen je Zähler aus `Zaehler`, `Zaehlerstaende` und `Einheiten`
+- Filter nach `objekt_id` und Jahr
+- Objekt-/Einheiten-/Zähler-scharfe Vorwert- und Endwertsuche
+- Normalverbrauch bei steigenden Zählerständen
+- Überlaufberechnung für geeignete Wasserzähler
+- rückläufiger Ölstand in cm als Verbrauch
+- steigender Ölstand als Review-Status
+- optionale Ausblendung berechneter/virtueller Zähler
+- Medium-Summary für spätere Dashboard-Kacheln
+
+Nächster sinnvoller Schritt:
+
+- UI-Ansicht für Verbrauchsdashboard auf Basis von `calcService.buildConsumptionDashboard`
+- zunächst Tabelle pro Objekt/Jahr, danach Summen und visuelle Auswertung
+
 Spätere Auswertungen sollen den Testbereich `TEST` sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.
