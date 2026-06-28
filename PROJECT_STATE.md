@@ -80,6 +80,9 @@ Getestete Fälle:
 - ungültige Eingaben
 - negative Eingaben
 - deutsche Komma-Dezimalwerte
+- rückläufiger Ölstand in cm
+- steigender Ölstand als Betankungs-/Korrekturwarnung
+- Ölstand wird nicht als Überlauf behandelt
 
 ### UI-Integration der Zähler-Plausibilität
 
@@ -95,6 +98,8 @@ Aktueller Stand:
 - Zeitstempel werden als `DD.MM.YYYY HH:mm` gespeichert.
 - Berechnete, inaktive oder nicht erfassbare Zähler werden nicht in der Eingabemaske angezeigt.
 - Letzte Vorwerte werden über `objekt_id + einheit_id + zaehler_id` gesucht.
+- Erfolgreich gespeicherte Zählerstände werden direkt in den lokalen UI-State übernommen, damit Folgeeingaben im Testbereich ohne Neuladen plausibilisiert werden.
+- Falls der Browser die modulare Plausibilitätsprüfung nicht initialisiert, nutzt die UI eine eingebaute Fallback-Validierung statt die Speicherung pauschal abzubrechen.
 
 ---
 
@@ -182,7 +187,7 @@ Google Apps Script wird weiterhin manuell versioniert.
 Aktuelle Backend-Version:
 
 ```text
-4.3.1
+4.4.6
 ```
 
 Die Version steht im Kopf von `apps-script/Code.gs` und in `BACKEND_VERSION`.
@@ -192,26 +197,20 @@ Wichtige Regel:
 - Jede fachliche oder technische Apps-Script-Änderung erhöht die Backend-Version.
 - Tests prüfen die erwartete `BACKEND_VERSION`.
 - `4.3.1` repariert das zeitzonenstabile Parsing von JavaScript-Date-Strings für `stand_id`.
-- `clasp` ist noch nicht eingerichtet und bleibt ein nächstes Arbeitspaket.
+- `4.4.0` ergänzt eine Preview-/Apply-Migration für Bestands-Zählerstände.
+- `4.4.1` ergänzt ein Report-Sheet für die Migrationsanalyse.
+- `4.4.2` lernt eindeutige `zaehler_id`/`einheit_id`-Mappings aus bereits vorbereiteten Bestandsdaten.
+- `4.4.3` löst bekannte fehlerhafte Bestands-Mappings per Override auf.
+- `4.4.4` ergänzt den virtuellen Warmwasser-Gesamtzähler für historische Werte.
+- `4.4.5` ergänzt einen separaten Duplikat-Report für die `stand_id`-Migration.
+- `4.4.6` löst historische Doppelwerte als Zählerstand plus berechneten Verbrauch auf.
+- `clasp` ist lokal mit dem bestehenden GAS-Projekt verbunden; `npm run clasp:pull` funktioniert unter Node 22.
 
 ---
 
 ## Offene Arbeitspakete
 
-### 1. Aktuellen Stand committen
-
-Der aktuelle Branch enthält zusammenhängende Änderungen an:
-
-- UI-Regressionstests
-- Zähleridentität
-- `stand_id`-Erzeugung
-- Apps-Script-Versionierung
-- produktivem Testbereich
-- Dokumentation
-
-Vor dem nächsten größeren Arbeitspaket sollte dieser Stand committed werden.
-
-### 2. `clasp` einrichten
+### 1. `clasp` final verbinden
 
 Ziel:
 
@@ -220,16 +219,48 @@ Ziel:
 - `appsscript.json` bewusst versionieren
 - Deployments nachvollziehbarer machen
 
-### 3. Bestandsdatenmigration vorbereiten
+Aktueller Stand:
 
-Bestehende `Zaehlerstaende` enthalten teilweise alte `stand_id`-Formate und fehlende `einheit_id`s.
+- `@google/clasp` ist als Dev-Dependency installiert.
+- npm-Skripte für Login, Pull, Push und Status verwenden Node 22 aus `.nvmrc` und die lokale `.clasprc.json`.
+- `.clasp.example.json`, `.claspignore` und `.gitignore` sind vorbereitet.
+- Die echte Script-ID ist lokal in `.clasp.json` hinterlegt und wird nicht committed.
+- Der produktive GAS-Stand wurde per Apps-Script-API abgerufen und lokal nachvollzogen.
+- `apps-script/appsscript.json` entspricht dem produktiven Manifest.
+- `apps-script/Migration.gs.gs` bildet die bestehende produktive Migrationsdatei ab.
+- `apps-script/StandIdMigration.gs` ergänzt die neue Bestandsdatenmigration.
 
-Geplanter Migrationsablauf:
+Noch erforderlich:
 
-1. Fehlende `objekt_id` und `einheit_id` ergänzen.
-2. Neue `stand_id` aus `objekt_id + einheit_id + zaehler_id + zeitstempel` erzeugen.
-3. Doppelte IDs prüfen.
-4. Erst danach optional kürzere `zaehler_id`s wie `STROM`, `KW`, `WW` einführen.
+1. Vor jedem `npm run clasp:push` erst `npm run clasp:pull` ausführen.
+2. Pull-Diff prüfen.
+3. Erst danach `npm run clasp:push` nutzen.
+
+### 2. Bestandsdatenmigration abgeschlossen
+
+Die Migration der 1.910 bestehenden `Zaehlerstaende` auf die neue `stand_id`-Logik wurde am 2026-06-28 erfolgreich ausgeführt.
+
+Finaler Prüfstand:
+
+```json
+{"totalRows":1910,"migratableRows":1910,"changedRows":0,"unchangedRows":1910,"unresolvedRows":0,"duplicateRows":0,"mappingConflictRows":0,"missingHeaders":[]}
+```
+
+Historische Doppelwerte mit niedrigerem Verbrauchswert und höherem Zählerstand wurden automatisch in getrennte virtuelle Verbrauchszähler umgeschlüsselt.
+
+Optionaler Folgeschritt: Kürzere `zaehler_id`s wie `STROM`, `KW`, `WW` erst in einem separaten Schritt einführen.
+
+### 3. Ölstand-Plausibilität abgeschlossen
+
+Der Zähler `oel_stand_cm` ist rückläufig: Ein sinkender Stand bedeutet Verbrauch und ist grundsätzlich plausibel. Ein steigender Stand bedeutet Betankung, Korrektur oder Messfehler und braucht eigene Regeln.
+
+Umgesetzt:
+
+1. Testfälle in `tests/validation-service.test.js` für `oel_stand_cm` ergänzt.
+2. Plausibilitätslogik in `validation-service.js` um rückläufige Füllstandszähler erweitert.
+3. Sinkender Ölstand wird als Verbrauch akzeptiert.
+4. Steigender Ölstand erzeugt eine Warnung für Betankung, Korrektur oder Messfehler.
+5. Überlauf wird für Ölstand in cm nicht angewendet.
 
 ### 4. Dashboard/Auswertungen
 

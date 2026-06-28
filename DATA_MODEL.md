@@ -211,6 +211,7 @@ Grundregeln:
 4. **Zählerwechsel:** Wenn ein alter Zähler durch einen neuen ersetzt wurde, darf der neue Zähler mit einem niedrigeren Wert starten. Dies muss über `aktiv`, `ersetzt_durch_zaehler_id` oder einen dokumentierten Hinweis nachvollziehbar sein.
 5. **Warnung statt harter Blockade:** Bei unklaren Fällen soll die UI zunächst warnen und eine bewusste Bestätigung ermöglichen, statt Eingaben pauschal zu verhindern.
 6. **Extremverbrauch:** Wenn `max_plausibler_verbrauch` gesetzt ist und der berechnete Verbrauch diesen Wert überschreitet, soll eine Warnung angezeigt werden.
+7. **Rückläufige Füllstandszähler:** Bei `oel_stand_cm` ist ein niedrigerer Folgewert normaler Verbrauch. Ein höherer Folgewert bedeutet Betankung, Korrektur oder Messfehler und muss mit eigener Logik geprüft werden. Ein Überlauf ist hier fachlich nicht plausibel.
 
 Beispiel Überlauf bei 4-stelligem Zähler:
 
@@ -225,14 +226,21 @@ verbrauch = 10000 - 9876 + 123 = 247
 
 #### Migration bestehender Zählerstände
 
-Bestehende importierte `Zaehlerstaende` können noch alte `stand_id`-Formate enthalten, die nur auf `zaehler_id` und Datum basieren.
+Bestehende importierte `Zaehlerstaende` enthalten alte `stand_id`-Werte in einem einheitlichen historischen Format, das nur auf `zaehler_id` und Datum basiert.
 
 Da die bisherigen Produktivdaten im Wesentlichen aus einem Objekt stammen, ist die Migration überschaubar:
 
-1. Fehlende `objekt_id` und `einheit_id` aus der Tabelle `Zaehler` bzw. aus der bekannten Migration ergänzen.
-2. `stand_id` auf das neue Format `ST_{objekt_id}_{einheit_id}_{zaehler_id}_{YYYY-MM-DD HH:mm}` umstellen.
-3. Prüfen, dass keine doppelten `stand_id`s mehr existieren.
-4. Für neue Objekte kurze, wiederverwendbare `zaehler_id`s bevorzugen.
+1. Fehlende `objekt_id` mit dem bekannten Bestandsobjekt ergänzen.
+2. Fehlende `einheit_id` zuerst aus bereits vorbereiteten Bestandszeilen lernen, danach deterministisch aus der vorhandenen `zaehler_id` ableiten.
+3. `stand_id` auf das neue Format `ST_{objekt_id}_{einheit_id}_{zaehler_id}_{YYYY-MM-DD HH:mm}` umstellen.
+4. Per `writeStandIdMigrationReport` das Sheet `_migration_stand_id_report` erzeugen und prüfen, dass keine Mapping-Konflikte, keine ungelösten Zuordnungen und keine doppelten neuen `stand_id`s existieren.
+5. Für neue Objekte kurze, wiederverwendbare `zaehler_id`s bevorzugen.
+
+Bekannte historische Übertragungsfehler bei `einheit_id` werden in der Migration per Override korrigiert, z. B. `Ra-HS-29_WE_010` -> `Ra-HS-29_WE_10` und Flur-/Heizungszähler auf eigene Allgemein-Einheiten.
+
+Der historische berechnete Warmwasser-Gesamtwert wird als virtueller Zähler `Z_WARMWASSER_WW_GESAMT_BERECHNET` geführt. Er ist `berechnet = TRUE`, `erfassbar = FALSE` und verwendet `einbauort = berechneter Wert, kein Zaehler`.
+
+Duplikate werden vor der Anwendung der Migration separat über `writeStandIdDuplicateReport` in `_migration_duplicate_report` geprüft. Exakte Doppelungen werden als Löschkandidat markiert. Historische Doppelwerte mit genau zwei unterschiedlichen numerischen Werten werden als Zählerstand plus berechneter Verbrauch interpretiert: Der höhere Wert bleibt beim ursprünglichen Zähler, der niedrigere Wert erhält eine virtuelle `zaehler_id` mit Suffix `_VERBRAUCH_BERECHNET`. Alle anderen abweichenden Werte müssen manuell geprüft werden.
 
 ### Tabelle: `Parameter` (Konfiguration)
 | Spalte | Feldname | Datentyp | Beschreibung |

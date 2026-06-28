@@ -114,6 +114,68 @@ describe('validateZaehlerstand', () => {
     expect(result.delta).toBe(null);
   });
 
+  it('accepts decreasing oil level as normal consumption', () => {
+    const result = validateZaehlerstand({
+      letzterWert: 120,
+      neuerWert: 110,
+      zaehler: {
+        medium: 'oel_stand_cm',
+      },
+    });
+
+    expect(result.status).toBe(VALIDATION_STATUS.OK);
+    expect(result.code).toBe('FILL_LEVEL_DECREASE');
+    expect(result.delta).toBe(10);
+    expect(result.needsConfirmation).toBe(false);
+  });
+
+  it('warns when oil level increases because this indicates refill or correction', () => {
+    const result = validateZaehlerstand({
+      letzterWert: 110,
+      neuerWert: 120,
+      zaehler: {
+        medium: 'oel_stand_cm',
+      },
+    });
+
+    expect(result.status).toBe(VALIDATION_STATUS.WARNUNG);
+    expect(result.code).toBe('FILL_LEVEL_INCREASE');
+    expect(result.delta).toBe(10);
+    expect(result.needsConfirmation).toBe(true);
+  });
+
+  it('does not treat oil level decrease as overflow even if overflow metadata is present', () => {
+    const result = validateZaehlerstand({
+      letzterWert: 120,
+      neuerWert: 10,
+      zaehler: {
+        medium: 'oel_stand_cm',
+        stellen: 3,
+        ueberlauf_erlaubt: true,
+      },
+    });
+
+    expect(result.status).toBe(VALIDATION_STATUS.OK);
+    expect(result.code).toBe('FILL_LEVEL_DECREASE');
+    expect(result.delta).toBe(110);
+  });
+
+  it('warns if decreasing oil level is higher than max plausible consumption', () => {
+    const result = validateZaehlerstand({
+      letzterWert: 120,
+      neuerWert: 10,
+      zaehler: {
+        medium: 'oel_stand_cm',
+        max_plausibler_verbrauch: 20,
+      },
+    });
+
+    expect(result.status).toBe(VALIDATION_STATUS.WARNUNG);
+    expect(result.code).toBe('HIGH_FILL_LEVEL_CONSUMPTION');
+    expect(result.delta).toBe(110);
+    expect(result.needsConfirmation).toBe(true);
+  });
+
   it('rejects invalid new value', () => {
     const result = validateZaehlerstand({
       letzterWert: 1200,

@@ -6,9 +6,13 @@ function loadAppsScriptHelpers() {
     new URL('../apps-script/Code.gs', import.meta.url),
     'utf8'
   );
+  const standIdMigrationCode = readFileSync(
+    new URL('../apps-script/StandIdMigration.gs', import.meta.url),
+    'utf8'
+  );
 
   const factory = new Function(
-    `${code}; return { BACKEND_VERSION, appendIfMissingByKeys, buildStandId, formatStandIdTimestamp, getItemValueForHeader, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
+    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildMigratedZaehlerstandItem, buildStandId, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedConsumptionMeterSeedDataFromRows, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
   );
 
   return factory();
@@ -18,7 +22,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
   it('declares the current backend version', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
 
-    expect(BACKEND_VERSION).toBe('4.3.1');
+    expect(BACKEND_VERSION).toBe('4.4.6');
   });
 
   it('formats German timestamps for stand_id values', () => {
@@ -312,5 +316,264 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     );
 
     expect(result).toBe('Duck, Donald');
+  });
+
+  it('derives unit ids from historical meter ids without relying on mutable master data', () => {
+    const { deriveEinheitIdFromLegacyZaehlerId } = loadAppsScriptHelpers();
+
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_STROM_KWH_WOHNUNG_1', 'Ra-HS-29')).toBe('Ra-HS-29_WE_01');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_KALTWASSER_M3_WOHNUNG_11', 'Ra-HS-29')).toBe('Ra-HS-29_WE_11');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_STROM_KWH_GEWERBE_2', 'Ra-HS-29')).toBe('Ra-HS-29_GE_02');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_STROM_KWH_ALLGEMEIN', 'Ra-HS-29')).toBe('Ra-HS-29_Allgemein');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_KALTWASSER_KW_HAUPTZAEHLER', 'Ra-HS-29')).toBe('Ra-HS-29_Allgemein');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_STROM_KWH_PRIVAT_NT', 'Ra-HS-29')).toBe('Ra-HS-29_GE_02');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_STROM_KWH_FLUR', 'Ra-HS-29')).toBe('Ra-HS-29_Allgemein_Flur');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_STROM_KWH_HEIZUNG', 'Ra-HS-29')).toBe('Ra-HS-29_Allgemein_Heizung');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_WARMWASSER_WW_GESAMT_BERECHNET', 'Ra-HS-29')).toBe('Ra-HS-29_Allgemein_Heizung');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_WARMWASSER_WW_WOHNUNG_10', 'Ra-HS-29')).toBe('Ra-HS-29_WE_10');
+    expect(deriveEinheitIdFromLegacyZaehlerId('Z_WARMWASSER_WW_WOHNUNG_11', 'Ra-HS-29')).toBe('Ra-HS-29_WE_11');
+  });
+
+  it('defines the historical calculated warm water meter as non-manual', () => {
+    const { getHistoricalCalculatedMeterSeedData } = loadAppsScriptHelpers();
+
+    expect(getHistoricalCalculatedMeterSeedData()).toEqual([
+      expect.objectContaining({
+        zaehler_id: 'Z_WARMWASSER_WW_GESAMT_BERECHNET',
+        objekt_id: 'Ra-HS-29',
+        einheit_id: 'Ra-HS-29_Allgemein_Heizung',
+        medium: 'warmwasser_m3',
+        einbauort: 'berechneter Wert, kein Zaehler',
+        erfassbar: false,
+        berechnet: true,
+        aktiv: true,
+      }),
+    ]);
+  });
+
+  it('builds migrated meter readings with object, unit and new stand_id', () => {
+    const { buildMigratedZaehlerstandItem } = loadAppsScriptHelpers();
+
+    const result = buildMigratedZaehlerstandItem({
+      stand_id: 'ST_Z_STROM_KWH_WOHNUNG_1_20260619',
+      objekt_id: '',
+      einheit_id: '',
+      zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+      zeitstempel: '19.06.2026 00:00',
+      wert: 1234,
+    });
+
+    expect(result).toMatchObject({
+      status: 'ok',
+      changed: true,
+      oldStandId: 'ST_Z_STROM_KWH_WOHNUNG_1_20260619',
+      newStandId: 'ST_Ra-HS-29_Ra-HS-29_WE_01_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00',
+    });
+    expect(result.item).toMatchObject({
+      objekt_id: 'Ra-HS-29',
+      einheit_id: 'Ra-HS-29_WE_01',
+      stand_id: 'ST_Ra-HS-29_Ra-HS-29_WE_01_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00',
+      wert: 1234,
+    });
+  });
+
+  it('previews stand_id migration and blocks unresolved or duplicate rows', () => {
+    const { analyzeStandIdMigrationRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert'];
+    const rows = [
+      ['ST_Z_STROM_KWH_WOHNUNG_1_20260619', '', '', 'Z_STROM_KWH_WOHNUNG_1', '19.06.2026 00:00', 100],
+      ['ST_Z_STROM_KWH_WOHNUNG_1_20260619_COPY', '', '', 'Z_STROM_KWH_WOHNUNG_1', '19.06.2026 00:00', 100],
+      ['ST_Z_UNKNOWN_20260619', '', '', 'Z_UNBEKANNT', '19.06.2026 00:00', 100],
+    ];
+
+    const result = analyzeStandIdMigrationRows(headers, rows);
+
+    expect(result).toMatchObject({
+      totalRows: 3,
+      migratableRows: 2,
+      changedRows: 2,
+      unresolvedRows: 1,
+      duplicateRows: 1,
+      missingHeaders: [],
+    });
+    expect(result.unresolved[0]).toMatchObject({
+      row: 4,
+      reason: 'UNKNOWN_EINHEIT_ID',
+      zaehler_id: 'Z_UNBEKANNT',
+    });
+    expect(result.duplicates[0]).toMatchObject({
+      row: 3,
+      duplicateOfRow: 2,
+      stand_id: 'ST_Ra-HS-29_Ra-HS-29_WE_01_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00',
+    });
+  });
+
+  it('reports duplicate migration groups with conservative recommendations', () => {
+    const { analyzeStandIdDuplicateRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert', 'quelle'];
+    const rows = [
+      ['ST_A', '', '', 'Z_STROM_KWH_WOHNUNG_1', '19.06.2026 00:00', 100, 'Import'],
+      ['ST_B', '', '', 'Z_STROM_KWH_WOHNUNG_1', '19.06.2026 00:00', 100, 'Import'],
+      ['ST_C', '', '', 'Z_STROM_KWH_WOHNUNG_1', '19.06.2026 00:00', 101, 'Import'],
+      ['ST_D', '', '', 'Z_STROM_KWH_WOHNUNG_1', '20.06.2026 00:00', 102, 'Import'],
+    ];
+
+    const result = analyzeStandIdDuplicateRows(headers, rows);
+
+    expect(result).toMatchObject({
+      totalRows: 4,
+      duplicateGroups: 1,
+      duplicateRows: 2,
+      deleteCandidateRows: 1,
+      reviewRows: 1,
+      missingHeaders: [],
+    });
+    expect(result.rows.map(row => row.recommendation)).toEqual([
+      'KEEP',
+      'CANDIDATE_DELETE_EXACT_DUPLICATE',
+      'REVIEW_VALUE_DIFFERS',
+    ]);
+    expect(result.rows[1]).toMatchObject({
+      group: 'DUP_01',
+      row: 3,
+      duplicateOfRow: 2,
+      valueStatus: 'SAME_VALUE',
+      wert: 100,
+    });
+    expect(result.rows[2]).toMatchObject({
+      group: 'DUP_01',
+      row: 4,
+      duplicateOfRow: 2,
+      valueStatus: 'VALUE_DIFFERS',
+      wert: 101,
+    });
+  });
+
+  it('resolves historical duplicate readings as meter stand plus calculated consumption', () => {
+    const { analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert', 'quelle'];
+    const rows = [
+      ['ST_LOW', '', '', 'Z_WARMWASSER_WW_WOHNUNG_4', '19.06.2026 00:00', 12, 'Migration'],
+      ['ST_HIGH', '', '', 'Z_WARMWASSER_WW_WOHNUNG_4', '19.06.2026 00:00', 456, 'Migration'],
+    ];
+
+    const duplicateReport = analyzeStandIdDuplicateRows(headers, rows);
+    const migrationReport = analyzeStandIdMigrationRows(headers, rows);
+
+    expect(duplicateReport).toMatchObject({
+      duplicateGroups: 1,
+      duplicateRows: 1,
+      conversionRows: 1,
+      deleteCandidateRows: 0,
+      reviewRows: 0,
+    });
+    expect(duplicateReport.rows.map(row => row.recommendation)).toEqual([
+      'CONVERT_LOWER_VALUE_TO_CALCULATED_CONSUMPTION',
+      'KEEP',
+    ]);
+    expect(duplicateReport.rows[0]).toMatchObject({
+      calculated_zaehler_id: 'Z_WARMWASSER_WW_WOHNUNG_4_VERBRAUCH_BERECHNET',
+      wert: 12,
+    });
+
+    expect(migrationReport).toMatchObject({
+      totalRows: 2,
+      migratableRows: 2,
+      duplicateRows: 0,
+      unresolvedRows: 0,
+    });
+    expect(migrationReport.changes[0]).toMatchObject({
+      zaehler_id: 'Z_WARMWASSER_WW_WOHNUNG_4_VERBRAUCH_BERECHNET',
+      migrationNote: 'LOWER_VALUE_IS_CALCULATED_CONSUMPTION',
+    });
+    expect(migrationReport.changes[1]).toMatchObject({
+      zaehler_id: 'Z_WARMWASSER_WW_WOHNUNG_4',
+      migrationNote: '',
+    });
+  });
+
+  it('creates virtual meter seed data for calculated duplicate consumption rows', () => {
+    const { getHistoricalCalculatedConsumptionMeterSeedDataFromRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert', 'quelle'];
+    const rows = [
+      ['ST_LOW', '', '', 'Z_WARMWASSER_WW_WOHNUNG_4', '19.06.2026 00:00', 12, 'Migration'],
+      ['ST_HIGH', '', '', 'Z_WARMWASSER_WW_WOHNUNG_4', '19.06.2026 00:00', 456, 'Migration'],
+    ];
+
+    const seed = getHistoricalCalculatedConsumptionMeterSeedDataFromRows(headers, rows);
+
+    expect(seed).toEqual([
+      expect.objectContaining({
+        zaehler_id: 'Z_WARMWASSER_WW_WOHNUNG_4_VERBRAUCH_BERECHNET',
+        objekt_id: 'Ra-HS-29',
+        einheit_id: 'Ra-HS-29_WE_04',
+        medium: 'warmwasser_m3',
+        einheit: 'm3',
+        einbauort: 'berechneter Wert, kein Zaehler',
+        erfassbar: false,
+        berechnet: true,
+      }),
+    ]);
+  });
+
+  it('learns existing unit mappings from already prepared meter readings', () => {
+    const { analyzeStandIdMigrationRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert'];
+    const rows = [
+      ['ST_PREPARED', 'Ra-HS-29', 'Ra-HS-29_GE_01', 'Z_SONDERZAEHLER_GEWERBE', '01.01.2026 00:00', 10],
+      ['ST_LEGACY', '', '', 'Z_SONDERZAEHLER_GEWERBE', '02.01.2026 00:00', 11],
+    ];
+
+    const result = analyzeStandIdMigrationRows(headers, rows);
+
+    expect(result).toMatchObject({
+      totalRows: 2,
+      migratableRows: 2,
+      unresolvedRows: 0,
+      mappingConflictRows: 0,
+    });
+    expect(result.changes[1]).toMatchObject({
+      row: 3,
+      einheit_id: 'Ra-HS-29_GE_01',
+      zaehler_id: 'Z_SONDERZAEHLER_GEWERBE',
+    });
+  });
+
+  it('reports conflicting learned unit mappings instead of guessing', () => {
+    const { buildExistingEinheitMappingFromRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert'];
+    const rows = [
+      ['ST_ONE', 'Ra-HS-29', 'Ra-HS-29_WE_01', 'Z_MEHRDEUTIG', '01.01.2026 00:00', 10],
+      ['ST_TWO', 'Ra-HS-29', 'Ra-HS-29_WE_02', 'Z_MEHRDEUTIG', '02.01.2026 00:00', 11],
+    ];
+
+    const result = buildExistingEinheitMappingFromRows(headers, rows);
+
+    expect(result.mapping).toEqual({});
+    expect(result.conflicts).toEqual([
+      expect.objectContaining({
+        objekt_id: 'Ra-HS-29',
+        zaehler_id: 'Z_MEHRDEUTIG',
+        einheit_ids: 'Ra-HS-29_WE_01, Ra-HS-29_WE_02',
+        rows: '2, 3',
+      }),
+    ]);
+  });
+
+  it('uses explicit overrides to resolve known incorrect historical mappings', () => {
+    const { buildExistingEinheitMappingFromRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert'];
+    const rows = [
+      ['ST_BAD', 'Ra-HS-29', 'Ra-HS-29_WE_010', 'Z_WARMWASSER_WW_WOHNUNG_10', '01.01.2026 00:00', 10],
+      ['ST_GOOD', 'Ra-HS-29', 'Ra-HS-29_WE_10', 'Z_WARMWASSER_WW_WOHNUNG_10', '02.01.2026 00:00', 11],
+      ['ST_FLUR_OLD', 'Ra-HS-29', 'Ra-HS-29_Allgemein', 'Z_STROM_KWH_FLUR', '01.01.2026 00:00', 12],
+      ['ST_FLUR_NEW', 'Ra-HS-29', 'Ra-HS-29_Allgemein_Flur', 'Z_STROM_KWH_FLUR', '02.01.2026 00:00', 13],
+    ];
+
+    const result = buildExistingEinheitMappingFromRows(headers, rows);
+
+    expect(result.conflicts).toEqual([]);
+    expect(result.mapping['RA-HS-29|Z_WARMWASSER_WW_WOHNUNG_10']).toBe('Ra-HS-29_WE_10');
+    expect(result.mapping['RA-HS-29|Z_STROM_KWH_FLUR']).toBe('Ra-HS-29_Allgemein_Flur');
   });
 });

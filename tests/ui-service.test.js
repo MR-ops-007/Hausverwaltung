@@ -8,6 +8,7 @@ function loadUiService({
   currentMeters = [],
   saveResponse = { status: 'success' },
   confirmResult = true,
+  validationServiceAvailable = true,
 } = {}) {
   const uiServiceCode = readFileSync(
     new URL('../ui-service.js', import.meta.url),
@@ -72,10 +73,12 @@ function loadUiService({
   };
 
   const window = {
-    validationService: {
-      validateZaehlerstand,
-      VALIDATION_STATUS,
-    },
+    validationService: validationServiceAvailable
+      ? {
+        validateZaehlerstand,
+        VALIDATION_STATUS,
+      }
+      : undefined,
   };
 
   const alert = (message) => {
@@ -110,6 +113,7 @@ function loadUiService({
 
   return {
     uiService,
+    dataService,
     alerts,
     confirms,
     saveCalls,
@@ -460,6 +464,127 @@ describe('uiService.saveZaehler', () => {
     expect(saveCalls).toHaveLength(1);
     expect(saveCalls[0].data[0].wert).toBe(123);
     expect(alerts).toContain('Erfolgreich gespeichert!');
+  });
+
+  it('adds successful saves to local history so production test meters are validated immediately', async () => {
+    const meter = {
+      zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+      objekt_id: 'TEST',
+      einheit_id: 'TEST_WE_01',
+      bezeichnung: 'Strom Wohnung 1 TEST',
+    };
+
+    const firstRun = loadUiService({
+      currentMeters: [meter],
+      inputValuesByZaehlerId: {
+        Z_STROM_KWH_WOHNUNG_1: '100',
+      },
+    });
+
+    await firstRun.uiService.saveZaehler();
+
+    expect(firstRun.saveCalls).toHaveLength(1);
+    expect(firstRun.dataService.state.zaehlerstaende).toEqual([
+      expect.objectContaining({
+        objekt_id: 'TEST',
+        einheit_id: 'TEST_WE_01',
+        zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+        wert: 100,
+      }),
+    ]);
+
+    firstRun.uiService.currentActiveMetersObjects = [meter];
+    firstRun.dataService.state.zaehler = [meter];
+
+    const secondInputDocument = {
+      getElementById(id) {
+        if (id.startsWith('input-')) {
+          return { value: '90' };
+        }
+
+        if (id === 'modal-container') {
+          return { style: { display: 'flex' } };
+        }
+
+        return null;
+      },
+    };
+
+    const secondFactory = new Function(
+      'dataService',
+      'cloudService',
+      'window',
+      'document',
+      'alert',
+      'confirm',
+      `${readFileSync(new URL('../ui-service.js', import.meta.url), 'utf8')}; return uiService;`
+    );
+    const secondUiService = secondFactory(
+      firstRun.dataService,
+      {
+        async saveTransaction(payload) {
+          firstRun.saveCalls.push(payload);
+          return { status: 'success' };
+        },
+      },
+      {
+        validationService: {
+          validateZaehlerstand,
+          VALIDATION_STATUS,
+        },
+      },
+      secondInputDocument,
+      message => firstRun.alerts.push(String(message)),
+      message => {
+        firstRun.confirms.push(String(message));
+        return false;
+      }
+    );
+
+    secondUiService.currentActiveMetersObjects = [meter];
+
+    await secondUiService.saveZaehler();
+
+    expect(firstRun.confirms).toHaveLength(1);
+    expect(firstRun.confirms[0]).toContain('Plausibilitätswarnungen');
+    expect(firstRun.confirms[0]).toContain('Alt: 100');
+    expect(firstRun.confirms[0]).toContain('Neu: 90');
+    expect(firstRun.saveCalls).toHaveLength(1);
+  });
+
+  it('uses built-in validation fallback if the browser module did not initialize', async () => {
+    const meter = {
+      zaehler_id: 'Z_OEL_STAND_IN_CM',
+      objekt_id: 'TEST',
+      einheit_id: 'TEST_Allgemein',
+      bezeichnung: 'Heizung Ölstand (cm) TEST',
+      medium: 'oel_stand_cm',
+    };
+
+    const { uiService, saveCalls, confirms, alerts } = loadUiService({
+      validationServiceAvailable: false,
+      currentMeters: [meter],
+      inputValuesByZaehlerId: {
+        Z_OEL_STAND_IN_CM: '55',
+      },
+      zaehlerstaende: [
+        {
+          objekt_id: 'TEST',
+          einheit_id: 'TEST_Allgemein',
+          zaehler_id: 'Z_OEL_STAND_IN_CM',
+          wert: 33,
+          zeitstempel: '28.06.2026 10:00',
+        },
+      ],
+      confirmResult: false,
+    });
+
+    await uiService.saveZaehler();
+
+    expect(confirms).toHaveLength(1);
+    expect(confirms[0]).toContain('Füllstand ist höher');
+    expect(saveCalls).toHaveLength(0);
+    expect(alerts).not.toContain('Plausibilitätsprüfung konnte nicht geladen werden. Speicherung wurde aus Sicherheitsgründen abgebrochen.');
   });
 
   it('ignores empty inputs and alerts if no values were entered', async () => {
