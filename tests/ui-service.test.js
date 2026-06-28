@@ -7,7 +7,16 @@ function loadUiService({
   inputValuesByZaehlerId = {},
   currentMeters = [],
   units = [],
+  objects = [],
   viewAktiveMieter = [],
+  calcService = {
+    buildConsumptionDashboard() {
+      return {
+        rows: [],
+        summary: [],
+      };
+    },
+  },
   saveResponse = { status: 'success' },
   confirmResult = true,
   validationServiceAvailable = true,
@@ -26,14 +35,18 @@ function loadUiService({
       zaehlerstaende,
       zaehler: currentMeters,
       einheiten: units,
-      objekte: [],
+      objekte: objects,
       view_aktive_mieter: viewAktiveMieter,
     },
     getUniqueObjects() {
-      return [];
+      return Array.isArray(this.state.objekte)
+        ? this.state.objekte.map(o => o.objekt_id)
+        : [];
     },
-    getUnitsByObject() {
-      return [];
+    getUnitsByObject(objektId) {
+      return Array.isArray(this.state.einheiten)
+        ? this.state.einheiten.filter(e => String(e.objekt_id) === String(objektId))
+        : [];
     },
   };
 
@@ -52,15 +65,24 @@ function loadUiService({
   const modalBodyElement = {
     innerHTML: '',
   };
+  const elementsById = {
+    'modal-container': modalElement,
+    'modal-body': modalBodyElement,
+    'object-selector-section': { style: { display: 'block' }, innerHTML: '', className: '' },
+    'unit-list-section': { style: { display: 'none' }, innerHTML: '', className: '' },
+    'consumption-dashboard-section': { style: { display: 'none' }, innerHTML: '', className: '' },
+    'nav-meter-entry': { style: {}, innerHTML: '', className: '' },
+    'nav-consumption-dashboard': { style: {}, innerHTML: '', className: '' },
+    'consumption-object-select': { style: {}, innerHTML: '', value: '', className: '' },
+    'consumption-year-select': { style: {}, innerHTML: '', value: '', className: '' },
+    'consumption-include-calculated': { style: {}, checked: true, innerHTML: '', className: '' },
+    'consumption-dashboard-output': { style: {}, innerHTML: '', className: '' },
+  };
 
   const document = {
     getElementById(id) {
-      if (id === 'modal-container') {
-        return modalElement;
-      }
-
-      if (id === 'modal-body') {
-        return modalBodyElement;
+      if (elementsById[id]) {
+        return elementsById[id];
       }
 
       if (id.startsWith('input-')) {
@@ -100,6 +122,7 @@ function loadUiService({
     'document',
     'alert',
     'confirm',
+    'calcService',
     `${uiServiceCode}; return uiService;`
   );
 
@@ -109,7 +132,8 @@ function loadUiService({
     window,
     document,
     alert,
-    confirm
+    confirm,
+    calcService
   );
 
   uiService.currentActiveMetersObjects = currentMeters;
@@ -122,6 +146,7 @@ function loadUiService({
     saveCalls,
     modalElement,
     modalBodyElement,
+    elementsById,
   };
 }
 
@@ -246,6 +271,96 @@ describe('uiService helper methods', () => {
     expect(uiService.isZaehlerManuellErfassbar({ erfassbar: 'FALSE' })).toBe(false);
     expect(uiService.isZaehlerManuellErfassbar({ berechnet: true })).toBe(false);
     expect(uiService.isZaehlerManuellErfassbar({ berechnet: 'TRUE' })).toBe(false);
+  });
+
+  it('extracts available consumption years from meter readings', () => {
+    const { uiService } = loadUiService({
+      zaehlerstaende: [
+        { zeitstempel: '02.01.2025 00:00' },
+        { zeitstempel: '02.01.2026 00:00' },
+        { zeitstempel: 'Ungültig' },
+      ],
+    });
+
+    expect(uiService.getAvailableConsumptionYears()).toEqual(['2026', '2025']);
+  });
+});
+
+describe('uiService consumption dashboard', () => {
+  it('switches to the consumption dashboard view and renders summary plus rows', () => {
+    const calcCalls = [];
+    const { uiService, elementsById } = loadUiService({
+      objects: [
+        {
+          objekt_id: 'Ra-HS-29',
+          bezeichnung: 'Rathausstraße 29',
+        },
+      ],
+      zaehlerstaende: [
+        {
+          objekt_id: 'Ra-HS-29',
+          zeitstempel: '02.01.2026 00:00',
+        },
+      ],
+      calcService: {
+        buildConsumptionDashboard(data, options) {
+          calcCalls.push(options);
+
+          return {
+            summary: [
+              {
+                objekt_id: 'Ra-HS-29',
+                medium: 'strom_ht_kwh',
+                einheit: 'kWh',
+                verbrauch: 253,
+                zaehler_count: 1,
+                offene_zaehler: 0,
+                berechnet: false,
+              },
+            ],
+            rows: [
+              {
+                objekt_id: 'Ra-HS-29',
+                einheit_id: 'Ra-HS-29_WE_01',
+                einheit_name: 'Wohnung 1',
+                zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+                medium: 'strom_ht_kwh',
+                bezeichnung: 'Strom Wohnung 1',
+                einheit: 'kWh',
+                einbauort: 'Flur',
+                readings_count: 2,
+                start_wert: 6647,
+                start_zeitstempel: '02.01.2026 00:00',
+                end_wert: 6900,
+                end_zeitstempel: '30.12.2026 00:00',
+                verbrauch: 253,
+                status: 'OK',
+                hinweis: '',
+              },
+            ],
+          };
+        },
+      },
+    });
+
+    uiService.showConsumptionDashboard();
+
+    expect(elementsById['object-selector-section'].style.display).toBe('none');
+    expect(elementsById['consumption-dashboard-section'].style.display).toBe('block');
+    expect(elementsById['nav-consumption-dashboard'].className).toBe('tab-btn-active');
+    expect(elementsById['consumption-object-select'].innerHTML).toContain('Rathausstraße 29');
+    expect(elementsById['consumption-year-select'].innerHTML).toContain('2026');
+    expect(calcCalls).toEqual([
+      {
+        objekt_id: 'Ra-HS-29',
+        year: '2026',
+        includeCalculated: true,
+      },
+    ]);
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('strom_ht_kwh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Wohnung 1');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom Wohnung 1');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('253 kWh');
   });
 });
 

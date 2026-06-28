@@ -306,7 +306,7 @@ Umgesetzt:
 
 Nächster sinnvoller Schritt:
 
-- UI-Ansicht für Verbrauchsdashboard auf Basis von `calcService.buildConsumptionDashboard`
-- zunächst Tabelle pro Objekt/Jahr, danach Summen und visuelle Auswertung
+- Verbrauchsdashboard mit Objekt-/Jahr-Auswahl und Tabelle ist in der UI angebunden.
+- Nächster UI-Ausbau: bessere Gruppierung nach Einheit/Medium, Filter für Statusfälle und später visuelle Auswertung.
 
 Spätere Auswertungen sollen den Testbereich `TEST` sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.
