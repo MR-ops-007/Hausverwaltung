@@ -107,6 +107,9 @@ describe('calcService consumption dashboard', () => {
         medium: 'kaltwasser_m3',
         stellen: 4,
         ueberlauf_erlaubt: true,
+      },
+      {
+        days: 365,
       }
     );
 
@@ -126,6 +129,28 @@ describe('calcService consumption dashboard', () => {
         stellen: 4,
         ueberlauf_erlaubt: true,
         max_plausibler_verbrauch: 100,
+      }
+    );
+
+    expect(result).toMatchObject({
+      value: null,
+      status: 'UNPLAUSIBEL_HOCH',
+    });
+  });
+
+  it('uses medium defaults if legacy water meters have no max plausibility value', () => {
+    const calcService = loadCalcService();
+    const result = calcService.calculateReadingDelta(
+      { wert: 890 },
+      { wert: 188 },
+      {
+        medium: 'kaltwasser_m3',
+        stellen: 4,
+        ueberlauf_erlaubt: true,
+        max_plausibler_verbrauch: '',
+      },
+      {
+        days: 456,
       }
     );
 
@@ -222,6 +247,55 @@ describe('calcService consumption dashboard', () => {
     expect(rows[0].verbrauch).toBeCloseTo(366);
     expect(rows[0].status).toBe('FORTGESCHRIEBEN');
     expect(rows[0].hinweis).toContain('fortgeschrieben');
+  });
+
+  it('does not add a forecast if a real reading interval overlaps the selected year', () => {
+    const calcService = loadCalcService();
+    const rows = calcService.buildConsumptionRows(
+      {
+        zaehler: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_01',
+            zaehler_id: 'Z_STROM_KWH_KODI_HT',
+            medium: 'strom_ht_kwh',
+            einheit: 'kWh',
+          },
+        ],
+        zaehlerstaende: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_01',
+            zaehler_id: 'Z_STROM_KWH_KODI_HT',
+            wert: 290000,
+            zeitstempel: '01.01.2023 00:00',
+          },
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_01',
+            zaehler_id: 'Z_STROM_KWH_KODI_HT',
+            wert: 300000,
+            zeitstempel: '01.01.2024 00:00',
+          },
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_01',
+            zaehler_id: 'Z_STROM_KWH_KODI_HT',
+            wert: 310000,
+            zeitstempel: '01.01.2025 00:00',
+          },
+        ],
+        einheiten: [],
+      },
+      {
+        objekt_id: 'Ra-HS-29',
+        year: 2024,
+      }
+    );
+
+    expect(rows[0].verbrauch).toBe(10000);
+    expect(rows[0].status).toBe('OK');
+    expect(rows[0].hinweis).toBe('');
   });
 
   it('treats decreasing oil level in cm as consumption', () => {

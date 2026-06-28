@@ -303,6 +303,8 @@ Umgesetzt:
 - wenn in einem Jahr keine Ablesung vorliegt, kann der letzte bekannte Durchschnitt fortgeschrieben werden
 - Normalverbrauch bei steigenden Zählerintervallen
 - Überlaufberechnung für geeignete Wasserzähler nur, wenn der berechnete Verbrauch plausibel bleibt
+- Legacy-Zähler ohne `max_plausibler_verbrauch` erhalten für Dashboard-Zwecke Medium-Defaults, damit offensichtlich falsche Überläufe nicht in Summen laufen
+- Fortführung wird nur verwendet, wenn kein reales Intervall den ausgewählten Zeitraum überlappt; dadurch wird Doppelzählung verhindert
 - rückläufiger Ölstand in cm als Verbrauch über die Summe der fallenden Intervalle
 - steigender Ölstand als Review-Status, z. B. bei Betankung oder Korrektur
 - optionale Ausblendung berechneter/virtueller Zähler

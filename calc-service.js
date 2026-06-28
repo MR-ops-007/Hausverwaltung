@@ -104,19 +104,54 @@ const calcService = {
         return maxValueExclusive - firstValue + lastValue;
     },
 
-    getMaxPlausibleConsumption(zaehler) {
-        return this.toNumber(zaehler.max_plausibler_verbrauch);
+    getDefaultMaxPlausibleConsumption(zaehler, days) {
+        const medium = this.normalizeText(zaehler.medium);
+        const einheitId = this.normalizeText(zaehler.einheit_id);
+        const label = this.normalizeText(zaehler.bezeichnung);
+        const months = days && days > 0 ? Math.max(days / 30, 1) : 1;
+        const isHouseLevel = (
+            einheitId.includes("allgemein") ||
+            label.includes("hauptzähler") ||
+            label.includes("zulauf") ||
+            label.includes("gesamt")
+        );
+
+        if (medium === "kaltwasser_m3") {
+            return (isHouseLevel ? 300 : 30) * months;
+        }
+
+        if (medium === "warmwasser_m3") {
+            return (isHouseLevel ? 150 : 20) * months;
+        }
+
+        if (medium === "oel_stand_cm") {
+            return 60 * months;
+        }
+
+        return null;
     },
 
-    isConsumptionPlausible(value, zaehler) {
-        const maxPlausible = this.getMaxPlausibleConsumption(zaehler);
+    getMaxPlausibleConsumption(zaehler, days) {
+        const configuredMax = this.toNumber(zaehler.max_plausibler_verbrauch);
+
+        if (configuredMax !== null) {
+            const months = days && days > 0 ? Math.max(days / 30, 1) : 1;
+            return configuredMax * months;
+        }
+
+        return this.getDefaultMaxPlausibleConsumption(zaehler, days);
+    },
+
+    isConsumptionPlausible(value, zaehler, days) {
+        const maxPlausible = this.getMaxPlausibleConsumption(zaehler, days);
 
         return maxPlausible === null || value <= maxPlausible;
     },
 
-    calculateReadingDelta(firstReading, lastReading, zaehler) {
+    calculateReadingDelta(firstReading, lastReading, zaehler, options = {}) {
         const firstValue = this.toNumber(firstReading && firstReading.wert);
         const lastValue = this.toNumber(lastReading && lastReading.wert);
+        const days = this.toNumber(options.days);
 
         if (firstValue === null || lastValue === null) {
             return {
@@ -137,7 +172,7 @@ const calcService = {
         if (this.isReverseFillLevelMeter(zaehler)) {
             const consumption = Math.max(firstValue - lastValue, 0);
 
-            if (!this.isConsumptionPlausible(consumption, zaehler)) {
+            if (!this.isConsumptionPlausible(consumption, zaehler, days)) {
                 return {
                     value: null,
                     status: "UNPLAUSIBEL_HOCH",
@@ -157,7 +192,7 @@ const calcService = {
         if (lastValue >= firstValue) {
             const consumption = lastValue - firstValue;
 
-            if (!this.isConsumptionPlausible(consumption, zaehler)) {
+            if (!this.isConsumptionPlausible(consumption, zaehler, days)) {
                 return {
                     value: null,
                     status: "UNPLAUSIBEL_HOCH",
@@ -177,7 +212,7 @@ const calcService = {
         if (this.isTrueValue(zaehler.ueberlauf_erlaubt) && digits !== null && digits > 0) {
             const consumption = this.calculateOverflowDelta(firstValue, lastValue, digits);
 
-            if (!this.isConsumptionPlausible(consumption, zaehler)) {
+            if (!this.isConsumptionPlausible(consumption, zaehler, days)) {
                 return {
                     value: null,
                     status: "UNPLAUSIBEL_HOCH",
@@ -347,8 +382,8 @@ const calcService = {
         };
     },
 
-    calculateIntervalConsumption(previousReading, currentReading, zaehler) {
-        const delta = this.calculateReadingDelta(previousReading, currentReading, zaehler);
+    calculateIntervalConsumption(previousReading, currentReading, zaehler, options = {}) {
+        const delta = this.calculateReadingDelta(previousReading, currentReading, zaehler, options);
 
         if (delta.value === null) {
             return delta;
@@ -370,14 +405,15 @@ const calcService = {
             const previousReading = readings[index];
             const start = this.parseGermanDate(previousReading.zeitstempel);
             const end = this.parseGermanDate(currentReading.zeitstempel);
-            const delta = this.calculateIntervalConsumption(previousReading, currentReading, zaehler);
+            const days = end > start ? (end - start) / this.MS_PER_DAY : 0;
+            const delta = this.calculateIntervalConsumption(previousReading, currentReading, zaehler, { days });
 
             return {
                 previousReading,
                 currentReading,
                 start,
                 end,
-                days: end > start ? (end - start) / this.MS_PER_DAY : 0,
+                days,
                 verbrauch: delta.value,
                 status: delta.status,
                 hinweis: delta.note
@@ -522,11 +558,14 @@ const calcService = {
                 const range = this.getYearRange(options.year);
                 const monthRanges = this.getMonthRanges(options.year);
                 const intervals = this.buildConsumptionIntervals(allReadings, meter);
-                const forecastInterval = this.buildForecastIntervalFromPreviousAverage(allReadings, range, meter);
+                const realPeriodIntervals = range
+                    ? intervals.filter(interval => this.getOverlapRatio(interval, range) > 0)
+                    : intervals;
+                const forecastInterval = realPeriodIntervals.length === 0
+                    ? this.buildForecastIntervalFromPreviousAverage(allReadings, range, meter)
+                    : null;
                 const periodIntervals = range
-                    ? intervals
-                        .concat(forecastInterval ? [forecastInterval] : [])
-                        .filter(interval => this.getOverlapRatio(interval, range) > 0)
+                    ? realPeriodIntervals.concat(forecastInterval ? [forecastInterval] : [])
                     : intervals;
                 const allocation = range
                     ? this.allocateIntervalsToPeriod(periodIntervals, range, monthRanges)
