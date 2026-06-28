@@ -1,7 +1,7 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.5.0
- * Stand: 2026-06-27
+ * Version: 4.5.1
+ * Stand: 2026-06-28
  *
  * Änderungen seit v4.1:
  * - stand_id nutzt zusammengesetzte Zähleridentität
@@ -37,8 +37,12 @@
  *
  * Änderungen seit v4.4.6:
  * - LOK-Zählerstruktur und Eingangs-Stammdaten ergänzt
+ *
+ * Änderungen seit v4.5.0:
+ * - LOK Wohnung 10 in 10 A, 10 B und 10 S aufgeteilt
+ * - ensureLokStructureData legt fehlende LOK-Einheiten an
  */
-const BACKEND_VERSION = "4.5.0";
+const BACKEND_VERSION = "4.5.1";
 
 function sendJSON(obj) {
   return ContentService
@@ -489,7 +493,9 @@ function getLokEinheitEntranceMapping() {
     LOK_WE_07: "B",
     LOK_WE_08: "B",
     LOK_WE_09: "B",
-    LOK_WE_10: "B",
+    LOK_WE_10_A: "B",
+    LOK_WE_10_B: "B",
+    LOK_WE_10_S: "B",
     LOK_WE_11: "C",
     LOK_WE_12: "C",
     LOK_WE_13: "C",
@@ -500,8 +506,56 @@ function getLokEinheitEntranceMapping() {
   };
 }
 
+function getLokEinheitDisplayName(einheitId) {
+  const explicitNames = {
+    LOK_WE_10_A: "Wohnung 10 A",
+    LOK_WE_10_B: "Wohnung 10 B",
+    LOK_WE_10_S: "Wohnung 10 S",
+    LOK_GE_01: "Gewerbe 1",
+    LOK_Allgemein: "Allgemein"
+  };
+
+  if (explicitNames[einheitId]) {
+    return explicitNames[einheitId];
+  }
+
+  const wohnungMatch = String(einheitId).match(/^LOK_WE_(\d{2})$/);
+
+  if (wohnungMatch) {
+    return "Wohnung " + Number(wohnungMatch[1]);
+  }
+
+  return String(einheitId).replace("LOK_", "").replace(/_/g, " ");
+}
+
+function getLokEinheitTyp(einheitId) {
+  if (einheitId === "LOK_Allgemein") {
+    return "Allgemein";
+  }
+
+  if (String(einheitId).indexOf("LOK_GE_") === 0) {
+    return "Gewerbe";
+  }
+
+  return "Wohnung";
+}
+
+function getLokEinheitSeedData() {
+  const entranceMapping = getLokEinheitEntranceMapping();
+
+  return Object.keys(entranceMapping).map(einheitId => ({
+    einheit_id: einheitId,
+    objekt_id: "LOK",
+    typ: getLokEinheitTyp(einheitId),
+    nummer: getLokEinheitDisplayName(einheitId),
+    qm: "",
+    personen_standard: "",
+    eingang: entranceMapping[einheitId]
+  }));
+}
+
 function createLokWohnungMeters(einheitId, entrance) {
-  const label = einheitId.replace("LOK_", "").replace("_", " ");
+  const label = getLokEinheitDisplayName(einheitId);
   const location = entrance === "Allgemein"
     ? "Allgemein"
     : "Eingang " + entrance;
@@ -563,8 +617,10 @@ function createLokWohnungMeters(einheitId, entrance) {
 
 function getLokSeedData() {
   const entranceMapping = getLokEinheitEntranceMapping();
-  const unitIds = Object.keys(entranceMapping);
-  const wohnungAndGewerbeUnitIds = unitIds.filter(einheitId => einheitId !== "LOK_Allgemein");
+  const einheiten = getLokEinheitSeedData();
+  const wohnungAndGewerbeUnitIds = einheiten
+    .filter(einheit => einheit.einheit_id !== "LOK_Allgemein")
+    .map(einheit => einheit.einheit_id);
   const zaehler = [];
 
   wohnungAndGewerbeUnitIds.forEach(einheitId => {
@@ -656,10 +712,7 @@ function getLokSeedData() {
         eingange: "A,B,C"
       }
     ],
-    einheiten: unitIds.map(einheitId => ({
-      einheit_id: einheitId,
-      eingang: entranceMapping[einheitId]
-    })),
+    einheiten: einheiten,
     zaehler: zaehler
   };
 }
@@ -816,6 +869,7 @@ function ensureLokStructureData() {
   const addedObjectHeaders = ensureSheetHeaders(sObjekte, ["eingange"]);
   const addedUnitHeaders = ensureSheetHeaders(sEinheiten, ["eingang"]);
   let updatedObjects = 0;
+  let createdUnits = 0;
   let updatedUnits = 0;
   let createdMeters = 0;
 
@@ -826,7 +880,9 @@ function ensureLokStructureData() {
   });
 
   seed.einheiten.forEach(row => {
-    if (updateExistingRowBlankFieldsByKey(sEinheiten, "einheit_id", row, ["eingang"])) {
+    if (appendIfMissingByKey(sEinheiten, "einheit_id", row)) {
+      createdUnits++;
+    } else if (updateExistingRowBlankFieldsByKey(sEinheiten, "einheit_id", row, ["eingang"])) {
       updatedUnits++;
     }
   });
@@ -843,6 +899,7 @@ function ensureLokStructureData() {
     addedObjectHeaders: addedObjectHeaders,
     addedUnitHeaders: addedUnitHeaders,
     updatedObjects: updatedObjects,
+    createdUnits: createdUnits,
     updatedUnits: updatedUnits,
     createdMeters: createdMeters
   }));
@@ -852,6 +909,7 @@ function ensureLokStructureData() {
     addedObjectHeaders: addedObjectHeaders,
     addedUnitHeaders: addedUnitHeaders,
     updatedObjects: updatedObjects,
+    createdUnits: createdUnits,
     updatedUnits: updatedUnits,
     createdMeters: createdMeters,
     expectedMeters: seed.zaehler.length,

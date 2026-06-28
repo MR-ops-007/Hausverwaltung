@@ -12,7 +12,7 @@ function loadAppsScriptHelpers() {
   );
 
   const factory = new Function(
-    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildMigratedZaehlerstandItem, buildStandId, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedConsumptionMeterSeedDataFromRows, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getLokEinheitEntranceMapping, getLokSeedData, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
+    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildMigratedZaehlerstandItem, buildStandId, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedConsumptionMeterSeedDataFromRows, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getLokEinheitEntranceMapping, getLokEinheitSeedData, getLokSeedData, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
   );
 
   return factory();
@@ -22,7 +22,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
   it('declares the current backend version', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
 
-    expect(BACKEND_VERSION).toBe('4.5.0');
+    expect(BACKEND_VERSION).toBe('4.5.1');
   });
 
   it('formats German timestamps for stand_id values', () => {
@@ -283,36 +283,53 @@ describe('Apps Script Zaehlerstaende helpers', () => {
   });
 
   it('defines LOK entrance metadata and reusable short meter codes', () => {
-    const { getLokEinheitEntranceMapping, getLokSeedData } = loadAppsScriptHelpers();
+    const { getLokEinheitEntranceMapping, getLokEinheitSeedData, getLokSeedData } = loadAppsScriptHelpers();
 
     const mapping = getLokEinheitEntranceMapping();
+    const einheiten = getLokEinheitSeedData();
     const seed = getLokSeedData();
 
     expect(mapping).toMatchObject({
       LOK_WE_01: 'A',
       LOK_WE_05: 'A',
       LOK_WE_06: 'B',
-      LOK_WE_10: 'B',
+      LOK_WE_10_A: 'B',
+      LOK_WE_10_B: 'B',
+      LOK_WE_10_S: 'B',
       LOK_WE_11: 'C',
       LOK_WE_15: 'C',
       LOK_GE_01: 'A',
       LOK_Allgemein: 'Allgemein',
     });
+    expect(mapping).not.toHaveProperty('LOK_WE_10');
     expect(seed.objekte).toEqual([
       expect.objectContaining({
         objekt_id: 'LOK',
         eingange: 'A,B,C',
       }),
     ]);
-    expect(seed.einheiten).toHaveLength(17);
+    expect(einheiten).toHaveLength(19);
+    expect(seed.einheiten).toHaveLength(19);
     expect(seed.einheiten).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           einheit_id: 'LOK_WE_01',
+          nummer: 'Wohnung 1',
           eingang: 'A',
         }),
         expect.objectContaining({
-          einheit_id: 'LOK_WE_06',
+          einheit_id: 'LOK_WE_10_A',
+          nummer: 'Wohnung 10 A',
+          eingang: 'B',
+        }),
+        expect.objectContaining({
+          einheit_id: 'LOK_WE_10_B',
+          nummer: 'Wohnung 10 B',
+          eingang: 'B',
+        }),
+        expect.objectContaining({
+          einheit_id: 'LOK_WE_10_S',
+          nummer: 'Wohnung 10 S',
           eingang: 'B',
         }),
         expect.objectContaining({
@@ -321,7 +338,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
         }),
       ])
     );
-    expect(seed.zaehler).toHaveLength(54);
+    expect(seed.zaehler).toHaveLength(60);
     expect(seed.zaehler).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -342,6 +359,13 @@ describe('Apps Script Zaehlerstaende helpers', () => {
           einheit_id: 'LOK_WE_01',
           zaehler_id: 'WW',
           medium: 'warmwasser_m3',
+        }),
+        expect.objectContaining({
+          objekt_id: 'LOK',
+          einheit_id: 'LOK_WE_10_S',
+          zaehler_id: 'WW',
+          bezeichnung: 'Warmwasser Wohnung 10 S',
+          einbauort: 'Eingang B',
         }),
         expect.objectContaining({
           objekt_id: 'LOK',

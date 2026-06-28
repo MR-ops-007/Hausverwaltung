@@ -56,6 +56,58 @@ const uiService = {
     );
   },
 
+  escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  },
+
+  getUnitDisplayName(unit) {
+    if (!unit) return '';
+
+    return unit.nummer || unit.bezeichnung || unit.einheit || unit.einheit_id || '';
+  },
+
+  getUnitEntranceLabel(unit) {
+    if (!unit || !unit.eingang) return '';
+
+    return String(unit.eingang).toLowerCase() === 'allgemein'
+      ? 'Allgemein'
+      : `Eingang ${unit.eingang}`;
+  },
+
+  formatMieterDisplayName(value) {
+    const text = String(value || '').trim();
+
+    if (!text || text === 'Leerstand') {
+      return 'Leerstand';
+    }
+
+    return text
+      .split(' / ')
+      .map(part => {
+        const pieces = part.split(',').map(piece => piece.trim()).filter(Boolean);
+
+        if (pieces.length === 2) {
+          return `${pieces[1]} ${pieces[0]}`;
+        }
+
+        return part.trim();
+      })
+      .join(' / ');
+  },
+
+  getUnitViewData(einheitId) {
+    const viewRows = Array.isArray(dataService.state.view_aktive_mieter)
+      ? dataService.state.view_aktive_mieter
+      : [];
+
+    return viewRows.find(v => String(v.einheit_id) === String(einheitId));
+  },
+
   isTrueValue(value) {
     return value === true || value === 'TRUE' || value === 'true' || value === 1 || value === '1';
   },
@@ -334,8 +386,10 @@ const uiService = {
     `;
 
     dataService.getUnitsByObject(objId).forEach(unit => {
-      const viewData = dataService.state.view_aktive_mieter.find(v => String(v.einheit_id) === String(unit.einheit_id));
-      const bewohnerText = viewData && viewData.mieter_name ? viewData.mieter_name : 'Leerstand';
+      const viewData = this.getUnitViewData(unit.einheit_id);
+      const bewohnerText = this.formatMieterDisplayName(viewData && viewData.mieter_name ? viewData.mieter_name : 'Leerstand');
+      const unitName = this.getUnitDisplayName(unit);
+      const entranceLabel = this.getUnitEntranceLabel(unit);
 
       const card = document.createElement('div');
       card.className = 'unit-card';
@@ -356,8 +410,9 @@ const uiService = {
 
       card.innerHTML = `
         <div>
-          <div style="font-weight:bold; color:#333;">Einheit: ${unit.nummer || unit.einheit_id}</div>
-          <div style="font-size:0.9em; color:#666;">Mieter: ${bewohnerText}</div>
+          <div style="font-weight:bold; color:#333;">${this.escapeHtml(unitName)}</div>
+          ${entranceLabel ? `<div style="font-size:0.85em; color:#666;">${this.escapeHtml(entranceLabel)}</div>` : ''}
+          <div style="font-size:0.9em; color:#666;">Mieter: ${this.escapeHtml(bewohnerText)}</div>
         </div>
 
         <div style="color:#007bff; font-weight:bold;">➔</div>
@@ -380,15 +435,27 @@ const uiService = {
       String(z.einheit_id) === String(id) &&
       this.isZaehlerManuellErfassbar(z)
     );
+    const units = Array.isArray(dataService.state.einheiten)
+      ? dataService.state.einheiten
+      : [];
+    const unit = units.find(row => String(row.einheit_id) === String(id));
+    const viewData = this.getUnitViewData(id);
+    const unitName = this.getUnitDisplayName(unit) || id;
+    const entranceLabel = this.getUnitEntranceLabel(unit);
+    const tenantName = this.formatMieterDisplayName(viewData && viewData.mieter_name ? viewData.mieter_name : 'Leerstand');
 
     let inputsHtml = `<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:15px;">`;
 
     activeMeters.forEach(z => {
       const label = this.getZaehlerLabel(z);
+      const locationHtml = z.einbauort
+        ? `<div style="font-size:0.75rem; color:#666; margin:4px 0 6px;">Einbauort: ${this.escapeHtml(z.einbauort)}</div>`
+        : '';
 
       inputsHtml += `
         <div style="padding:10px; border:1px solid #ccc; border-radius:4px; background:#f9f9f9;">
-          <label for="input-${z.zaehler_id}" style="font-size:0.8rem;">${label}</label>
+          <label for="input-${z.zaehler_id}" style="font-size:0.8rem;">${this.escapeHtml(label)}</label>
+          ${locationHtml}
           <input type="number" id="input-${z.zaehler_id}" step="0.01" style="width:100%;">
         </div>`;
     });
@@ -398,7 +465,8 @@ const uiService = {
     modalBody.innerHTML = `
       <h3>Zählererfassung</h3>
 
-      <p>Einheit: ${id}</p>
+      <p style="margin-bottom:4px;">Einheit: ${this.escapeHtml(unitName)}${entranceLabel ? ` · ${this.escapeHtml(entranceLabel)}` : ''}</p>
+      <p style="margin-top:0; color:#666;">Mieter: ${this.escapeHtml(tenantName)}</p>
 
       ${inputsHtml}
 

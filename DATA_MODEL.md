@@ -101,13 +101,16 @@ Aktuelle Zuordnung:
 
 ```text
 LOK_WE_01 bis LOK_WE_05 -> Eingang A
-LOK_WE_06 bis LOK_WE_10 -> Eingang B
+LOK_WE_06 bis LOK_WE_09 -> Eingang B
+LOK_WE_10_A -> Eingang B
+LOK_WE_10_B -> Eingang B
+LOK_WE_10_S -> Eingang B
 LOK_WE_11 bis LOK_WE_15 -> Eingang C
 LOK_GE_01 -> Eingang A
 LOK_Allgemein -> Allgemein
 ```
 
-Die Zuordnung wird in Apps Script zentral über `getLokEinheitEntranceMapping` gepflegt, damit Korrekturen nicht an mehreren Stellen erfolgen müssen.
+Die Zuordnung wird in Apps Script zentral über `getLokEinheitEntranceMapping` gepflegt, damit Korrekturen nicht an mehreren Stellen erfolgen müssen. `ensureLokStructureData` ergänzt die Felder `Objekte.eingange` und `Einheiten.eingang` sowie fehlende LOK-Einheiten und Zähler idempotent.
 
 ### Tabelle: `Personen` (Natürliche Personen)
 **Wichtig:** Trennt Person von Mietvertrag. Mehr Hauptmieter sind hier möglich.

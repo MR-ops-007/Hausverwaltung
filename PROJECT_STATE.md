@@ -187,7 +187,7 @@ Google Apps Script wird weiterhin manuell versioniert.
 Aktuelle Backend-Version:
 
 ```text
-4.5.0
+4.5.1
 ```
 
 Die Version steht im Kopf von `apps-script/Code.gs` und in `BACKEND_VERSION`.
@@ -205,6 +205,7 @@ Wichtige Regel:
 - `4.4.5` ergänzt einen separaten Duplikat-Report für die `stand_id`-Migration.
 - `4.4.6` löst historische Doppelwerte als Zählerstand plus berechneten Verbrauch auf.
 - `4.5.0` ergänzt die LOK-Zählerstruktur und Eingang-Stammdaten.
+- `4.5.1` teilt LOK Wohnung 10 in A/B/S und lässt `ensureLokStructureData` fehlende LOK-Einheiten anlegen.
 - `clasp` ist lokal mit dem bestehenden GAS-Projekt verbunden; `npm run clasp:pull` funktioniert unter Node 22.
 
 ---
@@ -270,7 +271,8 @@ Der Lokschuppen (`LOK`) wird analog zur neuen Zähleridentität über kurze, wie
 Aktuelle Modellannahme:
 
 - `LOK_WE_01` bis `LOK_WE_05`: Eingang `A`
-- `LOK_WE_06` bis `LOK_WE_10`: Eingang `B`
+- `LOK_WE_06` bis `LOK_WE_09`: Eingang `B`
+- `LOK_WE_10_A`, `LOK_WE_10_B`, `LOK_WE_10_S`: Eingang `B` vorläufig
 - `LOK_WE_11` bis `LOK_WE_15`: Eingang `C`
 - `LOK_GE_01`: Eingang `A`
 - `LOK_Allgemein`: `Allgemein`
@@ -279,9 +281,10 @@ Apps Script `ensureLokStructureData` ergänzt:
 
 - Spalte `eingange` in `Objekte`, falls sie fehlt
 - Spalte `eingang` in `Einheiten`, falls sie fehlt
+- fehlende LOK-Einheiten, z. B. `LOK_WE_10_A`, `LOK_WE_10_B` und `LOK_WE_10_S`
 - fehlende LOK-Zähler in `Zaehler`
 
-Die Funktion überschreibt bestehende Eingangswerte nicht, sondern ergänzt nur leere Felder.
+Die Funktion überschreibt bestehende Eingangswerte nicht, sondern ergänzt nur leere Felder. Falls `LOK_WE_10` bereits durch einen früheren Lauf angelegt wurde, bleibt diese Einheit zunächst unverändert und kann in einem separaten Bereinigungsschritt deaktiviert oder historisch dokumentiert werden.
 
 ### 5. Dashboard/Auswertungen
 

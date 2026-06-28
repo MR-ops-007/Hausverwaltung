@@ -6,6 +6,8 @@ function loadUiService({
   zaehlerstaende = [],
   inputValuesByZaehlerId = {},
   currentMeters = [],
+  units = [],
+  viewAktiveMieter = [],
   saveResponse = { status: 'success' },
   confirmResult = true,
   validationServiceAvailable = true,
@@ -23,8 +25,9 @@ function loadUiService({
     state: {
       zaehlerstaende,
       zaehler: currentMeters,
+      einheiten: units,
       objekte: [],
-      view_aktive_mieter: [],
+      view_aktive_mieter: viewAktiveMieter,
     },
     getUniqueObjects() {
       return [];
@@ -141,6 +144,18 @@ describe('uiService helper methods', () => {
     expect(uiService.getZaehlerLabel({ typ: 'Alt-Typ' })).toBe('Alt-Typ');
     expect(uiService.getZaehlerLabel({ zaehler_id: 'Z001' })).toBe('Z001');
     expect(uiService.getZaehlerLabel({})).toBe('Zähler');
+  });
+
+  it('formats unit and tenant context for display', () => {
+    const { uiService } = loadUiService();
+
+    expect(uiService.getUnitDisplayName({
+      einheit_id: 'LOK_WE_10_A',
+      nummer: 'Wohnung 10 A',
+    })).toBe('Wohnung 10 A');
+    expect(uiService.getUnitEntranceLabel({ eingang: 'B' })).toBe('Eingang B');
+    expect(uiService.formatMieterDisplayName('Duck, Donald')).toBe('Donald Duck');
+    expect(uiService.formatMieterDisplayName('Leerstand')).toBe('Leerstand');
   });
 
   it('finds the latest meter reading by German timestamp including time', () => {
@@ -281,6 +296,42 @@ describe('uiService.showZaehlerMaske', () => {
     expect(modalBodyElement.innerHTML).not.toContain('Nicht erfassbarer Zähler');
     expect(modalBodyElement.innerHTML).not.toContain('Berechneter Verbrauch');
     expect(modalElement.style.display).toBe('flex');
+  });
+
+  it('renders unit name, entrance, tenant and meter location in the input mask', () => {
+    const { uiService, modalBodyElement } = loadUiService({
+      units: [
+        {
+          einheit_id: 'LOK_WE_10_A',
+          nummer: 'Wohnung 10 A',
+          eingang: 'B',
+        },
+      ],
+      viewAktiveMieter: [
+        {
+          einheit_id: 'LOK_WE_10_A',
+          mieter_name: 'Duck, Donald',
+        },
+      ],
+      currentMeters: [
+        {
+          zaehler_id: 'STROM',
+          einheit_id: 'LOK_WE_10_A',
+          bezeichnung: 'Strom Wohnung 10 A',
+          einbauort: 'Eingang B',
+          aktiv: 'TRUE',
+          erfassbar: 'TRUE',
+          berechnet: 'FALSE',
+        },
+      ],
+    });
+
+    uiService.showZaehlerMaske('LOK_WE_10_A');
+
+    expect(modalBodyElement.innerHTML).toContain('Wohnung 10 A');
+    expect(modalBodyElement.innerHTML).toContain('Eingang B');
+    expect(modalBodyElement.innerHTML).toContain('Donald Duck');
+    expect(modalBodyElement.innerHTML).toContain('Einbauort: Eingang B');
   });
 });
 
