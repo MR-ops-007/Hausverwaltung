@@ -12,7 +12,7 @@ function loadAppsScriptHelpers() {
   );
 
   const factory = new Function(
-    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildMigratedZaehlerstandItem, buildStandId, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedConsumptionMeterSeedDataFromRows, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getLokEinheitEntranceMapping, getLokEinheitSeedData, getLokSeedData, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
+    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildLokZaehlerId, buildMigratedZaehlerstandItem, buildStandId, deactivateObsoleteLokShortCodeMeters, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedConsumptionMeterSeedDataFromRows, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getLokEinheitEntranceMapping, getLokEinheitSeedData, getLokReplacementZaehlerId, getLokSeedData, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
   );
 
   return factory();
@@ -22,7 +22,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
   it('declares the current backend version', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
 
-    expect(BACKEND_VERSION).toBe('4.5.1');
+    expect(BACKEND_VERSION).toBe('4.5.2');
   });
 
   it('formats German timestamps for stand_id values', () => {
@@ -282,8 +282,14 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     );
   });
 
-  it('defines LOK entrance metadata and reusable short meter codes', () => {
-    const { getLokEinheitEntranceMapping, getLokEinheitSeedData, getLokSeedData } = loadAppsScriptHelpers();
+  it('defines LOK entrance metadata and unit-scoped meter ids', () => {
+    const {
+      buildLokZaehlerId,
+      getLokEinheitEntranceMapping,
+      getLokEinheitSeedData,
+      getLokReplacementZaehlerId,
+      getLokSeedData,
+    } = loadAppsScriptHelpers();
 
     const mapping = getLokEinheitEntranceMapping();
     const einheiten = getLokEinheitSeedData();
@@ -339,43 +345,91 @@ describe('Apps Script Zaehlerstaende helpers', () => {
       ])
     );
     expect(seed.zaehler).toHaveLength(60);
+    expect(buildLokZaehlerId('LOK_WE_10_A', 'strom_ht_kwh')).toBe('Z_LOK_WE_10_A_strom_ht_kwh');
+    expect(buildLokZaehlerId('LOK_Allgemein', 'kaltwasser_m3', 'hauptzaehler')).toBe(
+      'Z_LOK_Allgemein_kaltwasser_m3_hauptzaehler'
+    );
+    expect(getLokReplacementZaehlerId('LOK_WE_10_A', 'STROM')).toBe('Z_LOK_WE_10_A_strom_ht_kwh');
+    expect(getLokReplacementZaehlerId('LOK_Allgemein', 'KW_HAUPTZAEHLER')).toBe(
+      'Z_LOK_Allgemein_kaltwasser_m3_hauptzaehler'
+    );
     expect(seed.zaehler).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           objekt_id: 'LOK',
           einheit_id: 'LOK_WE_01',
-          zaehler_id: 'STROM',
+          zaehler_id: 'Z_LOK_WE_01_strom_ht_kwh',
           medium: 'strom_ht_kwh',
           einbauort: 'Eingang A',
         }),
         expect.objectContaining({
           objekt_id: 'LOK',
           einheit_id: 'LOK_WE_01',
-          zaehler_id: 'KW',
+          zaehler_id: 'Z_LOK_WE_01_kaltwasser_m3',
           medium: 'kaltwasser_m3',
         }),
         expect.objectContaining({
           objekt_id: 'LOK',
           einheit_id: 'LOK_WE_01',
-          zaehler_id: 'WW',
+          zaehler_id: 'Z_LOK_WE_01_warmwasser_m3',
           medium: 'warmwasser_m3',
         }),
         expect.objectContaining({
           objekt_id: 'LOK',
           einheit_id: 'LOK_WE_10_S',
-          zaehler_id: 'WW',
+          zaehler_id: 'Z_LOK_WE_10_S_warmwasser_m3',
           bezeichnung: 'Warmwasser Wohnung 10 S',
           einbauort: 'Eingang B',
         }),
         expect.objectContaining({
           objekt_id: 'LOK',
           einheit_id: 'LOK_Allgemein',
-          zaehler_id: 'OEL_STAND_CM',
+          zaehler_id: 'Z_LOK_Allgemein_oel_stand_cm',
           medium: 'oel_stand_cm',
           ueberlauf_erlaubt: false,
         }),
       ])
     );
+  });
+
+  it('deactivates obsolete LOK short meter ids idempotently', () => {
+    const { deactivateObsoleteLokShortCodeMeters } = loadAppsScriptHelpers();
+    const rows = [
+      ['objekt_id', 'einheit_id', 'zaehler_id', 'aktiv', 'erfassbar', 'ersetzt_durch_zaehler_id', 'hinweis'],
+      ['LOK', 'LOK_WE_10_A', 'STROM', true, true, '', ''],
+      ['LOK', 'LOK_WE_10_A', 'Z_LOK_WE_10_A_strom_ht_kwh', true, true, '', ''],
+      ['TEST', 'TEST_WE_01', 'STROM', true, true, '', ''],
+    ];
+    const sheet = {
+      getDataRange() {
+        return {
+          getValues() {
+            return rows.map(row => [...row]);
+          },
+        };
+      },
+      getRange(rowNumber, columnNumber) {
+        return {
+          setValue(value) {
+            rows[rowNumber - 1][columnNumber - 1] = value;
+          },
+        };
+      },
+    };
+
+    expect(deactivateObsoleteLokShortCodeMeters(sheet)).toBe(1);
+    expect(rows[1]).toEqual([
+      'LOK',
+      'LOK_WE_10_A',
+      'STROM',
+      false,
+      false,
+      'Z_LOK_WE_10_A_strom_ht_kwh',
+      'Veraltete LOK-Kurz-ID; ersetzt durch einheitgebundene zaehler_id.',
+    ]);
+    expect(rows[2][3]).toBe(true);
+    expect(rows[3][3]).toBe(true);
+    expect(deactivateObsoleteLokShortCodeMeters(sheet)).toBe(0);
   });
 
   it('resolves tenant names from Vertragsparteien first', () => {

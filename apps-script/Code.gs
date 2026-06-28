@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.5.1
+ * Version: 4.5.2
  * Stand: 2026-06-28
  *
  * Änderungen seit v4.1:
@@ -41,8 +41,12 @@
  * Änderungen seit v4.5.0:
  * - LOK Wohnung 10 in 10 A, 10 B und 10 S aufgeteilt
  * - ensureLokStructureData legt fehlende LOK-Einheiten an
+ *
+ * Änderungen seit v4.5.1:
+ * - LOK zaehler_id wird einheitgebunden aus einheit_id, medium und optionalem Messpunkt gebildet
+ * - Alte LOK-Kurz-IDs werden deaktiviert und auf die neue zaehler_id verwiesen
  */
-const BACKEND_VERSION = "4.5.1";
+const BACKEND_VERSION = "4.5.2";
 
 function sendJSON(obj) {
   return ContentService
@@ -554,6 +558,15 @@ function getLokEinheitSeedData() {
   }));
 }
 
+function buildLokZaehlerId(einheitId, medium, messpunkt) {
+  return [
+    "Z",
+    einheitId,
+    medium,
+    messpunkt || ""
+  ].filter(part => !isBlankValue(part)).join("_");
+}
+
 function createLokWohnungMeters(einheitId, entrance) {
   const label = getLokEinheitDisplayName(einheitId);
   const location = entrance === "Allgemein"
@@ -562,7 +575,7 @@ function createLokWohnungMeters(einheitId, entrance) {
 
   return [
     {
-      zaehler_id: "STROM",
+      zaehler_id: buildLokZaehlerId(einheitId, "strom_ht_kwh"),
       objekt_id: "LOK",
       einheit_id: einheitId,
       medium: "strom_ht_kwh",
@@ -579,7 +592,7 @@ function createLokWohnungMeters(einheitId, entrance) {
       berechnet: false
     },
     {
-      zaehler_id: "KW",
+      zaehler_id: buildLokZaehlerId(einheitId, "kaltwasser_m3"),
       objekt_id: "LOK",
       einheit_id: einheitId,
       medium: "kaltwasser_m3",
@@ -596,7 +609,7 @@ function createLokWohnungMeters(einheitId, entrance) {
       berechnet: false
     },
     {
-      zaehler_id: "WW",
+      zaehler_id: buildLokZaehlerId(einheitId, "warmwasser_m3"),
       objekt_id: "LOK",
       einheit_id: einheitId,
       medium: "warmwasser_m3",
@@ -629,7 +642,7 @@ function getLokSeedData() {
 
   [
     {
-      zaehler_id: "STROM_ALLGEMEIN",
+      zaehler_id: buildLokZaehlerId("LOK_Allgemein", "strom_ht_kwh"),
       medium: "strom_ht_kwh",
       bezeichnung: "Strom Allgemein",
       einheit: "kWh",
@@ -640,7 +653,7 @@ function getLokSeedData() {
       hinweis: "Allgemeinstrom Lokschuppen"
     },
     {
-      zaehler_id: "STROM_NT",
+      zaehler_id: buildLokZaehlerId("LOK_Allgemein", "strom_nt_kwh"),
       medium: "strom_nt_kwh",
       bezeichnung: "Strom NT Allgemein",
       einheit: "kWh",
@@ -651,7 +664,7 @@ function getLokSeedData() {
       hinweis: "Niedertarif Allgemein Lokschuppen"
     },
     {
-      zaehler_id: "KW_HAUPTZAEHLER",
+      zaehler_id: buildLokZaehlerId("LOK_Allgemein", "kaltwasser_m3", "hauptzaehler"),
       medium: "kaltwasser_m3",
       bezeichnung: "Kaltwasser Hauptzähler",
       einheit: "m3",
@@ -662,7 +675,7 @@ function getLokSeedData() {
       hinweis: "Hauptzähler Lokschuppen"
     },
     {
-      zaehler_id: "WW_ZULAUF",
+      zaehler_id: buildLokZaehlerId("LOK_Allgemein", "warmwasser_m3", "zulauf"),
       medium: "warmwasser_m3",
       bezeichnung: "Warmwasser Zulauf",
       einheit: "m3",
@@ -673,7 +686,7 @@ function getLokSeedData() {
       hinweis: "Warmwasser-Zulauf Lokschuppen"
     },
     {
-      zaehler_id: "OEL_STAND_CM",
+      zaehler_id: buildLokZaehlerId("LOK_Allgemein", "oel_stand_cm"),
       medium: "oel_stand_cm",
       bezeichnung: "Heizung Ölstand (cm)",
       einheit: "cm",
@@ -684,7 +697,7 @@ function getLokSeedData() {
       hinweis: "Rückläufiger Füllstand"
     },
     {
-      zaehler_id: "OEL_GETANKT_L",
+      zaehler_id: buildLokZaehlerId("LOK_Allgemein", "oel_stand_l"),
       medium: "oel_stand_l",
       bezeichnung: "Heizung Öl getankt (Liter)",
       einheit: "l",
@@ -819,6 +832,95 @@ function appendIfMissingByKey(sheet, keyName, item) {
   return appendIfMissingByKeys(sheet, [keyName], item);
 }
 
+function getLokReplacementZaehlerId(einheitId, oldZaehlerId) {
+  const oldId = String(oldZaehlerId || "").trim();
+
+  if (oldId === "STROM") {
+    return buildLokZaehlerId(einheitId, "strom_ht_kwh");
+  }
+
+  if (oldId === "KW") {
+    return buildLokZaehlerId(einheitId, "kaltwasser_m3");
+  }
+
+  if (oldId === "WW") {
+    return buildLokZaehlerId(einheitId, "warmwasser_m3");
+  }
+
+  const allgemeinReplacement = {
+    STROM_ALLGEMEIN: buildLokZaehlerId("LOK_Allgemein", "strom_ht_kwh"),
+    STROM_NT: buildLokZaehlerId("LOK_Allgemein", "strom_nt_kwh"),
+    KW_HAUPTZAEHLER: buildLokZaehlerId("LOK_Allgemein", "kaltwasser_m3", "hauptzaehler"),
+    WW_ZULAUF: buildLokZaehlerId("LOK_Allgemein", "warmwasser_m3", "zulauf"),
+    OEL_STAND_CM: buildLokZaehlerId("LOK_Allgemein", "oel_stand_cm"),
+    OEL_GETANKT_L: buildLokZaehlerId("LOK_Allgemein", "oel_stand_l")
+  };
+
+  return allgemeinReplacement[oldId] || "";
+}
+
+function setRowFieldValue(sheet, rowNumber, rowValues, normalizedHeaders, fieldName, value) {
+  const columnIndex = normalizedHeaders.indexOf(String(fieldName).toLowerCase());
+
+  if (columnIndex === -1) {
+    return false;
+  }
+
+  if (String(rowValues[columnIndex]) === String(value)) {
+    return false;
+  }
+
+  sheet.getRange(rowNumber, columnIndex + 1).setValue(value);
+  return true;
+}
+
+function deactivateObsoleteLokShortCodeMeters(sheet) {
+  const rows = sheet.getDataRange().getValues();
+
+  if (rows.length < 2) {
+    return 0;
+  }
+
+  const headers = rows[0].map(header => String(header).trim());
+  const normalizedHeaders = headers.map(header => header.toLowerCase());
+  const objektIndex = normalizedHeaders.indexOf("objekt_id");
+  const einheitIndex = normalizedHeaders.indexOf("einheit_id");
+  const zaehlerIndex = normalizedHeaders.indexOf("zaehler_id");
+
+  if (objektIndex === -1 || einheitIndex === -1 || zaehlerIndex === -1) {
+    throw new Error("Pflichtspalten fehlen in Zaehler: objekt_id, einheit_id oder zaehler_id");
+  }
+
+  let changedRows = 0;
+
+  rows.slice(1).forEach((row, index) => {
+    const rowNumber = index + 2;
+    const objektId = String(row[objektIndex]).trim();
+    const einheitId = String(row[einheitIndex]).trim();
+    const zaehlerId = String(row[zaehlerIndex]).trim();
+    const replacementId = objektId === "LOK"
+      ? getLokReplacementZaehlerId(einheitId, zaehlerId)
+      : "";
+
+    if (!replacementId || replacementId === zaehlerId) {
+      return;
+    }
+
+    const changed = [
+      setRowFieldValue(sheet, rowNumber, row, normalizedHeaders, "aktiv", false),
+      setRowFieldValue(sheet, rowNumber, row, normalizedHeaders, "erfassbar", false),
+      setRowFieldValue(sheet, rowNumber, row, normalizedHeaders, "ersetzt_durch_zaehler_id", replacementId),
+      setRowFieldValue(sheet, rowNumber, row, normalizedHeaders, "hinweis", "Veraltete LOK-Kurz-ID; ersetzt durch einheitgebundene zaehler_id.")
+    ].some(Boolean);
+
+    if (changed) {
+      changedRows++;
+    }
+  });
+
+  return changedRows;
+}
+
 function ensureProdTestData() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const seed = getProdTestSeedData();
@@ -893,6 +995,8 @@ function ensureLokStructureData() {
     }
   });
 
+  const deactivatedObsoleteMeters = deactivateObsoleteLokShortCodeMeters(sZaehler);
+
   updateAktiveMieterView();
 
   Logger.log("LOK-Struktur aktualisiert: " + JSON.stringify({
@@ -901,7 +1005,8 @@ function ensureLokStructureData() {
     updatedObjects: updatedObjects,
     createdUnits: createdUnits,
     updatedUnits: updatedUnits,
-    createdMeters: createdMeters
+    createdMeters: createdMeters,
+    deactivatedObsoleteMeters: deactivatedObsoleteMeters
   }));
 
   return {
@@ -912,6 +1017,7 @@ function ensureLokStructureData() {
     createdUnits: createdUnits,
     updatedUnits: updatedUnits,
     createdMeters: createdMeters,
+    deactivatedObsoleteMeters: deactivatedObsoleteMeters,
     expectedMeters: seed.zaehler.length,
     message: "LOK-Struktur geprueft/angelegt"
   };

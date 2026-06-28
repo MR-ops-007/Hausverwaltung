@@ -22,7 +22,7 @@ Speichert jeden Zählerstand (nicht mehr `Transaktionen`).
 | **A** | `stand_id` | String | PK: Eindeutige ID im Format `ST_{objekt_id}_{einheit_id}_{zaehler_id}_{YYYY-MM-DD HH:mm}` |
 | **B** | `objekt_id` | String | Fremdschlüssel (FK) (verknüpft mit Objekte) FK -> Zaehler.objekt_id |
 | **C** | `einheit_id` | String | Fremdschlüssel (FK) (verknüpft mit Einheiten) FK -> Zaehler.einheit_id |
-| **D** | `zaehler_id` | String | Zählercode innerhalb der Einheit; zusammen mit `objekt_id` und `einheit_id` eindeutig |
+| **D** | `zaehler_id` | String | ID des konkreten Zählers/Messpunkts; für neue Daten nach `Z_{einheit_id}_{medium}` oder `Z_{einheit_id}_{medium}_{messpunkt}` |
 | **E** | `zeitstempel` | Datum/Zeit | Format: `DD.MM.YYYY HH:mm` |
 | **F** | `wert` | Zahl | Gemessener Wert (m³, kWh, l) |
 | **G** | `quelle` | String | `UI`, `Import`, `Korrektur` |
@@ -78,7 +78,7 @@ zaehler_id: Z_OEL_STAND_IN_CM
 zaehler_id: Z_OEL_GETANKT_LITER
 ```
 
-Der Testbereich enthält eine belegte Testwohnung (`TEST_WE_01`), einen Leerstand (`TEST_WE_02`) und einen Allgemeinbereich (`TEST_Allgemein`). Er verwendet bewusst fachlich wiederverwendbare Zählercodes. Da diese `zaehler_id`s auch in echten Objekten vorkommen können, muss die UI bei Vorwerten immer nach `zaehler_id`, `objekt_id` und `einheit_id` filtern. Andernfalls würden Testeingaben versehentlich gegen echte Wohnungshistorie plausibilisiert.
+Der Testbereich enthält eine belegte Testwohnung (`TEST_WE_01`), einen Leerstand (`TEST_WE_02`) und einen Allgemeinbereich (`TEST_Allgemein`). Er nutzt noch die historisch gewachsenen Test-IDs. Die UI muss Vorwerte unabhängig davon immer nach `zaehler_id`, `objekt_id` und `einheit_id` filtern.
 
 Auswertungen und spätere Dashboards sollen diesen Testbereich entweder sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.
 
@@ -159,7 +159,7 @@ Diese Tabelle beschreibt, **welche Zähler existieren**, zu welchem Objekt bzw. 
 
 | Spalte | Feldname | Datentyp | Beschreibung |
 | :--- | :--- | :--- | :--- |
-| **A** | `zaehler_id` | String | Zählercode innerhalb von Objekt/Einheit, z. B. `STROM`, `KW`, `WW` oder historisch längere IDs |
+| **A** | `zaehler_id` | String | ID des konkreten Zählers/Messpunkts. Neue IDs folgen `Z_{einheit_id}_{medium}` oder bei Bedarf `Z_{einheit_id}_{medium}_{messpunkt}` |
 | **B** | `objekt_id` | String | FK -> Objekte.objekt_id; Pflichtfeld, da jeder Zähler einem Objekt zugeordnet ist |
 | **C** | `einheit_id` | String | FK -> Einheiten.einheit_id; nullable für Allgemein-/Hauszähler |
 | **D** | `medium` | String | `Kaltwasser`, `Warmwasser`, `Strom`, `Oel`, `Zusatz` |
@@ -177,27 +177,38 @@ Diese Tabelle beschreibt, **welche Zähler existieren**, zu welchem Objekt bzw. 
 
 #### Zähleridentität
 
-`zaehler_id` ist nicht global eindeutig. Die fachliche Identität eines Zählers entsteht aus:
+Für neue Zähler ist `zaehler_id` eine einheitgebundene fachliche ID. Das Standardformat ist:
 
 ```text
-objekt_id + einheit_id + zaehler_id
+Z_{einheit_id}_{medium}
 ```
 
-Damit können neue Objekte dieselben kurzen Zählercodes verwenden, z. B. `STROM`, `KW` und `WW`, ohne lange globale IDs bilden zu müssen.
-
-Für neue Daten wird empfohlen:
+Wenn es innerhalb derselben Einheit mehrere Zähler mit demselben `medium` gibt, wird ein optionaler Messpunkt ergänzt:
 
 ```text
-objekt_id: Ra-HS-29
-einheit_id: Ra-HS-29_WE_01
-zaehler_id: STROM
-
-objekt_id: TEST
-einheit_id: TEST_WE_01
-zaehler_id: STROM
+Z_{einheit_id}_{medium}_{messpunkt}
 ```
 
-Historische längere `zaehler_id`s bleiben gültig. Migrationen sollten sie schrittweise auf kürzere Codes abbilden, sobald die betroffenen `Zaehlerstaende` eindeutig über `objekt_id` und `einheit_id` ergänzt wurden.
+Beispiele:
+
+```text
+einheit_id: LOK_WE_10_A
+medium: strom_ht_kwh
+zaehler_id: Z_LOK_WE_10_A_strom_ht_kwh
+
+einheit_id: LOK_WE_10_A
+medium: kaltwasser_m3
+zaehler_id: Z_LOK_WE_10_A_kaltwasser_m3
+
+einheit_id: LOK_Allgemein
+medium: kaltwasser_m3
+messpunkt: hauptzaehler
+zaehler_id: Z_LOK_Allgemein_kaltwasser_m3_hauptzaehler
+```
+
+`medium` beschreibt die Messgröße, z. B. `strom_ht_kwh`, `kaltwasser_m3`, `warmwasser_m3` oder `oel_stand_cm`. Es ersetzt keinen konkreten Zähler, sondern ist Bestandteil der ID.
+
+Historische `zaehler_id`s bleiben gültig. Migrationen auf das neue Format erfolgen nur kontrolliert, wenn die betroffenen `Zaehlerstaende` eindeutig vorbereitet sind. Zur Sicherheit bleibt die UI-Vorwertsuche weiterhin auf `objekt_id + einheit_id + zaehler_id` eingegrenzt.
 
 #### Erfassbare und berechnete Zähler
 
@@ -255,7 +266,7 @@ Da die bisherigen Produktivdaten im Wesentlichen aus einem Objekt stammen, ist d
 2. Fehlende `einheit_id` zuerst aus bereits vorbereiteten Bestandszeilen lernen, danach deterministisch aus der vorhandenen `zaehler_id` ableiten.
 3. `stand_id` auf das neue Format `ST_{objekt_id}_{einheit_id}_{zaehler_id}_{YYYY-MM-DD HH:mm}` umstellen.
 4. Per `writeStandIdMigrationReport` das Sheet `_migration_stand_id_report` erzeugen und prüfen, dass keine Mapping-Konflikte, keine ungelösten Zuordnungen und keine doppelten neuen `stand_id`s existieren.
-5. Für neue Objekte kurze, wiederverwendbare `zaehler_id`s bevorzugen.
+5. Für neue Objekte einheitgebundene `zaehler_id`s nach `Z_{einheit_id}_{medium}` oder `Z_{einheit_id}_{medium}_{messpunkt}` verwenden.
 
 Bekannte historische Übertragungsfehler bei `einheit_id` werden in der Migration per Override korrigiert, z. B. `Ra-HS-29_WE_010` -> `Ra-HS-29_WE_10` und Flur-/Heizungszähler auf eigene Allgemein-Einheiten.
 

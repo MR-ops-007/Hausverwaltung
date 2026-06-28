@@ -9,7 +9,7 @@ Die aktuelle Backend-Version steht im Kopf von `Code.gs` und zusätzlich in der 
 Aktueller Stand:
 
 ```text
-4.5.1
+4.5.2
 ```
 
 Regel:
@@ -28,6 +28,7 @@ Regel:
 - Version `4.4.6` löst historische Doppelwerte als Zählerstand plus berechneten Verbrauch auf.
 - Version `4.5.0` ergänzt die LOK-Zählerstruktur und Eingang-Stammdaten.
 - Version `4.5.1` teilt LOK Wohnung 10 in `LOK_WE_10_A`, `LOK_WE_10_B` und `LOK_WE_10_S` und legt fehlende LOK-Einheiten an.
+- Version `4.5.2` stellt LOK auf einheitgebundene `zaehler_id`s nach `Z_{einheit_id}_{medium}` um und deaktiviert alte Kurz-IDs.
 
 ## Zweck
 
@@ -143,7 +144,7 @@ ST_Ra-HS-29_Ra-HS-29_WE_01_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00
 
 Vorhandene `stand_id`-Werte bleiben unverändert. Das verhindert, dass UI-Eingaben ohne ID in der Tabelle landen.
 
-Wichtig: `zaehler_id` ist nicht global eindeutig. Die eindeutige fachliche Zähleridentität ist `objekt_id + einheit_id + zaehler_id`.
+Wichtig: Für neue Zähler ist `zaehler_id` eine einheitgebundene fachliche ID. Standard ist `Z_{einheit_id}_{medium}`. Bei mehreren Zählern mit gleichem `medium` in derselben Einheit wird ein Messpunkt ergänzt: `Z_{einheit_id}_{medium}_{messpunkt}`.
 
 ## Produktiver Testbereich
 
@@ -211,6 +212,7 @@ Sie ergänzt:
 - `Objekte.eingange = A,B,C`
 - `Einheiten.eingang` für `LOK_WE_01` bis `LOK_WE_09`, `LOK_WE_10_A`, `LOK_WE_10_B`, `LOK_WE_10_S`, `LOK_WE_11` bis `LOK_WE_15`, `LOK_GE_01` und `LOK_Allgemein`
 - fehlende LOK-Einheiten, z. B. die aufgeteilten Einheiten `LOK_WE_10_A`, `LOK_WE_10_B` und `LOK_WE_10_S`
-- fehlende Zähler mit kurzen, wiederverwendbaren Codes wie `STROM`, `KW`, `WW`, `STROM_ALLGEMEIN`, `KW_HAUPTZAEHLER`, `WW_ZULAUF`, `OEL_STAND_CM` und `OEL_GETANKT_L`
+- fehlende Zähler mit einheitgebundenen IDs wie `Z_LOK_WE_10_A_strom_ht_kwh`, `Z_LOK_WE_10_A_kaltwasser_m3`, `Z_LOK_Allgemein_kaltwasser_m3_hauptzaehler` und `Z_LOK_Allgemein_oel_stand_cm`
+- alte LOK-Kurz-IDs wie `STROM`, `KW`, `WW`, `STROM_ALLGEMEIN`, `KW_HAUPTZAEHLER`, `WW_ZULAUF`, `OEL_STAND_CM` und `OEL_GETANKT_L` werden deaktiviert und erhalten einen Verweis in `ersetzt_durch_zaehler_id`
 
 Die Funktion ist idempotent. Bestehende Eingangswerte werden nicht überschrieben, fehlende Einheiten werden anhand von `einheit_id` ergänzt, fehlende Zähler anhand von `objekt_id + einheit_id + zaehler_id`.

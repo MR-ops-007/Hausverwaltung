@@ -105,29 +105,29 @@ Aktueller Stand:
 
 ## Datenmodell: Zähleridentität
 
-`zaehler_id` wird nicht mehr als global eindeutig betrachtet.
+Neue `zaehler_id`s sind einheitgebundene fachliche IDs.
 
-Die fachliche Identität eines Zählers entsteht aus:
-
-```text
-objekt_id + einheit_id + zaehler_id
-```
-
-Damit können neue Objekte dieselben kurzen Zählercodes verwenden, ohne lange globale IDs bilden zu müssen.
-
-Für neue Daten wird perspektivisch empfohlen:
+Standardformat:
 
 ```text
-objekt_id: Ra-HS-29
-einheit_id: Ra-HS-29_WE_01
-zaehler_id: STROM
-
-objekt_id: TEST
-einheit_id: TEST_WE_01
-zaehler_id: STROM
+Z_{einheit_id}_{medium}
 ```
 
-Historische längere `zaehler_id`s bleiben gültig. Die Migration auf kürzere Codes soll später bewusst und datengetrieben erfolgen.
+Wenn innerhalb derselben Einheit mehrere Zähler dasselbe `medium` verwenden, wird ein Messpunkt ergänzt:
+
+```text
+Z_{einheit_id}_{medium}_{messpunkt}
+```
+
+Beispiele:
+
+```text
+Z_LOK_WE_10_A_strom_ht_kwh
+Z_LOK_WE_10_A_kaltwasser_m3
+Z_LOK_Allgemein_kaltwasser_m3_hauptzaehler
+```
+
+Historische `zaehler_id`s bleiben gültig. Migrationen auf das neue Format sollen bewusst und datengetrieben erfolgen.
 
 ---
 
@@ -187,7 +187,7 @@ Google Apps Script wird weiterhin manuell versioniert.
 Aktuelle Backend-Version:
 
 ```text
-4.5.1
+4.5.2
 ```
 
 Die Version steht im Kopf von `apps-script/Code.gs` und in `BACKEND_VERSION`.
@@ -206,6 +206,7 @@ Wichtige Regel:
 - `4.4.6` löst historische Doppelwerte als Zählerstand plus berechneten Verbrauch auf.
 - `4.5.0` ergänzt die LOK-Zählerstruktur und Eingang-Stammdaten.
 - `4.5.1` teilt LOK Wohnung 10 in A/B/S und lässt `ensureLokStructureData` fehlende LOK-Einheiten anlegen.
+- `4.5.2` stellt LOK auf einheitgebundene `zaehler_id`s nach `Z_{einheit_id}_{medium}` um und deaktiviert alte Kurz-IDs.
 - `clasp` ist lokal mit dem bestehenden GAS-Projekt verbunden; `npm run clasp:pull` funktioniert unter Node 22.
 
 ---
@@ -250,7 +251,7 @@ Finaler Prüfstand:
 
 Historische Doppelwerte mit niedrigerem Verbrauchswert und höherem Zählerstand wurden automatisch in getrennte virtuelle Verbrauchszähler umgeschlüsselt.
 
-Optionaler Folgeschritt: Kürzere `zaehler_id`s wie `STROM`, `KW`, `WW` erst in einem separaten Schritt einführen.
+Optionaler Folgeschritt: Historische `zaehler_id`s von Ra-HS-29 erst in einem separaten, kontrollierten Schritt auf das neue einheitgebundene Format migrieren.
 
 ### 3. Ölstand-Plausibilität abgeschlossen
 
@@ -266,7 +267,7 @@ Umgesetzt:
 
 ### 4. LOK-Zählerstruktur
 
-Der Lokschuppen (`LOK`) wird analog zur neuen Zähleridentität über kurze, wiederverwendbare `zaehler_id`s aufgebaut.
+Der Lokschuppen (`LOK`) wird analog zur neuen Zähleridentität über einheitgebundene `zaehler_id`s aufgebaut.
 
 Aktuelle Modellannahme:
 
@@ -283,6 +284,7 @@ Apps Script `ensureLokStructureData` ergänzt:
 - Spalte `eingang` in `Einheiten`, falls sie fehlt
 - fehlende LOK-Einheiten, z. B. `LOK_WE_10_A`, `LOK_WE_10_B` und `LOK_WE_10_S`
 - fehlende LOK-Zähler in `Zaehler`
+- alte LOK-Kurz-IDs wie `STROM`, `KW`, `WW`, `STROM_ALLGEMEIN` oder `KW_HAUPTZAEHLER` werden deaktiviert und erhalten `ersetzt_durch_zaehler_id`
 
 Die Funktion überschreibt bestehende Eingangswerte nicht, sondern ergänzt nur leere Felder. Falls `LOK_WE_10` bereits durch einen früheren Lauf angelegt wurde, bleibt diese Einheit zunächst unverändert und kann in einem separaten Bereinigungsschritt deaktiviert oder historisch dokumentiert werden.
 
