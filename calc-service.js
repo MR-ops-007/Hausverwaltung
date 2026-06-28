@@ -1,5 +1,7 @@
 // calc-service.js
 const calcService = {
+    MS_PER_DAY: 24 * 60 * 60 * 1000,
+
     toNumber(value) {
         if (value === null || value === undefined || value === "") return null;
 
@@ -62,8 +64,24 @@ const calcService = {
 
         return {
             start: new Date(normalizedYear, 0, 1, 0, 0, 0, 0).getTime(),
-            end: new Date(normalizedYear, 11, 31, 23, 59, 59, 999).getTime()
+            end: new Date(normalizedYear + 1, 0, 1, 0, 0, 0, 0).getTime()
         };
+    },
+
+    getMonthRanges(year) {
+        const normalizedYear = Number(year);
+
+        if (!Number.isInteger(normalizedYear)) return [];
+
+        return Array.from({ length: 12 }, (_, index) => ({
+            key: `${normalizedYear}-${String(index + 1).padStart(2, "0")}`,
+            label: new Date(normalizedYear, index, 1).toLocaleDateString("de-DE", {
+                month: "short"
+            }),
+            start: new Date(normalizedYear, index, 1, 0, 0, 0, 0).getTime(),
+            end: new Date(normalizedYear, index + 1, 1, 0, 0, 0, 0).getTime(),
+            value: 0
+        }));
     },
 
     getZaehlerIdentity(zaehler) {
@@ -84,6 +102,16 @@ const calcService = {
     calculateOverflowDelta(firstValue, lastValue, digits) {
         const maxValueExclusive = Math.pow(10, digits);
         return maxValueExclusive - firstValue + lastValue;
+    },
+
+    getMaxPlausibleConsumption(zaehler) {
+        return this.toNumber(zaehler.max_plausibler_verbrauch);
+    },
+
+    isConsumptionPlausible(value, zaehler) {
+        const maxPlausible = this.getMaxPlausibleConsumption(zaehler);
+
+        return maxPlausible === null || value <= maxPlausible;
     },
 
     calculateReadingDelta(firstReading, lastReading, zaehler) {
@@ -109,6 +137,14 @@ const calcService = {
         if (this.isReverseFillLevelMeter(zaehler)) {
             const consumption = Math.max(firstValue - lastValue, 0);
 
+            if (!this.isConsumptionPlausible(consumption, zaehler)) {
+                return {
+                    value: null,
+                    status: "UNPLAUSIBEL_HOCH",
+                    note: "Der berechnete Verbrauch überschreitet den plausiblen Maximalwert."
+                };
+            }
+
             return {
                 value: consumption,
                 status: lastValue <= firstValue ? "OK" : "FUELLSTAND_GESTIEGEN",
@@ -119,8 +155,18 @@ const calcService = {
         }
 
         if (lastValue >= firstValue) {
+            const consumption = lastValue - firstValue;
+
+            if (!this.isConsumptionPlausible(consumption, zaehler)) {
+                return {
+                    value: null,
+                    status: "UNPLAUSIBEL_HOCH",
+                    note: "Der berechnete Verbrauch überschreitet den plausiblen Maximalwert."
+                };
+            }
+
             return {
-                value: lastValue - firstValue,
+                value: consumption,
                 status: "OK",
                 note: ""
             };
@@ -129,8 +175,18 @@ const calcService = {
         const digits = this.toNumber(zaehler.stellen);
 
         if (this.isTrueValue(zaehler.ueberlauf_erlaubt) && digits !== null && digits > 0) {
+            const consumption = this.calculateOverflowDelta(firstValue, lastValue, digits);
+
+            if (!this.isConsumptionPlausible(consumption, zaehler)) {
+                return {
+                    value: null,
+                    status: "UNPLAUSIBEL_HOCH",
+                    note: "Der niedrigere Wert könnte ein Überlauf sein, der berechnete Verbrauch überschreitet aber den plausiblen Maximalwert."
+                };
+            }
+
             return {
-                value: this.calculateOverflowDelta(firstValue, lastValue, digits),
+                value: consumption,
                 status: "UEBERLAUF",
                 note: "Verbrauch wurde mit Zählerüberlauf berechnet."
             };
@@ -220,6 +276,14 @@ const calcService = {
                 const intervalConsumption = previousValue - currentValue;
 
                 if (intervalConsumption >= 0) {
+                    if (!this.isConsumptionPlausible(intervalConsumption, zaehler)) {
+                        return {
+                            value: null,
+                            status: "UNPLAUSIBEL_HOCH",
+                            note: "Mindestens ein Füllstandsintervall überschreitet den plausiblen Maximalwert."
+                        };
+                    }
+
                     consumption += intervalConsumption;
                 } else {
                     hasFillLevelIncrease = true;
@@ -229,14 +293,34 @@ const calcService = {
             }
 
             if (currentValue >= previousValue) {
-                consumption += currentValue - previousValue;
+                const intervalConsumption = currentValue - previousValue;
+
+                if (!this.isConsumptionPlausible(intervalConsumption, zaehler)) {
+                    return {
+                        value: null,
+                        status: "UNPLAUSIBEL_HOCH",
+                        note: "Mindestens ein Intervall überschreitet den plausiblen Maximalwert."
+                    };
+                }
+
+                consumption += intervalConsumption;
                 continue;
             }
 
             const digits = this.toNumber(zaehler.stellen);
 
             if (this.isTrueValue(zaehler.ueberlauf_erlaubt) && digits !== null && digits > 0) {
-                consumption += this.calculateOverflowDelta(previousValue, currentValue, digits);
+                const intervalConsumption = this.calculateOverflowDelta(previousValue, currentValue, digits);
+
+                if (!this.isConsumptionPlausible(intervalConsumption, zaehler)) {
+                    return {
+                        value: null,
+                        status: "UNPLAUSIBEL_HOCH",
+                        note: "Ein möglicher Überlauf überschreitet den plausiblen Maximalwert."
+                    };
+                }
+
+                consumption += intervalConsumption;
                 hasOverflow = true;
                 continue;
             }
@@ -261,6 +345,151 @@ const calcService = {
             status: hasOverflow ? "UEBERLAUF" : "OK",
             note: hasOverflow ? "Mindestens ein Intervall wurde mit Zählerüberlauf berechnet." : ""
         };
+    },
+
+    calculateIntervalConsumption(previousReading, currentReading, zaehler) {
+        const delta = this.calculateReadingDelta(previousReading, currentReading, zaehler);
+
+        if (delta.value === null) {
+            return delta;
+        }
+
+        return {
+            value: delta.value,
+            status: delta.status,
+            note: delta.note
+        };
+    },
+
+    buildConsumptionIntervals(readings, zaehler) {
+        if (!Array.isArray(readings) || readings.length < 2) {
+            return [];
+        }
+
+        return readings.slice(1).map((currentReading, index) => {
+            const previousReading = readings[index];
+            const start = this.parseGermanDate(previousReading.zeitstempel);
+            const end = this.parseGermanDate(currentReading.zeitstempel);
+            const delta = this.calculateIntervalConsumption(previousReading, currentReading, zaehler);
+
+            return {
+                previousReading,
+                currentReading,
+                start,
+                end,
+                days: end > start ? (end - start) / this.MS_PER_DAY : 0,
+                verbrauch: delta.value,
+                status: delta.status,
+                hinweis: delta.note
+            };
+        }).filter(interval => interval.start > 0 && interval.end > interval.start);
+    },
+
+    buildForecastIntervalFromPreviousAverage(readings, range, zaehler) {
+        if (!range || !Array.isArray(readings) || readings.length < 2) {
+            return null;
+        }
+
+        const previousReadings = readings.filter(reading => this.parseGermanDate(reading.zeitstempel) < range.start);
+
+        if (previousReadings.length < 2) {
+            return null;
+        }
+
+        const beforeLast = previousReadings[previousReadings.length - 2];
+        const last = previousReadings[previousReadings.length - 1];
+        const sourceInterval = this.buildConsumptionIntervals([beforeLast, last], zaehler)[0];
+
+        if (!sourceInterval || sourceInterval.verbrauch === null || sourceInterval.days <= 0) {
+            return null;
+        }
+
+        return {
+            previousReading: last,
+            currentReading: null,
+            start: range.start,
+            end: range.end,
+            days: (range.end - range.start) / this.MS_PER_DAY,
+            verbrauch: sourceInterval.verbrauch * ((range.end - range.start) / (sourceInterval.end - sourceInterval.start)),
+            status: "FORTGESCHRIEBEN",
+            hinweis: "Keine Messwerte im Jahr; Verbrauch wurde mit dem letzten bekannten Durchschnitt fortgeschrieben."
+        };
+    },
+
+    getOverlapRatio(interval, range) {
+        const overlapStart = Math.max(interval.start, range.start);
+        const overlapEnd = Math.min(interval.end, range.end);
+        const overlapMs = Math.max(0, overlapEnd - overlapStart);
+        const intervalMs = interval.end - interval.start;
+
+        if (overlapMs <= 0 || intervalMs <= 0) {
+            return 0;
+        }
+
+        return overlapMs / intervalMs;
+    },
+
+    allocateIntervalsToPeriod(intervals, range, monthRanges = []) {
+        let consumption = 0;
+        let openIntervals = 0;
+        const statuses = new Set();
+        const notes = [];
+        const monthly = monthRanges.map(month => Object.assign({}, month, { value: 0 }));
+
+        intervals.forEach(interval => {
+            const ratio = this.getOverlapRatio(interval, range);
+
+            if (ratio <= 0) {
+                return;
+            }
+
+            statuses.add(interval.status);
+
+            if (interval.hinweis) {
+                notes.push(interval.hinweis);
+            }
+
+            if (interval.verbrauch === null) {
+                openIntervals++;
+                return;
+            }
+
+            consumption += interval.verbrauch * ratio;
+
+            monthly.forEach(month => {
+                const monthRatio = this.getOverlapRatio(interval, month);
+
+                if (monthRatio > 0) {
+                    month.value += interval.verbrauch * monthRatio;
+                }
+            });
+        });
+
+        return {
+            value: openIntervals > 0 && consumption === 0 ? null : consumption,
+            openIntervals,
+            statuses: Array.from(statuses),
+            notes: Array.from(new Set(notes)),
+            monthly
+        };
+    },
+
+    getConsumptionStatusFromIntervals(allocation) {
+        if (!allocation || allocation.statuses.length === 0) {
+            return "KEINE_WERTE";
+        }
+
+        if (allocation.openIntervals > 0) {
+            return "TEILWEISE_UNBERECHENBAR";
+        }
+
+        if (allocation.statuses.includes("UNPLAUSIBEL_HOCH")) return "UNPLAUSIBEL_HOCH";
+        if (allocation.statuses.includes("RUECKLAEUFIG_UNGEKLAERT")) return "RUECKLAEUFIG_UNGEKLAERT";
+        if (allocation.statuses.includes("FUELLSTAND_GESTIEGEN")) return "FUELLSTAND_GESTIEGEN";
+        if (allocation.statuses.includes("FORTGESCHRIEBEN")) return "FORTGESCHRIEBEN";
+        if (allocation.statuses.includes("UEBERLAUF")) return "UEBERLAUF";
+
+        return "OK";
     },
 
     getUnitDisplayName(unit) {
@@ -289,15 +518,32 @@ const calcService = {
             .map(meter => {
                 const readingSet = this.getReadingsForMeter(meter, zaehlerstaende, options);
                 const readings = readingSet.calculationReadings;
+                const allReadings = this.getAllReadingsForMeter(meter, zaehlerstaende);
+                const range = this.getYearRange(options.year);
+                const monthRanges = this.getMonthRanges(options.year);
+                const intervals = this.buildConsumptionIntervals(allReadings, meter);
+                const forecastInterval = this.buildForecastIntervalFromPreviousAverage(allReadings, range, meter);
+                const periodIntervals = range
+                    ? intervals
+                        .concat(forecastInterval ? [forecastInterval] : [])
+                        .filter(interval => this.getOverlapRatio(interval, range) > 0)
+                    : intervals;
+                const allocation = range
+                    ? this.allocateIntervalsToPeriod(periodIntervals, range, monthRanges)
+                    : null;
                 const firstReading = readings[0] || null;
                 const lastReading = readings[readings.length - 1] || null;
-                const delta = readingSet.periodReadings.length > 0
-                    ? this.calculateConsumptionFromReadings(readings, meter)
+                const delta = allocation && allocation.statuses.length > 0
+                    ? {
+                        value: allocation.value,
+                        status: this.getConsumptionStatusFromIntervals(allocation),
+                        note: allocation.notes.join(" ")
+                    }
                     : {
                         value: null,
                         status: "KEINE_WERTE",
                         note: readingSet.baselineReading
-                            ? "Nur ein Vorperiodenwert vorhanden, aber kein Messwert im gewählten Jahr."
+                            ? "Nur ein Vorperiodenwert vorhanden, aber kein berechenbares Intervall im gewählten Jahr."
                             : "Keine Messwerte im Zeitraum vorhanden."
                     };
                 const unit = unitsById.get(String(meter.einheit_id));
@@ -316,11 +562,14 @@ const calcService = {
                     readings_count: readings.length,
                     period_readings_count: readingSet.periodReadings.length,
                     uses_baseline: Boolean(readingSet.baselineReading),
+                    interval_count: periodIntervals.length,
                     start_wert: firstReading ? firstReading.wert : null,
                     start_zeitstempel: firstReading ? firstReading.zeitstempel : "",
                     end_wert: lastReading ? lastReading.wert : null,
                     end_zeitstempel: lastReading ? lastReading.zeitstempel : "",
                     verbrauch: delta.value,
+                    monatsdurchschnitt: delta.value === null ? null : delta.value / 12,
+                    monthly: allocation ? allocation.monthly : [],
                     status: delta.status,
                     hinweis: delta.note
                 };

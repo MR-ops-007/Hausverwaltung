@@ -83,14 +83,15 @@ describe('calcService consumption dashboard', () => {
       uses_baseline: true,
       start_wert: 6500,
       end_wert: 6900,
-      verbrauch: 400,
+      verbrauch: 326.5,
+      monatsdurchschnitt: 326.5 / 12,
       status: 'OK',
     });
     expect(dashboard.summary).toEqual([
       expect.objectContaining({
         objekt_id: 'Ra-HS-29',
         medium: 'strom_ht_kwh',
-        verbrauch: 400,
+        verbrauch: 326.5,
         zaehler_count: 1,
         offene_zaehler: 0,
       }),
@@ -113,6 +114,114 @@ describe('calcService consumption dashboard', () => {
       value: 247,
       status: 'UEBERLAUF',
     });
+  });
+
+  it('rejects implausibly high overflow intervals instead of adding utopian consumption', () => {
+    const calcService = loadCalcService();
+    const result = calcService.calculateReadingDelta(
+      { wert: 160 },
+      { wert: 5 },
+      {
+        medium: 'kaltwasser_m3',
+        stellen: 4,
+        ueberlauf_erlaubt: true,
+        max_plausibler_verbrauch: 100,
+      }
+    );
+
+    expect(result).toMatchObject({
+      value: null,
+      status: 'UNPLAUSIBEL_HOCH',
+    });
+  });
+
+  it('smooths long reading gaps into the selected year by day share', () => {
+    const calcService = loadCalcService();
+    const rows = calcService.buildConsumptionRows(
+      {
+        zaehler: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_10',
+            zaehler_id: 'Z_STROM_KWH_WOHNUNG_10',
+            medium: 'strom_ht_kwh',
+            einheit: 'kWh',
+          },
+        ],
+        zaehlerstaende: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_10',
+            zaehler_id: 'Z_STROM_KWH_WOHNUNG_10',
+            wert: 1000,
+            zeitstempel: '01.01.2023 00:00',
+          },
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_10',
+            zaehler_id: 'Z_STROM_KWH_WOHNUNG_10',
+            wert: 1365,
+            zeitstempel: '01.01.2024 00:00',
+          },
+        ],
+        einheiten: [],
+      },
+      {
+        objekt_id: 'Ra-HS-29',
+        year: 2023,
+      }
+    );
+
+    expect(rows[0]).toMatchObject({
+      verbrauch: 365,
+      monatsdurchschnitt: 365 / 12,
+      interval_count: 1,
+      status: 'OK',
+    });
+    expect(rows[0].monthly).toHaveLength(12);
+    expect(rows[0].monthly[0].value).toBe(31);
+  });
+
+  it('continues the last known average if a year has no readings', () => {
+    const calcService = loadCalcService();
+    const rows = calcService.buildConsumptionRows(
+      {
+        zaehler: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_11',
+            zaehler_id: 'Z_STROM_KWH_WOHNUNG_11',
+            medium: 'strom_ht_kwh',
+            einheit: 'kWh',
+          },
+        ],
+        zaehlerstaende: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_11',
+            zaehler_id: 'Z_STROM_KWH_WOHNUNG_11',
+            wert: 1000,
+            zeitstempel: '01.01.2022 00:00',
+          },
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_11',
+            zaehler_id: 'Z_STROM_KWH_WOHNUNG_11',
+            wert: 1365,
+            zeitstempel: '01.01.2023 00:00',
+          },
+        ],
+        einheiten: [],
+      },
+      {
+        objekt_id: 'Ra-HS-29',
+        year: 2024,
+      }
+    );
+
+    expect(rows[0].verbrauch).toBeCloseTo(366);
+    expect(rows[0].status).toBe('FORTGESCHRIEBEN');
+    expect(rows[0].hinweis).toContain('fortgeschrieben');
   });
 
   it('treats decreasing oil level in cm as consumption', () => {

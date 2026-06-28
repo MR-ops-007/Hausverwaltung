@@ -383,8 +383,11 @@ const uiService = {
       EINZELWERT: 'Einzelwert',
       KEINE_WERTE: 'Keine Werte',
       UNBERECHENBAR: 'Prüfen',
+      UNPLAUSIBEL_HOCH: 'Unplausibel',
+      TEILWEISE_UNBERECHENBAR: 'Teilweise offen',
       RUECKLAEUFIG_UNGEKLAERT: 'Prüfen',
-      FUELLSTAND_GESTIEGEN: 'Prüfen'
+      FUELLSTAND_GESTIEGEN: 'Prüfen',
+      FORTGESCHRIEBEN: 'Fortgeschrieben'
     };
 
     return labels[status] || status || '';
@@ -392,7 +395,7 @@ const uiService = {
 
   getConsumptionStatusColor(status) {
     if (status === 'OK') return '#15803d';
-    if (status === 'UEBERLAUF' || status === 'EINZELWERT') return '#0369a1';
+    if (status === 'UEBERLAUF' || status === 'EINZELWERT' || status === 'FORTGESCHRIEBEN') return '#0369a1';
     if (status === 'KEINE_WERTE') return '#64748b';
     return '#b45309';
   },
@@ -525,7 +528,10 @@ const uiService = {
               <div><strong>Ende:</strong> ${this.formatDashboardNumber(row.end_wert)} <span style="font-size:0.75rem; color:#64748b;">${this.escapeHtml(row.end_zeitstempel)}</span></div>
               ${row.uses_baseline ? '<div style="font-size:0.75rem; color:#0369a1;">Startwert aus Vorperiode</div>' : ''}
             </td>
-            <td style="font-weight:900;">${this.formatDashboardNumber(row.verbrauch)} ${this.escapeHtml(row.einheit || '')}</td>
+            <td>
+              <div style="font-weight:900;">${this.formatDashboardNumber(row.verbrauch)} ${this.escapeHtml(row.einheit || '')}</div>
+              <div style="font-size:0.75rem; color:#64748b;">Ø Monat: ${this.formatDashboardNumber(row.monatsdurchschnitt)} ${this.escapeHtml(row.einheit || '')}</div>
+            </td>
             <td>
               <span style="display:inline-block; padding:3px 7px; border-radius:999px; background:#f8fafc; color:${this.getConsumptionStatusColor(row.status)}; font-size:0.75rem; font-weight:800;">
                 ${this.escapeHtml(this.getConsumptionStatusLabel(row.status))}

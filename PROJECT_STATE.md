@@ -297,9 +297,12 @@ Umgesetzt:
 - Verbrauchszeilen je Zähler aus `Zaehler`, `Zaehlerstaende` und `Einheiten`
 - Filter nach `objekt_id` und Jahr
 - Objekt-/Einheiten-/Zähler-scharfe Intervallberechnung
-- Jahresverbrauch nutzt den letzten Wert vor Jahresbeginn als Baseline plus alle Messwerte im gewählten Jahr
+- Jahresverbrauch wird aus Verbrauchsintervallen berechnet: zwei aufeinanderfolgende Ablesepunkte bilden ein Intervall
+- Intervallverbrauch wird nach Tagesanteilen auf das gewählte Jahr und die Monate verteilt
+- lange Ableseabstände werden dadurch geglättet und als Monatsdurchschnitt ausgewiesen
+- wenn in einem Jahr keine Ablesung vorliegt, kann der letzte bekannte Durchschnitt fortgeschrieben werden
 - Normalverbrauch bei steigenden Zählerintervallen
-- Überlaufberechnung für geeignete Wasserzähler
+- Überlaufberechnung für geeignete Wasserzähler nur, wenn der berechnete Verbrauch plausibel bleibt
 - rückläufiger Ölstand in cm als Verbrauch über die Summe der fallenden Intervalle
 - steigender Ölstand als Review-Status, z. B. bei Betankung oder Korrektur
 - optionale Ausblendung berechneter/virtueller Zähler
