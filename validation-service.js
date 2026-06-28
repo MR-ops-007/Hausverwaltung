@@ -32,6 +32,17 @@ function calculateOverflowDelta(lastValue, newValue, digits) {
   return maxValueExclusive - lastValue + newValue;
 }
 
+function normalizeKey(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isReverseFillLevelMeter(zaehler) {
+  const medium = normalizeKey(zaehler.medium);
+  const zaehlerId = normalizeKey(zaehler.zaehler_id);
+
+  return medium === 'oel_stand_cm' || zaehlerId.includes('oel_stand_in_cm');
+}
+
 function buildResult(status, code, message, options = {}) {
   return {
     status,
@@ -88,6 +99,35 @@ export function validateZaehlerstand({
   const isMeterChange =
     toBoolean(context.zaehlerwechsel) ||
     toBoolean(zaehler.zaehlerwechsel);
+
+  if (isReverseFillLevelMeter(zaehler)) {
+    if (current <= previous) {
+      const delta = previous - current;
+
+      if (maxPlausibleConsumption !== null && delta > maxPlausibleConsumption) {
+        return buildResult(
+          VALIDATION_STATUS.WARNUNG,
+          'HIGH_FILL_LEVEL_CONSUMPTION',
+          'Der Füllstand ist stärker gesunken als der definierte plausible Maximalverbrauch.',
+          { delta, needsConfirmation: true }
+        );
+      }
+
+      return buildResult(
+        VALIDATION_STATUS.OK,
+        'FILL_LEVEL_DECREASE',
+        'Der niedrigere Füllstand ist als Verbrauch plausibel.',
+        { delta }
+      );
+    }
+
+    return buildResult(
+      VALIDATION_STATUS.WARNUNG,
+      'FILL_LEVEL_INCREASE',
+      'Der Füllstand ist höher als der vorherige Wert. Bitte Betankung, Korrektur oder Eingabefehler prüfen.',
+      { delta: current - previous, needsConfirmation: true }
+    );
+  }
 
   if (current >= previous) {
     const delta = current - previous;

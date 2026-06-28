@@ -80,11 +80,9 @@ Getestete Fälle:
 - ungültige Eingaben
 - negative Eingaben
 - deutsche Komma-Dezimalwerte
-
-Offen:
-
-- Ölstand in cm (`oel_stand_cm`) braucht eine eigene Plausibilitätslogik: sinkende Werte sind normaler Verbrauch, steigende Werte bedeuten Betankung/Korrektur und dürfen nicht als Überlauf behandelt werden.
-- Für Ölstand darf ein niedrigerer Folgewert nicht automatisch als Fehler oder Überlauf bewertet werden; ein steigender Wert sollte gegen plausible Tank-/Korrekturregeln geprüft werden.
+- rückläufiger Ölstand in cm
+- steigender Ölstand als Betankungs-/Korrekturwarnung
+- Ölstand wird nicht als Überlauf behandelt
 
 ### UI-Integration der Zähler-Plausibilität
 
@@ -250,15 +248,17 @@ Historische Doppelwerte mit niedrigerem Verbrauchswert und höherem Zählerstand
 
 Optionaler Folgeschritt: Kürzere `zaehler_id`s wie `STROM`, `KW`, `WW` erst in einem separaten Schritt einführen.
 
-### 3. Ölstand-Plausibilität korrigieren
+### 3. Ölstand-Plausibilität abgeschlossen
 
 Der Zähler `oel_stand_cm` ist rückläufig: Ein sinkender Stand bedeutet Verbrauch und ist grundsätzlich plausibel. Ein steigender Stand bedeutet Betankung, Korrektur oder Messfehler und braucht eigene Regeln.
 
-Geplanter nächster Schritt:
+Umgesetzt:
 
-1. Testfälle in `tests/validation-service.test.js` für `oel_stand_cm` ergänzen.
-2. Plausibilitätslogik in `validation-service.js` um Richtung/Medium erweitern.
-3. UI-Test mit Produktiv-Testzähler `Z_OEL_STAND_IN_CM` wiederholen.
+1. Testfälle in `tests/validation-service.test.js` für `oel_stand_cm` ergänzt.
+2. Plausibilitätslogik in `validation-service.js` um rückläufige Füllstandszähler erweitert.
+3. Sinkender Ölstand wird als Verbrauch akzeptiert.
+4. Steigender Ölstand erzeugt eine Warnung für Betankung, Korrektur oder Messfehler.
+5. Überlauf wird für Ölstand in cm nicht angewendet.
 
 ### 4. Dashboard/Auswertungen
 
