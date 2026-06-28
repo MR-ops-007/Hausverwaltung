@@ -296,11 +296,12 @@ Umgesetzt:
 
 - Verbrauchszeilen je Zähler aus `Zaehler`, `Zaehlerstaende` und `Einheiten`
 - Filter nach `objekt_id` und Jahr
-- Objekt-/Einheiten-/Zähler-scharfe Vorwert- und Endwertsuche
-- Normalverbrauch bei steigenden Zählerständen
+- Objekt-/Einheiten-/Zähler-scharfe Intervallberechnung
+- Jahresverbrauch nutzt den letzten Wert vor Jahresbeginn als Baseline plus alle Messwerte im gewählten Jahr
+- Normalverbrauch bei steigenden Zählerintervallen
 - Überlaufberechnung für geeignete Wasserzähler
-- rückläufiger Ölstand in cm als Verbrauch
-- steigender Ölstand als Review-Status
+- rückläufiger Ölstand in cm als Verbrauch über die Summe der fallenden Intervalle
+- steigender Ölstand als Review-Status, z. B. bei Betankung oder Korrektur
 - optionale Ausblendung berechneter/virtueller Zähler
 - Medium-Summary für spätere Dashboard-Kacheln
 

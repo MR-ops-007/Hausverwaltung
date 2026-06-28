@@ -323,6 +323,7 @@ describe('uiService consumption dashboard', () => {
                 objekt_id: 'Ra-HS-29',
                 einheit_id: 'Ra-HS-29_WE_01',
                 einheit_name: 'Wohnung 1',
+                mieter_name: 'Duck, Donald',
                 zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
                 medium: 'strom_ht_kwh',
                 bezeichnung: 'Strom Wohnung 1',
@@ -359,6 +360,7 @@ describe('uiService consumption dashboard', () => {
     ]);
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('strom_ht_kwh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Wohnung 1');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Donald Duck');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom Wohnung 1');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('253 kWh');
   });

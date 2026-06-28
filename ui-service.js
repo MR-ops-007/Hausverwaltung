@@ -504,7 +504,7 @@ const uiService = {
           <div class="consumption-summary-item">
             <div style="font-size:0.75rem; color:#64748b; font-weight:700;">${this.escapeHtml(item.medium || 'Ohne Medium')}</div>
             <div style="font-size:1.15rem; font-weight:900; color:#0f172a;">${this.formatDashboardNumber(item.verbrauch)} ${this.escapeHtml(item.einheit || '')}</div>
-            <div style="font-size:0.75rem; color:#64748b;">${item.zaehler_count} Zähler${item.offene_zaehler ? ` · ${item.offene_zaehler} offen` : ''}${item.berechnet ? ' · berechnet' : ''}</div>
+            <div style="font-size:0.75rem; color:#64748b;">${item.zaehler_count} Zähler${item.offene_zaehler ? ` · ${item.offene_zaehler} ohne berechenbaren Verbrauch` : ''}${item.berechnet ? ' · berechnet' : ''}</div>
           </div>
         `)
         .join('')
@@ -512,13 +512,19 @@ const uiService = {
     const rowsHtml = sortedRows.length > 0
       ? sortedRows.map(row => `
           <tr>
-            <td>${this.escapeHtml(row.einheit_name || row.einheit_id)}</td>
+            <td>
+              <div style="font-weight:800;">${this.escapeHtml(row.einheit_name || row.einheit_id)}</div>
+              ${row.mieter_name ? `<div style="font-size:0.75rem; color:#64748b;">${this.escapeHtml(this.formatMieterDisplayName(row.mieter_name))}</div>` : ''}
+            </td>
             <td>
               <div style="font-weight:700;">${this.escapeHtml(row.bezeichnung)}</div>
               <div style="font-size:0.75rem; color:#64748b;">${this.escapeHtml(row.einbauort || row.medium || '')}</div>
             </td>
-            <td>${this.formatDashboardNumber(row.start_wert)}<br><span style="font-size:0.75rem; color:#64748b;">${this.escapeHtml(row.start_zeitstempel)}</span></td>
-            <td>${this.formatDashboardNumber(row.end_wert)}<br><span style="font-size:0.75rem; color:#64748b;">${this.escapeHtml(row.end_zeitstempel)}</span></td>
+            <td>
+              <div><strong>Start:</strong> ${this.formatDashboardNumber(row.start_wert)} <span style="font-size:0.75rem; color:#64748b;">${this.escapeHtml(row.start_zeitstempel)}</span></div>
+              <div><strong>Ende:</strong> ${this.formatDashboardNumber(row.end_wert)} <span style="font-size:0.75rem; color:#64748b;">${this.escapeHtml(row.end_zeitstempel)}</span></div>
+              ${row.uses_baseline ? '<div style="font-size:0.75rem; color:#0369a1;">Startwert aus Vorperiode</div>' : ''}
+            </td>
             <td style="font-weight:900;">${this.formatDashboardNumber(row.verbrauch)} ${this.escapeHtml(row.einheit || '')}</td>
             <td>
               <span style="display:inline-block; padding:3px 7px; border-radius:999px; background:#f8fafc; color:${this.getConsumptionStatusColor(row.status)}; font-size:0.75rem; font-weight:800;">
@@ -528,7 +534,7 @@ const uiService = {
             </td>
           </tr>
         `).join('')
-      : '<tr><td colspan="6" style="padding:14px; color:#64748b;">Keine Zähler für Auswahl gefunden.</td></tr>';
+      : '<tr><td colspan="5" style="padding:14px; color:#64748b;">Keine Zähler für Auswahl gefunden.</td></tr>';
 
     output.innerHTML = `
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px; margin-bottom:14px;">
@@ -541,8 +547,7 @@ const uiService = {
             <tr style="background:#f8fafc; color:#334155; text-align:left;">
               <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Einheit</th>
               <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Zähler</th>
-              <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Start</th>
-              <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Ende</th>
+              <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Zeitraum</th>
               <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Verbrauch</th>
               <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Status</th>
             </tr>

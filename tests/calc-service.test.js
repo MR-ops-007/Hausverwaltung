@@ -39,6 +39,13 @@ describe('calcService consumption dashboard', () => {
             objekt_id: 'Ra-HS-29',
             einheit_id: 'Ra-HS-29_WE_01',
             zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+            wert: 6500,
+            zeitstempel: '31.12.2025 00:00',
+          },
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_01',
+            zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
             wert: 6647,
             zeitstempel: '02.01.2026 00:00',
           },
@@ -71,17 +78,19 @@ describe('calcService consumption dashboard', () => {
       einheit_name: 'Wohnung 1',
       zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
       medium: 'strom_ht_kwh',
-      readings_count: 2,
-      start_wert: 6647,
+      readings_count: 3,
+      period_readings_count: 2,
+      uses_baseline: true,
+      start_wert: 6500,
       end_wert: 6900,
-      verbrauch: 253,
+      verbrauch: 400,
       status: 'OK',
     });
     expect(dashboard.summary).toEqual([
       expect.objectContaining({
         objekt_id: 'Ra-HS-29',
         medium: 'strom_ht_kwh',
-        verbrauch: 253,
+        verbrauch: 400,
         zaehler_count: 1,
         offene_zaehler: 0,
       }),
@@ -134,10 +143,68 @@ describe('calcService consumption dashboard', () => {
     );
 
     expect(result).toMatchObject({
-      value: -12,
+      value: 0,
       status: 'FUELLSTAND_GESTIEGEN',
     });
     expect(result.note).toContain('Füllstand ist gestiegen');
+  });
+
+  it('sums decreasing oil level intervals and ignores refills as consumption', () => {
+    const calcService = loadCalcService();
+    const result = calcService.calculateConsumptionFromReadings(
+      [
+        { wert: 60, zeitstempel: '01.01.2026 00:00' },
+        { wert: 50, zeitstempel: '01.02.2026 00:00' },
+        { wert: 70, zeitstempel: '01.03.2026 00:00' },
+        { wert: 40, zeitstempel: '01.04.2026 00:00' },
+      ],
+      {
+        medium: 'oel_stand_cm',
+      }
+    );
+
+    expect(result).toMatchObject({
+      value: 40,
+      status: 'FUELLSTAND_GESTIEGEN',
+    });
+  });
+
+  it('marks meters without readings in the selected year as open even if a baseline exists', () => {
+    const calcService = loadCalcService();
+    const rows = calcService.buildConsumptionRows(
+      {
+        zaehler: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_Allgemein',
+            zaehler_id: 'Z_STROM_KWH_ALLGEMEIN_NT',
+            medium: 'strom_nt_kwh',
+            einheit: 'kWh',
+          },
+        ],
+        zaehlerstaende: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_Allgemein',
+            zaehler_id: 'Z_STROM_KWH_ALLGEMEIN_NT',
+            wert: 1200,
+            zeitstempel: '31.12.2025 00:00',
+          },
+        ],
+        einheiten: [],
+      },
+      {
+        objekt_id: 'Ra-HS-29',
+        year: 2026,
+      }
+    );
+
+    expect(rows[0]).toMatchObject({
+      verbrauch: null,
+      status: 'KEINE_WERTE',
+      uses_baseline: true,
+      period_readings_count: 0,
+    });
   });
 
   it('can exclude calculated virtual meters from dashboard rows', () => {

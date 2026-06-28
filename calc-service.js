@@ -53,6 +53,19 @@ const calcService = {
         return String(new Date(timestamp).getFullYear());
     },
 
+    getYearRange(year) {
+        if (!year) return null;
+
+        const normalizedYear = Number(year);
+
+        if (!Number.isInteger(normalizedYear)) return null;
+
+        return {
+            start: new Date(normalizedYear, 0, 1, 0, 0, 0, 0).getTime(),
+            end: new Date(normalizedYear, 11, 31, 23, 59, 59, 999).getTime()
+        };
+    },
+
     getZaehlerIdentity(zaehler) {
         return [
             zaehler.objekt_id || "",
@@ -94,8 +107,10 @@ const calcService = {
         }
 
         if (this.isReverseFillLevelMeter(zaehler)) {
+            const consumption = Math.max(firstValue - lastValue, 0);
+
             return {
-                value: firstValue - lastValue,
+                value: consumption,
                 status: lastValue <= firstValue ? "OK" : "FUELLSTAND_GESTIEGEN",
                 note: lastValue <= firstValue
                     ? ""
@@ -128,18 +143,124 @@ const calcService = {
         };
     },
 
-    getReadingsForMeter(zaehler, zaehlerstaende, options = {}) {
-        const year = options.year ? String(options.year) : "";
-
+    getAllReadingsForMeter(zaehler, zaehlerstaende) {
         return zaehlerstaende
             .filter(reading => {
                 if (String(reading.objekt_id) !== String(zaehler.objekt_id)) return false;
                 if (String(reading.einheit_id) !== String(zaehler.einheit_id)) return false;
                 if (String(reading.zaehler_id) !== String(zaehler.zaehler_id)) return false;
-                if (year && this.getReadingYear(reading) !== year) return false;
                 return true;
             })
+            .filter(reading => this.parseGermanDate(reading.zeitstempel) > 0)
             .sort((a, b) => this.parseGermanDate(a.zeitstempel) - this.parseGermanDate(b.zeitstempel));
+    },
+
+    getReadingsForMeter(zaehler, zaehlerstaende, options = {}) {
+        const allReadings = this.getAllReadingsForMeter(zaehler, zaehlerstaende);
+        const range = this.getYearRange(options.year);
+
+        if (!range) {
+            return {
+                calculationReadings: allReadings,
+                periodReadings: allReadings,
+                baselineReading: null
+            };
+        }
+
+        const previousReadings = allReadings.filter(reading => this.parseGermanDate(reading.zeitstempel) < range.start);
+        const periodReadings = allReadings.filter(reading => {
+            const timestamp = this.parseGermanDate(reading.zeitstempel);
+            return timestamp >= range.start && timestamp <= range.end;
+        });
+        const baselineReading = previousReadings[previousReadings.length - 1] || null;
+
+        return {
+            calculationReadings: baselineReading
+                ? [baselineReading, ...periodReadings]
+                : periodReadings,
+            periodReadings,
+            baselineReading
+        };
+    },
+
+    calculateConsumptionFromReadings(readings, zaehler) {
+        if (!Array.isArray(readings) || readings.length === 0) {
+            return {
+                value: null,
+                status: "KEINE_WERTE",
+                note: "Keine Messwerte im Zeitraum vorhanden."
+            };
+        }
+
+        if (readings.length === 1) {
+            return {
+                value: 0,
+                status: "EINZELWERT",
+                note: "Nur ein Messwert im Zeitraum vorhanden."
+            };
+        }
+
+        let consumption = 0;
+        let hasOverflow = false;
+        let hasFillLevelIncrease = false;
+
+        for (let index = 1; index < readings.length; index++) {
+            const previousValue = this.toNumber(readings[index - 1].wert);
+            const currentValue = this.toNumber(readings[index].wert);
+
+            if (previousValue === null || currentValue === null) {
+                return {
+                    value: null,
+                    status: "UNBERECHENBAR",
+                    note: "Mindestens ein Zählerwert ist keine gültige Zahl."
+                };
+            }
+
+            if (this.isReverseFillLevelMeter(zaehler)) {
+                const intervalConsumption = previousValue - currentValue;
+
+                if (intervalConsumption >= 0) {
+                    consumption += intervalConsumption;
+                } else {
+                    hasFillLevelIncrease = true;
+                }
+
+                continue;
+            }
+
+            if (currentValue >= previousValue) {
+                consumption += currentValue - previousValue;
+                continue;
+            }
+
+            const digits = this.toNumber(zaehler.stellen);
+
+            if (this.isTrueValue(zaehler.ueberlauf_erlaubt) && digits !== null && digits > 0) {
+                consumption += this.calculateOverflowDelta(previousValue, currentValue, digits);
+                hasOverflow = true;
+                continue;
+            }
+
+            return {
+                value: null,
+                status: "RUECKLAEUFIG_UNGEKLAERT",
+                note: "Ein Intervall ist rückläufig; Zählerwechsel, Korrektur oder Fehler prüfen."
+            };
+        }
+
+        if (this.isReverseFillLevelMeter(zaehler) && hasFillLevelIncrease) {
+            return {
+                value: consumption,
+                status: "FUELLSTAND_GESTIEGEN",
+                note: "Mindestens ein Füllstandsintervall ist gestiegen; Betankung, Korrektur oder Messfehler prüfen."
+            };
+        }
+
+        return {
+            value: consumption,
+            status: hasOverflow ? "UEBERLAUF" : "OK",
+            note: hasOverflow ? "Mindestens ein Intervall wurde mit Zählerüberlauf berechnet." : ""
+        };
     },
 
     getUnitDisplayName(unit) {
@@ -156,24 +277,28 @@ const calcService = {
         return this.isTrueValue(zaehler.berechnet);
     },
 
-    buildConsumptionRows({ zaehler = [], zaehlerstaende = [], einheiten = [] } = {}, options = {}) {
+    buildConsumptionRows({ zaehler = [], zaehlerstaende = [], einheiten = [], view_aktive_mieter = [] } = {}, options = {}) {
         const objektId = options.objekt_id ? String(options.objekt_id) : "";
         const includeCalculated = options.includeCalculated !== false;
         const unitsById = new Map(einheiten.map(unit => [String(unit.einheit_id), unit]));
+        const tenantsByUnitId = new Map(view_aktive_mieter.map(row => [String(row.einheit_id), row.mieter_name || ""]));
 
         return zaehler
             .filter(meter => !objektId || String(meter.objekt_id) === objektId)
             .filter(meter => includeCalculated || !this.isCalculatedMeter(meter))
             .map(meter => {
-                const readings = this.getReadingsForMeter(meter, zaehlerstaende, options);
+                const readingSet = this.getReadingsForMeter(meter, zaehlerstaende, options);
+                const readings = readingSet.calculationReadings;
                 const firstReading = readings[0] || null;
                 const lastReading = readings[readings.length - 1] || null;
-                const delta = readings.length > 0
-                    ? this.calculateReadingDelta(firstReading, lastReading, meter)
+                const delta = readingSet.periodReadings.length > 0
+                    ? this.calculateConsumptionFromReadings(readings, meter)
                     : {
                         value: null,
                         status: "KEINE_WERTE",
-                        note: "Keine Messwerte im Zeitraum vorhanden."
+                        note: readingSet.baselineReading
+                            ? "Nur ein Vorperiodenwert vorhanden, aber kein Messwert im gewählten Jahr."
+                            : "Keine Messwerte im Zeitraum vorhanden."
                     };
                 const unit = unitsById.get(String(meter.einheit_id));
 
@@ -181,6 +306,7 @@ const calcService = {
                     objekt_id: meter.objekt_id || "",
                     einheit_id: meter.einheit_id || "",
                     einheit_name: this.getUnitDisplayName(unit) || meter.einheit_id || "",
+                    mieter_name: tenantsByUnitId.get(String(meter.einheit_id)) || "",
                     zaehler_id: meter.zaehler_id || "",
                     medium: meter.medium || "",
                     bezeichnung: this.getMeterLabel(meter),
@@ -188,6 +314,8 @@ const calcService = {
                     einbauort: meter.einbauort || "",
                     berechnet: this.isCalculatedMeter(meter),
                     readings_count: readings.length,
+                    period_readings_count: readingSet.periodReadings.length,
+                    uses_baseline: Boolean(readingSet.baselineReading),
                     start_wert: firstReading ? firstReading.wert : null,
                     start_zeitstempel: firstReading ? firstReading.zeitstempel : "",
                     end_wert: lastReading ? lastReading.wert : null,

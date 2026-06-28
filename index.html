@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container" style="max-width: 800px; margin: 0 auto; padding: 20px; font-family: sans-serif;">
+    <div class="container" style="max-width: 1180px; margin: 0 auto; padding: 20px; font-family: sans-serif;">
         <header style="border-bottom: 2px solid #eee; margin-bottom: 20px; padding-bottom: 10px;">
             <h1 style="margin: 0;">Hausverwaltung</h1>
             <div id="sync-status" style="font-size: 0.85em; margin-top: 5px; color: #666;">Prüfe Verbindung...</div>
@@ -60,12 +60,12 @@
     </div>
     
     <script src="config.js?v=20260627-backend-4-3-1-deployment"></script>
-    <script src="data-service.js?v=20260628-consumption-dashboard-ui"></script>
-    <script src="cloud-service.js?v=20260628-consumption-dashboard-ui"></script>
-    <script src="calc-service.js?v=20260628-consumption-dashboard-ui"></script>
+    <script src="data-service.js?v=20260628-consumption-dashboard-baseline"></script>
+    <script src="cloud-service.js?v=20260628-consumption-dashboard-baseline"></script>
+    <script src="calc-service.js?v=20260628-consumption-dashboard-baseline"></script>
 
     <script type="module">
-      import { VALIDATION_STATUS, validateZaehlerstand } from './validation-service.js?v=20260628-consumption-dashboard-ui';
+      import { VALIDATION_STATUS, validateZaehlerstand } from './validation-service.js?v=20260628-consumption-dashboard-baseline';
 
       window.validationService = {
         VALIDATION_STATUS,
@@ -73,7 +73,7 @@
       };
     </script>
 
-    <script src="ui-service.js?v=20260628-consumption-dashboard-ui"></script>
+    <script src="ui-service.js?v=20260628-consumption-dashboard-baseline"></script>
 
     <script>
     document.addEventListener('DOMContentLoaded', async () => {
