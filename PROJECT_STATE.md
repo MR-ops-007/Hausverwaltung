@@ -187,7 +187,7 @@ Google Apps Script wird weiterhin manuell versioniert.
 Aktuelle Backend-Version:
 
 ```text
-4.6.0
+4.6.1
 ```
 
 Die Version steht im Kopf von `apps-script/Code.gs` und in `BACKEND_VERSION`.
@@ -208,6 +208,7 @@ Wichtige Regel:
 - `4.5.1` teilt LOK Wohnung 10 in A/B/S und lässt `ensureLokStructureData` fehlende LOK-Einheiten anlegen.
 - `4.5.2` stellt LOK auf einheitgebundene `zaehler_id`s nach `Z_{einheit_id}_{medium}` um und deaktiviert alte Kurz-IDs.
 - `4.6.0` ergänzt materialisierte Verbrauchsviews für Monats- und Jahreswerte.
+- `4.6.1` ergänzt kanonische Zuordnung historischer Zählerstand-IDs und einen Audit-View für Verbrauchsdaten.
 - `clasp` ist lokal mit dem bestehenden GAS-Projekt verbunden; `npm run clasp:pull` funktioniert unter Node 22.
 
 ---
@@ -293,17 +294,28 @@ Die Funktion überschreibt bestehende Eingangswerte nicht, sondern ergänzt nur 
 
 Die erste Dashboard-Version hatte die Verbrauchsberechnung testbar im Frontend vorbereitet. Wegen der historischen Datenqualität und der notwendigen Nachvollziehbarkeit wird die fachliche Verbrauchsberechnung jetzt ins Apps-Script-Backend verschoben.
 
-Umgesetzt mit Backend-Version `4.6.0`:
+Umgesetzt mit Backend-Version `4.6.1`:
 
 - `updateVerbrauchViews` baut materialisierte Verbrauchsviews aus `Zaehler`, `Zaehlerstaende`, `Einheiten` und `_view_aktive_mieter`.
 - `_view_verbrauch_monat` enthält die prüfbaren Monatssegmente je Zählerintervall.
 - `_view_verbrauch_jahr` aggregiert daraus Jahreswerte je Objekt, Einheit und Zähler.
+- `_view_verbrauch_audit` prüft pro Zähler, ob Rohwerte, Intervalle und erzeugte View-Zeilen zusammenpassen.
 - Zwei aufeinanderfolgende Ablesepunkte bilden ein Intervall.
 - Intervallverbrauch wird tagesgenau auf Monate verteilt.
 - Warnwerte bleiben sichtbar und werden nicht aus der View entfernt.
 - Rückläufiger Ölstand in cm wird als Verbrauch behandelt.
 - Steigender Ölstand in cm wird als prüfpflichtiger Hinweis markiert.
+- Historische eindeutige Abweichungen wie `Z_STROM_HT_KWH_PRIVAT_HT` werden kanonisch den aktuellen Zähler-Stammdaten zugeordnet.
 - Die Web-App kann die Verbrauchsviews schlank über `?view=verbrauch` abrufen.
+
+Lokale Gegenprüfung mit den Live-Daten vom 2026-06-29:
+
+- 1.910 Zählerstände
+- 4.585 erzeugte Monatszeilen
+- 357 erzeugte Jahreszeilen
+- 180 Audit-Zeilen
+- 0 ungelöste Messwertgruppen
+- `Z_STROM_KWH_PRIVAT_HT`: 51 Rohwerte, 50 Intervalle, 116 Monatssegmente, 9 Jahreszeilen
 
 Nächster sinnvoller Schritt:
 

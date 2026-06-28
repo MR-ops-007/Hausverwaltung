@@ -369,4 +369,27 @@ Wichtige Felder:
 | `plausibilitaet_status` | String | `OK` oder kombinierte Warnstatus |
 | `in_summe_beruecksichtigen` | Boolean | Gibt an, ob der Wert in Summen laufen darf |
 
-**Konsistenz-Regel:** Beide Verbrauchsviews sind reine Read-Only-Caches. Fachliche Korrekturen erfolgen in den Quelltabellen oder über dokumentierte Migrationsfunktionen, nicht direkt in den View-Sheets.
+### Hilfstabelle: `_view_verbrauch_audit`
+Diese Tabelle wird gemeinsam mit den Verbrauchsviews aufgebaut. Sie ist die Kontrollinstanz dafür, ob alle Zählerstände in die Verbrauchsberechnung eingeflossen sind oder bewusst nicht berechnet werden konnten.
+
+Pro Zähler aus `Zaehler` wird eine Audit-Zeile erzeugt. Zusätzlich werden ungelöste Messwertgruppen aufgenommen, wenn Zählerstände keinem eindeutigen Stammdaten-Zähler zugeordnet werden können.
+
+Wichtige Felder:
+
+| Feldname | Datentyp | Beschreibung |
+| :--- | :--- | :--- |
+| `status` | String | `OK`, `KANONISCH_ZUGEORDNET`, `NUR_EIN_WERT`, `KEINE_ABLESUNG`, `MONATSZEILEN_ABWEICHUNG` oder `UNGELOESTE_MESSWERTE` |
+| `objekt_id` | String | Objekt des Zählers oder der ungelösten Messwertgruppe |
+| `einheit_id` | String | Kanonische Einheit aus `Zaehler` oder ursprüngliche Einheit bei ungelösten Messwerten |
+| `zaehler_id` | String | Kanonische Zähler-ID oder ursprüngliche ID bei ungelösten Messwerten |
+| `readings_count` | Zahl | Anzahl gefundener Rohwerte |
+| `intervalle_count` | Zahl | Anzahl möglicher Verbrauchsintervalle |
+| `erwartete_monatszeilen` | Zahl | Erwartete Monatssegmente aus allen Intervallen |
+| `monatszeilen` | Zahl | Tatsächlich erzeugte Zeilen in `_view_verbrauch_monat` |
+| `jahreszeilen` | Zahl | Tatsächlich erzeugte Zeilen in `_view_verbrauch_jahr` |
+| `source_keys` | String | Ursprüngliche Messwert-Keys, falls sie von der kanonischen Zähleridentität abweichen |
+| `hinweis` | String | Erklärung für Warn- oder Auditstatus |
+
+Historische Schreibweisen wie `Z_STROM_HT_KWH_PRIVAT_HT` dürfen nur dann auf `Z_STROM_KWH_PRIVAT_HT` gemappt werden, wenn die Zuordnung im Objekt eindeutig ist. Gleiches gilt für alte oder fehlerhafte `einheit_id`s.
+
+**Konsistenz-Regel:** Die Verbrauchsviews und der Audit-View sind reine Read-Only-Caches. Fachliche Korrekturen erfolgen in den Quelltabellen oder über dokumentierte Migrationsfunktionen, nicht direkt in den View-Sheets.

@@ -9,7 +9,7 @@ Die aktuelle Backend-Version steht im Kopf von `Code.gs` und zusätzlich in der 
 Aktueller Stand:
 
 ```text
-4.6.0
+4.6.1
 ```
 
 Regel:
@@ -30,6 +30,7 @@ Regel:
 - Version `4.5.1` teilt LOK Wohnung 10 in `LOK_WE_10_A`, `LOK_WE_10_B` und `LOK_WE_10_S` und legt fehlende LOK-Einheiten an.
 - Version `4.5.2` stellt LOK auf einheitgebundene `zaehler_id`s nach `Z_{einheit_id}_{medium}` um und deaktiviert alte Kurz-IDs.
 - Version `4.6.0` ergänzt materialisierte Verbrauchsviews für Monats- und Jahreswerte.
+- Version `4.6.1` ergänzt kanonische Zuordnung historischer Zählerstand-IDs und einen Audit-View für Verbrauchsdaten.
 
 ## Zweck
 
@@ -123,6 +124,7 @@ Die Funktion berechnet aus `Zaehler`, `Zaehlerstaende`, `Einheiten` und `_view_a
 
 - `_view_verbrauch_monat`
 - `_view_verbrauch_jahr`
+- `_view_verbrauch_audit`
 
 Die Monatsview ist die Detailbasis. Zwei aufeinanderfolgende Zählerstände bilden ein Verbrauchsintervall. Der Intervallverbrauch wird tagesgenau auf die überlappten Monate verteilt. Die Jahresview aggregiert anschließend aus der Monatsview.
 
@@ -135,6 +137,17 @@ Wichtige Fachregeln:
 - Überlaufwerte werden als Warnung markiert, bleiben aber für die fachliche Prüfung sichtbar.
 
 Die Web-App kann die Views schlank über `?view=verbrauch` abrufen. Dadurch muss die UI die historische Intervalllogik nicht selbst nachbauen.
+
+Der Audit-View prüft pro Zähler:
+
+- Anzahl gefundener Zählerstände
+- Anzahl berechenbarer Intervalle
+- erwartete Monatssegmente
+- tatsächlich erzeugte Monats- und Jahreszeilen
+- historische Quell-Keys, falls Werte kanonisch zugeordnet wurden
+- ungelöste Messwertgruppen, falls keine eindeutige Zuordnung möglich ist
+
+Historische Schreibweisen wie `Z_STROM_HT_KWH_PRIVAT_HT` werden nur dann auf `Z_STROM_KWH_PRIVAT_HT` gemappt, wenn die Zuordnung im Objekt eindeutig ist. Gleiches gilt für alte oder fehlerhafte `einheit_id`s, wenn die `zaehler_id` im Objekt eindeutig zu einem Stammdaten-Zähler gehört.
 
 ## Plausibilitätswarnungen
 

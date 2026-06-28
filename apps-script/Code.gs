@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.6.0
+ * Version: 4.6.1
  * Stand: 2026-06-29
  *
  * Änderungen seit v4.1:
@@ -48,8 +48,12 @@
  *
  * Änderungen seit v4.5.2:
  * - Materialisierte Verbrauchsviews fuer Monats- und Jahreswerte ergänzt
+ *
+ * Änderungen seit v4.6.0:
+ * - Verbrauchsviews ordnen eindeutige historische Zählerstand-IDs kanonischen Zähler-Stammdaten zu
+ * - Audit-View für fehlende, abweichende oder nicht auflösbare Verbrauchsdaten ergänzt
  */
-const BACKEND_VERSION = "4.6.0";
+const BACKEND_VERSION = "4.6.1";
 
 function sendJSON(obj) {
   return ContentService
@@ -1093,6 +1097,24 @@ const VERBRAUCH_JAHR_HEADERS = [
   "berechnet_am"
 ];
 
+const VERBRAUCH_AUDIT_HEADERS = [
+  "status",
+  "objekt_id",
+  "einheit_id",
+  "zaehler_id",
+  "medium",
+  "bezeichnung",
+  "aktiv",
+  "readings_count",
+  "intervalle_count",
+  "erwartete_monatszeilen",
+  "monatszeilen",
+  "jahreszeilen",
+  "source_keys",
+  "hinweis",
+  "berechnet_am"
+];
+
 function toVerbrauchNumber(value) {
   if (isBlankValue(value)) {
     return null;
@@ -1144,6 +1166,103 @@ function buildLookupByKey(rows, keyName) {
   });
 
   return result;
+}
+
+function buildVerbrauchMeterKey(objektId, einheitId, zaehlerId) {
+  return [objektId, einheitId, zaehlerId].map(value => String(value || "").trim()).join("||");
+}
+
+function normalizeLegacyZaehlerIdForLookup(zaehlerId) {
+  const id = String(zaehlerId || "").trim().toUpperCase();
+
+  return id
+    .replace(/^Z_STROM_HT_KWH_/, "Z_STROM_KWH_")
+    .replace(/^Z_STROM_NT_KWH_/, "Z_STROM_KWH_");
+}
+
+function setUniqueLookupValue(lookup, key, value) {
+  if (isBlankValue(key)) {
+    return;
+  }
+
+  if (!lookup[key]) {
+    lookup[key] = value;
+    return;
+  }
+
+  if (lookup[key] !== value) {
+    lookup[key] = "__AMBIGUOUS__";
+  }
+}
+
+function buildVerbrauchMeterIndexes(zaehlerRows) {
+  const byExactKey = {};
+  const byObjectAndZaehlerId = {};
+  const byObjectAndNormalizedZaehlerId = {};
+
+  (zaehlerRows || []).forEach(zaehler => {
+    const exactKey = buildVerbrauchMeterKey(zaehler.objekt_id, zaehler.einheit_id, zaehler.zaehler_id);
+    const objectId = String(zaehler.objekt_id || "").trim();
+    const zaehlerId = String(zaehler.zaehler_id || "").trim();
+    const normalizedZaehlerId = normalizeLegacyZaehlerIdForLookup(zaehlerId);
+
+    byExactKey[exactKey] = zaehler;
+    setUniqueLookupValue(byObjectAndZaehlerId, [objectId, zaehlerId].join("||"), exactKey);
+    setUniqueLookupValue(byObjectAndNormalizedZaehlerId, [objectId, normalizedZaehlerId].join("||"), exactKey);
+  });
+
+  return {
+    byExactKey: byExactKey,
+    byObjectAndZaehlerId: byObjectAndZaehlerId,
+    byObjectAndNormalizedZaehlerId: byObjectAndNormalizedZaehlerId
+  };
+}
+
+function resolveVerbrauchReadingMeter(row, indexes) {
+  const exactKey = buildVerbrauchMeterKey(row.objekt_id, row.einheit_id, row.zaehler_id);
+
+  if (indexes.byExactKey[exactKey]) {
+    return {
+      key: exactKey,
+      zaehler: indexes.byExactKey[exactKey],
+      sourceKey: exactKey,
+      status: "EXAKT"
+    };
+  }
+
+  const objectId = String(row.objekt_id || "").trim();
+  const zaehlerId = String(row.zaehler_id || "").trim();
+  const objectZaehlerKey = [objectId, zaehlerId].join("||");
+  const uniqueByZaehlerId = indexes.byObjectAndZaehlerId[objectZaehlerKey];
+
+  if (uniqueByZaehlerId && uniqueByZaehlerId !== "__AMBIGUOUS__") {
+    return {
+      key: uniqueByZaehlerId,
+      zaehler: indexes.byExactKey[uniqueByZaehlerId],
+      sourceKey: exactKey,
+      status: "KANONISCHE_EINHEIT"
+    };
+  }
+
+  const normalizedZaehlerId = normalizeLegacyZaehlerIdForLookup(zaehlerId);
+  const normalizedKey = [objectId, normalizedZaehlerId].join("||");
+  const uniqueByAlias = indexes.byObjectAndNormalizedZaehlerId[normalizedKey];
+
+  if (uniqueByAlias && uniqueByAlias !== "__AMBIGUOUS__") {
+    return {
+      key: uniqueByAlias,
+      zaehler: indexes.byExactKey[uniqueByAlias],
+      sourceKey: exactKey,
+      status: "KANONISCHE_ZAEHLER_ID"
+    };
+  }
+
+  return {
+    key: exactKey,
+    zaehler: null,
+    sourceKey: exactKey,
+    status: "UNGELOEST"
+  };
 }
 
 function getVerbrauchsgruppe(einheit, zaehler) {
@@ -1303,29 +1422,79 @@ function buildVerbrauchViewData(data, options) {
 
   const einheitenById = buildLookupByKey(einheitenRows, "einheit_id");
   const mieterByEinheitId = buildLookupByKey(aktiveMieterRows, "einheit_id");
+  const meterIndexes = buildVerbrauchMeterIndexes(zaehlerRows);
   const readingsByMeter = {};
+  const auditByMeter = {};
+  const unresolvedReadingGroups = {};
+
+  zaehlerRows.forEach(zaehler => {
+    const key = buildVerbrauchMeterKey(zaehler.objekt_id, zaehler.einheit_id, zaehler.zaehler_id);
+
+    auditByMeter[key] = {
+      zaehler: zaehler,
+      readings_count: 0,
+      intervalle_count: 0,
+      erwartete_monatszeilen: 0,
+      monatszeilen: 0,
+      jahreszeilen: 0,
+      sourceKeys: {}
+    };
+  });
 
   zaehlerstaendeRows.forEach(row => {
-    const key = [row.objekt_id, row.einheit_id, row.zaehler_id].map(value => String(value || "").trim()).join("||");
+    const resolved = resolveVerbrauchReadingMeter(row, meterIndexes);
+
+    if (!resolved.zaehler) {
+      const unresolvedKey = resolved.sourceKey;
+
+      if (!unresolvedReadingGroups[unresolvedKey]) {
+        unresolvedReadingGroups[unresolvedKey] = {
+          row: row,
+          readings_count: 0
+        };
+      }
+
+      unresolvedReadingGroups[unresolvedKey].readings_count++;
+      return;
+    }
+
+    const key = resolved.key;
 
     if (!readingsByMeter[key]) {
       readingsByMeter[key] = [];
     }
 
     readingsByMeter[key].push(row);
+
+    if (!auditByMeter[key]) {
+      auditByMeter[key] = {
+        zaehler: resolved.zaehler,
+        readings_count: 0,
+        intervalle_count: 0,
+        erwartete_monatszeilen: 0,
+        monatszeilen: 0,
+        jahreszeilen: 0,
+        sourceKeys: {}
+      };
+    }
+
+    auditByMeter[key].readings_count++;
+    auditByMeter[key].sourceKeys[resolved.sourceKey] = true;
   });
 
   Object.keys(readingsByMeter).forEach(key => {
     readingsByMeter[key].sort((a, b) => parseTimestampForStandId(a.zeitstempel).getTime() - parseTimestampForStandId(b.zeitstempel).getTime());
+    auditByMeter[key].intervalle_count = Math.max(0, readingsByMeter[key].length - 1);
   });
 
   const monatRows = [];
 
   zaehlerRows.forEach(zaehler => {
-    const key = [zaehler.objekt_id, zaehler.einheit_id, zaehler.zaehler_id].map(value => String(value || "").trim()).join("||");
+    const key = buildVerbrauchMeterKey(zaehler.objekt_id, zaehler.einheit_id, zaehler.zaehler_id);
     const readings = readingsByMeter[key] || [];
     const einheit = einheitenById[String(zaehler.einheit_id || "").trim()] || {};
     const mieter = mieterByEinheitId[String(zaehler.einheit_id || "").trim()] || {};
+    const audit = auditByMeter[key];
 
     for (let index = 1; index < readings.length; index++) {
       const startReading = readings[index - 1];
@@ -1343,8 +1512,16 @@ function buildVerbrauchViewData(data, options) {
       const verbrauchsgruppe = getVerbrauchsgruppe(einheit, zaehler);
       const untergruppe = getVerbrauchUntergruppe(einheit, zaehler);
 
+      if (audit) {
+        audit.erwartete_monatszeilen += segmente.length;
+      }
+
       segmente.forEach(segment => {
         const verbrauchMonat = diff.verbrauch === "" ? "" : diff.verbrauch * segment.anteil;
+
+        if (audit) {
+          audit.monatszeilen++;
+        }
 
         monatRows.push({
           jahr: segment.jahr,
@@ -1457,9 +1634,84 @@ function buildVerbrauchViewData(data, options) {
     };
   });
 
+  jahrRows.forEach(row => {
+    const key = buildVerbrauchMeterKey(row.objekt_id, row.einheit_id, row.zaehler_id);
+
+    if (auditByMeter[key]) {
+      auditByMeter[key].jahreszeilen++;
+    }
+  });
+
+  const auditRows = Object.keys(auditByMeter).map(key => {
+    const audit = auditByMeter[key];
+    const zaehler = audit.zaehler;
+    const sourceKeys = Object.keys(audit.sourceKeys);
+    const expectedCanonicalKey = buildVerbrauchMeterKey(zaehler.objekt_id, zaehler.einheit_id, zaehler.zaehler_id);
+    const hasOnlyCanonicalSource = sourceKeys.length === 0 ||
+      (sourceKeys.length === 1 && sourceKeys[0] === expectedCanonicalKey);
+    let status = "OK";
+    let hinweis = "";
+
+    if (audit.readings_count === 0) {
+      status = "KEINE_ABLESUNG";
+      hinweis = "Für diesen Zähler wurden keine passenden Zählerstände gefunden.";
+    } else if (audit.readings_count === 1) {
+      status = "NUR_EIN_WERT";
+      hinweis = "Für diesen Zähler gibt es nur einen Zählerstand; daraus kann kein Verbrauchsintervall gebildet werden.";
+    } else if (audit.erwartete_monatszeilen !== audit.monatszeilen) {
+      status = "MONATSZEILEN_ABWEICHUNG";
+      hinweis = "Die Anzahl erzeugter Monatszeilen entspricht nicht der Anzahl erwarteter Monatssegmente.";
+    } else if (!hasOnlyCanonicalSource) {
+      status = "KANONISCH_ZUGEORDNET";
+      hinweis = "Mindestens ein historischer Zählerstand wurde eindeutig den aktuellen Zähler-Stammdaten zugeordnet.";
+    }
+
+    return {
+      status: status,
+      objekt_id: zaehler.objekt_id || "",
+      einheit_id: zaehler.einheit_id || "",
+      zaehler_id: zaehler.zaehler_id || "",
+      medium: zaehler.medium || "",
+      bezeichnung: zaehler.bezeichnung || "",
+      aktiv: zaehler.aktiv === undefined ? "" : zaehler.aktiv,
+      readings_count: audit.readings_count,
+      intervalle_count: audit.intervalle_count,
+      erwartete_monatszeilen: audit.erwartete_monatszeilen,
+      monatszeilen: audit.monatszeilen,
+      jahreszeilen: audit.jahreszeilen,
+      source_keys: sourceKeys.join(" | "),
+      hinweis: hinweis,
+      berechnet_am: berechnetAm
+    };
+  });
+
+  Object.keys(unresolvedReadingGroups).forEach(key => {
+    const group = unresolvedReadingGroups[key];
+    const row = group.row;
+
+    auditRows.push({
+      status: "UNGELOESTE_MESSWERTE",
+      objekt_id: row.objekt_id || "",
+      einheit_id: row.einheit_id || "",
+      zaehler_id: row.zaehler_id || "",
+      medium: "",
+      bezeichnung: "",
+      aktiv: "",
+      readings_count: group.readings_count,
+      intervalle_count: Math.max(0, group.readings_count - 1),
+      erwartete_monatszeilen: 0,
+      monatszeilen: 0,
+      jahreszeilen: 0,
+      source_keys: key,
+      hinweis: "Diese Zählerstände konnten keinem eindeutigen Zähler aus der Tabelle Zaehler zugeordnet werden.",
+      berechnet_am: berechnetAm
+    });
+  });
+
   return {
     monatRows: monatRows,
-    jahrRows: jahrRows
+    jahrRows: jahrRows,
+    auditRows: auditRows
   };
 }
 
@@ -1498,16 +1750,19 @@ function updateVerbrauchViews() {
 
   writeViewSheet(ss, "_view_verbrauch_monat", VERBRAUCH_MONAT_HEADERS, views.monatRows);
   writeViewSheet(ss, "_view_verbrauch_jahr", VERBRAUCH_JAHR_HEADERS, views.jahrRows);
+  writeViewSheet(ss, "_view_verbrauch_audit", VERBRAUCH_AUDIT_HEADERS, views.auditRows);
 
   Logger.log("Verbrauchsviews aktualisiert: " + JSON.stringify({
     monatRows: views.monatRows.length,
-    jahrRows: views.jahrRows.length
+    jahrRows: views.jahrRows.length,
+    auditRows: views.auditRows.length
   }));
 
   return {
     status: "success",
     monatRows: views.monatRows.length,
     jahrRows: views.jahrRows.length,
+    auditRows: views.auditRows.length,
     message: "Verbrauchsviews aktualisiert"
   };
 }
@@ -1527,10 +1782,12 @@ function doGet(e) {
   if (param.view === "verbrauch") {
     const sheetMonat = ss.getSheetByName("_view_verbrauch_monat");
     const sheetJahr = ss.getSheetByName("_view_verbrauch_jahr");
+    const sheetAudit = ss.getSheetByName("_view_verbrauch_audit");
 
     return sendJSON({
       "_view_verbrauch_monat": sheetMonat ? getSheetData(sheetMonat) : [],
-      "_view_verbrauch_jahr": sheetJahr ? getSheetData(sheetJahr) : []
+      "_view_verbrauch_jahr": sheetJahr ? getSheetData(sheetJahr) : [],
+      "_view_verbrauch_audit": sheetAudit ? getSheetData(sheetAudit) : []
     });
   }
 

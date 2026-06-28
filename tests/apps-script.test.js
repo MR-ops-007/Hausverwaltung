@@ -22,7 +22,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
   it('declares the current backend version', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
 
-    expect(BACKEND_VERSION).toBe('4.6.0');
+    expect(BACKEND_VERSION).toBe('4.6.1');
   });
 
   it('formats German timestamps for stand_id values', () => {
@@ -110,6 +110,106 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     expect(year2024.verbrauch_jahr).toBeCloseTo((100 * 60) / 121);
     expect(year2024.verbrauch_monat_durchschnitt).toBeCloseTo(((100 * 60) / 121) / 2);
     expect(year2024.anzahl_monate_mit_verbrauch).toBe(2);
+  });
+
+  it('assigns historical meter reading ids to canonical meter definitions', () => {
+    const { buildVerbrauchViewData } = loadAppsScriptHelpers();
+
+    const views = buildVerbrauchViewData(
+      {
+        Zaehler: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_02',
+            zaehler_id: 'Z_STROM_KWH_PRIVAT_HT',
+            medium: 'strom_ht_kwh',
+            bezeichnung: 'Strom Hauptzähler (privat HT)',
+            einheit: 'kWh',
+            aktiv: true,
+          },
+        ],
+        Zaehlerstaende: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_02',
+            zaehler_id: 'Z_STROM_HT_KWH_PRIVAT_HT',
+            zeitstempel: '01.01.2025 00:00',
+            wert: 1000,
+          },
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_02',
+            zaehler_id: 'Z_STROM_HT_KWH_PRIVAT_HT',
+            zeitstempel: '01.02.2025 00:00',
+            wert: 1300,
+          },
+        ],
+        Einheiten: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_02',
+            nummer: 'Black Inn',
+            typ: 'Gewerbe',
+          },
+        ],
+      },
+      { berechnetAm: '2026-06-29' }
+    );
+
+    expect(views.monatRows).toHaveLength(1);
+    expect(views.monatRows[0]).toMatchObject({
+      objekt_id: 'Ra-HS-29',
+      einheit_id: 'Ra-HS-29_GE_02',
+      zaehler_id: 'Z_STROM_KWH_PRIVAT_HT',
+      untergruppe: 'PRIVAT_HT',
+      verbrauch_monat: 300,
+    });
+    expect(views.jahrRows[0]).toMatchObject({
+      jahr: 2025,
+      zaehler_id: 'Z_STROM_KWH_PRIVAT_HT',
+      verbrauch_jahr: 300,
+    });
+    expect(views.auditRows[0]).toMatchObject({
+      status: 'KANONISCH_ZUGEORDNET',
+      readings_count: 2,
+      intervalle_count: 1,
+      erwartete_monatszeilen: 1,
+      monatszeilen: 1,
+      jahreszeilen: 1,
+    });
+    expect(views.auditRows[0].source_keys).toContain('Z_STROM_HT_KWH_PRIVAT_HT');
+  });
+
+  it('reports unresolved consumption readings in the audit view', () => {
+    const { buildVerbrauchViewData } = loadAppsScriptHelpers();
+
+    const views = buildVerbrauchViewData(
+      {
+        Zaehler: [],
+        Zaehlerstaende: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_02',
+            zaehler_id: 'Z_UNBEKANNT',
+            zeitstempel: '01.01.2025 00:00',
+            wert: 1000,
+          },
+        ],
+      },
+      { berechnetAm: '2026-06-29' }
+    );
+
+    expect(views.monatRows).toHaveLength(0);
+    expect(views.jahrRows).toHaveLength(0);
+    expect(views.auditRows).toEqual([
+      expect.objectContaining({
+        status: 'UNGELOESTE_MESSWERTE',
+        objekt_id: 'Ra-HS-29',
+        einheit_id: 'Ra-HS-29_GE_02',
+        zaehler_id: 'Z_UNBEKANNT',
+        readings_count: 1,
+      }),
+    ]);
   });
 
   it('keeps overflow consumption visible as a reviewable warning', () => {
