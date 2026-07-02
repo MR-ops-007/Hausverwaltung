@@ -444,6 +444,16 @@ const uiService = {
     return '';
   },
 
+  getConsumptionSummaryLabel(row) {
+    const parts = [
+      row && row.medium ? row.medium : 'Ohne Medium',
+      row && row.verbrauchsgruppe ? row.verbrauchsgruppe : '',
+      row && row.untergruppe ? row.untergruppe : ''
+    ].filter(Boolean);
+
+    return parts.join(' · ');
+  },
+
   getConsumptionAuditByMeter() {
     const result = {};
     const auditRows = Array.isArray(dataService.state.view_verbrauch_audit)
@@ -475,11 +485,13 @@ const uiService = {
       if (value === null) return;
 
       const einheit = this.getConsumptionDisplayUnit(row);
-      const key = [row.medium || 'Ohne Medium', einheit].join('||');
+      const label = this.getConsumptionSummaryLabel(row);
+      const key = [row.medium || 'Ohne Medium', row.verbrauchsgruppe || '', row.untergruppe || '', einheit].join('||');
 
       if (!summaryMap[key]) {
         summaryMap[key] = {
           medium: row.medium || 'Ohne Medium',
+          label,
           einheit,
           verbrauch: 0,
           zaehler_count: 0,
@@ -493,7 +505,7 @@ const uiService = {
     });
 
     return Object.values(summaryMap)
-      .sort((a, b) => String(a.medium).localeCompare(String(b.medium), 'de'));
+      .sort((a, b) => String(a.label).localeCompare(String(b.label), 'de'));
   },
 
   async ensureConsumptionViewData() {
@@ -653,7 +665,7 @@ const uiService = {
       ? summary
         .map(item => `
           <div class="consumption-summary-item">
-            <div style="font-size:0.75rem; color:#64748b; font-weight:700;">${this.escapeHtml(item.medium || 'Ohne Medium')}</div>
+            <div style="font-size:0.75rem; color:#64748b; font-weight:700;">${this.escapeHtml(item.label || item.medium || 'Ohne Medium')}</div>
             <div style="font-size:1.15rem; font-weight:900; color:#0f172a;">${this.formatDashboardNumber(item.verbrauch)} ${this.escapeHtml(item.einheit || '')}</div>
             <div style="font-size:0.75rem; color:#64748b;">${item.zaehler_count} Zähler${item.warnungen ? ` · ${item.warnungen} Warnungen` : ''}</div>
           </div>
@@ -706,6 +718,7 @@ const uiService = {
         <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${sortedRows.length} Jahreszeilen</span>
         <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${openAuditRows.length} offene Audit-Hinweise</span>
         <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${canonicalAuditRows.length} historisch zugeordnet</span>
+        <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">Summen nach Medium und Gruppe</span>
       </div>
 
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px; margin-bottom:14px;">

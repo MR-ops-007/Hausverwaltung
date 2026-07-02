@@ -337,6 +337,7 @@ Nächster sinnvoller Schritt:
 - Frontend-Verbrauchsdashboard ist auf `_view_verbrauch_jahr`, `_view_verbrauch_monat` und `_view_verbrauch_audit` umgestellt.
 - Die UI lädt die Verbrauchsviews lazy über `?view=verbrauch`.
 - Initial wird ein Objekt mit vorhandenen Jahreswerten ausgewählt, damit der erste Dashboard-Stand nicht leer startet.
+- Dashboard-Kacheln aggregieren nicht mehr nur nach `medium`, sondern nach `medium`, `verbrauchsgruppe` und `untergruppe`, damit Hauptzähler und Unterzähler nicht als falsche Gesamtsumme addiert werden.
 - Nächster UI-Ausbau: bessere Gruppierung nach Einheit/Medium, Filter für Statusfälle und später visuelle Auswertung.
 
 Spätere Auswertungen sollen den Testbereich `TEST` sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.
