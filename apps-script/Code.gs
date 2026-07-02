@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.6.1
+ * Version: 4.6.2
  * Stand: 2026-06-29
  *
  * Änderungen seit v4.1:
@@ -52,8 +52,11 @@
  * Änderungen seit v4.6.0:
  * - Verbrauchsviews ordnen eindeutige historische Zählerstand-IDs kanonischen Zähler-Stammdaten zu
  * - Audit-View für fehlende, abweichende oder nicht auflösbare Verbrauchsdaten ergänzt
+ *
+ * Änderungen seit v4.6.1:
+ * - Preview-/Report-/Apply-Migration für kanonische Zählerstand-Identitäten ergänzt
  */
-const BACKEND_VERSION = "4.6.1";
+const BACKEND_VERSION = "4.6.2";
 
 function sendJSON(obj) {
   return ContentService
@@ -1712,6 +1715,357 @@ function buildVerbrauchViewData(data, options) {
     monatRows: monatRows,
     jahrRows: jahrRows,
     auditRows: auditRows
+  };
+}
+
+const CANONICAL_ZAEHLERSTAND_MIGRATION_REPORT_HEADERS = [
+  "row_number",
+  "status",
+  "old_objekt_id",
+  "new_objekt_id",
+  "old_einheit_id",
+  "new_einheit_id",
+  "old_zaehler_id",
+  "new_zaehler_id",
+  "old_stand_id",
+  "new_stand_id",
+  "zeitstempel",
+  "wert",
+  "source_key",
+  "target_key"
+];
+
+function findHeaderName(headers, candidates) {
+  const normalized = {};
+
+  (headers || []).forEach(header => {
+    normalized[String(header || "").trim().toLowerCase()] = header;
+  });
+
+  for (let index = 0; index < candidates.length; index++) {
+    const key = String(candidates[index]).trim().toLowerCase();
+
+    if (normalized[key]) {
+      return normalized[key];
+    }
+  }
+
+  return "";
+}
+
+function rowValuesToObject(headers, values) {
+  const row = {};
+
+  headers.forEach((header, index) => {
+    row[header] = values[index];
+  });
+
+  return row;
+}
+
+function getHeaderIndex(headers, headerName) {
+  return headers.indexOf(headerName);
+}
+
+function incrementCounter(counter, key) {
+  if (isBlankValue(key)) {
+    return;
+  }
+
+  counter[key] = (counter[key] || 0) + 1;
+}
+
+function buildCanonicalZaehlerstandMigrationItem(rowNumber, row, resolved, headerNames) {
+  const target = resolved.zaehler;
+  const newStandId = buildStandId({
+    objekt_id: target.objekt_id || "",
+    einheit_id: target.einheit_id || "",
+    zaehler_id: target.zaehler_id || "",
+    zeitstempel: row[headerNames.zeitstempel]
+  });
+  const oldStandId = row[headerNames.standId] || "";
+  const sourceKey = buildVerbrauchMeterKey(row[headerNames.objektId], row[headerNames.einheitId], row[headerNames.zaehlerId]);
+  const targetKey = buildVerbrauchMeterKey(target.objekt_id, target.einheit_id, target.zaehler_id);
+  const changed = String(row[headerNames.objektId] || "").trim() !== String(target.objekt_id || "").trim() ||
+    String(row[headerNames.einheitId] || "").trim() !== String(target.einheit_id || "").trim() ||
+    String(row[headerNames.zaehlerId] || "").trim() !== String(target.zaehler_id || "").trim() ||
+    String(oldStandId || "").trim() !== String(newStandId || "").trim();
+
+  return {
+    row_number: rowNumber,
+    status: changed ? resolved.status : "UNCHANGED",
+    old_objekt_id: row[headerNames.objektId] || "",
+    new_objekt_id: target.objekt_id || "",
+    old_einheit_id: row[headerNames.einheitId] || "",
+    new_einheit_id: target.einheit_id || "",
+    old_zaehler_id: row[headerNames.zaehlerId] || "",
+    new_zaehler_id: target.zaehler_id || "",
+    old_stand_id: oldStandId,
+    new_stand_id: newStandId,
+    zeitstempel: row[headerNames.zeitstempel] || "",
+    wert: row[headerNames.wert] || "",
+    source_key: sourceKey,
+    target_key: targetKey,
+    changed: changed
+  };
+}
+
+function analyzeCanonicalZaehlerstandMigrationRows(headers, rows, zaehlerRows) {
+  const headerNames = {
+    objektId: findHeaderName(headers, ["objekt_id"]),
+    einheitId: findHeaderName(headers, ["einheit_id"]),
+    zaehlerId: findHeaderName(headers, ["zaehler_id"]),
+    zeitstempel: findHeaderName(headers, ["zeitstempel"]),
+    wert: findHeaderName(headers, ["wert"]),
+    standId: findHeaderName(headers, ["stand_id", "stand.id"])
+  };
+  const missingHeaders = [];
+
+  Object.keys(headerNames).forEach(key => {
+    if (!headerNames[key]) {
+      missingHeaders.push(key);
+    }
+  });
+
+  if (missingHeaders.length > 0) {
+    return {
+      totalRows: rows.length,
+      changedRows: 0,
+      unchangedRows: 0,
+      unresolvedRows: 0,
+      duplicateRows: 0,
+      missingHeaders: missingHeaders,
+      candidates: [],
+      unresolved: [],
+      duplicates: []
+    };
+  }
+
+  const indexes = buildVerbrauchMeterIndexes(zaehlerRows);
+  const finalStandIdCounts = {};
+  const candidates = [];
+  const unresolved = [];
+  const unchanged = [];
+
+  rows.forEach((values, index) => {
+    const row = Array.isArray(values) ? rowValuesToObject(headers, values) : values;
+    const rowNumber = index + 2;
+    const resolved = resolveVerbrauchReadingMeter({
+      objekt_id: row[headerNames.objektId],
+      einheit_id: row[headerNames.einheitId],
+      zaehler_id: row[headerNames.zaehlerId]
+    }, indexes);
+
+    if (!resolved.zaehler) {
+      unresolved.push({
+        row_number: rowNumber,
+        status: "UNGELOEST",
+        old_objekt_id: row[headerNames.objektId] || "",
+        old_einheit_id: row[headerNames.einheitId] || "",
+        old_zaehler_id: row[headerNames.zaehlerId] || "",
+        old_stand_id: row[headerNames.standId] || "",
+        zeitstempel: row[headerNames.zeitstempel] || "",
+        wert: row[headerNames.wert] || "",
+        source_key: resolved.sourceKey
+      });
+      incrementCounter(finalStandIdCounts, row[headerNames.standId]);
+      return;
+    }
+
+    if (isBlankValue(resolved.zaehler.einheit_id) && !isBlankValue(row[headerNames.einheitId])) {
+      unresolved.push({
+        row_number: rowNumber,
+        status: "ZIEL_EINHEIT_FEHLT",
+        old_objekt_id: row[headerNames.objektId] || "",
+        old_einheit_id: row[headerNames.einheitId] || "",
+        old_zaehler_id: row[headerNames.zaehlerId] || "",
+        old_stand_id: row[headerNames.standId] || "",
+        zeitstempel: row[headerNames.zeitstempel] || "",
+        wert: row[headerNames.wert] || "",
+        source_key: resolved.sourceKey
+      });
+      incrementCounter(finalStandIdCounts, row[headerNames.standId]);
+      return;
+    }
+
+    const item = buildCanonicalZaehlerstandMigrationItem(rowNumber, row, resolved, headerNames);
+    incrementCounter(finalStandIdCounts, item.new_stand_id);
+
+    if (item.changed) {
+      candidates.push(item);
+    } else {
+      unchanged.push(item);
+    }
+  });
+
+  const duplicateStandIds = {};
+  Object.keys(finalStandIdCounts).forEach(standId => {
+    if (finalStandIdCounts[standId] > 1) {
+      duplicateStandIds[standId] = finalStandIdCounts[standId];
+    }
+  });
+
+  const duplicates = candidates
+    .filter(item => duplicateStandIds[item.new_stand_id])
+    .map(item => ({
+      row_number: item.row_number,
+      new_stand_id: item.new_stand_id,
+      duplicate_count: duplicateStandIds[item.new_stand_id],
+      old_stand_id: item.old_stand_id,
+      source_key: item.source_key,
+      target_key: item.target_key
+    }));
+
+  return {
+    totalRows: rows.length,
+    changedRows: candidates.length,
+    unchangedRows: unchanged.length,
+    unresolvedRows: unresolved.length,
+    duplicateRows: duplicates.length,
+    missingHeaders: [],
+    candidates: candidates,
+    unresolved: unresolved,
+    duplicates: duplicates
+  };
+}
+
+function previewCanonicalZaehlerstandMigration() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sZaehlerstaende = ss.getSheetByName("Zaehlerstaende");
+  const sZaehler = ss.getSheetByName("Zaehler");
+
+  if (!sZaehlerstaende || !sZaehler) {
+    throw new Error("Mindestens ein Sheet fehlt: Zaehlerstaende oder Zaehler");
+  }
+
+  const values = sZaehlerstaende.getDataRange().getValues();
+
+  if (values.length < 2) {
+    return analyzeCanonicalZaehlerstandMigrationRows([], [], getSheetData(sZaehler));
+  }
+
+  return analyzeCanonicalZaehlerstandMigrationRows(values[0].map(header => String(header).trim()), values.slice(1), getSheetData(sZaehler));
+}
+
+function writeCanonicalZaehlerstandMigrationReport() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const preview = previewCanonicalZaehlerstandMigration();
+  let sheet = ss.getSheetByName("_migration_canonical_zaehlerstaende");
+
+  if (!sheet) {
+    sheet = ss.insertSheet("_migration_canonical_zaehlerstaende");
+  }
+
+  sheet.clearContents();
+  sheet.getRange(1, 1, 1, 2).setValues([["summary_key", "summary_value"]]);
+  const summaryRows = [
+    ["totalRows", preview.totalRows],
+    ["changedRows", preview.changedRows],
+    ["unchangedRows", preview.unchangedRows],
+    ["unresolvedRows", preview.unresolvedRows],
+    ["duplicateRows", preview.duplicateRows],
+    ["missingHeaders", preview.missingHeaders.join(", ")]
+  ];
+  sheet.getRange(2, 1, summaryRows.length, 2).setValues(summaryRows);
+
+  const reportRows = preview.candidates.concat(preview.unresolved.map(item => ({
+    row_number: item.row_number,
+    status: item.status || "UNGELOEST",
+    old_objekt_id: item.old_objekt_id,
+    new_objekt_id: "",
+    old_einheit_id: item.old_einheit_id,
+    new_einheit_id: "",
+    old_zaehler_id: item.old_zaehler_id,
+    new_zaehler_id: "",
+    old_stand_id: item.old_stand_id,
+    new_stand_id: "",
+    zeitstempel: item.zeitstempel,
+    wert: item.wert,
+    source_key: item.source_key,
+    target_key: ""
+  })));
+
+  if (reportRows.length > 0) {
+    const startRow = summaryRows.length + 4;
+    sheet.getRange(startRow, 1, 1, CANONICAL_ZAEHLERSTAND_MIGRATION_REPORT_HEADERS.length)
+      .setValues([CANONICAL_ZAEHLERSTAND_MIGRATION_REPORT_HEADERS]);
+    sheet.getRange(startRow + 1, 1, reportRows.length, CANONICAL_ZAEHLERSTAND_MIGRATION_REPORT_HEADERS.length)
+      .setValues(rowsToValues(reportRows, CANONICAL_ZAEHLERSTAND_MIGRATION_REPORT_HEADERS));
+  }
+
+  Logger.log("Kanonische Zählerstand-Migration Report: " + JSON.stringify({
+    totalRows: preview.totalRows,
+    changedRows: preview.changedRows,
+    unresolvedRows: preview.unresolvedRows,
+    duplicateRows: preview.duplicateRows
+  }));
+
+  return preview;
+}
+
+function applyCanonicalZaehlerstandMigration() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sZaehlerstaende = ss.getSheetByName("Zaehlerstaende");
+  const sZaehler = ss.getSheetByName("Zaehler");
+
+  if (!sZaehlerstaende || !sZaehler) {
+    throw new Error("Mindestens ein Sheet fehlt: Zaehlerstaende oder Zaehler");
+  }
+
+  const values = sZaehlerstaende.getDataRange().getValues();
+
+  if (values.length < 2) {
+    return {
+      totalRows: 0,
+      changedRows: 0,
+      message: "Keine Zählerstände vorhanden"
+    };
+  }
+
+  const headers = values[0].map(header => String(header).trim());
+  const preview = analyzeCanonicalZaehlerstandMigrationRows(headers, values.slice(1), getSheetData(sZaehler));
+
+  if (preview.missingHeaders.length > 0) {
+    throw new Error("Pflichtspalten fehlen: " + preview.missingHeaders.join(", "));
+  }
+
+  if (preview.unresolvedRows > 0) {
+    throw new Error("Migration abgebrochen: ungelöste Zählerstände vorhanden. Bitte Report prüfen.");
+  }
+
+  if (preview.duplicateRows > 0) {
+    throw new Error("Migration abgebrochen: doppelte neue stand_id-Werte vorhanden. Bitte Report prüfen.");
+  }
+
+  const objektIndex = getHeaderIndex(headers, findHeaderName(headers, ["objekt_id"]));
+  const einheitIndex = getHeaderIndex(headers, findHeaderName(headers, ["einheit_id"]));
+  const zaehlerIndex = getHeaderIndex(headers, findHeaderName(headers, ["zaehler_id"]));
+  const standIdIndex = getHeaderIndex(headers, findHeaderName(headers, ["stand_id", "stand.id"]));
+
+  preview.candidates.forEach(item => {
+    const row = values[item.row_number - 1];
+
+    row[objektIndex] = item.new_objekt_id;
+    row[einheitIndex] = item.new_einheit_id;
+    row[zaehlerIndex] = item.new_zaehler_id;
+    row[standIdIndex] = item.new_stand_id;
+  });
+
+  if (preview.candidates.length > 0) {
+    sZaehlerstaende.getRange(2, 1, values.length - 1, headers.length).setValues(values.slice(1));
+  }
+
+  updateVerbrauchViews();
+
+  Logger.log("Kanonische Zählerstand-Migration angewendet: " + JSON.stringify({
+    totalRows: preview.totalRows,
+    changedRows: preview.changedRows
+  }));
+
+  return {
+    totalRows: preview.totalRows,
+    changedRows: preview.changedRows,
+    message: "Kanonische Zählerstand-Migration angewendet"
   };
 }
 

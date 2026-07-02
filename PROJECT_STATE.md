@@ -187,7 +187,7 @@ Google Apps Script wird weiterhin manuell versioniert.
 Aktuelle Backend-Version:
 
 ```text
-4.6.1
+4.6.2
 ```
 
 Die Version steht im Kopf von `apps-script/Code.gs` und in `BACKEND_VERSION`.
@@ -209,6 +209,7 @@ Wichtige Regel:
 - `4.5.2` stellt LOK auf einheitgebundene `zaehler_id`s nach `Z_{einheit_id}_{medium}` um und deaktiviert alte Kurz-IDs.
 - `4.6.0` ergänzt materialisierte Verbrauchsviews für Monats- und Jahreswerte.
 - `4.6.1` ergänzt kanonische Zuordnung historischer Zählerstand-IDs und einen Audit-View für Verbrauchsdaten.
+- `4.6.2` ergänzt eine Preview-/Report-/Apply-Migration für kanonische Zählerstand-Identitäten.
 - `clasp` ist lokal mit dem bestehenden GAS-Projekt verbunden; `npm run clasp:pull` funktioniert unter Node 22.
 
 ---
@@ -316,6 +317,20 @@ Lokale Gegenprüfung mit den Live-Daten vom 2026-06-29:
 - 180 Audit-Zeilen
 - 0 ungelöste Messwertgruppen
 - `Z_STROM_KWH_PRIVAT_HT`: 51 Rohwerte, 50 Intervalle, 116 Monatssegmente, 9 Jahreszeilen
+
+Kanonische Zählerstand-Migration vorbereitet mit Backend-Version `4.6.2`:
+
+- `previewCanonicalZaehlerstandMigration`
+- `writeCanonicalZaehlerstandMigrationReport`
+- `applyCanonicalZaehlerstandMigration`
+- eindeutige historische Abweichungen werden in `objekt_id`, `einheit_id`, `zaehler_id` und `stand_id` korrigiert
+- Fälle mit leerer Ziel-`einheit_id` im Zählerstamm werden blockiert und als `ZIEL_EINHEIT_FEHLT` gemeldet
+
+Lokale Preview mit Live-Daten vom 2026-07-02:
+
+```json
+{"totalRows":1910,"changedRows":110,"unchangedRows":1738,"unresolvedRows":62,"duplicateRows":0,"missingHeaders":[]}
+```
 
 Nächster sinnvoller Schritt:
 

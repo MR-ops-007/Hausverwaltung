@@ -393,3 +393,10 @@ Wichtige Felder:
 Historische Schreibweisen wie `Z_STROM_HT_KWH_PRIVAT_HT` dürfen nur dann auf `Z_STROM_KWH_PRIVAT_HT` gemappt werden, wenn die Zuordnung im Objekt eindeutig ist. Gleiches gilt für alte oder fehlerhafte `einheit_id`s.
 
 **Konsistenz-Regel:** Die Verbrauchsviews und der Audit-View sind reine Read-Only-Caches. Fachliche Korrekturen erfolgen in den Quelltabellen oder über dokumentierte Migrationsfunktionen, nicht direkt in den View-Sheets.
+
+### Migration: kanonische Zählerstand-Identitäten
+Historische, eindeutig auflösbare Abweichungen zwischen `Zaehlerstaende` und `Zaehler` werden über `previewCanonicalZaehlerstandMigration`, `writeCanonicalZaehlerstandMigrationReport` und `applyCanonicalZaehlerstandMigration` korrigiert.
+
+Die Migration darf nur eindeutige Zuordnungen anwenden. Sie aktualisiert `objekt_id`, `einheit_id`, `zaehler_id` und die daraus abgeleitete `stand_id`.
+
+Fälle mit leerer Ziel-`einheit_id` im Zählerstamm werden nicht automatisch migriert. Sie erhalten den Status `ZIEL_EINHEIT_FEHLT`, weil sonst neue `stand_id`s mit `UNKNOWN_EINHEIT` entstehen würden. Zuerst muss in `Zaehler` eine fachlich richtige Einheit gesetzt werden.

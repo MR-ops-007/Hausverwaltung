@@ -9,7 +9,7 @@ Die aktuelle Backend-Version steht im Kopf von `Code.gs` und zusätzlich in der 
 Aktueller Stand:
 
 ```text
-4.6.1
+4.6.2
 ```
 
 Regel:
@@ -31,6 +31,7 @@ Regel:
 - Version `4.5.2` stellt LOK auf einheitgebundene `zaehler_id`s nach `Z_{einheit_id}_{medium}` um und deaktiviert alte Kurz-IDs.
 - Version `4.6.0` ergänzt materialisierte Verbrauchsviews für Monats- und Jahreswerte.
 - Version `4.6.1` ergänzt kanonische Zuordnung historischer Zählerstand-IDs und einen Audit-View für Verbrauchsdaten.
+- Version `4.6.2` ergänzt eine Preview-/Report-/Apply-Migration für kanonische Zählerstand-Identitäten.
 
 ## Zweck
 
@@ -148,6 +149,31 @@ Der Audit-View prüft pro Zähler:
 - ungelöste Messwertgruppen, falls keine eindeutige Zuordnung möglich ist
 
 Historische Schreibweisen wie `Z_STROM_HT_KWH_PRIVAT_HT` werden nur dann auf `Z_STROM_KWH_PRIVAT_HT` gemappt, wenn die Zuordnung im Objekt eindeutig ist. Gleiches gilt für alte oder fehlerhafte `einheit_id`s, wenn die `zaehler_id` im Objekt eindeutig zu einem Stammdaten-Zähler gehört.
+
+## Kanonische Zählerstand-Identitäten
+
+Version `4.6.2` ergänzt eine kontrollierte Migration, um die im Audit erkannten eindeutigen historischen Abweichungen dauerhaft in `Zaehlerstaende` zu korrigieren.
+
+Funktionen:
+
+- `previewCanonicalZaehlerstandMigration`
+- `writeCanonicalZaehlerstandMigrationReport`
+- `applyCanonicalZaehlerstandMigration`
+
+Die Migration aktualisiert bei eindeutigen Fällen:
+
+- `objekt_id`
+- `einheit_id`
+- `zaehler_id`
+- `stand_id`
+
+Wichtig: Die Migration blockiert Fälle, bei denen der Ziel-Zähler in `Zaehler` keine `einheit_id` hat. Diese Fälle erscheinen im Report mit `ZIEL_EINHEIT_FEHLT`, damit die Stammdaten zuerst sauber korrigiert werden.
+
+Lokale Preview gegen den produktiven Datenstand vom 2026-07-02:
+
+```json
+{"totalRows":1910,"changedRows":110,"unchangedRows":1738,"unresolvedRows":62,"duplicateRows":0,"missingHeaders":[]}
+```
 
 ## Plausibilitätswarnungen
 

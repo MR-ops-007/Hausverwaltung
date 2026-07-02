@@ -12,7 +12,7 @@ function loadAppsScriptHelpers() {
   );
 
   const factory = new Function(
-    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildLokZaehlerId, buildMigratedZaehlerstandItem, buildStandId, buildVerbrauchViewData, calculateVerbrauchDifference, deactivateObsoleteLokShortCodeMeters, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedConsumptionMeterSeedDataFromRows, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getLokEinheitEntranceMapping, getLokEinheitSeedData, getLokReplacementZaehlerId, getLokSeedData, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
+    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeCanonicalZaehlerstandMigrationRows, analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildLokZaehlerId, buildMigratedZaehlerstandItem, buildStandId, buildVerbrauchViewData, calculateVerbrauchDifference, deactivateObsoleteLokShortCodeMeters, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedConsumptionMeterSeedDataFromRows, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getLokEinheitEntranceMapping, getLokEinheitSeedData, getLokReplacementZaehlerId, getLokSeedData, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
   );
 
   return factory();
@@ -22,7 +22,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
   it('declares the current backend version', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
 
-    expect(BACKEND_VERSION).toBe('4.6.1');
+    expect(BACKEND_VERSION).toBe('4.6.2');
   });
 
   it('formats German timestamps for stand_id values', () => {
@@ -210,6 +210,129 @@ describe('Apps Script Zaehlerstaende helpers', () => {
         readings_count: 1,
       }),
     ]);
+  });
+
+  it('previews canonical meter identity updates for historical meter readings', () => {
+    const { analyzeCanonicalZaehlerstandMigrationRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert'];
+    const rows = [
+      [
+        'ST_Ra-HS-29_Ra-HS-29_GE_02_Z_STROM_HT_KWH_PRIVAT_HT_2025-01-01 00:00',
+        'Ra-HS-29',
+        'Ra-HS-29_GE_02',
+        'Z_STROM_HT_KWH_PRIVAT_HT',
+        '01.01.2025 00:00',
+        1000,
+      ],
+      [
+        'ST_Ra-HS-29_Ra-HS-29_GE_02_Z_STROM_KWH_PRIVAT_HT_2025-02-01 00:00',
+        'Ra-HS-29',
+        'Ra-HS-29_GE_02',
+        'Z_STROM_KWH_PRIVAT_HT',
+        '01.02.2025 00:00',
+        1300,
+      ],
+    ];
+    const zaehlerRows = [
+      {
+        objekt_id: 'Ra-HS-29',
+        einheit_id: 'Ra-HS-29_GE_02',
+        zaehler_id: 'Z_STROM_KWH_PRIVAT_HT',
+      },
+    ];
+
+    const result = analyzeCanonicalZaehlerstandMigrationRows(headers, rows, zaehlerRows);
+
+    expect(result).toMatchObject({
+      totalRows: 2,
+      changedRows: 1,
+      unchangedRows: 1,
+      unresolvedRows: 0,
+      duplicateRows: 0,
+      missingHeaders: [],
+    });
+    expect(result.candidates[0]).toMatchObject({
+      row_number: 2,
+      status: 'KANONISCHE_ZAEHLER_ID',
+      old_zaehler_id: 'Z_STROM_HT_KWH_PRIVAT_HT',
+      new_zaehler_id: 'Z_STROM_KWH_PRIVAT_HT',
+      new_stand_id: 'ST_Ra-HS-29_Ra-HS-29_GE_02_Z_STROM_KWH_PRIVAT_HT_2025-01-01 00:00',
+    });
+  });
+
+  it('detects duplicate stand ids before applying canonical meter identity updates', () => {
+    const { analyzeCanonicalZaehlerstandMigrationRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert'];
+    const rows = [
+      [
+        'ST_OLD_ALIAS',
+        'Ra-HS-29',
+        'Ra-HS-29_GE_02',
+        'Z_STROM_HT_KWH_PRIVAT_HT',
+        '01.01.2025 00:00',
+        1000,
+      ],
+      [
+        'ST_Ra-HS-29_Ra-HS-29_GE_02_Z_STROM_KWH_PRIVAT_HT_2025-01-01 00:00',
+        'Ra-HS-29',
+        'Ra-HS-29_GE_02',
+        'Z_STROM_KWH_PRIVAT_HT',
+        '01.01.2025 00:00',
+        1000,
+      ],
+    ];
+    const zaehlerRows = [
+      {
+        objekt_id: 'Ra-HS-29',
+        einheit_id: 'Ra-HS-29_GE_02',
+        zaehler_id: 'Z_STROM_KWH_PRIVAT_HT',
+      },
+    ];
+
+    const result = analyzeCanonicalZaehlerstandMigrationRows(headers, rows, zaehlerRows);
+
+    expect(result.changedRows).toBe(1);
+    expect(result.duplicateRows).toBe(1);
+    expect(result.duplicates[0]).toMatchObject({
+      row_number: 2,
+      new_stand_id: 'ST_Ra-HS-29_Ra-HS-29_GE_02_Z_STROM_KWH_PRIVAT_HT_2025-01-01 00:00',
+      duplicate_count: 2,
+    });
+  });
+
+  it('blocks canonical meter identity updates when the target unit is empty', () => {
+    const { analyzeCanonicalZaehlerstandMigrationRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert'];
+    const rows = [
+      [
+        'ST_Ra-HS-29_Ra-HS-29_Allgemein_Z_OEL_GETANKT_LITER_2025-12-23 00:00',
+        'Ra-HS-29',
+        'Ra-HS-29_Allgemein',
+        'Z_OEL_GETANKT_LITER',
+        '23.12.2025 00:00',
+        3000,
+      ],
+    ];
+    const zaehlerRows = [
+      {
+        objekt_id: 'Ra-HS-29',
+        einheit_id: '',
+        zaehler_id: 'Z_OEL_GETANKT_LITER',
+      },
+    ];
+
+    const result = analyzeCanonicalZaehlerstandMigrationRows(headers, rows, zaehlerRows);
+
+    expect(result).toMatchObject({
+      changedRows: 0,
+      unresolvedRows: 1,
+      duplicateRows: 0,
+    });
+    expect(result.unresolved[0]).toMatchObject({
+      status: 'ZIEL_EINHEIT_FEHLT',
+      old_einheit_id: 'Ra-HS-29_Allgemein',
+      old_zaehler_id: 'Z_OEL_GETANKT_LITER',
+    });
   });
 
   it('keeps overflow consumption visible as a reviewable warning', () => {
