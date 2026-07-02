@@ -444,14 +444,53 @@ const uiService = {
     return '';
   },
 
-  getConsumptionSummaryLabel(row) {
-    const parts = [
-      row && row.medium ? row.medium : 'Ohne Medium',
-      row && row.verbrauchsgruppe ? row.verbrauchsgruppe : '',
-      row && row.untergruppe ? row.untergruppe : ''
-    ].filter(Boolean);
+  getConsumptionMediumLabel(medium) {
+    const labels = {
+      kaltwasser_m3: 'Kaltwasser',
+      warmwasser_m3: 'Warmwasser',
+      strom_ht_kwh: 'Strom HT',
+      strom_nt_kwh: 'Strom NT',
+      oel_stand_cm: 'Ölstand',
+      oel_stand_l: 'Öl getankt'
+    };
 
-    return parts.join(' · ');
+    return labels[String(medium || '').toLowerCase()] || medium || 'Ohne Medium';
+  },
+
+  getConsumptionGroupLabel(group) {
+    const labels = {
+      WOHNUNG: 'Wohnungen',
+      GEWERBE: 'Gewerbe',
+      ALLGEMEIN: 'Allgemein',
+      HAUPTZAEHLER: 'Hauptzähler',
+      BERECHNET: 'Berechnete Werte'
+    };
+
+    return labels[String(group || '').toUpperCase()] || group || '';
+  },
+
+  getConsumptionSubgroupLabel(subgroup) {
+    const labels = {
+      FLUR: 'Flur',
+      HEIZUNG: 'Heizung',
+      PRIVAT_HT: 'Privat HT',
+      PRIVAT_NT: 'Privat NT',
+      WW_ZULAUF: 'WW-Zulauf',
+      HAUPTZAEHLER: 'Hauptzähler'
+    };
+
+    return labels[String(subgroup || '').toUpperCase()] || subgroup || '';
+  },
+
+  getConsumptionSummaryLabel(row) {
+    const medium = this.getConsumptionMediumLabel(row && row.medium);
+    const group = this.getConsumptionGroupLabel(row && row.verbrauchsgruppe);
+    const subgroup = this.getConsumptionSubgroupLabel(row && row.untergruppe);
+
+    if (group && subgroup) return `${medium} · ${group} · ${subgroup}`;
+    if (group) return `${medium} · ${group}`;
+
+    return medium;
   },
 
   getConsumptionAuditByMeter() {
@@ -691,7 +730,11 @@ const uiService = {
             </td>
             <td>
               <div style="font-weight:700;">${this.escapeHtml(row.bezeichnung)}</div>
-              <div style="font-size:0.75rem; color:#64748b;">${this.escapeHtml([row.medium, row.verbrauchsgruppe, row.untergruppe].filter(Boolean).join(' · '))}</div>
+              <div style="font-size:0.75rem; color:#64748b;">${this.escapeHtml([
+                this.getConsumptionMediumLabel(row.medium),
+                this.getConsumptionGroupLabel(row.verbrauchsgruppe),
+                this.getConsumptionSubgroupLabel(row.untergruppe)
+              ].filter(Boolean).join(' · '))}</div>
             </td>
             <td>
               <div><strong>Monate:</strong> ${this.formatDashboardNumber(row.anzahl_monate_mit_verbrauch)}</div>

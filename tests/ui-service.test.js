@@ -382,12 +382,12 @@ describe('uiService consumption dashboard', () => {
     expect(elementsById['consumption-object-select'].innerHTML).toContain('Rathausstraße 29');
     expect(elementsById['consumption-year-select'].innerHTML).toContain('2026');
     expect(calcCalls).toEqual([]);
-    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('strom_ht_kwh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom HT');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Wohnung 1');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Donald Duck');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom Wohnung 1');
-    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('strom_ht_kwh · WOHNUNG');
-    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('strom_ht_kwh · HAUPTZAEHLER · PRIVAT_HT');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom HT · Wohnungen');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom HT · Hauptzähler · Privat HT');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('253 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).not.toContain('353 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('2 Rohwerte');
