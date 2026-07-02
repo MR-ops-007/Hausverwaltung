@@ -9,6 +9,10 @@ function loadUiService({
   units = [],
   objects = [],
   viewAktiveMieter = [],
+  viewVerbrauchJahr = [],
+  viewVerbrauchMonat = [],
+  viewVerbrauchAudit = [],
+  consumptionData = null,
   calcService = {
     buildConsumptionDashboard() {
       return {
@@ -37,6 +41,14 @@ function loadUiService({
       einheiten: units,
       objekte: objects,
       view_aktive_mieter: viewAktiveMieter,
+      view_verbrauch_jahr: viewVerbrauchJahr,
+      view_verbrauch_monat: viewVerbrauchMonat,
+      view_verbrauch_audit: viewVerbrauchAudit,
+    },
+    setConsumptionData(data) {
+      this.state.view_verbrauch_jahr = data['_view_verbrauch_jahr'] || [];
+      this.state.view_verbrauch_monat = data['_view_verbrauch_monat'] || [];
+      this.state.view_verbrauch_audit = data['_view_verbrauch_audit'] || [];
     },
     getUniqueObjects() {
       return Array.isArray(this.state.objekte)
@@ -51,6 +63,13 @@ function loadUiService({
   };
 
   const cloudService = {
+    async loadConsumptionData() {
+      return consumptionData || {
+        '_view_verbrauch_jahr': viewVerbrauchJahr,
+        '_view_verbrauch_monat': viewVerbrauchMonat,
+        '_view_verbrauch_audit': viewVerbrauchAudit,
+      };
+    },
     async saveTransaction(payload) {
       saveCalls.push(payload);
       return saveResponse;
@@ -287,7 +306,7 @@ describe('uiService helper methods', () => {
 });
 
 describe('uiService consumption dashboard', () => {
-  it('switches to the consumption dashboard view and renders summary plus rows', () => {
+  it('switches to the consumption dashboard view and renders backend view summary plus rows', async () => {
     const calcCalls = [];
     const { uiService, elementsById } = loadUiService({
       objects: [
@@ -296,73 +315,61 @@ describe('uiService consumption dashboard', () => {
           bezeichnung: 'Rathausstraße 29',
         },
       ],
-      zaehlerstaende: [
-        {
-          objekt_id: 'Ra-HS-29',
-          zeitstempel: '02.01.2026 00:00',
-        },
-      ],
+      consumptionData: {
+        '_view_verbrauch_jahr': [
+          {
+            jahr: 2026,
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_01',
+            einheit_name: 'Wohnung 1',
+            mieter_name: 'Duck, Donald',
+            verbrauchsgruppe: 'WOHNUNG',
+            untergruppe: '',
+            zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+            medium: 'strom_ht_kwh',
+            bezeichnung: 'Strom Wohnung 1',
+            verbrauch_jahr: 253,
+            verbrauch_monat_durchschnitt: 21.08,
+            anzahl_monate_mit_verbrauch: 12,
+            anzahl_warnungen: 0,
+            plausibilitaet_status: 'OK',
+            in_summe_beruecksichtigen: true,
+          },
+        ],
+        '_view_verbrauch_monat': [],
+        '_view_verbrauch_audit': [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_01',
+            zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+            status: 'OK',
+            readings_count: 2,
+            intervalle_count: 1,
+          },
+        ],
+      },
       calcService: {
         buildConsumptionDashboard(data, options) {
           calcCalls.push(options);
-
-          return {
-            summary: [
-              {
-                objekt_id: 'Ra-HS-29',
-                medium: 'strom_ht_kwh',
-                einheit: 'kWh',
-                verbrauch: 253,
-                zaehler_count: 1,
-                offene_zaehler: 0,
-                berechnet: false,
-              },
-            ],
-            rows: [
-              {
-                objekt_id: 'Ra-HS-29',
-                einheit_id: 'Ra-HS-29_WE_01',
-                einheit_name: 'Wohnung 1',
-                mieter_name: 'Duck, Donald',
-                zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
-                medium: 'strom_ht_kwh',
-                bezeichnung: 'Strom Wohnung 1',
-                einheit: 'kWh',
-                einbauort: 'Flur',
-                readings_count: 2,
-                start_wert: 6647,
-                start_zeitstempel: '02.01.2026 00:00',
-                end_wert: 6900,
-                end_zeitstempel: '30.12.2026 00:00',
-                verbrauch: 253,
-                status: 'OK',
-                hinweis: '',
-              },
-            ],
-          };
+          return { summary: [], rows: [] };
         },
       },
     });
 
-    uiService.showConsumptionDashboard();
+    await uiService.showConsumptionDashboard();
 
     expect(elementsById['object-selector-section'].style.display).toBe('none');
     expect(elementsById['consumption-dashboard-section'].style.display).toBe('block');
     expect(elementsById['nav-consumption-dashboard'].className).toBe('tab-btn-active');
     expect(elementsById['consumption-object-select'].innerHTML).toContain('Rathausstraße 29');
     expect(elementsById['consumption-year-select'].innerHTML).toContain('2026');
-    expect(calcCalls).toEqual([
-      {
-        objekt_id: 'Ra-HS-29',
-        year: '2026',
-        includeCalculated: true,
-      },
-    ]);
+    expect(calcCalls).toEqual([]);
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('strom_ht_kwh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Wohnung 1');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Donald Duck');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom Wohnung 1');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('253 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('2 Rohwerte');
   });
 });
 

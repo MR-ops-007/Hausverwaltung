@@ -344,14 +344,26 @@ const uiService = {
   },
 
   getAvailableConsumptionYears() {
-    const years = new Set(
+    const viewRows = Array.isArray(dataService.state.view_verbrauch_jahr)
+      ? dataService.state.view_verbrauch_jahr
+      : [];
+    const years = new Set();
+
+    if (viewRows.length > 0) {
+      viewRows.forEach(row => {
+        if (row.jahr !== undefined && row.jahr !== null && row.jahr !== '') {
+          years.add(String(row.jahr));
+        }
+      });
+    } else {
       (Array.isArray(dataService.state.zaehlerstaende) ? dataService.state.zaehlerstaende : [])
         .map(reading => {
           const timestamp = this.parseGermanDate(reading.zeitstempel);
           return timestamp ? String(new Date(timestamp).getFullYear()) : '';
         })
         .filter(Boolean)
-    );
+        .forEach(year => years.add(year));
+    }
 
     if (years.size === 0) {
       years.add(String(new Date().getFullYear()));
@@ -379,6 +391,15 @@ const uiService = {
   getConsumptionStatusLabel(status) {
     const labels = {
       OK: 'OK',
+      KANONISCH_ZUGEORDNET: 'Historisch zugeordnet',
+      NUR_EIN_WERT: 'Nur ein Wert',
+      KEINE_ABLESUNG: 'Keine Ablesung',
+      UNGELOESTE_MESSWERTE: 'Ungelöst',
+      MONATSZEILEN_ABWEICHUNG: 'Prüfen',
+      WARNUNG_UEBERLAUF: 'Überlauf prüfen',
+      WARNUNG_RUECKLAEUFIG: 'Rückläufig prüfen',
+      WARNUNG_FUELLSTAND_GESTIEGEN: 'Füllstand prüfen',
+      NICHT_BERECHENBAR: 'Nicht berechenbar',
       UEBERLAUF: 'Überlauf',
       EINZELWERT: 'Einzelwert',
       KEINE_WERTE: 'Keine Werte',
@@ -395,9 +416,107 @@ const uiService = {
 
   getConsumptionStatusColor(status) {
     if (status === 'OK') return '#15803d';
-    if (status === 'UEBERLAUF' || status === 'EINZELWERT' || status === 'FORTGESCHRIEBEN') return '#0369a1';
-    if (status === 'KEINE_WERTE') return '#64748b';
+    if (status === 'UEBERLAUF' || status === 'EINZELWERT' || status === 'FORTGESCHRIEBEN' || status === 'KANONISCH_ZUGEORDNET') return '#0369a1';
+    if (status === 'KEINE_WERTE' || status === 'KEINE_ABLESUNG' || status === 'NUR_EIN_WERT') return '#64748b';
     return '#b45309';
+  },
+
+  toDashboardNumber(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  },
+
+  isTruthyValue(value) {
+    return value === true || String(value).toLowerCase() === 'true';
+  },
+
+  getConsumptionDisplayUnit(row) {
+    if (row && row.einheit) return row.einheit;
+
+    const medium = String(row && row.medium ? row.medium : '').toLowerCase();
+
+    if (medium.indexOf('kwh') !== -1) return 'kWh';
+    if (medium.indexOf('m3') !== -1) return 'm3';
+    if (medium.indexOf('_cm') !== -1) return 'cm';
+    if (medium.endsWith('_l') || medium.indexOf('liter') !== -1) return 'l';
+
+    return '';
+  },
+
+  getConsumptionAuditByMeter() {
+    const result = {};
+    const auditRows = Array.isArray(dataService.state.view_verbrauch_audit)
+      ? dataService.state.view_verbrauch_audit
+      : [];
+
+    auditRows.forEach(row => {
+      const key = [row.objekt_id, row.einheit_id, row.zaehler_id].map(value => String(value || '').trim()).join('||');
+      result[key] = row;
+    });
+
+    return result;
+  },
+
+  getConsumptionAuditForRow(row, auditByMeter) {
+    const key = [row.objekt_id, row.einheit_id, row.zaehler_id].map(value => String(value || '').trim()).join('||');
+    return auditByMeter[key] || null;
+  },
+
+  buildConsumptionSummaryFromViews(rows) {
+    const summaryMap = {};
+
+    rows.forEach(row => {
+      if (row.in_summe_beruecksichtigen === false || String(row.in_summe_beruecksichtigen).toLowerCase() === 'false') {
+        return;
+      }
+
+      const value = this.toDashboardNumber(row.verbrauch_jahr);
+      if (value === null) return;
+
+      const einheit = this.getConsumptionDisplayUnit(row);
+      const key = [row.medium || 'Ohne Medium', einheit].join('||');
+
+      if (!summaryMap[key]) {
+        summaryMap[key] = {
+          medium: row.medium || 'Ohne Medium',
+          einheit,
+          verbrauch: 0,
+          zaehler_count: 0,
+          warnungen: 0
+        };
+      }
+
+      summaryMap[key].verbrauch += value;
+      summaryMap[key].zaehler_count++;
+      summaryMap[key].warnungen += Number(row.anzahl_warnungen || 0);
+    });
+
+    return Object.values(summaryMap)
+      .sort((a, b) => String(a.medium).localeCompare(String(b.medium), 'de'));
+  },
+
+  async ensureConsumptionViewData() {
+    const hasYearRows = Array.isArray(dataService.state.view_verbrauch_jahr) &&
+      dataService.state.view_verbrauch_jahr.length > 0;
+
+    if (hasYearRows) {
+      return;
+    }
+
+    if (typeof cloudService === 'undefined' || !cloudService.loadConsumptionData) {
+      throw new Error('Verbrauchsviews können nicht geladen werden.');
+    }
+
+    const data = await cloudService.loadConsumptionData();
+
+    if (dataService.setConsumptionData) {
+      dataService.setConsumptionData(data);
+    } else {
+      dataService.state.view_verbrauch_monat = data["_view_verbrauch_monat"] || [];
+      dataService.state.view_verbrauch_jahr = data["_view_verbrauch_jahr"] || [];
+      dataService.state.view_verbrauch_audit = data["_view_verbrauch_audit"] || [];
+    }
   },
 
   setNavigationState(activeView) {
@@ -435,8 +554,7 @@ const uiService = {
     if (dashboardSection) dashboardSection.style.display = 'block';
 
     this.setNavigationState('consumption');
-    this.renderConsumptionDashboardControls();
-    this.renderConsumptionDashboard();
+    return this.renderConsumptionDashboard();
   },
 
   renderConsumptionDashboardControls() {
@@ -466,7 +584,7 @@ const uiService = {
     }
   },
 
-  renderConsumptionDashboard() {
+  async renderConsumptionDashboard() {
     const output = document.getElementById('consumption-dashboard-output');
     const objectSelect = document.getElementById('consumption-object-select');
     const yearSelect = document.getElementById('consumption-year-select');
@@ -474,14 +592,37 @@ const uiService = {
 
     if (!output || !objectSelect || !yearSelect) return;
 
-    if (typeof calcService === 'undefined' || !calcService.buildConsumptionDashboard) {
-      output.innerHTML = '<div style="padding:12px; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px;">Verbrauchsberechnung ist nicht geladen.</div>';
+    const userSelectedObject = objectSelect.dataset && objectSelect.dataset.userSelected === 'true';
+    const requestedYear = yearSelect.value;
+
+    output.innerHTML = '<div style="padding:12px; background:white; border:1px solid #e2e8f0; border-radius:8px;">Verbrauchsviews werden geladen...</div>';
+
+    try {
+      await this.ensureConsumptionViewData();
+    } catch (error) {
+      output.innerHTML = `<div style="padding:12px; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px;">Verbrauchsviews konnten nicht geladen werden: ${this.escapeHtml(error.message || String(error))}</div>`;
       return;
     }
 
+    this.renderConsumptionDashboardControls();
+
     const objectIds = dataService.getUniqueObjects();
-    const objektId = objectSelect.value || objectIds[0] || '';
+    const allRows = Array.isArray(dataService.state.view_verbrauch_jahr)
+      ? dataService.state.view_verbrauch_jahr
+      : [];
     const year = yearSelect.value || this.getAvailableConsumptionYears()[0] || '';
+    let objektId = objectSelect.value || objectIds[0] || '';
+    const firstObjectWithRows = objectIds.find(objId => allRows.some(row => String(row.objekt_id) === String(objId) && String(row.jahr) === String(year)));
+
+    if (!userSelectedObject && firstObjectWithRows) {
+      objektId = firstObjectWithRows;
+      objectSelect.value = firstObjectWithRows;
+    }
+
+    if (!requestedYear && year) {
+      yearSelect.value = year;
+    }
+
     const includeCalculated = includeCalculatedInput ? includeCalculatedInput.checked : true;
 
     if (!objektId) {
@@ -489,31 +630,48 @@ const uiService = {
       return;
     }
 
-    const dashboard = calcService.buildConsumptionDashboard(dataService.state, {
-      objekt_id: objektId,
-      year,
-      includeCalculated
-    });
-    const sortedRows = dashboard.rows
+    const auditByMeter = this.getConsumptionAuditByMeter();
+    const selectedRows = allRows
+      .filter(row => String(row.objekt_id) === String(objektId))
+      .filter(row => String(row.jahr) === String(year))
+      .filter(row => includeCalculated || String(row.verbrauchsgruppe).toUpperCase() !== 'BERECHNET');
+    const summary = this.buildConsumptionSummaryFromViews(selectedRows);
+    const auditRows = (Array.isArray(dataService.state.view_verbrauch_audit) ? dataService.state.view_verbrauch_audit : [])
+      .filter(row => String(row.objekt_id) === String(objektId));
+    const openAuditRows = auditRows
+      .filter(row => ['NUR_EIN_WERT', 'KEINE_ABLESUNG', 'UNGELOESTE_MESSWERTE', 'MONATSZEILEN_ABWEICHUNG'].includes(String(row.status)));
+    const canonicalAuditRows = auditRows
+      .filter(row => String(row.status) === 'KANONISCH_ZUGEORDNET');
+    const sortedRows = selectedRows
       .slice()
       .sort((a, b) => (
         String(a.einheit_name).localeCompare(String(b.einheit_name), 'de') ||
         String(a.medium).localeCompare(String(b.medium), 'de') ||
         String(a.bezeichnung).localeCompare(String(b.bezeichnung), 'de')
       ));
-    const summaryHtml = dashboard.summary.length > 0
-      ? dashboard.summary
+    const summaryHtml = summary.length > 0
+      ? summary
         .map(item => `
           <div class="consumption-summary-item">
             <div style="font-size:0.75rem; color:#64748b; font-weight:700;">${this.escapeHtml(item.medium || 'Ohne Medium')}</div>
             <div style="font-size:1.15rem; font-weight:900; color:#0f172a;">${this.formatDashboardNumber(item.verbrauch)} ${this.escapeHtml(item.einheit || '')}</div>
-            <div style="font-size:0.75rem; color:#64748b;">${item.zaehler_count} Zähler${item.offene_zaehler ? ` · ${item.offene_zaehler} ohne berechenbaren Verbrauch` : ''}${item.berechnet ? ' · berechnet' : ''}</div>
+            <div style="font-size:0.75rem; color:#64748b;">${item.zaehler_count} Zähler${item.warnungen ? ` · ${item.warnungen} Warnungen` : ''}</div>
           </div>
         `)
         .join('')
       : '<div style="color:#64748b;">Keine Summen verfügbar.</div>';
     const rowsHtml = sortedRows.length > 0
-      ? sortedRows.map(row => `
+      ? sortedRows.map(row => {
+        const audit = this.getConsumptionAuditForRow(row, auditByMeter);
+        const unit = this.getConsumptionDisplayUnit(row);
+        const status = row.plausibilitaet_status && row.plausibilitaet_status !== 'OK'
+          ? row.plausibilitaet_status
+          : (audit && audit.status ? audit.status : 'OK');
+        const hint = row.plausibilitaet_status && row.plausibilitaet_status !== 'OK'
+          ? row.plausibilitaet_status
+          : (audit && audit.hinweis ? audit.hinweis : '');
+
+        return `
           <tr>
             <td>
               <div style="font-weight:800;">${this.escapeHtml(row.einheit_name || row.einheit_id)}</div>
@@ -521,28 +679,35 @@ const uiService = {
             </td>
             <td>
               <div style="font-weight:700;">${this.escapeHtml(row.bezeichnung)}</div>
-              <div style="font-size:0.75rem; color:#64748b;">${this.escapeHtml(row.einbauort || row.medium || '')}</div>
+              <div style="font-size:0.75rem; color:#64748b;">${this.escapeHtml([row.medium, row.verbrauchsgruppe, row.untergruppe].filter(Boolean).join(' · '))}</div>
             </td>
             <td>
-              <div><strong>Start:</strong> ${this.formatDashboardNumber(row.start_wert)} <span style="font-size:0.75rem; color:#64748b;">${this.escapeHtml(row.start_zeitstempel)}</span></div>
-              <div><strong>Ende:</strong> ${this.formatDashboardNumber(row.end_wert)} <span style="font-size:0.75rem; color:#64748b;">${this.escapeHtml(row.end_zeitstempel)}</span></div>
-              ${row.uses_baseline ? '<div style="font-size:0.75rem; color:#0369a1;">Startwert aus Vorperiode</div>' : ''}
+              <div><strong>Monate:</strong> ${this.formatDashboardNumber(row.anzahl_monate_mit_verbrauch)}</div>
+              <div style="font-size:0.75rem; color:#64748b;">${audit ? `${this.formatDashboardNumber(audit.readings_count)} Rohwerte · ${this.formatDashboardNumber(audit.intervalle_count)} Intervalle` : 'View-Datensatz'}</div>
             </td>
             <td>
-              <div style="font-weight:900;">${this.formatDashboardNumber(row.verbrauch)} ${this.escapeHtml(row.einheit || '')}</div>
-              <div style="font-size:0.75rem; color:#64748b;">Ø Monat: ${this.formatDashboardNumber(row.monatsdurchschnitt)} ${this.escapeHtml(row.einheit || '')}</div>
+              <div style="font-weight:900;">${this.formatDashboardNumber(row.verbrauch_jahr)} ${this.escapeHtml(unit)}</div>
+              <div style="font-size:0.75rem; color:#64748b;">Ø Monat: ${this.formatDashboardNumber(row.verbrauch_monat_durchschnitt)} ${this.escapeHtml(unit)}</div>
             </td>
             <td>
-              <span style="display:inline-block; padding:3px 7px; border-radius:999px; background:#f8fafc; color:${this.getConsumptionStatusColor(row.status)}; font-size:0.75rem; font-weight:800;">
-                ${this.escapeHtml(this.getConsumptionStatusLabel(row.status))}
+              <span style="display:inline-block; padding:3px 7px; border-radius:999px; background:#f8fafc; color:${this.getConsumptionStatusColor(status)}; font-size:0.75rem; font-weight:800;">
+                ${this.escapeHtml(this.getConsumptionStatusLabel(status))}
               </span>
-              ${row.hinweis ? `<div style="font-size:0.75rem; color:#64748b; margin-top:4px;">${this.escapeHtml(row.hinweis)}</div>` : ''}
+              ${hint ? `<div style="font-size:0.75rem; color:#64748b; margin-top:4px;">${this.escapeHtml(hint)}</div>` : ''}
             </td>
           </tr>
-        `).join('')
+        `;
+      }).join('')
       : '<tr><td colspan="5" style="padding:14px; color:#64748b;">Keine Zähler für Auswahl gefunden.</td></tr>';
 
     output.innerHTML = `
+      <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; color:#475569; font-size:0.85rem;">
+        <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${this.escapeHtml(year)} · ${this.escapeHtml(this.getObjectDisplayName(objektId))}</span>
+        <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${sortedRows.length} Jahreszeilen</span>
+        <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${openAuditRows.length} offene Audit-Hinweise</span>
+        <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${canonicalAuditRows.length} historisch zugeordnet</span>
+      </div>
+
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px; margin-bottom:14px;">
         ${summaryHtml}
       </div>

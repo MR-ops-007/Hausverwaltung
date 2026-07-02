@@ -11,6 +11,12 @@ const cloudService = {
         return await response.json();
     },
 
+    async loadConsumptionData() {
+        const response = await fetch(`${this.scriptUrl}?view=verbrauch&t=${Date.now()}`);
+        if (!response.ok) throw new Error(`HTTP-Fehler! ${response.status}`);
+        return await response.json();
+    },
+
     async loadBackgroundData() {
         const response = await fetch(`${this.scriptUrl}?t=${Date.now()}`);
         if (!response.ok) throw new Error(`HTTP-Fehler! ${response.status}`);

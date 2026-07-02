@@ -35,11 +35,11 @@
             <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 180px); gap:10px; align-items:end; margin-bottom:12px;">
                 <label style="display:flex; flex-direction:column; gap:4px; font-weight:700; color:#334155;">
                     Objekt
-                    <select id="consumption-object-select" onchange="uiService.renderConsumptionDashboard()"></select>
+                    <select id="consumption-object-select" onchange="this.dataset.userSelected='true'; uiService.renderConsumptionDashboard()"></select>
                 </label>
                 <label style="display:flex; flex-direction:column; gap:4px; font-weight:700; color:#334155;">
                     Jahr
-                    <select id="consumption-year-select" onchange="uiService.renderConsumptionDashboard()"></select>
+                    <select id="consumption-year-select" onchange="this.dataset.userSelected='true'; uiService.renderConsumptionDashboard()"></select>
                 </label>
             </div>
 
@@ -59,13 +59,13 @@
         </div>
     </div>
     
-    <script src="config.js?v=20260627-backend-4-3-1-deployment"></script>
-    <script src="data-service.js?v=20260628-consumption-dashboard-plausibility"></script>
-    <script src="cloud-service.js?v=20260628-consumption-dashboard-plausibility"></script>
-    <script src="calc-service.js?v=20260628-consumption-dashboard-plausibility"></script>
+    <script src="config.js?v=20260702-consumption-views-v4"></script>
+    <script src="data-service.js?v=20260702-consumption-views-v4"></script>
+    <script src="cloud-service.js?v=20260702-consumption-views-v4"></script>
+    <script src="calc-service.js?v=20260702-consumption-views-v4"></script>
 
     <script type="module">
-      import { VALIDATION_STATUS, validateZaehlerstand } from './validation-service.js?v=20260628-consumption-dashboard-plausibility';
+      import { VALIDATION_STATUS, validateZaehlerstand } from './validation-service.js?v=20260702-consumption-views-v4';
 
       window.validationService = {
         VALIDATION_STATUS,
@@ -73,7 +73,7 @@
       };
     </script>
 
-    <script src="ui-service.js?v=20260628-consumption-dashboard-plausibility"></script>
+    <script src="ui-service.js?v=20260702-consumption-views-v4"></script>
 
     <script>
     document.addEventListener('DOMContentLoaded', async () => {
