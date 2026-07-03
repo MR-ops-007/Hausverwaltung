@@ -445,16 +445,37 @@ const uiService = {
   },
 
   getConsumptionMediumLabel(medium) {
+    const normalized = String(medium || '').toLowerCase();
+    if (normalized.indexOf('strom_') === 0) return 'Strom';
+
     const labels = {
       kaltwasser_m3: 'Kaltwasser',
       warmwasser_m3: 'Warmwasser',
-      strom_ht_kwh: 'Strom HT',
-      strom_nt_kwh: 'Strom NT',
       oel_stand_cm: 'Ölstand',
       oel_stand_l: 'Öl getankt'
     };
 
-    return labels[String(medium || '').toLowerCase()] || medium || 'Ohne Medium';
+    return labels[normalized] || medium || 'Ohne Medium';
+  },
+
+  getConsumptionMediumFamily(medium) {
+    const normalized = String(medium || '').toLowerCase();
+    if (normalized.indexOf('strom_') === 0) return 'STROM';
+    if (normalized.indexOf('kaltwasser') !== -1) return 'KALTWASSER';
+    if (normalized.indexOf('warmwasser') !== -1) return 'WARMWASSER';
+    if (normalized.indexOf('oel') !== -1) return 'OEL';
+    return normalized || 'OHNE_MEDIUM';
+  },
+
+  getConsumptionMediumSortOrder(medium) {
+    const order = {
+      STROM: 10,
+      KALTWASSER: 20,
+      WARMWASSER: 30,
+      OEL: 40
+    };
+
+    return order[this.getConsumptionMediumFamily(medium)] || 90;
   },
 
   getConsumptionGroupLabel(group) {
@@ -482,15 +503,71 @@ const uiService = {
     return labels[String(subgroup || '').toUpperCase()] || subgroup || '';
   },
 
+  getConsumptionUnitSortNumber(row) {
+    const unitId = String(row && row.einheit_id ? row.einheit_id : '');
+    const match = unitId.match(/_GE_(\d+)/i) || unitId.match(/_WE_(\d+)/i);
+    return match ? Number(match[1]) : 999;
+  },
+
+  getConsumptionSummarySection(row) {
+    const group = String(row && row.verbrauchsgruppe ? row.verbrauchsgruppe : '').toUpperCase();
+
+    if (group === 'GEWERBE') {
+      const unitNumber = this.getConsumptionUnitSortNumber(row);
+      return {
+        key: `GEWERBE|${row.einheit_id || row.einheit_name || unitNumber}`,
+        order: 20 + unitNumber / 100,
+        label: row.einheit_name || `Gewerbe ${String(unitNumber).padStart(2, '0')}`
+      };
+    }
+
+    if (group === 'WOHNUNG') {
+      return { key: 'WOHNUNGEN', order: 40, label: 'Wohnungen' };
+    }
+
+    return { key: 'ALLGEMEIN', order: 10, label: 'Allgemein' };
+  },
+
+  getConsumptionSummaryQualifier(row) {
+    const group = String(row && row.verbrauchsgruppe ? row.verbrauchsgruppe : '').toUpperCase();
+    const subgroup = String(row && row.untergruppe ? row.untergruppe : '').toUpperCase();
+
+    if (this.getConsumptionMediumFamily(row && row.medium) === 'OEL') {
+      return '';
+    }
+
+    if (group === 'WOHNUNG') {
+      return 'Wohnungen';
+    }
+
+    if (group === 'GEWERBE') {
+      return row.einheit_name || this.getConsumptionGroupLabel(group);
+    }
+
+    if (subgroup) {
+      return this.getConsumptionSubgroupLabel(subgroup);
+    }
+
+    if (group === 'HAUPTZAEHLER') {
+      return 'Hauptzähler';
+    }
+
+    return this.getConsumptionGroupLabel(group);
+  },
+
   getConsumptionSummaryLabel(row) {
     const medium = this.getConsumptionMediumLabel(row && row.medium);
-    const group = this.getConsumptionGroupLabel(row && row.verbrauchsgruppe);
-    const subgroup = this.getConsumptionSubgroupLabel(row && row.untergruppe);
+    const qualifier = this.getConsumptionSummaryQualifier(row);
 
-    if (group && subgroup) return `${medium} · ${group} · ${subgroup}`;
-    if (group) return `${medium} · ${group}`;
+    if (qualifier) return `${medium} · ${qualifier}`;
 
     return medium;
+  },
+
+  getConsumptionRowUnitLabel(row) {
+    const unitId = String(row && row.einheit_id ? row.einheit_id : '');
+    if (unitId.indexOf('_Allgemein') !== -1) return 'Haus';
+    return (row && (row.einheit_name || row.einheit_id)) || '';
   },
 
   getConsumptionAuditByMeter() {
@@ -524,14 +601,19 @@ const uiService = {
       if (value === null) return;
 
       const einheit = this.getConsumptionDisplayUnit(row);
+      const section = this.getConsumptionSummarySection(row);
+      const mediumFamily = this.getConsumptionMediumFamily(row.medium);
+      const qualifier = this.getConsumptionSummaryQualifier(row);
       const label = this.getConsumptionSummaryLabel(row);
-      const key = [row.medium || 'Ohne Medium', row.verbrauchsgruppe || '', row.untergruppe || '', einheit].join('||');
+      const key = [section.key, mediumFamily, qualifier, einheit].join('||');
 
       if (!summaryMap[key]) {
         summaryMap[key] = {
           medium: row.medium || 'Ohne Medium',
           label,
           einheit,
+          sectionOrder: section.order,
+          mediumOrder: this.getConsumptionMediumSortOrder(row.medium),
           verbrauch: 0,
           zaehler_count: 0,
           warnungen: 0
@@ -544,7 +626,11 @@ const uiService = {
     });
 
     return Object.values(summaryMap)
-      .sort((a, b) => String(a.label).localeCompare(String(b.label), 'de'));
+      .sort((a, b) => (
+        a.sectionOrder - b.sectionOrder ||
+        a.mediumOrder - b.mediumOrder ||
+        String(a.label).localeCompare(String(b.label), 'de')
+      ));
   },
 
   async ensureConsumptionViewData() {
@@ -696,7 +782,7 @@ const uiService = {
     const sortedRows = selectedRows
       .slice()
       .sort((a, b) => (
-        String(a.einheit_name).localeCompare(String(b.einheit_name), 'de') ||
+        String(this.getConsumptionRowUnitLabel(a)).localeCompare(String(this.getConsumptionRowUnitLabel(b)), 'de') ||
         String(a.medium).localeCompare(String(b.medium), 'de') ||
         String(a.bezeichnung).localeCompare(String(b.bezeichnung), 'de')
       ));
@@ -715,6 +801,7 @@ const uiService = {
       ? sortedRows.map(row => {
         const audit = this.getConsumptionAuditForRow(row, auditByMeter);
         const unit = this.getConsumptionDisplayUnit(row);
+        const unitLabel = this.getConsumptionRowUnitLabel(row);
         const status = row.plausibilitaet_status && row.plausibilitaet_status !== 'OK'
           ? row.plausibilitaet_status
           : (audit && audit.status ? audit.status : 'OK');
@@ -725,16 +812,12 @@ const uiService = {
         return `
           <tr>
             <td>
-              <div style="font-weight:800;">${this.escapeHtml(row.einheit_name || row.einheit_id)}</div>
+              <div style="font-weight:800;">${this.escapeHtml(unitLabel)}</div>
               ${row.mieter_name ? `<div style="font-size:0.75rem; color:#64748b;">${this.escapeHtml(this.formatMieterDisplayName(row.mieter_name))}</div>` : ''}
             </td>
             <td>
               <div style="font-weight:700;">${this.escapeHtml(row.bezeichnung)}</div>
-              <div style="font-size:0.75rem; color:#64748b;">${this.escapeHtml([
-                this.getConsumptionMediumLabel(row.medium),
-                this.getConsumptionGroupLabel(row.verbrauchsgruppe),
-                this.getConsumptionSubgroupLabel(row.untergruppe)
-              ].filter(Boolean).join(' · '))}</div>
+              <div style="font-size:0.75rem; color:#64748b;">${this.escapeHtml(this.getConsumptionSummaryLabel(row))}</div>
             </td>
             <td>
               <div><strong>Monate:</strong> ${this.formatDashboardNumber(row.anzahl_monate_mit_verbrauch)}</div>

@@ -337,8 +337,8 @@ Nächster sinnvoller Schritt:
 - Frontend-Verbrauchsdashboard ist auf `_view_verbrauch_jahr`, `_view_verbrauch_monat` und `_view_verbrauch_audit` umgestellt.
 - Die UI lädt die Verbrauchsviews lazy über `?view=verbrauch`.
 - Initial wird ein Objekt mit vorhandenen Jahreswerten ausgewählt, damit der erste Dashboard-Stand nicht leer startet.
-- Dashboard-Kacheln aggregieren nicht mehr nur nach `medium`, sondern nach `medium`, `verbrauchsgruppe` und `untergruppe`, damit Hauptzähler und Unterzähler nicht als falsche Gesamtsumme addiert werden.
-- Kachelformel: Für das gewählte Objekt und Jahr werden alle Jahresview-Zeilen mit gleicher Kombination aus `medium`, `verbrauchsgruppe`, `untergruppe` und Anzeigeeinheit summiert. Zeilen mit `in_summe_beruecksichtigen = FALSE` werden ausgeschlossen. Die Kachelbezeichnung übersetzt diese technischen Keys in lesbare Namen, z.B. `strom_ht_kwh + WOHNUNG` -> `Strom HT · Wohnungen`.
+- Dashboard-Kacheln aggregieren fachlich normalisiert: `Strom HT`/`Strom NT` werden als Medium `Strom` angezeigt, die Unterscheidung bleibt über `Privat HT`/`Privat NT` sichtbar. Wohnungen werden als `Wohnungen` zusammengezogen, Gewerbe wird je Einheit getrennt, und Allgemein/Hauptzähler laufen im Block `Allgemein`.
+- Kachelformel: Für das gewählte Objekt und Jahr werden alle Jahresview-Zeilen mit `in_summe_beruecksichtigen != FALSE` gruppiert nach fachlichem Bereich, Medium-Familie, Qualifier und Einheit summiert. `untergruppe` wird bei Wohnungen bewusst ignoriert, damit historische Zwischenwerte wie `HEIZUNG` nicht als eigene Wohnungs-Kachel erscheinen.
 - Nächster UI-Ausbau: bessere Gruppierung nach Einheit/Medium, Filter für Statusfälle und später visuelle Auswertung.
 
 Spätere Auswertungen sollen den Testbereich `TEST` sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.
