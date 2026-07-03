@@ -536,6 +536,7 @@ const uiService = {
   getConsumptionSummaryQualifier(row) {
     const group = String(row && row.verbrauchsgruppe ? row.verbrauchsgruppe : '').toUpperCase();
     const subgroup = String(row && row.untergruppe ? row.untergruppe : '').toUpperCase();
+    const meterId = String(row && row.zaehler_id ? row.zaehler_id : '');
 
     if (this.getConsumptionMediumFamily(row && row.medium) === 'OEL') {
       return '';
@@ -548,6 +549,7 @@ const uiService = {
     if (group === 'GEWERBE' || this.isConsumptionCommercialUnit(row)) {
       const unitLabel = row.einheit_name || this.getConsumptionGroupLabel('GEWERBE');
       const subgroupLabel = this.getConsumptionSubgroupLabel(subgroup);
+      if (meterId === 'Z_STROM_KWH_BUERO') return `${unitLabel} · Büro`;
       return subgroupLabel ? `${unitLabel} · ${subgroupLabel}` : unitLabel;
     }
 
@@ -594,6 +596,33 @@ const uiService = {
   getConsumptionAuditForRow(row, auditByMeter) {
     const key = [row.objekt_id, row.einheit_id, row.zaehler_id].map(value => String(value || '').trim()).join('||');
     return auditByMeter[key] || null;
+  },
+
+  buildConsumptionPreviousYearMap(rows) {
+    const result = {};
+
+    rows.forEach(row => {
+      const year = Number(row.jahr);
+      if (!Number.isFinite(year)) return;
+
+      const key = [year, row.objekt_id, row.einheit_id, row.zaehler_id]
+        .map(value => String(value || '').trim())
+        .join('||');
+      result[key] = row;
+    });
+
+    return result;
+  },
+
+  getConsumptionPreviousYearRow(row, previousYearMap) {
+    const year = Number(row && row.jahr);
+    if (!Number.isFinite(year)) return null;
+
+    const key = [year - 1, row.objekt_id, row.einheit_id, row.zaehler_id]
+      .map(value => String(value || '').trim())
+      .join('||');
+
+    return previousYearMap[key] || null;
   },
 
   buildConsumptionSummaryFromViews(rows) {
@@ -780,6 +809,7 @@ const uiService = {
       .filter(row => String(row.objekt_id) === String(objektId))
       .filter(row => String(row.jahr) === String(year))
       .filter(row => includeCalculated || String(row.verbrauchsgruppe).toUpperCase() !== 'BERECHNET');
+    const previousYearMap = this.buildConsumptionPreviousYearMap(allRows);
     const summary = this.buildConsumptionSummaryFromViews(selectedRows);
     const auditRows = (Array.isArray(dataService.state.view_verbrauch_audit) ? dataService.state.view_verbrauch_audit : [])
       .filter(row => String(row.objekt_id) === String(objektId));
@@ -810,6 +840,7 @@ const uiService = {
         const audit = this.getConsumptionAuditForRow(row, auditByMeter);
         const unit = this.getConsumptionDisplayUnit(row);
         const unitLabel = this.getConsumptionRowUnitLabel(row);
+        const previousYearRow = this.getConsumptionPreviousYearRow(row, previousYearMap);
         const status = row.plausibilitaet_status && row.plausibilitaet_status !== 'OK'
           ? row.plausibilitaet_status
           : (audit && audit.status ? audit.status : 'OK');
@@ -836,6 +867,12 @@ const uiService = {
               <div style="font-size:0.75rem; color:#64748b;">Ø Monat: ${this.formatDashboardNumber(row.verbrauch_monat_durchschnitt)} ${this.escapeHtml(unit)}</div>
             </td>
             <td>
+              ${previousYearRow ? `
+                <div style="font-weight:800;">${this.formatDashboardNumber(previousYearRow.verbrauch_jahr)} ${this.escapeHtml(unit)}</div>
+                <div style="font-size:0.75rem; color:#64748b;">Ø Monat: ${this.formatDashboardNumber(previousYearRow.verbrauch_monat_durchschnitt)} ${this.escapeHtml(unit)}</div>
+              ` : '<span style="color:#94a3b8;">Keine Daten</span>'}
+            </td>
+            <td>
               <span style="display:inline-block; padding:3px 7px; border-radius:999px; background:#f8fafc; color:${this.getConsumptionStatusColor(status)}; font-size:0.75rem; font-weight:800;">
                 ${this.escapeHtml(this.getConsumptionStatusLabel(status))}
               </span>
@@ -844,7 +881,7 @@ const uiService = {
           </tr>
         `;
       }).join('')
-      : '<tr><td colspan="5" style="padding:14px; color:#64748b;">Keine Zähler für Auswahl gefunden.</td></tr>';
+      : '<tr><td colspan="6" style="padding:14px; color:#64748b;">Keine Zähler für Auswahl gefunden.</td></tr>';
 
     output.innerHTML = `
       <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; color:#475569; font-size:0.85rem;">
@@ -867,6 +904,7 @@ const uiService = {
               <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Zähler</th>
               <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Zeitraum</th>
               <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Verbrauch</th>
+              <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Verbrauch Vorjahr</th>
               <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Status</th>
             </tr>
           </thead>

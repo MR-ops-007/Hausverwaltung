@@ -371,6 +371,42 @@ describe('uiService consumption dashboard', () => {
             plausibilitaet_status: 'OK',
             in_summe_beruecksichtigen: true,
           },
+          {
+            jahr: 2026,
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_02',
+            einheit_name: 'Black Inn',
+            mieter_name: 'Leerstand',
+            verbrauchsgruppe: 'GEWERBE',
+            untergruppe: '',
+            zaehler_id: 'Z_STROM_KWH_BUERO',
+            medium: 'strom_ht_kwh',
+            bezeichnung: 'Strom Büro Zwischenzähler',
+            verbrauch_jahr: 25,
+            verbrauch_monat_durchschnitt: 4.17,
+            anzahl_monate_mit_verbrauch: 6,
+            anzahl_warnungen: 0,
+            plausibilitaet_status: 'OK',
+            in_summe_beruecksichtigen: true,
+          },
+          {
+            jahr: 2025,
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_02',
+            einheit_name: 'Black Inn',
+            mieter_name: 'Leerstand',
+            verbrauchsgruppe: 'GEWERBE',
+            untergruppe: '',
+            zaehler_id: 'Z_STROM_KWH_BUERO',
+            medium: 'strom_ht_kwh',
+            bezeichnung: 'Strom Büro Zwischenzähler',
+            verbrauch_jahr: 20,
+            verbrauch_monat_durchschnitt: 1.67,
+            anzahl_monate_mit_verbrauch: 12,
+            anzahl_warnungen: 0,
+            plausibilitaet_status: 'OK',
+            in_summe_beruecksichtigen: true,
+          },
         ],
         '_view_verbrauch_monat': [],
         '_view_verbrauch_audit': [
@@ -406,10 +442,15 @@ describe('uiService consumption dashboard', () => {
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom Wohnung 1');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Wohnungen');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Black Inn · Privat HT');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Black Inn · Büro');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Kochdippe · Privat HT');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Verbrauch Vorjahr');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('253 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('100 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('50 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('25 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('20 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Ø Monat: 1,67 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).not.toContain('150 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).not.toContain('353 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('2 Rohwerte');
