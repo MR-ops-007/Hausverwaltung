@@ -22,7 +22,7 @@ Speichert jeden Zählerstand (nicht mehr `Transaktionen`).
 | **A** | `stand_id` | String | PK: Eindeutige ID im Format `ST_{objekt_id}_{einheit_id}_{zaehler_id}_{YYYY-MM-DD HH:mm}` |
 | **B** | `objekt_id` | String | Fremdschlüssel (FK) (verknüpft mit Objekte) FK -> Zaehler.objekt_id |
 | **C** | `einheit_id` | String | Fremdschlüssel (FK) (verknüpft mit Einheiten) FK -> Zaehler.einheit_id |
-| **D** | `zaehler_id` | String | Zählercode innerhalb der Einheit; zusammen mit `objekt_id` und `einheit_id` eindeutig |
+| **D** | `zaehler_id` | String | ID des konkreten Zählers/Messpunkts; für neue Daten nach `Z_{einheit_id}_{medium}` oder `Z_{einheit_id}_{medium}_{messpunkt}` |
 | **E** | `zeitstempel` | Datum/Zeit | Format: `DD.MM.YYYY HH:mm` |
 | **F** | `wert` | Zahl | Gemessener Wert (m³, kWh, l) |
 | **G** | `quelle` | String | `UI`, `Import`, `Korrektur` |
@@ -52,6 +52,7 @@ Speichert jede Zahlung auf einen Vertrag.
 | **E** | `ort` | String | Ort |
 | **F** | `adresszusatz` | String | Optional |
 | **G** | `besitzer_id` | String | FK -> Nutzer.nutzer_id (Optional: für Datenschutz) |
+| **H** | `eingange` | String | Optional: kommagetrennte Gebäudeeingänge, z. B. `A,B,C` |
 
 #### Reservierter Testbereich
 
@@ -77,7 +78,7 @@ zaehler_id: Z_OEL_STAND_IN_CM
 zaehler_id: Z_OEL_GETANKT_LITER
 ```
 
-Der Testbereich enthält eine belegte Testwohnung (`TEST_WE_01`), einen Leerstand (`TEST_WE_02`) und einen Allgemeinbereich (`TEST_Allgemein`). Er verwendet bewusst fachlich wiederverwendbare Zählercodes. Da diese `zaehler_id`s auch in echten Objekten vorkommen können, muss die UI bei Vorwerten immer nach `zaehler_id`, `objekt_id` und `einheit_id` filtern. Andernfalls würden Testeingaben versehentlich gegen echte Wohnungshistorie plausibilisiert.
+Der Testbereich enthält eine belegte Testwohnung (`TEST_WE_01`), einen Leerstand (`TEST_WE_02`) und einen Allgemeinbereich (`TEST_Allgemein`). Er nutzt noch die historisch gewachsenen Test-IDs. Die UI muss Vorwerte unabhängig davon immer nach `zaehler_id`, `objekt_id` und `einheit_id` filtern.
 
 Auswertungen und spätere Dashboards sollen diesen Testbereich entweder sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.
 
@@ -90,6 +91,26 @@ Auswertungen und spätere Dashboards sollen diesen Testbereich entweder sichtbar
 | **D** | `nummer` | String | Anzeigename (z.B. "1. OG rechts") |
 | **E** | `qm` | Zahl | Wohnfläche |
 | **F** | `personen_standard` | Zahl | Standardbelegung (Soll) |
+| **G** | `eingang` | String | Optional: Gebäudeeingang, z. B. `A`, `B`, `C` oder `Allgemein` |
+
+#### LOK Eingänge
+
+Das Objekt `LOK` nutzt die optionalen Gebäudeeingänge `A`, `B` und `C`.
+
+Aktuelle Zuordnung:
+
+```text
+LOK_WE_01 bis LOK_WE_05 -> Eingang A
+LOK_WE_06 bis LOK_WE_09 -> Eingang B
+LOK_WE_10_A -> Eingang B
+LOK_WE_10_B -> Eingang B
+LOK_WE_10_S -> Eingang B
+LOK_WE_11 bis LOK_WE_15 -> Eingang C
+LOK_GE_01 -> Eingang A
+LOK_Allgemein -> Allgemein
+```
+
+Die Zuordnung wird in Apps Script zentral über `getLokEinheitEntranceMapping` gepflegt, damit Korrekturen nicht an mehreren Stellen erfolgen müssen. `ensureLokStructureData` ergänzt die Felder `Objekte.eingange` und `Einheiten.eingang` sowie fehlende LOK-Einheiten und Zähler idempotent.
 
 ### Tabelle: `Personen` (Natürliche Personen)
 **Wichtig:** Trennt Person von Mietvertrag. Mehr Hauptmieter sind hier möglich.
@@ -138,7 +159,7 @@ Diese Tabelle beschreibt, **welche Zähler existieren**, zu welchem Objekt bzw. 
 
 | Spalte | Feldname | Datentyp | Beschreibung |
 | :--- | :--- | :--- | :--- |
-| **A** | `zaehler_id` | String | Zählercode innerhalb von Objekt/Einheit, z. B. `STROM`, `KW`, `WW` oder historisch längere IDs |
+| **A** | `zaehler_id` | String | ID des konkreten Zählers/Messpunkts. Neue IDs folgen `Z_{einheit_id}_{medium}` oder bei Bedarf `Z_{einheit_id}_{medium}_{messpunkt}` |
 | **B** | `objekt_id` | String | FK -> Objekte.objekt_id; Pflichtfeld, da jeder Zähler einem Objekt zugeordnet ist |
 | **C** | `einheit_id` | String | FK -> Einheiten.einheit_id; nullable für Allgemein-/Hauszähler |
 | **D** | `medium` | String | `Kaltwasser`, `Warmwasser`, `Strom`, `Oel`, `Zusatz` |
@@ -156,27 +177,38 @@ Diese Tabelle beschreibt, **welche Zähler existieren**, zu welchem Objekt bzw. 
 
 #### Zähleridentität
 
-`zaehler_id` ist nicht global eindeutig. Die fachliche Identität eines Zählers entsteht aus:
+Für neue Zähler ist `zaehler_id` eine einheitgebundene fachliche ID. Das Standardformat ist:
 
 ```text
-objekt_id + einheit_id + zaehler_id
+Z_{einheit_id}_{medium}
 ```
 
-Damit können neue Objekte dieselben kurzen Zählercodes verwenden, z. B. `STROM`, `KW` und `WW`, ohne lange globale IDs bilden zu müssen.
-
-Für neue Daten wird empfohlen:
+Wenn es innerhalb derselben Einheit mehrere Zähler mit demselben `medium` gibt, wird ein optionaler Messpunkt ergänzt:
 
 ```text
-objekt_id: Ra-HS-29
-einheit_id: Ra-HS-29_WE_01
-zaehler_id: STROM
-
-objekt_id: TEST
-einheit_id: TEST_WE_01
-zaehler_id: STROM
+Z_{einheit_id}_{medium}_{messpunkt}
 ```
 
-Historische längere `zaehler_id`s bleiben gültig. Migrationen sollten sie schrittweise auf kürzere Codes abbilden, sobald die betroffenen `Zaehlerstaende` eindeutig über `objekt_id` und `einheit_id` ergänzt wurden.
+Beispiele:
+
+```text
+einheit_id: LOK_WE_10_A
+medium: strom_ht_kwh
+zaehler_id: Z_LOK_WE_10_A_strom_ht_kwh
+
+einheit_id: LOK_WE_10_A
+medium: kaltwasser_m3
+zaehler_id: Z_LOK_WE_10_A_kaltwasser_m3
+
+einheit_id: LOK_Allgemein
+medium: kaltwasser_m3
+messpunkt: hauptzaehler
+zaehler_id: Z_LOK_Allgemein_kaltwasser_m3_hauptzaehler
+```
+
+`medium` beschreibt die Messgröße, z. B. `strom_ht_kwh`, `kaltwasser_m3`, `warmwasser_m3` oder `oel_stand_cm`. Es ersetzt keinen konkreten Zähler, sondern ist Bestandteil der ID.
+
+Historische `zaehler_id`s bleiben gültig. Migrationen auf das neue Format erfolgen nur kontrolliert, wenn die betroffenen `Zaehlerstaende` eindeutig vorbereitet sind. Zur Sicherheit bleibt die UI-Vorwertsuche weiterhin auf `objekt_id + einheit_id + zaehler_id` eingegrenzt.
 
 #### Erfassbare und berechnete Zähler
 
@@ -234,7 +266,7 @@ Da die bisherigen Produktivdaten im Wesentlichen aus einem Objekt stammen, ist d
 2. Fehlende `einheit_id` zuerst aus bereits vorbereiteten Bestandszeilen lernen, danach deterministisch aus der vorhandenen `zaehler_id` ableiten.
 3. `stand_id` auf das neue Format `ST_{objekt_id}_{einheit_id}_{zaehler_id}_{YYYY-MM-DD HH:mm}` umstellen.
 4. Per `writeStandIdMigrationReport` das Sheet `_migration_stand_id_report` erzeugen und prüfen, dass keine Mapping-Konflikte, keine ungelösten Zuordnungen und keine doppelten neuen `stand_id`s existieren.
-5. Für neue Objekte kurze, wiederverwendbare `zaehler_id`s bevorzugen.
+5. Für neue Objekte einheitgebundene `zaehler_id`s nach `Z_{einheit_id}_{medium}` oder `Z_{einheit_id}_{medium}_{messpunkt}` verwenden.
 
 Bekannte historische Übertragungsfehler bei `einheit_id` werden in der Migration per Override korrigiert, z. B. `Ra-HS-29_WE_010` -> `Ra-HS-29_WE_10` und Flur-/Heizungszähler auf eigene Allgemein-Einheiten.
 
@@ -281,3 +313,90 @@ Diese Tabelle wird bei jeder vertraglichen Änderung oder beim Laden asynchron a
 | **F** | `personen_aktuell` | Zahl | Anzahl der aktuell gemeldeten Personen | `Personen.personen_aktuell` |
 
 **Konsistenz-Regel:** Es dürfen niemals manuelle Änderungen in `_view_aktive_mieter` vorgenommen werden. Die Tabelle ist ein reiner Lese-Cache (Read-Only Cache). Schreibzugriffe erfolgen strikt über die Quelltabellen.
+
+### Hilfstabelle: `_view_verbrauch_monat`
+Diese Tabelle wird durch `updateVerbrauchViews` im Apps Script neu aufgebaut. Sie ist die prüfbare Detailbasis für Verbrauchsauswertungen.
+
+Zwei aufeinanderfolgende Zählerstände desselben Zählers bilden ein Intervall. Der Verbrauch dieses Intervalls wird tagesgenau auf die betroffenen Kalendermonate verteilt. Lange Ableseabstände werden dadurch geglättet, ohne dass die UI eigene schwere Berechnungen ausführen muss.
+
+Wichtige Felder:
+
+| Feldname | Datentyp | Beschreibung |
+| :--- | :--- | :--- |
+| `jahr` | Zahl | Kalenderjahr des Monatssegments |
+| `monat` | String | Monat im Format `YYYY-MM` |
+| `objekt_id` | String | Objekt des Zählers |
+| `einheit_id` | String | Einheit des Zählers |
+| `einheit_name` | String | Anzeigename der Einheit |
+| `mieter_name` | String | Aktiver Mieter aus `_view_aktive_mieter`, falls vorhanden |
+| `verbrauchsgruppe` | String | Grobe Auswertungsgruppe, z.B. `WOHNUNG`, `ALLGEMEIN`, `HAUPTZAEHLER`, `BERECHNET` |
+| `untergruppe` | String | Weitere Gruppierung, z.B. `FLUR`, `HEIZUNG`, `PRIVAT_HT`, `PRIVAT_NT` |
+| `zaehler_id` | String | Fachliche Zähler-ID |
+| `medium` | String | Medium des Zählers |
+| `start_datum`, `end_datum` | Datum | Ableseintervall |
+| `start_wert`, `end_wert` | Zahl | Rohwerte aus `Zaehlerstaende` |
+| `differenz_gesamt` | Zahl | Verbrauch des gesamten Intervalls |
+| `tage_gesamt` | Zahl | Länge des gesamten Intervalls in Tagen |
+| `tage_im_monat` | Zahl | Anteilstage dieses Monats am Intervall |
+| `anteil_im_monat` | Zahl | Monatsanteil am Intervall |
+| `verbrauch_monat` | Zahl | Auf den Monat verteilter Verbrauch |
+| `berechnungsmethode` | String | z.B. `DIREKT`, `UEBERLAUF`, `OEL_FUELLSTAND`, `NICHT_BERECHENBAR` |
+| `plausibilitaet_status` | String | `OK` oder prüfpflichtiger Warnstatus |
+| `plausibilitaet_hinweis` | String | Erklärung für fachliche Prüfung |
+| `in_summe_beruecksichtigen` | Boolean | Gibt an, ob der Wert in Summen laufen darf |
+
+### Hilfstabelle: `_view_verbrauch_jahr`
+Diese Tabelle wird aus `_view_verbrauch_monat` aggregiert. Sie dient der schnellen Dashboard-Anzeige und späteren Jahresauswertungen.
+
+Gruppiert wird nach `jahr`, `objekt_id`, `einheit_id` und `zaehler_id`. Warnstatus werden nicht verworfen, sondern als Prüfhinweis mitgezählt.
+
+Wichtige Felder:
+
+| Feldname | Datentyp | Beschreibung |
+| :--- | :--- | :--- |
+| `jahr` | Zahl | Abrechnungsjahr |
+| `objekt_id` | String | Objekt des Zählers |
+| `einheit_id` | String | Einheit des Zählers |
+| `mieter_name` | String | Aktiver Mieter, falls vorhanden |
+| `verbrauchsgruppe` | String | Grobe Auswertungsgruppe |
+| `untergruppe` | String | Weitere Gruppierung |
+| `zaehler_id` | String | Fachliche Zähler-ID |
+| `medium` | String | Medium des Zählers |
+| `verbrauch_jahr` | Zahl | Summe der Monatsverbräuche im Jahr |
+| `verbrauch_monat_durchschnitt` | Zahl | Durchschnitt über Monate mit berechnetem Verbrauch |
+| `anzahl_monate_mit_verbrauch` | Zahl | Anzahl betroffener Monatssegmente |
+| `anzahl_warnungen` | Zahl | Anzahl prüfpflichtiger Monatssegmente |
+| `plausibilitaet_status` | String | `OK` oder kombinierte Warnstatus |
+| `in_summe_beruecksichtigen` | Boolean | Gibt an, ob der Wert in Summen laufen darf |
+
+### Hilfstabelle: `_view_verbrauch_audit`
+Diese Tabelle wird gemeinsam mit den Verbrauchsviews aufgebaut. Sie ist die Kontrollinstanz dafür, ob alle Zählerstände in die Verbrauchsberechnung eingeflossen sind oder bewusst nicht berechnet werden konnten.
+
+Pro Zähler aus `Zaehler` wird eine Audit-Zeile erzeugt. Zusätzlich werden ungelöste Messwertgruppen aufgenommen, wenn Zählerstände keinem eindeutigen Stammdaten-Zähler zugeordnet werden können.
+
+Wichtige Felder:
+
+| Feldname | Datentyp | Beschreibung |
+| :--- | :--- | :--- |
+| `status` | String | `OK`, `KANONISCH_ZUGEORDNET`, `NUR_EIN_WERT`, `KEINE_ABLESUNG`, `MONATSZEILEN_ABWEICHUNG` oder `UNGELOESTE_MESSWERTE` |
+| `objekt_id` | String | Objekt des Zählers oder der ungelösten Messwertgruppe |
+| `einheit_id` | String | Kanonische Einheit aus `Zaehler` oder ursprüngliche Einheit bei ungelösten Messwerten |
+| `zaehler_id` | String | Kanonische Zähler-ID oder ursprüngliche ID bei ungelösten Messwerten |
+| `readings_count` | Zahl | Anzahl gefundener Rohwerte |
+| `intervalle_count` | Zahl | Anzahl möglicher Verbrauchsintervalle |
+| `erwartete_monatszeilen` | Zahl | Erwartete Monatssegmente aus allen Intervallen |
+| `monatszeilen` | Zahl | Tatsächlich erzeugte Zeilen in `_view_verbrauch_monat` |
+| `jahreszeilen` | Zahl | Tatsächlich erzeugte Zeilen in `_view_verbrauch_jahr` |
+| `source_keys` | String | Ursprüngliche Messwert-Keys, falls sie von der kanonischen Zähleridentität abweichen |
+| `hinweis` | String | Erklärung für Warn- oder Auditstatus |
+
+Historische Schreibweisen wie `Z_STROM_HT_KWH_PRIVAT_HT` dürfen nur dann auf `Z_STROM_KWH_PRIVAT_HT` gemappt werden, wenn die Zuordnung im Objekt eindeutig ist. Gleiches gilt für alte oder fehlerhafte `einheit_id`s.
+
+**Konsistenz-Regel:** Die Verbrauchsviews und der Audit-View sind reine Read-Only-Caches. Fachliche Korrekturen erfolgen in den Quelltabellen oder über dokumentierte Migrationsfunktionen, nicht direkt in den View-Sheets.
+
+### Migration: kanonische Zählerstand-Identitäten
+Historische, eindeutig auflösbare Abweichungen zwischen `Zaehlerstaende` und `Zaehler` werden über `previewCanonicalZaehlerstandMigration`, `writeCanonicalZaehlerstandMigrationReport` und `applyCanonicalZaehlerstandMigration` korrigiert.
+
+Die Migration darf nur eindeutige Zuordnungen anwenden. Sie aktualisiert `objekt_id`, `einheit_id`, `zaehler_id` und die daraus abgeleitete `stand_id`.
+
+Fälle mit leerer Ziel-`einheit_id` im Zählerstamm werden nicht automatisch migriert. Sie erhalten den Status `ZIEL_EINHEIT_FEHLT`, weil sonst neue `stand_id`s mit `UNKNOWN_EINHEIT` entstehen würden. Zuerst muss in `Zaehler` eine fachlich richtige Einheit gesetzt werden.

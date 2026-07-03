@@ -6,6 +6,21 @@ function loadUiService({
   zaehlerstaende = [],
   inputValuesByZaehlerId = {},
   currentMeters = [],
+  units = [],
+  objects = [],
+  viewAktiveMieter = [],
+  viewVerbrauchJahr = [],
+  viewVerbrauchMonat = [],
+  viewVerbrauchAudit = [],
+  consumptionData = null,
+  calcService = {
+    buildConsumptionDashboard() {
+      return {
+        rows: [],
+        summary: [],
+      };
+    },
+  },
   saveResponse = { status: 'success' },
   confirmResult = true,
   validationServiceAvailable = true,
@@ -23,18 +38,38 @@ function loadUiService({
     state: {
       zaehlerstaende,
       zaehler: currentMeters,
-      objekte: [],
-      view_aktive_mieter: [],
+      einheiten: units,
+      objekte: objects,
+      view_aktive_mieter: viewAktiveMieter,
+      view_verbrauch_jahr: viewVerbrauchJahr,
+      view_verbrauch_monat: viewVerbrauchMonat,
+      view_verbrauch_audit: viewVerbrauchAudit,
+    },
+    setConsumptionData(data) {
+      this.state.view_verbrauch_jahr = data['_view_verbrauch_jahr'] || [];
+      this.state.view_verbrauch_monat = data['_view_verbrauch_monat'] || [];
+      this.state.view_verbrauch_audit = data['_view_verbrauch_audit'] || [];
     },
     getUniqueObjects() {
-      return [];
+      return Array.isArray(this.state.objekte)
+        ? this.state.objekte.map(o => o.objekt_id)
+        : [];
     },
-    getUnitsByObject() {
-      return [];
+    getUnitsByObject(objektId) {
+      return Array.isArray(this.state.einheiten)
+        ? this.state.einheiten.filter(e => String(e.objekt_id) === String(objektId))
+        : [];
     },
   };
 
   const cloudService = {
+    async loadConsumptionData() {
+      return consumptionData || {
+        '_view_verbrauch_jahr': viewVerbrauchJahr,
+        '_view_verbrauch_monat': viewVerbrauchMonat,
+        '_view_verbrauch_audit': viewVerbrauchAudit,
+      };
+    },
     async saveTransaction(payload) {
       saveCalls.push(payload);
       return saveResponse;
@@ -49,15 +84,24 @@ function loadUiService({
   const modalBodyElement = {
     innerHTML: '',
   };
+  const elementsById = {
+    'modal-container': modalElement,
+    'modal-body': modalBodyElement,
+    'object-selector-section': { style: { display: 'block' }, innerHTML: '', className: '' },
+    'unit-list-section': { style: { display: 'none' }, innerHTML: '', className: '' },
+    'consumption-dashboard-section': { style: { display: 'none' }, innerHTML: '', className: '' },
+    'nav-meter-entry': { style: {}, innerHTML: '', className: '' },
+    'nav-consumption-dashboard': { style: {}, innerHTML: '', className: '' },
+    'consumption-object-select': { style: {}, innerHTML: '', value: '', className: '' },
+    'consumption-year-select': { style: {}, innerHTML: '', value: '', className: '' },
+    'consumption-include-calculated': { style: {}, checked: true, innerHTML: '', className: '' },
+    'consumption-dashboard-output': { style: {}, innerHTML: '', className: '' },
+  };
 
   const document = {
     getElementById(id) {
-      if (id === 'modal-container') {
-        return modalElement;
-      }
-
-      if (id === 'modal-body') {
-        return modalBodyElement;
+      if (elementsById[id]) {
+        return elementsById[id];
       }
 
       if (id.startsWith('input-')) {
@@ -97,6 +141,7 @@ function loadUiService({
     'document',
     'alert',
     'confirm',
+    'calcService',
     `${uiServiceCode}; return uiService;`
   );
 
@@ -106,7 +151,8 @@ function loadUiService({
     window,
     document,
     alert,
-    confirm
+    confirm,
+    calcService
   );
 
   uiService.currentActiveMetersObjects = currentMeters;
@@ -119,6 +165,7 @@ function loadUiService({
     saveCalls,
     modalElement,
     modalBodyElement,
+    elementsById,
   };
 }
 
@@ -141,6 +188,18 @@ describe('uiService helper methods', () => {
     expect(uiService.getZaehlerLabel({ typ: 'Alt-Typ' })).toBe('Alt-Typ');
     expect(uiService.getZaehlerLabel({ zaehler_id: 'Z001' })).toBe('Z001');
     expect(uiService.getZaehlerLabel({})).toBe('Zähler');
+  });
+
+  it('formats unit and tenant context for display', () => {
+    const { uiService } = loadUiService();
+
+    expect(uiService.getUnitDisplayName({
+      einheit_id: 'LOK_WE_10_A',
+      nummer: 'Wohnung 10 A',
+    })).toBe('Wohnung 10 A');
+    expect(uiService.getUnitEntranceLabel({ eingang: 'B' })).toBe('Eingang B');
+    expect(uiService.formatMieterDisplayName('Duck, Donald')).toBe('Donald Duck');
+    expect(uiService.formatMieterDisplayName('Leerstand')).toBe('Leerstand');
   });
 
   it('finds the latest meter reading by German timestamp including time', () => {
@@ -232,6 +291,170 @@ describe('uiService helper methods', () => {
     expect(uiService.isZaehlerManuellErfassbar({ berechnet: true })).toBe(false);
     expect(uiService.isZaehlerManuellErfassbar({ berechnet: 'TRUE' })).toBe(false);
   });
+
+  it('extracts available consumption years from meter readings', () => {
+    const { uiService } = loadUiService({
+      zaehlerstaende: [
+        { zeitstempel: '02.01.2025 00:00' },
+        { zeitstempel: '02.01.2026 00:00' },
+        { zeitstempel: 'Ungültig' },
+      ],
+    });
+
+    expect(uiService.getAvailableConsumptionYears()).toEqual(['2026', '2025']);
+  });
+});
+
+describe('uiService consumption dashboard', () => {
+  it('switches to the consumption dashboard view and renders backend view summary plus rows', async () => {
+    const calcCalls = [];
+    const { uiService, elementsById } = loadUiService({
+      objects: [
+        {
+          objekt_id: 'Ra-HS-29',
+          bezeichnung: 'Rathausstraße 29',
+        },
+      ],
+      consumptionData: {
+        '_view_verbrauch_jahr': [
+          {
+            jahr: 2026,
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_01',
+            einheit_name: 'Wohnung 1',
+            mieter_name: 'Duck, Donald',
+            verbrauchsgruppe: 'WOHNUNG',
+            untergruppe: '',
+            zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+            medium: 'strom_ht_kwh',
+            bezeichnung: 'Strom Wohnung 1',
+            verbrauch_jahr: 253,
+            verbrauch_monat_durchschnitt: 21.08,
+            anzahl_monate_mit_verbrauch: 12,
+            anzahl_warnungen: 0,
+            plausibilitaet_status: 'OK',
+            in_summe_beruecksichtigen: true,
+          },
+          {
+            jahr: 2026,
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_02',
+            einheit_name: 'Black Inn',
+            mieter_name: 'Leerstand',
+            verbrauchsgruppe: 'HAUPTZAEHLER',
+            untergruppe: 'PRIVAT_HT',
+            zaehler_id: 'Z_STROM_KWH_PRIVAT_HT',
+            medium: 'strom_ht_kwh',
+            bezeichnung: 'Strom Hauptzähler (privat HT)',
+            verbrauch_jahr: 100,
+            verbrauch_monat_durchschnitt: 16.67,
+            anzahl_monate_mit_verbrauch: 6,
+            anzahl_warnungen: 0,
+            plausibilitaet_status: 'OK',
+            in_summe_beruecksichtigen: true,
+          },
+          {
+            jahr: 2026,
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_01',
+            einheit_name: 'Kochdippe',
+            mieter_name: 'Leerstand',
+            verbrauchsgruppe: 'HAUPTZAEHLER',
+            untergruppe: 'PRIVAT_HT',
+            zaehler_id: 'Z_STROM_KWH_KODI_HT',
+            medium: 'strom_ht_kwh',
+            bezeichnung: 'Strom Hauptzähler (Imbiss HT)',
+            verbrauch_jahr: 50,
+            verbrauch_monat_durchschnitt: 8.33,
+            anzahl_monate_mit_verbrauch: 6,
+            anzahl_warnungen: 0,
+            plausibilitaet_status: 'OK',
+            in_summe_beruecksichtigen: true,
+          },
+          {
+            jahr: 2026,
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_02',
+            einheit_name: 'Black Inn',
+            mieter_name: 'Leerstand',
+            verbrauchsgruppe: 'GEWERBE',
+            untergruppe: '',
+            zaehler_id: 'Z_STROM_KWH_BUERO',
+            medium: 'strom_ht_kwh',
+            bezeichnung: 'Strom Büro Zwischenzähler',
+            verbrauch_jahr: 25,
+            verbrauch_monat_durchschnitt: 4.17,
+            anzahl_monate_mit_verbrauch: 6,
+            anzahl_warnungen: 0,
+            plausibilitaet_status: 'OK',
+            in_summe_beruecksichtigen: true,
+          },
+          {
+            jahr: 2025,
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_02',
+            einheit_name: 'Black Inn',
+            mieter_name: 'Leerstand',
+            verbrauchsgruppe: 'GEWERBE',
+            untergruppe: '',
+            zaehler_id: 'Z_STROM_KWH_BUERO',
+            medium: 'strom_ht_kwh',
+            bezeichnung: 'Strom Büro Zwischenzähler',
+            verbrauch_jahr: 20,
+            verbrauch_monat_durchschnitt: 1.67,
+            anzahl_monate_mit_verbrauch: 12,
+            anzahl_warnungen: 0,
+            plausibilitaet_status: 'OK',
+            in_summe_beruecksichtigen: true,
+          },
+        ],
+        '_view_verbrauch_monat': [],
+        '_view_verbrauch_audit': [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_01',
+            zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+            status: 'OK',
+            readings_count: 2,
+            intervalle_count: 1,
+          },
+        ],
+      },
+      calcService: {
+        buildConsumptionDashboard(data, options) {
+          calcCalls.push(options);
+          return { summary: [], rows: [] };
+        },
+      },
+    });
+
+    await uiService.showConsumptionDashboard();
+
+    expect(elementsById['object-selector-section'].style.display).toBe('none');
+    expect(elementsById['consumption-dashboard-section'].style.display).toBe('block');
+    expect(elementsById['nav-consumption-dashboard'].className).toBe('tab-btn-active');
+    expect(elementsById['consumption-object-select'].innerHTML).toContain('Rathausstraße 29');
+    expect(elementsById['consumption-year-select'].innerHTML).toContain('2026');
+    expect(calcCalls).toEqual([]);
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Wohnung 1');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Donald Duck');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom Wohnung 1');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Wohnungen');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Black Inn · Privat HT');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Black Inn · Büro');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Kochdippe · Privat HT');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Verbrauch Vorjahr');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('253 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('100 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('50 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('25 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('20 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Ø Monat: 1,67 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).not.toContain('150 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).not.toContain('353 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('2 Rohwerte');
+  });
 });
 
 describe('uiService.showZaehlerMaske', () => {
@@ -281,6 +504,42 @@ describe('uiService.showZaehlerMaske', () => {
     expect(modalBodyElement.innerHTML).not.toContain('Nicht erfassbarer Zähler');
     expect(modalBodyElement.innerHTML).not.toContain('Berechneter Verbrauch');
     expect(modalElement.style.display).toBe('flex');
+  });
+
+  it('renders unit name, entrance, tenant and meter location in the input mask', () => {
+    const { uiService, modalBodyElement } = loadUiService({
+      units: [
+        {
+          einheit_id: 'LOK_WE_10_A',
+          nummer: 'Wohnung 10 A',
+          eingang: 'B',
+        },
+      ],
+      viewAktiveMieter: [
+        {
+          einheit_id: 'LOK_WE_10_A',
+          mieter_name: 'Duck, Donald',
+        },
+      ],
+      currentMeters: [
+        {
+          zaehler_id: 'STROM',
+          einheit_id: 'LOK_WE_10_A',
+          bezeichnung: 'Strom Wohnung 10 A',
+          einbauort: 'Eingang B',
+          aktiv: 'TRUE',
+          erfassbar: 'TRUE',
+          berechnet: 'FALSE',
+        },
+      ],
+    });
+
+    uiService.showZaehlerMaske('LOK_WE_10_A');
+
+    expect(modalBodyElement.innerHTML).toContain('Wohnung 10 A');
+    expect(modalBodyElement.innerHTML).toContain('Eingang B');
+    expect(modalBodyElement.innerHTML).toContain('Donald Duck');
+    expect(modalBodyElement.innerHTML).toContain('Einbauort: Eingang B');
   });
 });
 

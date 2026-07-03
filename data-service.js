@@ -13,7 +13,10 @@ const dataService = {
         zahlungen: [],
         parameter: [],
         fixkosten: [],
-        view_aktive_mieter: [] 
+        view_aktive_mieter: [],
+        view_verbrauch_monat: [],
+        view_verbrauch_jahr: [],
+        view_verbrauch_audit: []
     },
 
     setDashboardData(data) {
@@ -50,6 +53,19 @@ const dataService = {
             this.state.einheiten = tempEinheiten;
         }
         console.log("DataService: Stufe 1 (Dashboard) initialisiert.");
+    },
+
+    setConsumptionData(data) {
+        if (!data || typeof data !== 'object') {
+            console.warn("DataService: Ungültige Verbrauchsview-Daten empfangen.");
+            return;
+        }
+
+        this.state.view_verbrauch_monat = data["_view_verbrauch_monat"] || [];
+        this.state.view_verbrauch_jahr = data["_view_verbrauch_jahr"] || [];
+        this.state.view_verbrauch_audit = data["_view_verbrauch_audit"] || [];
+
+        console.log("DataService: Verbrauchsviews übernommen.");
     },
 
     setInitialData(data) {

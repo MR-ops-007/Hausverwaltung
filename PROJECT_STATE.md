@@ -105,29 +105,29 @@ Aktueller Stand:
 
 ## Datenmodell: Zähleridentität
 
-`zaehler_id` wird nicht mehr als global eindeutig betrachtet.
+Neue `zaehler_id`s sind einheitgebundene fachliche IDs.
 
-Die fachliche Identität eines Zählers entsteht aus:
-
-```text
-objekt_id + einheit_id + zaehler_id
-```
-
-Damit können neue Objekte dieselben kurzen Zählercodes verwenden, ohne lange globale IDs bilden zu müssen.
-
-Für neue Daten wird perspektivisch empfohlen:
+Standardformat:
 
 ```text
-objekt_id: Ra-HS-29
-einheit_id: Ra-HS-29_WE_01
-zaehler_id: STROM
-
-objekt_id: TEST
-einheit_id: TEST_WE_01
-zaehler_id: STROM
+Z_{einheit_id}_{medium}
 ```
 
-Historische längere `zaehler_id`s bleiben gültig. Die Migration auf kürzere Codes soll später bewusst und datengetrieben erfolgen.
+Wenn innerhalb derselben Einheit mehrere Zähler dasselbe `medium` verwenden, wird ein Messpunkt ergänzt:
+
+```text
+Z_{einheit_id}_{medium}_{messpunkt}
+```
+
+Beispiele:
+
+```text
+Z_LOK_WE_10_A_strom_ht_kwh
+Z_LOK_WE_10_A_kaltwasser_m3
+Z_LOK_Allgemein_kaltwasser_m3_hauptzaehler
+```
+
+Historische `zaehler_id`s bleiben gültig. Migrationen auf das neue Format sollen bewusst und datengetrieben erfolgen.
 
 ---
 
@@ -187,7 +187,7 @@ Google Apps Script wird weiterhin manuell versioniert.
 Aktuelle Backend-Version:
 
 ```text
-4.4.6
+4.6.2
 ```
 
 Die Version steht im Kopf von `apps-script/Code.gs` und in `BACKEND_VERSION`.
@@ -204,6 +204,12 @@ Wichtige Regel:
 - `4.4.4` ergänzt den virtuellen Warmwasser-Gesamtzähler für historische Werte.
 - `4.4.5` ergänzt einen separaten Duplikat-Report für die `stand_id`-Migration.
 - `4.4.6` löst historische Doppelwerte als Zählerstand plus berechneten Verbrauch auf.
+- `4.5.0` ergänzt die LOK-Zählerstruktur und Eingang-Stammdaten.
+- `4.5.1` teilt LOK Wohnung 10 in A/B/S und lässt `ensureLokStructureData` fehlende LOK-Einheiten anlegen.
+- `4.5.2` stellt LOK auf einheitgebundene `zaehler_id`s nach `Z_{einheit_id}_{medium}` um und deaktiviert alte Kurz-IDs.
+- `4.6.0` ergänzt materialisierte Verbrauchsviews für Monats- und Jahreswerte.
+- `4.6.1` ergänzt kanonische Zuordnung historischer Zählerstand-IDs und einen Audit-View für Verbrauchsdaten.
+- `4.6.2` ergänzt eine Preview-/Report-/Apply-Migration für kanonische Zählerstand-Identitäten.
 - `clasp` ist lokal mit dem bestehenden GAS-Projekt verbunden; `npm run clasp:pull` funktioniert unter Node 22.
 
 ---
@@ -248,7 +254,7 @@ Finaler Prüfstand:
 
 Historische Doppelwerte mit niedrigerem Verbrauchswert und höherem Zählerstand wurden automatisch in getrennte virtuelle Verbrauchszähler umgeschlüsselt.
 
-Optionaler Folgeschritt: Kürzere `zaehler_id`s wie `STROM`, `KW`, `WW` erst in einem separaten Schritt einführen.
+Optionaler Folgeschritt: Historische `zaehler_id`s von Ra-HS-29 erst in einem separaten, kontrollierten Schritt auf das neue einheitgebundene Format migrieren.
 
 ### 3. Ölstand-Plausibilität abgeschlossen
 
@@ -262,6 +268,79 @@ Umgesetzt:
 4. Steigender Ölstand erzeugt eine Warnung für Betankung, Korrektur oder Messfehler.
 5. Überlauf wird für Ölstand in cm nicht angewendet.
 
-### 4. Dashboard/Auswertungen
+### 4. LOK-Zählerstruktur
+
+Der Lokschuppen (`LOK`) wird analog zur neuen Zähleridentität über einheitgebundene `zaehler_id`s aufgebaut.
+
+Aktuelle Modellannahme:
+
+- `LOK_WE_01` bis `LOK_WE_05`: Eingang `A`
+- `LOK_WE_06` bis `LOK_WE_09`: Eingang `B`
+- `LOK_WE_10_A`, `LOK_WE_10_B`, `LOK_WE_10_S`: Eingang `B` vorläufig
+- `LOK_WE_11` bis `LOK_WE_15`: Eingang `C`
+- `LOK_GE_01`: Eingang `A`
+- `LOK_Allgemein`: `Allgemein`
+
+Apps Script `ensureLokStructureData` ergänzt:
+
+- Spalte `eingange` in `Objekte`, falls sie fehlt
+- Spalte `eingang` in `Einheiten`, falls sie fehlt
+- fehlende LOK-Einheiten, z. B. `LOK_WE_10_A`, `LOK_WE_10_B` und `LOK_WE_10_S`
+- fehlende LOK-Zähler in `Zaehler`
+- alte LOK-Kurz-IDs wie `STROM`, `KW`, `WW`, `STROM_ALLGEMEIN` oder `KW_HAUPTZAEHLER` werden deaktiviert und erhalten `ersetzt_durch_zaehler_id`
+
+Die Funktion überschreibt bestehende Eingangswerte nicht, sondern ergänzt nur leere Felder. Falls `LOK_WE_10` bereits durch einen früheren Lauf angelegt wurde, bleibt diese Einheit zunächst unverändert und kann in einem separaten Bereinigungsschritt deaktiviert oder historisch dokumentiert werden.
+
+### 5. Dashboard/Auswertungen
+
+Die erste Dashboard-Version hatte die Verbrauchsberechnung testbar im Frontend vorbereitet. Wegen der historischen Datenqualität und der notwendigen Nachvollziehbarkeit wird die fachliche Verbrauchsberechnung jetzt ins Apps-Script-Backend verschoben.
+
+Umgesetzt mit Backend-Version `4.6.1`:
+
+- `updateVerbrauchViews` baut materialisierte Verbrauchsviews aus `Zaehler`, `Zaehlerstaende`, `Einheiten` und `_view_aktive_mieter`.
+- `_view_verbrauch_monat` enthält die prüfbaren Monatssegmente je Zählerintervall.
+- `_view_verbrauch_jahr` aggregiert daraus Jahreswerte je Objekt, Einheit und Zähler.
+- `_view_verbrauch_audit` prüft pro Zähler, ob Rohwerte, Intervalle und erzeugte View-Zeilen zusammenpassen.
+- Zwei aufeinanderfolgende Ablesepunkte bilden ein Intervall.
+- Intervallverbrauch wird tagesgenau auf Monate verteilt.
+- Warnwerte bleiben sichtbar und werden nicht aus der View entfernt.
+- Rückläufiger Ölstand in cm wird als Verbrauch behandelt.
+- Steigender Ölstand in cm wird als prüfpflichtiger Hinweis markiert.
+- Historische eindeutige Abweichungen wie `Z_STROM_HT_KWH_PRIVAT_HT` werden kanonisch den aktuellen Zähler-Stammdaten zugeordnet.
+- Die Web-App kann die Verbrauchsviews schlank über `?view=verbrauch` abrufen.
+
+Lokale Gegenprüfung mit den Live-Daten vom 2026-06-29:
+
+- 1.910 Zählerstände
+- 4.585 erzeugte Monatszeilen
+- 357 erzeugte Jahreszeilen
+- 180 Audit-Zeilen
+- 0 ungelöste Messwertgruppen
+- `Z_STROM_KWH_PRIVAT_HT`: 51 Rohwerte, 50 Intervalle, 116 Monatssegmente, 9 Jahreszeilen
+
+Kanonische Zählerstand-Migration vorbereitet mit Backend-Version `4.6.2`:
+
+- `previewCanonicalZaehlerstandMigration`
+- `writeCanonicalZaehlerstandMigrationReport`
+- `applyCanonicalZaehlerstandMigration`
+- eindeutige historische Abweichungen werden in `objekt_id`, `einheit_id`, `zaehler_id` und `stand_id` korrigiert
+- Fälle mit leerer Ziel-`einheit_id` im Zählerstamm werden blockiert und als `ZIEL_EINHEIT_FEHLT` gemeldet
+
+Lokale Preview mit Live-Daten vom 2026-07-02:
+
+```json
+{"totalRows":1910,"changedRows":110,"unchangedRows":1738,"unresolvedRows":62,"duplicateRows":0,"missingHeaders":[]}
+```
+
+Nächster sinnvoller Schritt:
+
+- Frontend-Verbrauchsdashboard ist auf `_view_verbrauch_jahr`, `_view_verbrauch_monat` und `_view_verbrauch_audit` umgestellt.
+- Die UI lädt die Verbrauchsviews lazy über `?view=verbrauch`.
+- Initial wird ein Objekt mit vorhandenen Jahreswerten ausgewählt, damit der erste Dashboard-Stand nicht leer startet.
+- Dashboard-Kacheln aggregieren fachlich normalisiert: `Strom HT`/`Strom NT` werden als Medium `Strom` angezeigt, die Unterscheidung bleibt über `Privat HT`/`Privat NT` sichtbar. Wohnungen werden als `Wohnungen` zusammengezogen, Gewerbe wird je Einheit getrennt, und Allgemein/Hauptzähler laufen im Block `Allgemein`.
+- Kachelformel: Für das gewählte Objekt und Jahr werden alle Jahresview-Zeilen mit `in_summe_beruecksichtigen != FALSE` gruppiert nach fachlichem Bereich, Medium-Familie, Qualifier und Einheit summiert. `untergruppe` wird bei Wohnungen bewusst ignoriert, damit historische Zwischenwerte wie `HEIZUNG` nicht als eigene Wohnungs-Kachel erscheinen.
+- Gewerbliche Hauptzähler werden über `einheit_id` (`*_GE_01`, `*_GE_02`) der jeweiligen Gewerbeeinheit zugeordnet. Dadurch werden z.B. `Strom · Black Inn · Privat HT` und `Strom · Kochdippe · Privat HT` getrennt ausgewiesen und nicht zu einer falschen Privat-HT-Summe addiert.
+- Geplante Bilanzkennzahl `Strom · Black Inn`: `Strom · Black Inn · Privat HT + Strom · Black Inn · Privat NT - Strom · Flur - Strom · Heizung - Strom · Black Inn · Büro - Z_STROM_KWH_WOHNUNG_3 - Z_STROM_KWH_WOHNUNG_4`. Wohnung 2 wird explizit nicht abgezogen. Wohnung 1, 5, 10 und 11 werden nach aktuellem Stand nicht abgezogen, da als OVAG-Zähler geführt. Kodi HT/NT bleibt separat, da OVAG und kein Zwischenzähler.
+- Nächster UI-Ausbau: bessere Gruppierung nach Einheit/Medium, Filter für Statusfälle und später visuelle Auswertung.
 
 Spätere Auswertungen sollen den Testbereich `TEST` sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.

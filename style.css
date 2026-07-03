@@ -120,3 +120,20 @@ input[type="number"],
 input[type="text"] {
     max-width: 100%; /* Verhindert das Rausragen definitiv */
 }
+
+.consumption-summary-item {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px;
+}
+
+#consumption-dashboard-output td {
+    padding: 10px;
+    border-bottom: 1px solid #eef2f7;
+    vertical-align: top;
+}
+
+#consumption-dashboard-output tr:last-child td {
+    border-bottom: none;
+}

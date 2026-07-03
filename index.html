@@ -7,11 +7,20 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container" style="max-width: 800px; margin: 0 auto; padding: 20px; font-family: sans-serif;">
+    <div class="container" style="max-width: 1180px; margin: 0 auto; padding: 20px; font-family: sans-serif;">
         <header style="border-bottom: 2px solid #eee; margin-bottom: 20px; padding-bottom: 10px;">
             <h1 style="margin: 0;">Hausverwaltung</h1>
             <div id="sync-status" style="font-size: 0.85em; margin-top: 5px; color: #666;">Prüfe Verbindung...</div>
         </header>
+
+        <nav style="display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap;">
+            <button id="nav-meter-entry" class="tab-btn-active" onclick="uiService.showMeterEntryView()" style="padding:10px 14px; cursor:pointer;">
+                Zähler
+            </button>
+            <button id="nav-consumption-dashboard" class="tab-btn-inactive" onclick="uiService.showConsumptionDashboard()" style="padding:10px 14px; cursor:pointer;">
+                Verbrauch
+            </button>
+        </nav>
 
         <section id="object-selector-section">
             <h2 style="font-size: 1.1em; color: #444;">Haus auswählen:</h2>
@@ -22,6 +31,26 @@
             <div id="tenant-list"></div>
         </section>
 
+        <section id="consumption-dashboard-section" style="display:none;">
+            <div style="display:grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 180px); gap:10px; align-items:end; margin-bottom:12px;">
+                <label style="display:flex; flex-direction:column; gap:4px; font-weight:700; color:#334155;">
+                    Objekt
+                    <select id="consumption-object-select" onchange="this.dataset.userSelected='true'; uiService.renderConsumptionDashboard()"></select>
+                </label>
+                <label style="display:flex; flex-direction:column; gap:4px; font-weight:700; color:#334155;">
+                    Jahr
+                    <select id="consumption-year-select" onchange="this.dataset.userSelected='true'; uiService.renderConsumptionDashboard()"></select>
+                </label>
+            </div>
+
+            <label style="display:flex; align-items:center; gap:8px; margin-bottom:14px; color:#475569; font-weight:700;">
+                <input id="consumption-include-calculated" type="checkbox" checked onchange="uiService.renderConsumptionDashboard()" style="width:auto;">
+                berechnete Zähler anzeigen
+            </label>
+
+            <div id="consumption-dashboard-output"></div>
+        </section>
+
         <div id="modal-container" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;">
             <div style="background:white; width:90%; max-width:500px; margin:50px auto; padding:20px; border-radius:10px; position:relative;">
                 <span style="position:absolute; top:10px; right:15px; font-size:24px; cursor:pointer;" onclick="uiService.closeModal()">&times;</span>
@@ -30,13 +59,13 @@
         </div>
     </div>
     
-    <script src="config.js?v=20260627-backend-4-3-1-deployment"></script>
-    <script src="data-service.js?v=20260628-validation-fallback-v2"></script>
-    <script src="cloud-service.js?v=20260628-validation-fallback-v2"></script>
-    <script src="calc-service.js?v=20260628-validation-fallback-v2"></script>
+    <script src="config.js?v=20260703-consumption-labels-v11"></script>
+    <script src="data-service.js?v=20260702-consumption-views-v7"></script>
+    <script src="cloud-service.js?v=20260703-consumption-labels-v11"></script>
+    <script src="calc-service.js?v=20260702-consumption-views-v7"></script>
 
     <script type="module">
-      import { VALIDATION_STATUS, validateZaehlerstand } from './validation-service.js?v=20260628-validation-fallback-v2';
+      import { VALIDATION_STATUS, validateZaehlerstand } from './validation-service.js?v=20260702-consumption-views-v7';
 
       window.validationService = {
         VALIDATION_STATUS,
@@ -44,7 +73,7 @@
       };
     </script>
 
-    <script src="ui-service.js?v=20260628-validation-fallback-v2"></script>
+    <script src="ui-service.js?v=20260703-consumption-labels-v11"></script>
 
     <script>
     document.addEventListener('DOMContentLoaded', async () => {

@@ -12,7 +12,7 @@ function loadAppsScriptHelpers() {
   );
 
   const factory = new Function(
-    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildMigratedZaehlerstandItem, buildStandId, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedConsumptionMeterSeedDataFromRows, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
+    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeCanonicalZaehlerstandMigrationRows, analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildLokZaehlerId, buildMigratedZaehlerstandItem, buildStandId, buildVerbrauchViewData, calculateVerbrauchDifference, deactivateObsoleteLokShortCodeMeters, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedConsumptionMeterSeedDataFromRows, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getLokEinheitEntranceMapping, getLokEinheitSeedData, getLokReplacementZaehlerId, getLokSeedData, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
   );
 
   return factory();
@@ -22,7 +22,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
   it('declares the current backend version', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
 
-    expect(BACKEND_VERSION).toBe('4.4.6');
+    expect(BACKEND_VERSION).toBe('4.6.2');
   });
 
   it('formats German timestamps for stand_id values', () => {
@@ -40,6 +40,342 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     );
 
     expect(result).toBe('2026-06-02 00:00');
+  });
+
+  it('builds monthly and yearly consumption view rows from meter intervals', () => {
+    const { buildVerbrauchViewData } = loadAppsScriptHelpers();
+
+    const views = buildVerbrauchViewData(
+      {
+        Zaehler: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_01',
+            zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+            medium: 'strom_ht_kwh',
+            bezeichnung: 'Strom Wohnung 1',
+            einheit: 'kWh',
+            einbauort: 'Wohnung',
+            ueberlauf_erlaubt: false,
+            berechnet: false,
+          },
+        ],
+        Zaehlerstaende: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_01',
+            zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+            zeitstempel: '01.11.2023 00:00',
+            wert: 100,
+          },
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_01',
+            zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+            zeitstempel: '01.03.2024 00:00',
+            wert: 200,
+          },
+        ],
+        Einheiten: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_01',
+            nummer: 'Wohnung 1',
+            typ: 'Wohnung',
+          },
+        ],
+        _view_aktive_mieter: [
+          {
+            einheit_id: 'Ra-HS-29_WE_01',
+            mieter_name: 'Duck, Donald',
+          },
+        ],
+      },
+      { berechnetAm: '2026-06-29' }
+    );
+
+    expect(views.monatRows.map(row => row.monat)).toEqual([
+      '2023-11',
+      '2023-12',
+      '2024-01',
+      '2024-02',
+    ]);
+
+    const january = views.monatRows.find(row => row.monat === '2024-01');
+    const year2024 = views.jahrRows.find(row => row.jahr === 2024);
+
+    expect(january.verbrauch_monat).toBeCloseTo((100 * 31) / 121);
+    expect(january.plausibilitaet_status).toBe('OK');
+    expect(january.mieter_name).toBe('Duck, Donald');
+    expect(year2024.verbrauch_jahr).toBeCloseTo((100 * 60) / 121);
+    expect(year2024.verbrauch_monat_durchschnitt).toBeCloseTo(((100 * 60) / 121) / 2);
+    expect(year2024.anzahl_monate_mit_verbrauch).toBe(2);
+  });
+
+  it('assigns historical meter reading ids to canonical meter definitions', () => {
+    const { buildVerbrauchViewData } = loadAppsScriptHelpers();
+
+    const views = buildVerbrauchViewData(
+      {
+        Zaehler: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_02',
+            zaehler_id: 'Z_STROM_KWH_PRIVAT_HT',
+            medium: 'strom_ht_kwh',
+            bezeichnung: 'Strom Hauptzähler (privat HT)',
+            einheit: 'kWh',
+            aktiv: true,
+          },
+        ],
+        Zaehlerstaende: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_02',
+            zaehler_id: 'Z_STROM_HT_KWH_PRIVAT_HT',
+            zeitstempel: '01.01.2025 00:00',
+            wert: 1000,
+          },
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_02',
+            zaehler_id: 'Z_STROM_HT_KWH_PRIVAT_HT',
+            zeitstempel: '01.02.2025 00:00',
+            wert: 1300,
+          },
+        ],
+        Einheiten: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_02',
+            nummer: 'Black Inn',
+            typ: 'Gewerbe',
+          },
+        ],
+      },
+      { berechnetAm: '2026-06-29' }
+    );
+
+    expect(views.monatRows).toHaveLength(1);
+    expect(views.monatRows[0]).toMatchObject({
+      objekt_id: 'Ra-HS-29',
+      einheit_id: 'Ra-HS-29_GE_02',
+      zaehler_id: 'Z_STROM_KWH_PRIVAT_HT',
+      untergruppe: 'PRIVAT_HT',
+      verbrauch_monat: 300,
+    });
+    expect(views.jahrRows[0]).toMatchObject({
+      jahr: 2025,
+      zaehler_id: 'Z_STROM_KWH_PRIVAT_HT',
+      verbrauch_jahr: 300,
+    });
+    expect(views.auditRows[0]).toMatchObject({
+      status: 'KANONISCH_ZUGEORDNET',
+      readings_count: 2,
+      intervalle_count: 1,
+      erwartete_monatszeilen: 1,
+      monatszeilen: 1,
+      jahreszeilen: 1,
+    });
+    expect(views.auditRows[0].source_keys).toContain('Z_STROM_HT_KWH_PRIVAT_HT');
+  });
+
+  it('reports unresolved consumption readings in the audit view', () => {
+    const { buildVerbrauchViewData } = loadAppsScriptHelpers();
+
+    const views = buildVerbrauchViewData(
+      {
+        Zaehler: [],
+        Zaehlerstaende: [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_02',
+            zaehler_id: 'Z_UNBEKANNT',
+            zeitstempel: '01.01.2025 00:00',
+            wert: 1000,
+          },
+        ],
+      },
+      { berechnetAm: '2026-06-29' }
+    );
+
+    expect(views.monatRows).toHaveLength(0);
+    expect(views.jahrRows).toHaveLength(0);
+    expect(views.auditRows).toEqual([
+      expect.objectContaining({
+        status: 'UNGELOESTE_MESSWERTE',
+        objekt_id: 'Ra-HS-29',
+        einheit_id: 'Ra-HS-29_GE_02',
+        zaehler_id: 'Z_UNBEKANNT',
+        readings_count: 1,
+      }),
+    ]);
+  });
+
+  it('previews canonical meter identity updates for historical meter readings', () => {
+    const { analyzeCanonicalZaehlerstandMigrationRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert'];
+    const rows = [
+      [
+        'ST_Ra-HS-29_Ra-HS-29_GE_02_Z_STROM_HT_KWH_PRIVAT_HT_2025-01-01 00:00',
+        'Ra-HS-29',
+        'Ra-HS-29_GE_02',
+        'Z_STROM_HT_KWH_PRIVAT_HT',
+        '01.01.2025 00:00',
+        1000,
+      ],
+      [
+        'ST_Ra-HS-29_Ra-HS-29_GE_02_Z_STROM_KWH_PRIVAT_HT_2025-02-01 00:00',
+        'Ra-HS-29',
+        'Ra-HS-29_GE_02',
+        'Z_STROM_KWH_PRIVAT_HT',
+        '01.02.2025 00:00',
+        1300,
+      ],
+    ];
+    const zaehlerRows = [
+      {
+        objekt_id: 'Ra-HS-29',
+        einheit_id: 'Ra-HS-29_GE_02',
+        zaehler_id: 'Z_STROM_KWH_PRIVAT_HT',
+      },
+    ];
+
+    const result = analyzeCanonicalZaehlerstandMigrationRows(headers, rows, zaehlerRows);
+
+    expect(result).toMatchObject({
+      totalRows: 2,
+      changedRows: 1,
+      unchangedRows: 1,
+      unresolvedRows: 0,
+      duplicateRows: 0,
+      missingHeaders: [],
+    });
+    expect(result.candidates[0]).toMatchObject({
+      row_number: 2,
+      status: 'KANONISCHE_ZAEHLER_ID',
+      old_zaehler_id: 'Z_STROM_HT_KWH_PRIVAT_HT',
+      new_zaehler_id: 'Z_STROM_KWH_PRIVAT_HT',
+      new_stand_id: 'ST_Ra-HS-29_Ra-HS-29_GE_02_Z_STROM_KWH_PRIVAT_HT_2025-01-01 00:00',
+    });
+  });
+
+  it('detects duplicate stand ids before applying canonical meter identity updates', () => {
+    const { analyzeCanonicalZaehlerstandMigrationRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert'];
+    const rows = [
+      [
+        'ST_OLD_ALIAS',
+        'Ra-HS-29',
+        'Ra-HS-29_GE_02',
+        'Z_STROM_HT_KWH_PRIVAT_HT',
+        '01.01.2025 00:00',
+        1000,
+      ],
+      [
+        'ST_Ra-HS-29_Ra-HS-29_GE_02_Z_STROM_KWH_PRIVAT_HT_2025-01-01 00:00',
+        'Ra-HS-29',
+        'Ra-HS-29_GE_02',
+        'Z_STROM_KWH_PRIVAT_HT',
+        '01.01.2025 00:00',
+        1000,
+      ],
+    ];
+    const zaehlerRows = [
+      {
+        objekt_id: 'Ra-HS-29',
+        einheit_id: 'Ra-HS-29_GE_02',
+        zaehler_id: 'Z_STROM_KWH_PRIVAT_HT',
+      },
+    ];
+
+    const result = analyzeCanonicalZaehlerstandMigrationRows(headers, rows, zaehlerRows);
+
+    expect(result.changedRows).toBe(1);
+    expect(result.duplicateRows).toBe(1);
+    expect(result.duplicates[0]).toMatchObject({
+      row_number: 2,
+      new_stand_id: 'ST_Ra-HS-29_Ra-HS-29_GE_02_Z_STROM_KWH_PRIVAT_HT_2025-01-01 00:00',
+      duplicate_count: 2,
+    });
+  });
+
+  it('blocks canonical meter identity updates when the target unit is empty', () => {
+    const { analyzeCanonicalZaehlerstandMigrationRows } = loadAppsScriptHelpers();
+    const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert'];
+    const rows = [
+      [
+        'ST_Ra-HS-29_Ra-HS-29_Allgemein_Z_OEL_GETANKT_LITER_2025-12-23 00:00',
+        'Ra-HS-29',
+        'Ra-HS-29_Allgemein',
+        'Z_OEL_GETANKT_LITER',
+        '23.12.2025 00:00',
+        3000,
+      ],
+    ];
+    const zaehlerRows = [
+      {
+        objekt_id: 'Ra-HS-29',
+        einheit_id: '',
+        zaehler_id: 'Z_OEL_GETANKT_LITER',
+      },
+    ];
+
+    const result = analyzeCanonicalZaehlerstandMigrationRows(headers, rows, zaehlerRows);
+
+    expect(result).toMatchObject({
+      changedRows: 0,
+      unresolvedRows: 1,
+      duplicateRows: 0,
+    });
+    expect(result.unresolved[0]).toMatchObject({
+      status: 'ZIEL_EINHEIT_FEHLT',
+      old_einheit_id: 'Ra-HS-29_Allgemein',
+      old_zaehler_id: 'Z_OEL_GETANKT_LITER',
+    });
+  });
+
+  it('keeps overflow consumption visible as a reviewable warning', () => {
+    const { calculateVerbrauchDifference } = loadAppsScriptHelpers();
+
+    const result = calculateVerbrauchDifference(890, 188, {
+      medium: 'kaltwasser_m3',
+      stellen: 4,
+      ueberlauf_erlaubt: true,
+    });
+
+    expect(result).toMatchObject({
+      verbrauch: 9298,
+      methode: 'UEBERLAUF',
+      status: 'WARNUNG_UEBERLAUF',
+      pruefung: true,
+      inSumme: true,
+    });
+  });
+
+  it('calculates falling oil fill levels as consumption and rising levels as warnings', () => {
+    const { calculateVerbrauchDifference } = loadAppsScriptHelpers();
+
+    const falling = calculateVerbrauchDifference(55, 43, {
+      medium: 'oel_stand_cm',
+    });
+    const rising = calculateVerbrauchDifference(43, 55, {
+      medium: 'oel_stand_cm',
+    });
+
+    expect(falling).toMatchObject({
+      verbrauch: 12,
+      methode: 'OEL_FUELLSTAND',
+      status: 'OK',
+      inSumme: true,
+    });
+    expect(rising).toMatchObject({
+      verbrauch: 0,
+      methode: 'OEL_FUELLSTAND',
+      status: 'WARNUNG_FUELLSTAND_GESTIEGEN',
+      pruefung: true,
+      inSumme: true,
+    });
   });
 
   it('builds compact stand_id values from object, unit, meter and timestamp', () => {
@@ -280,6 +616,156 @@ describe('Apps Script Zaehlerstaende helpers', () => {
         }),
       ])
     );
+  });
+
+  it('defines LOK entrance metadata and unit-scoped meter ids', () => {
+    const {
+      buildLokZaehlerId,
+      getLokEinheitEntranceMapping,
+      getLokEinheitSeedData,
+      getLokReplacementZaehlerId,
+      getLokSeedData,
+    } = loadAppsScriptHelpers();
+
+    const mapping = getLokEinheitEntranceMapping();
+    const einheiten = getLokEinheitSeedData();
+    const seed = getLokSeedData();
+
+    expect(mapping).toMatchObject({
+      LOK_WE_01: 'A',
+      LOK_WE_05: 'A',
+      LOK_WE_06: 'B',
+      LOK_WE_10_A: 'B',
+      LOK_WE_10_B: 'B',
+      LOK_WE_10_S: 'B',
+      LOK_WE_11: 'C',
+      LOK_WE_15: 'C',
+      LOK_GE_01: 'A',
+      LOK_Allgemein: 'Allgemein',
+    });
+    expect(mapping).not.toHaveProperty('LOK_WE_10');
+    expect(seed.objekte).toEqual([
+      expect.objectContaining({
+        objekt_id: 'LOK',
+        eingange: 'A,B,C',
+      }),
+    ]);
+    expect(einheiten).toHaveLength(19);
+    expect(seed.einheiten).toHaveLength(19);
+    expect(seed.einheiten).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          einheit_id: 'LOK_WE_01',
+          nummer: 'Wohnung 1',
+          eingang: 'A',
+        }),
+        expect.objectContaining({
+          einheit_id: 'LOK_WE_10_A',
+          nummer: 'Wohnung 10 A',
+          eingang: 'B',
+        }),
+        expect.objectContaining({
+          einheit_id: 'LOK_WE_10_B',
+          nummer: 'Wohnung 10 B',
+          eingang: 'B',
+        }),
+        expect.objectContaining({
+          einheit_id: 'LOK_WE_10_S',
+          nummer: 'Wohnung 10 S',
+          eingang: 'B',
+        }),
+        expect.objectContaining({
+          einheit_id: 'LOK_WE_11',
+          eingang: 'C',
+        }),
+      ])
+    );
+    expect(seed.zaehler).toHaveLength(60);
+    expect(buildLokZaehlerId('LOK_WE_10_A', 'strom_ht_kwh')).toBe('Z_LOK_WE_10_A_strom_ht_kwh');
+    expect(buildLokZaehlerId('LOK_Allgemein', 'kaltwasser_m3', 'hauptzaehler')).toBe(
+      'Z_LOK_Allgemein_kaltwasser_m3_hauptzaehler'
+    );
+    expect(getLokReplacementZaehlerId('LOK_WE_10_A', 'STROM')).toBe('Z_LOK_WE_10_A_strom_ht_kwh');
+    expect(getLokReplacementZaehlerId('LOK_Allgemein', 'KW_HAUPTZAEHLER')).toBe(
+      'Z_LOK_Allgemein_kaltwasser_m3_hauptzaehler'
+    );
+    expect(seed.zaehler).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          objekt_id: 'LOK',
+          einheit_id: 'LOK_WE_01',
+          zaehler_id: 'Z_LOK_WE_01_strom_ht_kwh',
+          medium: 'strom_ht_kwh',
+          einbauort: 'Eingang A',
+        }),
+        expect.objectContaining({
+          objekt_id: 'LOK',
+          einheit_id: 'LOK_WE_01',
+          zaehler_id: 'Z_LOK_WE_01_kaltwasser_m3',
+          medium: 'kaltwasser_m3',
+        }),
+        expect.objectContaining({
+          objekt_id: 'LOK',
+          einheit_id: 'LOK_WE_01',
+          zaehler_id: 'Z_LOK_WE_01_warmwasser_m3',
+          medium: 'warmwasser_m3',
+        }),
+        expect.objectContaining({
+          objekt_id: 'LOK',
+          einheit_id: 'LOK_WE_10_S',
+          zaehler_id: 'Z_LOK_WE_10_S_warmwasser_m3',
+          bezeichnung: 'Warmwasser Wohnung 10 S',
+          einbauort: 'Eingang B',
+        }),
+        expect.objectContaining({
+          objekt_id: 'LOK',
+          einheit_id: 'LOK_Allgemein',
+          zaehler_id: 'Z_LOK_Allgemein_oel_stand_cm',
+          medium: 'oel_stand_cm',
+          ueberlauf_erlaubt: false,
+        }),
+      ])
+    );
+  });
+
+  it('deactivates obsolete LOK short meter ids idempotently', () => {
+    const { deactivateObsoleteLokShortCodeMeters } = loadAppsScriptHelpers();
+    const rows = [
+      ['objekt_id', 'einheit_id', 'zaehler_id', 'aktiv', 'erfassbar', 'ersetzt_durch_zaehler_id', 'hinweis'],
+      ['LOK', 'LOK_WE_10_A', 'STROM', true, true, '', ''],
+      ['LOK', 'LOK_WE_10_A', 'Z_LOK_WE_10_A_strom_ht_kwh', true, true, '', ''],
+      ['TEST', 'TEST_WE_01', 'STROM', true, true, '', ''],
+    ];
+    const sheet = {
+      getDataRange() {
+        return {
+          getValues() {
+            return rows.map(row => [...row]);
+          },
+        };
+      },
+      getRange(rowNumber, columnNumber) {
+        return {
+          setValue(value) {
+            rows[rowNumber - 1][columnNumber - 1] = value;
+          },
+        };
+      },
+    };
+
+    expect(deactivateObsoleteLokShortCodeMeters(sheet)).toBe(1);
+    expect(rows[1]).toEqual([
+      'LOK',
+      'LOK_WE_10_A',
+      'STROM',
+      false,
+      false,
+      'Z_LOK_WE_10_A_strom_ht_kwh',
+      'Veraltete LOK-Kurz-ID; ersetzt durch einheitgebundene zaehler_id.',
+    ]);
+    expect(rows[2][3]).toBe(true);
+    expect(rows[3][3]).toBe(true);
+    expect(deactivateObsoleteLokShortCodeMeters(sheet)).toBe(0);
   });
 
   it('resolves tenant names from Vertragsparteien first', () => {
