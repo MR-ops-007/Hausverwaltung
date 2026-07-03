@@ -509,10 +509,15 @@ const uiService = {
     return match ? Number(match[1]) : 999;
   },
 
+  isConsumptionCommercialUnit(row) {
+    const unitId = String(row && row.einheit_id ? row.einheit_id : '');
+    return /_GE_\d+/i.test(unitId);
+  },
+
   getConsumptionSummarySection(row) {
     const group = String(row && row.verbrauchsgruppe ? row.verbrauchsgruppe : '').toUpperCase();
 
-    if (group === 'GEWERBE') {
+    if (group === 'GEWERBE' || this.isConsumptionCommercialUnit(row)) {
       const unitNumber = this.getConsumptionUnitSortNumber(row);
       return {
         key: `GEWERBE|${row.einheit_id || row.einheit_name || unitNumber}`,
@@ -540,8 +545,10 @@ const uiService = {
       return 'Wohnungen';
     }
 
-    if (group === 'GEWERBE') {
-      return row.einheit_name || this.getConsumptionGroupLabel(group);
+    if (group === 'GEWERBE' || this.isConsumptionCommercialUnit(row)) {
+      const unitLabel = row.einheit_name || this.getConsumptionGroupLabel('GEWERBE');
+      const subgroupLabel = this.getConsumptionSubgroupLabel(subgroup);
+      return subgroupLabel ? `${unitLabel} · ${subgroupLabel}` : unitLabel;
     }
 
     if (subgroup) {
@@ -732,6 +739,7 @@ const uiService = {
     const userSelectedObject = objectSelect.dataset && objectSelect.dataset.userSelected === 'true';
     const requestedYear = yearSelect.value;
 
+    this.renderConsumptionDashboardControls();
     output.innerHTML = '<div style="padding:12px; background:white; border:1px solid #e2e8f0; border-radius:8px;">Verbrauchsviews werden geladen...</div>';
 
     try {

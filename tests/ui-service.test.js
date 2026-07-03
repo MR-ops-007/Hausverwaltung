@@ -353,6 +353,24 @@ describe('uiService consumption dashboard', () => {
             plausibilitaet_status: 'OK',
             in_summe_beruecksichtigen: true,
           },
+          {
+            jahr: 2026,
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_GE_01',
+            einheit_name: 'Kochdippe',
+            mieter_name: 'Leerstand',
+            verbrauchsgruppe: 'HAUPTZAEHLER',
+            untergruppe: 'PRIVAT_HT',
+            zaehler_id: 'Z_STROM_KWH_KODI_HT',
+            medium: 'strom_ht_kwh',
+            bezeichnung: 'Strom Hauptzähler (Imbiss HT)',
+            verbrauch_jahr: 50,
+            verbrauch_monat_durchschnitt: 8.33,
+            anzahl_monate_mit_verbrauch: 6,
+            anzahl_warnungen: 0,
+            plausibilitaet_status: 'OK',
+            in_summe_beruecksichtigen: true,
+          },
         ],
         '_view_verbrauch_monat': [],
         '_view_verbrauch_audit': [
@@ -387,8 +405,12 @@ describe('uiService consumption dashboard', () => {
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Donald Duck');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom Wohnung 1');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Wohnungen');
-    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Privat HT');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Black Inn · Privat HT');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Kochdippe · Privat HT');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('253 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('100 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('50 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).not.toContain('150 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).not.toContain('353 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('2 Rohwerte');
   });
