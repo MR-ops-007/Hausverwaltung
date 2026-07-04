@@ -689,7 +689,24 @@ const uiService = {
       dataService.state.view_verbrauch_monat = data["_view_verbrauch_monat"] || [];
       dataService.state.view_verbrauch_jahr = data["_view_verbrauch_jahr"] || [];
       dataService.state.view_verbrauch_audit = data["_view_verbrauch_audit"] || [];
+      dataService.state.view_verbrauch_bilanz_jahr = data["_view_verbrauch_bilanz_jahr"] || [];
     }
+  },
+
+  buildConsumptionBalanceSummary(rows) {
+    return (rows || [])
+      .map(row => ({
+        label: row.label || row.bilanz_id || 'Bilanz',
+        einheit: row.einheit || '',
+        verbrauch: this.toDashboardNumber(row.wert) || 0,
+        zaehler_count: row.source_zaehler_ids
+          ? String(row.source_zaehler_ids).split(',').filter(Boolean).length
+          : 0,
+        warnungen: String(row.plausibilitaet_status || '') === 'OK' ? 0 : 1,
+        status: row.plausibilitaet_status || 'OK',
+        formel: row.formel_text || ''
+      }))
+      .sort((a, b) => String(a.label).localeCompare(String(b.label), 'de'));
   },
 
   setNavigationState(activeView) {
@@ -809,7 +826,11 @@ const uiService = {
       .filter(row => String(row.objekt_id) === String(objektId))
       .filter(row => String(row.jahr) === String(year))
       .filter(row => includeCalculated || String(row.verbrauchsgruppe).toUpperCase() !== 'BERECHNET');
+    const selectedBalanceRows = (Array.isArray(dataService.state.view_verbrauch_bilanz_jahr) ? dataService.state.view_verbrauch_bilanz_jahr : [])
+      .filter(row => String(row.objekt_id) === String(objektId))
+      .filter(row => String(row.jahr) === String(year));
     const previousYearMap = this.buildConsumptionPreviousYearMap(allRows);
+    const balanceSummary = this.buildConsumptionBalanceSummary(selectedBalanceRows);
     const summary = this.buildConsumptionSummaryFromViews(selectedRows);
     const auditRows = (Array.isArray(dataService.state.view_verbrauch_audit) ? dataService.state.view_verbrauch_audit : [])
       .filter(row => String(row.objekt_id) === String(objektId));
@@ -835,6 +856,17 @@ const uiService = {
         `)
         .join('')
       : '<div style="color:#64748b;">Keine Summen verfügbar.</div>';
+    const balanceSummaryHtml = balanceSummary.length > 0
+      ? balanceSummary
+        .map(item => `
+          <div class="consumption-summary-item" style="border-color:#bfdbfe; background:#eff6ff;">
+            <div style="font-size:0.75rem; color:#1d4ed8; font-weight:800;">${this.escapeHtml(item.label)}</div>
+            <div style="font-size:1.15rem; font-weight:900; color:#0f172a;">${this.formatDashboardNumber(item.verbrauch)} ${this.escapeHtml(item.einheit || '')}</div>
+            <div style="font-size:0.75rem; color:#475569;">${item.zaehler_count} Quellen${item.warnungen ? ` · ${this.escapeHtml(item.status)}` : ''}</div>
+          </div>
+        `)
+        .join('')
+      : '';
     const rowsHtml = sortedRows.length > 0
       ? sortedRows.map(row => {
         const audit = this.getConsumptionAuditForRow(row, auditByMeter);
@@ -893,6 +925,7 @@ const uiService = {
       </div>
 
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px; margin-bottom:14px;">
+        ${balanceSummaryHtml}
         ${summaryHtml}
       </div>
 

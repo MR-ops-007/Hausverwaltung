@@ -335,12 +335,13 @@ Lokale Preview mit Live-Daten vom 2026-07-02:
 Nächster sinnvoller Schritt:
 
 - Frontend-Verbrauchsdashboard ist auf `_view_verbrauch_jahr`, `_view_verbrauch_monat` und `_view_verbrauch_audit` umgestellt.
+- Backend erzeugt zusätzlich `_view_verbrauch_bilanz_jahr` für fachlich berechnete Jahreskennzahlen.
 - Die UI lädt die Verbrauchsviews lazy über `?view=verbrauch`.
 - Initial wird ein Objekt mit vorhandenen Jahreswerten ausgewählt, damit der erste Dashboard-Stand nicht leer startet.
 - Dashboard-Kacheln aggregieren fachlich normalisiert: `Strom HT`/`Strom NT` werden als Medium `Strom` angezeigt, die Unterscheidung bleibt über `Privat HT`/`Privat NT` sichtbar. Wohnungen werden als `Wohnungen` zusammengezogen, Gewerbe wird je Einheit getrennt, und Allgemein/Hauptzähler laufen im Block `Allgemein`.
 - Kachelformel: Für das gewählte Objekt und Jahr werden alle Jahresview-Zeilen mit `in_summe_beruecksichtigen != FALSE` gruppiert nach fachlichem Bereich, Medium-Familie, Qualifier und Einheit summiert. `untergruppe` wird bei Wohnungen bewusst ignoriert, damit historische Zwischenwerte wie `HEIZUNG` nicht als eigene Wohnungs-Kachel erscheinen.
 - Gewerbliche Hauptzähler werden über `einheit_id` (`*_GE_01`, `*_GE_02`) der jeweiligen Gewerbeeinheit zugeordnet. Dadurch werden z.B. `Strom · Black Inn · Privat HT` und `Strom · Kochdippe · Privat HT` getrennt ausgewiesen und nicht zu einer falschen Privat-HT-Summe addiert.
-- Geplante Bilanzkennzahl `Strom · Black Inn`: `Strom · Black Inn · Privat HT + Strom · Black Inn · Privat NT - Strom · Flur - Strom · Heizung - Strom · Black Inn · Büro - Z_STROM_KWH_WOHNUNG_3 - Z_STROM_KWH_WOHNUNG_4`. Wohnung 2 wird explizit nicht abgezogen. Wohnung 1, 5, 10 und 11 werden nach aktuellem Stand nicht abgezogen, da als OVAG-Zähler geführt. Kodi HT/NT bleibt separat, da OVAG und kein Zwischenzähler.
+- Bilanzkennzahl `Strom · Black Inn`: `Strom · Black Inn · Privat HT + Strom · Black Inn · Privat NT - Strom · Flur - Strom · Heizung - Strom · Black Inn · Büro - Z_STROM_KWH_WOHNUNG_3 - Z_STROM_KWH_WOHNUNG_4`. Wohnung 2 wird explizit nicht abgezogen. Wohnung 1, 5, 10 und 11 werden nach aktuellem Stand nicht abgezogen, da als OVAG-Zähler geführt. Kodi HT/NT bleibt separat, da OVAG und kein Zwischenzähler.
 - Nächster UI-Ausbau: bessere Gruppierung nach Einheit/Medium, Filter für Statusfälle und später visuelle Auswertung.
 
 Spätere Auswertungen sollen den Testbereich `TEST` sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.

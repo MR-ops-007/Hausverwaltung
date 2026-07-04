@@ -12,6 +12,7 @@ function loadUiService({
   viewVerbrauchJahr = [],
   viewVerbrauchMonat = [],
   viewVerbrauchAudit = [],
+  viewVerbrauchBilanzJahr = [],
   consumptionData = null,
   calcService = {
     buildConsumptionDashboard() {
@@ -44,11 +45,13 @@ function loadUiService({
       view_verbrauch_jahr: viewVerbrauchJahr,
       view_verbrauch_monat: viewVerbrauchMonat,
       view_verbrauch_audit: viewVerbrauchAudit,
+      view_verbrauch_bilanz_jahr: viewVerbrauchBilanzJahr,
     },
     setConsumptionData(data) {
       this.state.view_verbrauch_jahr = data['_view_verbrauch_jahr'] || [];
       this.state.view_verbrauch_monat = data['_view_verbrauch_monat'] || [];
       this.state.view_verbrauch_audit = data['_view_verbrauch_audit'] || [];
+      this.state.view_verbrauch_bilanz_jahr = data['_view_verbrauch_bilanz_jahr'] || [];
     },
     getUniqueObjects() {
       return Array.isArray(this.state.objekte)
@@ -68,6 +71,7 @@ function loadUiService({
         '_view_verbrauch_jahr': viewVerbrauchJahr,
         '_view_verbrauch_monat': viewVerbrauchMonat,
         '_view_verbrauch_audit': viewVerbrauchAudit,
+        '_view_verbrauch_bilanz_jahr': viewVerbrauchBilanzJahr,
       };
     },
     async saveTransaction(payload) {
@@ -419,6 +423,23 @@ describe('uiService consumption dashboard', () => {
             intervalle_count: 1,
           },
         ],
+        '_view_verbrauch_bilanz_jahr': [
+          {
+            jahr: 2026,
+            objekt_id: 'Ra-HS-29',
+            bilanz_id: 'BILANZ_STROM_BLACK_INN',
+            label: 'Strom · Black Inn',
+            medium: 'strom_ht_nt_kwh',
+            einheit: 'kWh',
+            wert: 123,
+            wert_monat_durchschnitt: 20.5,
+            anzahl_monate_mit_verbrauch: 6,
+            source_zaehler_ids: 'Z_STROM_KWH_PRIVAT_HT, Z_STROM_KWH_PRIVAT_NT, Z_STROM_KWH_WOHNUNG_3, Z_STROM_KWH_WOHNUNG_4',
+            missing_source_zaehler_ids: '',
+            formel_text: 'Privat HT + Privat NT - Flur - Heizung - Büro - Wohnung 3 - Wohnung 4',
+            plausibilitaet_status: 'OK',
+          },
+        ],
       },
       calcService: {
         buildConsumptionDashboard(data, options) {
@@ -441,6 +462,7 @@ describe('uiService consumption dashboard', () => {
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Donald Duck');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom Wohnung 1');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Wohnungen');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Black Inn');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Black Inn · Privat HT');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Black Inn · Büro');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Kochdippe · Privat HT');
@@ -448,6 +470,7 @@ describe('uiService consumption dashboard', () => {
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('253 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('100 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('50 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('123 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('25 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('20 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Ø Monat: 1,67 kWh');
