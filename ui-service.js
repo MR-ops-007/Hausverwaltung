@@ -759,6 +759,7 @@ const uiService = {
           medium: row.medium || 'Ohne Medium',
           label,
           einheit,
+          sectionKey: section.key,
           sectionOrder: section.order,
           mediumOrder: this.getConsumptionMediumSortOrder(row.medium),
           verbrauch: 0,
@@ -802,6 +803,7 @@ const uiService = {
         medium: row.medium || 'Ohne Medium',
         label,
         einheit,
+        sectionKey: this.getConsumptionSummarySection(row).key,
         sectionOrder: this.getConsumptionSummarySection(row).order,
         mediumOrder: this.getConsumptionMediumSortOrder(row.medium),
         verbrauch: null,
@@ -816,6 +818,59 @@ const uiService = {
       a.mediumOrder - b.mediumOrder ||
       String(a.label).localeCompare(String(b.label), 'de')
     ));
+  },
+
+  getConsumptionCardBlockOrder(item) {
+    const mediumFamily = this.getConsumptionMediumFamily(item && item.medium);
+    const sectionKey = String(item && item.sectionKey ? item.sectionKey : '').toUpperCase();
+    const label = String(item && item.label ? item.label : '').toUpperCase();
+
+    if (mediumFamily === 'OEL') return 40;
+    if (sectionKey.indexOf('WOHNUNG') !== -1 || label.indexOf('WOHNUNG') !== -1) return 30;
+    if (
+      sectionKey.indexOf('GEWERBE') !== -1 ||
+      label.indexOf('BLACK INN') !== -1 ||
+      label.indexOf('KODI') !== -1 ||
+      label.indexOf('KOCHDIPPE') !== -1
+    ) {
+      return 20;
+    }
+
+    return 10;
+  },
+
+  getConsumptionRowStatus(row, audit) {
+    if (row && row.is_missing_for_year) return 'KEINE_WERTE';
+
+    if (row && row.plausibilitaet_status && row.plausibilitaet_status !== 'OK') {
+      return row.plausibilitaet_status;
+    }
+
+    return audit && audit.status ? audit.status : 'OK';
+  },
+
+  getConsumptionRowHint(row, audit) {
+    if (row && row.plausibilitaet_status && row.plausibilitaet_status !== 'OK') {
+      return row.plausibilitaet_status;
+    }
+
+    return audit && audit.hinweis ? audit.hinweis : '';
+  },
+
+  isConsumptionWarningStatus(status) {
+    return !['OK', 'KANONISCH_ZUGEORDNET', 'KEINE_WERTE'].includes(String(status || ''));
+  },
+
+  filterConsumptionRowsByStatus(rows, filterValue) {
+    if (filterValue === 'missing') {
+      return rows.filter(row => row.status === 'KEINE_WERTE');
+    }
+
+    if (filterValue === 'warnings') {
+      return rows.filter(row => this.isConsumptionWarningStatus(row.status));
+    }
+
+    return rows;
   },
 
   async ensureConsumptionViewData() {
@@ -846,6 +901,10 @@ const uiService = {
     return (rows || [])
       .map(row => ({
         label: row.label || row.bilanz_id || 'Bilanz',
+        medium: row.medium || '',
+        sectionKey: 'GEWERBE',
+        sectionOrder: 20,
+        mediumOrder: this.getConsumptionMediumSortOrder(row.medium),
         einheit: row.einheit || '',
         verbrauch: this.toDashboardNumber(row.wert) || 0,
         zaehler_count: row.source_zaehler_ids
@@ -853,9 +912,16 @@ const uiService = {
           : 0,
         warnungen: String(row.plausibilitaet_status || '') === 'OK' ? 0 : 1,
         status: row.plausibilitaet_status || 'OK',
-        formel: row.formel_text || ''
+        formel: row.formel_text || '',
+        source_zaehler_ids: row.source_zaehler_ids || '',
+        missing_source_zaehler_ids: row.missing_source_zaehler_ids || '',
+        isBalance: true
       }))
-      .sort((a, b) => String(a.label).localeCompare(String(b.label), 'de'));
+      .sort((a, b) => (
+        this.getConsumptionCardBlockOrder(a) - this.getConsumptionCardBlockOrder(b) ||
+        a.mediumOrder - b.mediumOrder ||
+        String(a.label).localeCompare(String(b.label), 'de')
+      ));
   },
 
   isConsumptionSummaryCoveredByBalance(row, balanceRows) {
@@ -947,6 +1013,7 @@ const uiService = {
     const objectSelect = document.getElementById('consumption-object-select');
     const yearSelect = document.getElementById('consumption-year-select');
     const includeCalculatedInput = document.getElementById('consumption-include-calculated');
+    const statusFilterInput = document.getElementById('consumption-status-filter');
 
     if (!output || !objectSelect || !yearSelect) return;
 
@@ -983,6 +1050,7 @@ const uiService = {
     }
 
     const includeCalculated = includeCalculatedInput ? includeCalculatedInput.checked : true;
+    const statusFilter = statusFilterInput ? statusFilterInput.value || 'all' : 'all';
 
     if (!objektId) {
       output.innerHTML = '<div style="padding:12px; background:white; border:1px solid #e2e8f0; border-radius:8px;">Keine Objektdaten geladen.</div>';
@@ -1020,48 +1088,52 @@ const uiService = {
         String(a.bezeichnung).localeCompare(String(b.bezeichnung), 'de')
       ));
     const missingSummary = this.buildConsumptionMissingSummaryFromRows(displayRows, summary, effectiveBalanceRows);
-    const visibleSummary = summary.concat(missingSummary)
+    const visibleCards = balanceSummary.concat(summary, missingSummary)
       .sort((a, b) => (
-        a.sectionOrder - b.sectionOrder ||
+        this.getConsumptionCardBlockOrder(a) - this.getConsumptionCardBlockOrder(b) ||
         a.mediumOrder - b.mediumOrder ||
         String(a.label).localeCompare(String(b.label), 'de')
       ));
-    const summaryHtml = visibleSummary.length > 0
-      ? visibleSummary
+    const summaryHtml = visibleCards.length > 0
+      ? visibleCards
         .map(item => `
-          <div class="consumption-summary-item">
-            <div style="font-size:0.75rem; color:#64748b; font-weight:700;">${this.escapeHtml(item.label || item.medium || 'Ohne Medium')}</div>
+          <div class="consumption-summary-item${item.isBalance ? ' consumption-summary-balance' : ''}">
+            <div style="font-size:0.75rem; color:${item.isBalance ? '#1d4ed8' : '#64748b'}; font-weight:800;">${this.escapeHtml(item.label || item.medium || 'Ohne Medium')}</div>
             <div style="font-size:1.15rem; font-weight:900; color:#0f172a;">${item.missing ? 'Keine Werte' : `${this.formatDashboardNumber(item.verbrauch)} ${this.escapeHtml(item.einheit || '')}`}</div>
-            <div style="font-size:0.75rem; color:#64748b;">${item.zaehler_count} Zähler${item.warnungen ? ` · ${item.warnungen} Warnungen` : ''}</div>
-          </div>
-        `)
-        .join('')
-      : '<div style="color:#64748b;">Keine Summen verfügbar.</div>';
-    const balanceSummaryHtml = balanceSummary.length > 0
-      ? balanceSummary
-        .map(item => `
-          <div class="consumption-summary-item" style="border-color:#bfdbfe; background:#eff6ff;">
-            <div style="font-size:0.75rem; color:#1d4ed8; font-weight:800;">${this.escapeHtml(item.label)}</div>
-            <div style="font-size:1.15rem; font-weight:900; color:#0f172a;">${this.formatDashboardNumber(item.verbrauch)} ${this.escapeHtml(item.einheit || '')}</div>
-            <div style="font-size:0.75rem; color:#475569;">${item.zaehler_count} Quellen${item.warnungen ? ` · ${this.escapeHtml(item.status)}` : ''}</div>
+            <div style="font-size:0.75rem; color:#64748b;">${item.zaehler_count} ${item.isBalance ? 'Quellen' : 'Zähler'}${item.warnungen ? ` · ${this.escapeHtml(item.status || `${item.warnungen} Warnungen`)}` : ''}</div>
+            ${item.isBalance ? `
+              <details class="consumption-card-details">
+                <summary>Formel und Quellen</summary>
+                <div><strong>Formel:</strong> ${this.escapeHtml(item.formel || 'Keine Formel hinterlegt')}</div>
+                <div><strong>Quellen:</strong> ${this.escapeHtml(item.source_zaehler_ids || 'Keine Quellen hinterlegt')}</div>
+                ${item.missing_source_zaehler_ids ? `<div><strong>Fehlend:</strong> ${this.escapeHtml(item.missing_source_zaehler_ids)}</div>` : ''}
+              </details>
+            ` : ''}
           </div>
         `)
         .join('')
       : '';
-    const rowsHtml = sortedRows.length > 0
-      ? sortedRows.map(row => {
+    const decoratedRows = sortedRows.map(row => {
         const audit = this.getConsumptionAuditForRow(row, auditByMeter);
+        const status = this.getConsumptionRowStatus(row, audit);
+        const hint = this.getConsumptionRowHint(row, audit);
+
+        return {
+          ...row,
+          audit,
+          status,
+          hint
+        };
+      });
+    const filteredRows = this.filterConsumptionRowsByStatus(decoratedRows, statusFilter);
+    const rowsHtml = filteredRows.length > 0
+      ? filteredRows.map(row => {
+        const audit = row.audit;
         const unit = this.getConsumptionDisplayUnit(row);
         const unitLabel = this.getConsumptionRowUnitLabel(row);
         const previousYearRow = this.getConsumptionPreviousYearRow(row, previousYearMap);
-        const status = row.is_missing_for_year
-          ? 'KEINE_WERTE'
-          : row.plausibilitaet_status && row.plausibilitaet_status !== 'OK'
-          ? row.plausibilitaet_status
-          : (audit && audit.status ? audit.status : 'OK');
-        const hint = row.plausibilitaet_status && row.plausibilitaet_status !== 'OK'
-          ? row.plausibilitaet_status
-          : (audit && audit.hinweis ? audit.hinweis : '');
+        const status = row.status;
+        const hint = row.hint;
 
         return `
           <tr>
@@ -1100,19 +1172,19 @@ const uiService = {
           </tr>
         `;
       }).join('')
-      : '<tr><td colspan="6" style="padding:14px; color:#64748b;">Keine Zähler für Auswahl gefunden.</td></tr>';
+      : '<tr><td colspan="6" style="padding:14px; color:#64748b;">Keine Zähler für diesen Filter gefunden.</td></tr>';
 
     output.innerHTML = `
       <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; color:#475569; font-size:0.85rem;">
         <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${this.escapeHtml(year)} · ${this.escapeHtml(this.getObjectDisplayName(objektId))}</span>
         <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${sortedRows.length} Jahreszeilen</span>
+        <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${filteredRows.length} angezeigt</span>
         <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${openAuditRows.length} offene Audit-Hinweise</span>
         <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${canonicalAuditRows.length} historisch zugeordnet</span>
         <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">Summen nach Medium und Gruppe</span>
       </div>
 
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px; margin-bottom:14px;">
-        ${balanceSummaryHtml}
         ${summaryHtml}
       </div>
 
