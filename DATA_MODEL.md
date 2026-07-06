@@ -421,6 +421,17 @@ Wichtige Felder:
 
 **Konsistenz-Regel:** Die Verbrauchsviews und der Audit-View sind reine Read-Only-Caches. Fachliche Korrekturen erfolgen in den Quelltabellen oder über dokumentierte Migrationsfunktionen, nicht direkt in den View-Sheets.
 
+### UI-Regeln für Verbrauchsansicht
+Die Verbrauchsansicht verwendet `_view_verbrauch_jahr` als feste Zählerbasis pro Objekt. Für ein gewähltes Jahr dürfen Zähler nicht nur deshalb verschwinden, weil in diesem Jahr kein Jahreswert berechnet wurde.
+
+Anzeige-Regeln:
+
+- Die Detailtabelle wird aus allen bekannten Jahresview-Zählern des gewählten Objekts aufgebaut.
+- Gibt es für den gewählten Zähler im gewählten Jahr keinen Jahreswert, zeigt die UI die Zeile trotzdem mit Status `Keine Werte`.
+- Der Vorjahresverbrauch wird zusätzlich angezeigt, sofern eine passende Jahreszeile für `jahr - 1`, `objekt_id`, `einheit_id` und `zaehler_id` vorhanden ist.
+- Die Kachelübersicht nutzt physische Jahreswerte nur, wenn sie nicht durch eine fachliche Bilanzkennzahl ersetzt werden.
+- Für `Strom · Black Inn` ersetzt die Bilanzkennzahl die Quellkacheln `Strom · Black Inn · Privat HT`, `Strom · Black Inn · Privat NT` und `Strom · Black Inn · Büro`. Die Quellzähler bleiben in der Detailtabelle sichtbar.
+
 ### Migration: kanonische Zählerstand-Identitäten
 Historische, eindeutig auflösbare Abweichungen zwischen `Zaehlerstaende` und `Zaehler` werden über `previewCanonicalZaehlerstandMigration`, `writeCanonicalZaehlerstandMigrationReport` und `applyCanonicalZaehlerstandMigration` korrigiert.
 
