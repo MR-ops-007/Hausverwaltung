@@ -392,7 +392,45 @@ Wichtige Felder:
 
 Historische Schreibweisen wie `Z_STROM_HT_KWH_PRIVAT_HT` dürfen nur dann auf `Z_STROM_KWH_PRIVAT_HT` gemappt werden, wenn die Zuordnung im Objekt eindeutig ist. Gleiches gilt für alte oder fehlerhafte `einheit_id`s.
 
+### Hilfstabelle: `_view_verbrauch_bilanz_jahr`
+Diese Tabelle wird gemeinsam mit den Verbrauchsviews aufgebaut. Sie enthält fachlich berechnete Jahreskennzahlen, die nicht einem einzelnen physischen Zähler entsprechen.
+
+Erste Kennzahl:
+
+| `bilanz_id` | `label` | Formel |
+| :--- | :--- | :--- |
+| `BILANZ_STROM_BLACK_INN` | `Strom · Black Inn` | `Strom · Black Inn · Privat HT + Strom · Black Inn · Privat NT - Strom · Flur - Strom · Heizung - Strom · Black Inn · Büro - Z_STROM_KWH_WOHNUNG_3 - Z_STROM_KWH_WOHNUNG_4` |
+
+Wohnung 2 wird explizit nicht abgezogen. Wohnung 1, 5, 10 und 11 werden nach aktuellem Stand nicht abgezogen, da sie als OVAG-Zähler geführt sind. Kodi HT/NT bleibt separat, da OVAG und kein Zwischenzähler vom Black-Inn-Hauptzähler.
+
+Wichtige Felder:
+
+| Feldname | Datentyp | Beschreibung |
+| :--- | :--- | :--- |
+| `jahr` | Zahl | Abrechnungsjahr |
+| `objekt_id` | String | Objekt der Bilanzkennzahl |
+| `bilanz_id` | String | Eindeutige Kennzahl-ID |
+| `label` | String | Anzeige-Label für die UI |
+| `medium` | String | Medium der Kennzahl |
+| `wert` | Zahl | Berechneter Jahreswert |
+| `wert_monat_durchschnitt` | Zahl | Durchschnitt über die berücksichtigten Verbrauchsmonate |
+| `source_zaehler_ids` | String | Verwendete Quellzähler |
+| `missing_source_zaehler_ids` | String | Fehlende Quellzähler, falls die Bilanz unvollständig ist |
+| `formel_text` | String | Lesbare Herleitung |
+| `plausibilitaet_status` | String | `OK`, `QUELLWERTE_FEHLEN` oder `WARNUNGEN_IN_QUELLWERTEN` |
+
 **Konsistenz-Regel:** Die Verbrauchsviews und der Audit-View sind reine Read-Only-Caches. Fachliche Korrekturen erfolgen in den Quelltabellen oder über dokumentierte Migrationsfunktionen, nicht direkt in den View-Sheets.
+
+### UI-Regeln für Verbrauchsansicht
+Die Verbrauchsansicht verwendet `_view_verbrauch_jahr` als feste Zählerbasis pro Objekt. Für ein gewähltes Jahr dürfen Zähler nicht nur deshalb verschwinden, weil in diesem Jahr kein Jahreswert berechnet wurde.
+
+Anzeige-Regeln:
+
+- Die Detailtabelle wird aus allen bekannten Jahresview-Zählern des gewählten Objekts aufgebaut.
+- Gibt es für den gewählten Zähler im gewählten Jahr keinen Jahreswert, zeigt die UI die Zeile trotzdem mit Status `Keine Werte`.
+- Der Vorjahresverbrauch wird zusätzlich angezeigt, sofern eine passende Jahreszeile für `jahr - 1`, `objekt_id`, `einheit_id` und `zaehler_id` vorhanden ist.
+- Die Kachelübersicht nutzt physische Jahreswerte nur, wenn sie nicht durch eine fachliche Bilanzkennzahl ersetzt werden.
+- Für `Strom · Black Inn` ersetzt die Bilanzkennzahl die Quellkacheln `Strom · Black Inn · Privat HT`, `Strom · Black Inn · Privat NT` und `Strom · Black Inn · Büro`. Die Quellzähler bleiben in der Detailtabelle sichtbar.
 
 ### Migration: kanonische Zählerstand-Identitäten
 Historische, eindeutig auflösbare Abweichungen zwischen `Zaehlerstaende` und `Zaehler` werden über `previewCanonicalZaehlerstandMigration`, `writeCanonicalZaehlerstandMigrationReport` und `applyCanonicalZaehlerstandMigration` korrigiert.

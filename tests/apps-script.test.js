@@ -22,7 +22,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
   it('declares the current backend version', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
 
-    expect(BACKEND_VERSION).toBe('4.6.2');
+    expect(BACKEND_VERSION).toBe('4.6.3');
   });
 
   it('formats German timestamps for stand_id values', () => {
@@ -178,6 +178,77 @@ describe('Apps Script Zaehlerstaende helpers', () => {
       jahreszeilen: 1,
     });
     expect(views.auditRows[0].source_keys).toContain('Z_STROM_HT_KWH_PRIVAT_HT');
+  });
+
+  it('builds the Black Inn power balance from explicit source meters', () => {
+    const { buildVerbrauchViewData } = loadAppsScriptHelpers();
+    const sourceMeters = [
+      ['Ra-HS-29_GE_02', 'Z_STROM_KWH_PRIVAT_HT', 'Strom Hauptzähler (privat HT)', 1000],
+      ['Ra-HS-29_GE_02', 'Z_STROM_KWH_PRIVAT_NT', 'Strom Hauptzähler (privat NT)', 500],
+      ['Ra-HS-29_Allgemein_Flur', 'Z_STROM_KWH_FLUR', 'Strom Flur Zwischenzähler', 50],
+      ['Ra-HS-29_Allgemein_Heizung', 'Z_STROM_KWH_HEIZUNG', 'Strom Heizung Zwischenzähler', 60],
+      ['Ra-HS-29_GE_02', 'Z_STROM_KWH_BUERO', 'Strom Büro Zwischenzähler', 70],
+      ['Ra-HS-29_WE_03', 'Z_STROM_KWH_WOHNUNG_3', 'Strom Wohnung 3 Zwischenzähler', 80],
+      ['Ra-HS-29_WE_04', 'Z_STROM_KWH_WOHNUNG_4', 'Strom Wohnung 4 Zwischenzähler', 90],
+      ['Ra-HS-29_WE_02', 'Z_STROM_KWH_WOHNUNG_2', 'Strom Wohnung 2 Zwischenzähler', 999],
+      ['Ra-HS-29_GE_01', 'Z_STROM_KWH_KODI_HT', 'Strom Hauptzähler (Kodi HT)', 999],
+    ];
+
+    const views = buildVerbrauchViewData(
+      {
+        Zaehler: sourceMeters.map(([einheit_id, zaehler_id, bezeichnung]) => ({
+          objekt_id: 'Ra-HS-29',
+          einheit_id,
+          zaehler_id,
+          medium: 'strom_ht_kwh',
+          bezeichnung,
+          einheit: 'kWh',
+          ueberlauf_erlaubt: false,
+          berechnet: false,
+        })),
+        Zaehlerstaende: sourceMeters.flatMap(([einheit_id, zaehler_id, , verbrauch]) => [
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id,
+            zaehler_id,
+            zeitstempel: '01.01.2025 00:00',
+            wert: 1000,
+          },
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id,
+            zaehler_id,
+            zeitstempel: '01.02.2025 00:00',
+            wert: 1000 + verbrauch,
+          },
+        ]),
+        Einheiten: [
+          { objekt_id: 'Ra-HS-29', einheit_id: 'Ra-HS-29_GE_01', nummer: 'Kochdippe', typ: 'Gewerbe' },
+          { objekt_id: 'Ra-HS-29', einheit_id: 'Ra-HS-29_GE_02', nummer: 'Black Inn', typ: 'Gewerbe' },
+          { objekt_id: 'Ra-HS-29', einheit_id: 'Ra-HS-29_Allgemein_Flur', nummer: 'Haus', typ: 'Allgemein' },
+          { objekt_id: 'Ra-HS-29', einheit_id: 'Ra-HS-29_Allgemein_Heizung', nummer: 'Haus', typ: 'Allgemein' },
+          { objekt_id: 'Ra-HS-29', einheit_id: 'Ra-HS-29_WE_02', nummer: 'WE 02', typ: 'Wohnung' },
+          { objekt_id: 'Ra-HS-29', einheit_id: 'Ra-HS-29_WE_03', nummer: 'WE 03', typ: 'Wohnung' },
+          { objekt_id: 'Ra-HS-29', einheit_id: 'Ra-HS-29_WE_04', nummer: 'WE 04', typ: 'Wohnung' },
+        ],
+      },
+      { berechnetAm: '2026-07-03' }
+    );
+
+    expect(views.bilanzJahrRows).toHaveLength(1);
+    expect(views.bilanzJahrRows[0]).toMatchObject({
+      jahr: 2025,
+      objekt_id: 'Ra-HS-29',
+      bilanz_id: 'BILANZ_STROM_BLACK_INN',
+      label: 'Strom · Black Inn',
+      wert: 1150,
+      plausibilitaet_status: 'OK',
+      missing_source_zaehler_ids: '',
+    });
+    expect(views.bilanzJahrRows[0].source_zaehler_ids).toContain('Z_STROM_KWH_WOHNUNG_3');
+    expect(views.bilanzJahrRows[0].source_zaehler_ids).toContain('Z_STROM_KWH_WOHNUNG_4');
+    expect(views.bilanzJahrRows[0].source_zaehler_ids).not.toContain('Z_STROM_KWH_WOHNUNG_2');
+    expect(views.bilanzJahrRows[0].source_zaehler_ids).not.toContain('Z_STROM_KWH_KODI_HT');
   });
 
   it('reports unresolved consumption readings in the audit view', () => {

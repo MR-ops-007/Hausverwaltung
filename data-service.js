@@ -16,7 +16,8 @@ const dataService = {
         view_aktive_mieter: [],
         view_verbrauch_monat: [],
         view_verbrauch_jahr: [],
-        view_verbrauch_audit: []
+        view_verbrauch_audit: [],
+        view_verbrauch_bilanz_jahr: []
     },
 
     setDashboardData(data) {
@@ -64,6 +65,7 @@ const dataService = {
         this.state.view_verbrauch_monat = data["_view_verbrauch_monat"] || [];
         this.state.view_verbrauch_jahr = data["_view_verbrauch_jahr"] || [];
         this.state.view_verbrauch_audit = data["_view_verbrauch_audit"] || [];
+        this.state.view_verbrauch_bilanz_jahr = data["_view_verbrauch_bilanz_jahr"] || [];
 
         console.log("DataService: Verbrauchsviews übernommen.");
     },

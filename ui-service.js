@@ -550,6 +550,8 @@ const uiService = {
       const unitLabel = row.einheit_name || this.getConsumptionGroupLabel('GEWERBE');
       const subgroupLabel = this.getConsumptionSubgroupLabel(subgroup);
       if (meterId === 'Z_STROM_KWH_BUERO') return `${unitLabel} · Büro`;
+      if (meterId === 'Z_STROM_KWH_KODI_HT') return 'Kodi HT';
+      if (meterId === 'Z_STROM_KWH_KODI_NT') return 'Kodi NT';
       return subgroupLabel ? `${unitLabel} · ${subgroupLabel}` : unitLabel;
     }
 
@@ -625,6 +627,115 @@ const uiService = {
     return previousYearMap[key] || null;
   },
 
+  getConsumptionMeterKey(row) {
+    return [
+      row && row.objekt_id,
+      row && row.einheit_id,
+      row && row.zaehler_id
+    ].map(value => String(value || '').trim()).join('||');
+  },
+
+  buildConsumptionFixedDisplayRows(allRows, selectedRows, objektId, year, includeCalculated) {
+    const selectedByMeter = {};
+    selectedRows.forEach(row => {
+      selectedByMeter[this.getConsumptionMeterKey(row)] = row;
+    });
+
+    const meterTemplates = {};
+    allRows
+      .filter(row => String(row.objekt_id) === String(objektId))
+      .filter(row => includeCalculated || String(row.verbrauchsgruppe).toUpperCase() !== 'BERECHNET')
+      .forEach(row => {
+        const key = this.getConsumptionMeterKey(row);
+        const currentTemplate = meterTemplates[key];
+
+        if (!currentTemplate || Number(row.jahr || 0) > Number(currentTemplate.jahr || 0)) {
+          meterTemplates[key] = row;
+        }
+      });
+
+    return Object.keys(meterTemplates).map(key => {
+      if (selectedByMeter[key]) {
+        return selectedByMeter[key];
+      }
+
+      const template = meterTemplates[key];
+      return {
+        ...template,
+        jahr: year,
+        verbrauch_jahr: '',
+        verbrauch_monat_durchschnitt: '',
+        anzahl_monate_mit_verbrauch: 0,
+        anzahl_warnungen: 0,
+        plausibilitaet_status: 'KEINE_WERTE',
+        in_summe_beruecksichtigen: false,
+        is_missing_for_year: true
+      };
+    });
+  },
+
+  buildFallbackBlackInnBalanceRows(selectedRows) {
+    const sourceFactors = {
+      'Ra-HS-29||Ra-HS-29_GE_02||Z_STROM_KWH_PRIVAT_HT': 1,
+      'Ra-HS-29||Ra-HS-29_GE_02||Z_STROM_KWH_PRIVAT_NT': 1,
+      'Ra-HS-29||Ra-HS-29_Allgemein_Flur||Z_STROM_KWH_FLUR': -1,
+      'Ra-HS-29||Ra-HS-29_Allgemein_Heizung||Z_STROM_KWH_HEIZUNG': -1,
+      'Ra-HS-29||Ra-HS-29_GE_02||Z_STROM_KWH_BUERO': -1,
+      'Ra-HS-29||Ra-HS-29_WE_03||Z_STROM_KWH_WOHNUNG_3': -1,
+      'Ra-HS-29||Ra-HS-29_WE_04||Z_STROM_KWH_WOHNUNG_4': -1
+    };
+    const rowByKey = {};
+    selectedRows.forEach(row => {
+      rowByKey[this.getConsumptionMeterKey(row)] = row;
+    });
+
+    const sourceKeys = Object.keys(sourceFactors);
+    const used = [];
+    const missing = [];
+    let value = 0;
+    let months = 0;
+    let warnings = 0;
+    let year = '';
+
+    sourceKeys.forEach(key => {
+      const row = rowByKey[key];
+      if (!row || row.in_summe_beruecksichtigen === false || String(row.in_summe_beruecksichtigen).toLowerCase() === 'false') {
+        missing.push(key.split('||')[2]);
+        return;
+      }
+
+      const rowValue = this.toDashboardNumber(row.verbrauch_jahr);
+      if (rowValue === null) {
+        missing.push(row.zaehler_id);
+        return;
+      }
+
+      value += rowValue * sourceFactors[key];
+      months = Math.max(months, Number(row.anzahl_monate_mit_verbrauch || 0));
+      warnings += Number(row.anzahl_warnungen || 0);
+      year = row.jahr;
+      used.push(row.zaehler_id);
+    });
+
+    if (used.length === 0) return [];
+
+    return [{
+      jahr: year,
+      objekt_id: 'Ra-HS-29',
+      bilanz_id: 'BILANZ_STROM_BLACK_INN',
+      label: 'Strom · Black Inn',
+      medium: 'strom_ht_nt_kwh',
+      einheit: 'kWh',
+      wert: value,
+      wert_monat_durchschnitt: months > 0 ? value / months : '',
+      anzahl_monate_mit_verbrauch: months,
+      source_zaehler_ids: used.join(', '),
+      missing_source_zaehler_ids: missing.join(', '),
+      formel_text: 'Privat HT + Privat NT - Flur - Heizung - Black Inn Büro - Wohnung 3 - Wohnung 4',
+      plausibilitaet_status: missing.length > 0 ? 'QUELLWERTE_FEHLEN' : (warnings > 0 ? 'WARNUNGEN_IN_QUELLWERTEN' : 'OK')
+    }];
+  },
+
   buildConsumptionSummaryFromViews(rows) {
     const summaryMap = {};
 
@@ -669,6 +780,44 @@ const uiService = {
       ));
   },
 
+  buildConsumptionMissingSummaryFromRows(displayRows, summary, balanceRows) {
+    const existingLabels = new Set((summary || []).map(item => [item.label, item.einheit].join('||')));
+    const result = [];
+
+    (displayRows || []).forEach(row => {
+      if (!row.is_missing_for_year || this.isConsumptionSummaryCoveredByBalance(row, balanceRows)) {
+        return;
+      }
+
+      const label = this.getConsumptionSummaryLabel(row);
+      const einheit = this.getConsumptionDisplayUnit(row);
+      const key = [label, einheit].join('||');
+
+      if (existingLabels.has(key)) {
+        return;
+      }
+
+      existingLabels.add(key);
+      result.push({
+        medium: row.medium || 'Ohne Medium',
+        label,
+        einheit,
+        sectionOrder: this.getConsumptionSummarySection(row).order,
+        mediumOrder: this.getConsumptionMediumSortOrder(row.medium),
+        verbrauch: null,
+        zaehler_count: 1,
+        warnungen: 0,
+        missing: true
+      });
+    });
+
+    return result.sort((a, b) => (
+      a.sectionOrder - b.sectionOrder ||
+      a.mediumOrder - b.mediumOrder ||
+      String(a.label).localeCompare(String(b.label), 'de')
+    ));
+  },
+
   async ensureConsumptionViewData() {
     const hasYearRows = Array.isArray(dataService.state.view_verbrauch_jahr) &&
       dataService.state.view_verbrauch_jahr.length > 0;
@@ -689,7 +838,43 @@ const uiService = {
       dataService.state.view_verbrauch_monat = data["_view_verbrauch_monat"] || [];
       dataService.state.view_verbrauch_jahr = data["_view_verbrauch_jahr"] || [];
       dataService.state.view_verbrauch_audit = data["_view_verbrauch_audit"] || [];
+      dataService.state.view_verbrauch_bilanz_jahr = data["_view_verbrauch_bilanz_jahr"] || [];
     }
+  },
+
+  buildConsumptionBalanceSummary(rows) {
+    return (rows || [])
+      .map(row => ({
+        label: row.label || row.bilanz_id || 'Bilanz',
+        einheit: row.einheit || '',
+        verbrauch: this.toDashboardNumber(row.wert) || 0,
+        zaehler_count: row.source_zaehler_ids
+          ? String(row.source_zaehler_ids).split(',').filter(Boolean).length
+          : 0,
+        warnungen: String(row.plausibilitaet_status || '') === 'OK' ? 0 : 1,
+        status: row.plausibilitaet_status || 'OK',
+        formel: row.formel_text || ''
+      }))
+      .sort((a, b) => String(a.label).localeCompare(String(b.label), 'de'));
+  },
+
+  isConsumptionSummaryCoveredByBalance(row, balanceRows) {
+    const hasBlackInnBalance = (balanceRows || [])
+      .some(balanceRow => String(balanceRow.bilanz_id) === 'BILANZ_STROM_BLACK_INN');
+
+    if (!hasBlackInnBalance) return false;
+
+    const key = [
+      row && row.objekt_id,
+      row && row.einheit_id,
+      row && row.zaehler_id
+    ].map(value => String(value || '').trim()).join('||');
+
+    return [
+      'Ra-HS-29||Ra-HS-29_GE_02||Z_STROM_KWH_PRIVAT_HT',
+      'Ra-HS-29||Ra-HS-29_GE_02||Z_STROM_KWH_PRIVAT_NT',
+      'Ra-HS-29||Ra-HS-29_GE_02||Z_STROM_KWH_BUERO'
+    ].includes(key);
   },
 
   setNavigationState(activeView) {
@@ -809,39 +994,69 @@ const uiService = {
       .filter(row => String(row.objekt_id) === String(objektId))
       .filter(row => String(row.jahr) === String(year))
       .filter(row => includeCalculated || String(row.verbrauchsgruppe).toUpperCase() !== 'BERECHNET');
+    const selectedBalanceRows = (Array.isArray(dataService.state.view_verbrauch_bilanz_jahr) ? dataService.state.view_verbrauch_bilanz_jahr : [])
+      .filter(row => String(row.objekt_id) === String(objektId))
+      .filter(row => String(row.jahr) === String(year));
     const previousYearMap = this.buildConsumptionPreviousYearMap(allRows);
-    const summary = this.buildConsumptionSummaryFromViews(selectedRows);
+    const effectiveBalanceRows = selectedBalanceRows.length > 0
+      ? selectedBalanceRows
+      : this.buildFallbackBlackInnBalanceRows(selectedRows);
+    const balanceSummary = this.buildConsumptionBalanceSummary(effectiveBalanceRows);
+    const summaryRows = selectedRows
+      .filter(row => !this.isConsumptionSummaryCoveredByBalance(row, effectiveBalanceRows));
+    const summary = this.buildConsumptionSummaryFromViews(summaryRows);
     const auditRows = (Array.isArray(dataService.state.view_verbrauch_audit) ? dataService.state.view_verbrauch_audit : [])
       .filter(row => String(row.objekt_id) === String(objektId));
     const openAuditRows = auditRows
       .filter(row => ['NUR_EIN_WERT', 'KEINE_ABLESUNG', 'UNGELOESTE_MESSWERTE', 'MONATSZEILEN_ABWEICHUNG'].includes(String(row.status)));
     const canonicalAuditRows = auditRows
       .filter(row => String(row.status) === 'KANONISCH_ZUGEORDNET');
-    const sortedRows = selectedRows
+    const displayRows = this.buildConsumptionFixedDisplayRows(allRows, selectedRows, objektId, year, includeCalculated);
+    const sortedRows = displayRows
       .slice()
       .sort((a, b) => (
         String(this.getConsumptionRowUnitLabel(a)).localeCompare(String(this.getConsumptionRowUnitLabel(b)), 'de') ||
-        String(a.medium).localeCompare(String(b.medium), 'de') ||
+        this.getConsumptionMediumSortOrder(a.medium) - this.getConsumptionMediumSortOrder(b.medium) ||
         String(a.bezeichnung).localeCompare(String(b.bezeichnung), 'de')
       ));
-    const summaryHtml = summary.length > 0
-      ? summary
+    const missingSummary = this.buildConsumptionMissingSummaryFromRows(displayRows, summary, effectiveBalanceRows);
+    const visibleSummary = summary.concat(missingSummary)
+      .sort((a, b) => (
+        a.sectionOrder - b.sectionOrder ||
+        a.mediumOrder - b.mediumOrder ||
+        String(a.label).localeCompare(String(b.label), 'de')
+      ));
+    const summaryHtml = visibleSummary.length > 0
+      ? visibleSummary
         .map(item => `
           <div class="consumption-summary-item">
             <div style="font-size:0.75rem; color:#64748b; font-weight:700;">${this.escapeHtml(item.label || item.medium || 'Ohne Medium')}</div>
-            <div style="font-size:1.15rem; font-weight:900; color:#0f172a;">${this.formatDashboardNumber(item.verbrauch)} ${this.escapeHtml(item.einheit || '')}</div>
+            <div style="font-size:1.15rem; font-weight:900; color:#0f172a;">${item.missing ? 'Keine Werte' : `${this.formatDashboardNumber(item.verbrauch)} ${this.escapeHtml(item.einheit || '')}`}</div>
             <div style="font-size:0.75rem; color:#64748b;">${item.zaehler_count} Zähler${item.warnungen ? ` · ${item.warnungen} Warnungen` : ''}</div>
           </div>
         `)
         .join('')
       : '<div style="color:#64748b;">Keine Summen verfügbar.</div>';
+    const balanceSummaryHtml = balanceSummary.length > 0
+      ? balanceSummary
+        .map(item => `
+          <div class="consumption-summary-item" style="border-color:#bfdbfe; background:#eff6ff;">
+            <div style="font-size:0.75rem; color:#1d4ed8; font-weight:800;">${this.escapeHtml(item.label)}</div>
+            <div style="font-size:1.15rem; font-weight:900; color:#0f172a;">${this.formatDashboardNumber(item.verbrauch)} ${this.escapeHtml(item.einheit || '')}</div>
+            <div style="font-size:0.75rem; color:#475569;">${item.zaehler_count} Quellen${item.warnungen ? ` · ${this.escapeHtml(item.status)}` : ''}</div>
+          </div>
+        `)
+        .join('')
+      : '';
     const rowsHtml = sortedRows.length > 0
       ? sortedRows.map(row => {
         const audit = this.getConsumptionAuditForRow(row, auditByMeter);
         const unit = this.getConsumptionDisplayUnit(row);
         const unitLabel = this.getConsumptionRowUnitLabel(row);
         const previousYearRow = this.getConsumptionPreviousYearRow(row, previousYearMap);
-        const status = row.plausibilitaet_status && row.plausibilitaet_status !== 'OK'
+        const status = row.is_missing_for_year
+          ? 'KEINE_WERTE'
+          : row.plausibilitaet_status && row.plausibilitaet_status !== 'OK'
           ? row.plausibilitaet_status
           : (audit && audit.status ? audit.status : 'OK');
         const hint = row.plausibilitaet_status && row.plausibilitaet_status !== 'OK'
@@ -863,8 +1078,12 @@ const uiService = {
               <div style="font-size:0.75rem; color:#64748b;">${audit ? `${this.formatDashboardNumber(audit.readings_count)} Rohwerte · ${this.formatDashboardNumber(audit.intervalle_count)} Intervalle` : 'View-Datensatz'}</div>
             </td>
             <td>
-              <div style="font-weight:900;">${this.formatDashboardNumber(row.verbrauch_jahr)} ${this.escapeHtml(unit)}</div>
-              <div style="font-size:0.75rem; color:#64748b;">Ø Monat: ${this.formatDashboardNumber(row.verbrauch_monat_durchschnitt)} ${this.escapeHtml(unit)}</div>
+              ${row.is_missing_for_year ? `
+                <span style="color:#94a3b8;">Keine Werte</span>
+              ` : `
+                <div style="font-weight:900;">${this.formatDashboardNumber(row.verbrauch_jahr)} ${this.escapeHtml(unit)}</div>
+                <div style="font-size:0.75rem; color:#64748b;">Ø Monat: ${this.formatDashboardNumber(row.verbrauch_monat_durchschnitt)} ${this.escapeHtml(unit)}</div>
+              `}
             </td>
             <td>
               ${previousYearRow ? `
@@ -893,6 +1112,7 @@ const uiService = {
       </div>
 
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px; margin-bottom:14px;">
+        ${balanceSummaryHtml}
         ${summaryHtml}
       </div>
 

@@ -119,15 +119,17 @@ Der virtuelle Zähler `Z_WARMWASSER_WW_GESAMT_BERECHNET` ist als `berechnet = TR
 
 ## Verbrauchsviews
 
-Version `4.6.0` ergänzt die Backend-Funktion `updateVerbrauchViews`.
+Version `4.6.0` ergänzt die Backend-Funktion `updateVerbrauchViews`. Version `4.6.3` erweitert diese Views um die Bilanz-Jahresview.
 
-Die Funktion berechnet aus `Zaehler`, `Zaehlerstaende`, `Einheiten` und `_view_aktive_mieter` zwei materialisierte Lesetabellen:
+Die Funktion berechnet aus `Zaehler`, `Zaehlerstaende`, `Einheiten` und `_view_aktive_mieter` materialisierte Lesetabellen:
 
 - `_view_verbrauch_monat`
 - `_view_verbrauch_jahr`
 - `_view_verbrauch_audit`
+- `_view_verbrauch_bilanz_jahr`
 
 Die Monatsview ist die Detailbasis. Zwei aufeinanderfolgende Zählerstände bilden ein Verbrauchsintervall. Der Intervallverbrauch wird tagesgenau auf die überlappten Monate verteilt. Die Jahresview aggregiert anschließend aus der Monatsview.
+Die Bilanz-Jahresview enthält fachlich berechnete Kennzahlen wie `Strom · Black Inn` und bleibt bewusst getrennt von den physischen Zähler-Jahreswerten.
 
 Wichtige Fachregeln:
 

@@ -1,7 +1,7 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.6.2
- * Stand: 2026-06-29
+ * Version: 4.6.3
+ * Stand: 2026-07-03
  *
  * Änderungen seit v4.1:
  * - stand_id nutzt zusammengesetzte Zähleridentität
@@ -55,8 +55,11 @@
  *
  * Änderungen seit v4.6.1:
  * - Preview-/Report-/Apply-Migration für kanonische Zählerstand-Identitäten ergänzt
+ *
+ * Änderungen seit v4.6.2:
+ * - Bilanzview _view_verbrauch_bilanz_jahr für fachlich berechnete Jahreskennzahlen ergänzt
  */
-const BACKEND_VERSION = "4.6.2";
+const BACKEND_VERSION = "4.6.3";
 
 function sendJSON(obj) {
   return ContentService
@@ -1118,6 +1121,23 @@ const VERBRAUCH_AUDIT_HEADERS = [
   "berechnet_am"
 ];
 
+const VERBRAUCH_BILANZ_JAHR_HEADERS = [
+  "jahr",
+  "objekt_id",
+  "bilanz_id",
+  "label",
+  "medium",
+  "einheit",
+  "wert",
+  "wert_monat_durchschnitt",
+  "anzahl_monate_mit_verbrauch",
+  "source_zaehler_ids",
+  "missing_source_zaehler_ids",
+  "formel_text",
+  "plausibilitaet_status",
+  "berechnet_am"
+];
+
 function toVerbrauchNumber(value) {
   if (isBlankValue(value)) {
     return null;
@@ -1711,11 +1731,156 @@ function buildVerbrauchViewData(data, options) {
     });
   });
 
+  const bilanzJahrRows = buildVerbrauchBilanzJahrRows(jahrRows, {
+    berechnetAm: berechnetAm
+  });
+
   return {
     monatRows: monatRows,
     jahrRows: jahrRows,
-    auditRows: auditRows
+    auditRows: auditRows,
+    bilanzJahrRows: bilanzJahrRows
   };
+}
+
+function buildVerbrauchJahrLookup(jahrRows) {
+  const lookup = {};
+
+  (jahrRows || []).forEach(row => {
+    const key = [
+      row.jahr,
+      row.objekt_id,
+      row.einheit_id,
+      row.zaehler_id
+    ].map(value => String(value || "").trim()).join("||");
+
+    lookup[key] = row;
+  });
+
+  return lookup;
+}
+
+function getVerbrauchJahrRow(lookup, jahr, objektId, einheitId, zaehlerId) {
+  const key = [jahr, objektId, einheitId, zaehlerId]
+    .map(value => String(value || "").trim())
+    .join("||");
+
+  return lookup[key] || null;
+}
+
+function buildBlackInnStromBilanzRow(jahr, jahrLookup, options) {
+  const plusSources = [
+    {
+      einheit_id: "Ra-HS-29_GE_02",
+      zaehler_id: "Z_STROM_KWH_PRIVAT_HT",
+      label: "Strom · Black Inn · Privat HT"
+    },
+    {
+      einheit_id: "Ra-HS-29_GE_02",
+      zaehler_id: "Z_STROM_KWH_PRIVAT_NT",
+      label: "Strom · Black Inn · Privat NT"
+    }
+  ];
+  const minusSources = [
+    {
+      einheit_id: "Ra-HS-29_Allgemein_Flur",
+      zaehler_id: "Z_STROM_KWH_FLUR",
+      label: "Strom · Flur"
+    },
+    {
+      einheit_id: "Ra-HS-29_Allgemein_Heizung",
+      zaehler_id: "Z_STROM_KWH_HEIZUNG",
+      label: "Strom · Heizung"
+    },
+    {
+      einheit_id: "Ra-HS-29_GE_02",
+      zaehler_id: "Z_STROM_KWH_BUERO",
+      label: "Strom · Black Inn · Büro"
+    },
+    {
+      einheit_id: "Ra-HS-29_WE_03",
+      zaehler_id: "Z_STROM_KWH_WOHNUNG_3",
+      label: "Strom Wohnung 3 Zwischenzähler"
+    },
+    {
+      einheit_id: "Ra-HS-29_WE_04",
+      zaehler_id: "Z_STROM_KWH_WOHNUNG_4",
+      label: "Strom Wohnung 4 Zwischenzähler"
+    }
+  ];
+  const missing = [];
+  const used = [];
+  let wert = 0;
+  let monate = 0;
+  let warnungen = 0;
+
+  plusSources.forEach(source => {
+    const row = getVerbrauchJahrRow(jahrLookup, jahr, "Ra-HS-29", source.einheit_id, source.zaehler_id);
+
+    if (!row || row.in_summe_beruecksichtigen === false || String(row.in_summe_beruecksichtigen).toLowerCase() === "false") {
+      missing.push(source.zaehler_id);
+      return;
+    }
+
+    wert += Number(row.verbrauch_jahr || 0);
+    monate = Math.max(monate, Number(row.anzahl_monate_mit_verbrauch || 0));
+    warnungen += Number(row.anzahl_warnungen || 0);
+    used.push(source.zaehler_id);
+  });
+
+  minusSources.forEach(source => {
+    const row = getVerbrauchJahrRow(jahrLookup, jahr, "Ra-HS-29", source.einheit_id, source.zaehler_id);
+
+    if (!row || row.in_summe_beruecksichtigen === false || String(row.in_summe_beruecksichtigen).toLowerCase() === "false") {
+      missing.push(source.zaehler_id);
+      return;
+    }
+
+    wert -= Number(row.verbrauch_jahr || 0);
+    monate = Math.max(monate, Number(row.anzahl_monate_mit_verbrauch || 0));
+    warnungen += Number(row.anzahl_warnungen || 0);
+    used.push(source.zaehler_id);
+  });
+
+  if (used.length === 0) {
+    return null;
+  }
+
+  return {
+    jahr: jahr,
+    objekt_id: "Ra-HS-29",
+    bilanz_id: "BILANZ_STROM_BLACK_INN",
+    label: "Strom · Black Inn",
+    medium: "strom_ht_nt_kwh",
+    einheit: "kWh",
+    wert: wert,
+    wert_monat_durchschnitt: monate > 0 ? wert / monate : "",
+    anzahl_monate_mit_verbrauch: monate,
+    source_zaehler_ids: used.join(", "),
+    missing_source_zaehler_ids: missing.join(", "),
+    formel_text: plusSources.map(source => source.label).join(" + ") +
+      " - " + minusSources.map(source => source.label).join(" - "),
+    plausibilitaet_status: missing.length > 0
+      ? "QUELLWERTE_FEHLEN"
+      : (warnungen > 0 ? "WARNUNGEN_IN_QUELLWERTEN" : "OK"),
+    berechnet_am: options && options.berechnetAm ? options.berechnetAm : ""
+  };
+}
+
+function buildVerbrauchBilanzJahrRows(jahrRows, options) {
+  const jahrLookup = buildVerbrauchJahrLookup(jahrRows);
+  const years = {};
+
+  (jahrRows || []).forEach(row => {
+    if (String(row.objekt_id) === "Ra-HS-29" && row.jahr !== "" && row.jahr !== null && row.jahr !== undefined) {
+      years[String(row.jahr)] = Number(row.jahr);
+    }
+  });
+
+  return Object.keys(years)
+    .sort()
+    .map(key => buildBlackInnStromBilanzRow(years[key], jahrLookup, options))
+    .filter(Boolean);
 }
 
 const CANONICAL_ZAEHLERSTAND_MIGRATION_REPORT_HEADERS = [
@@ -2105,11 +2270,13 @@ function updateVerbrauchViews() {
   writeViewSheet(ss, "_view_verbrauch_monat", VERBRAUCH_MONAT_HEADERS, views.monatRows);
   writeViewSheet(ss, "_view_verbrauch_jahr", VERBRAUCH_JAHR_HEADERS, views.jahrRows);
   writeViewSheet(ss, "_view_verbrauch_audit", VERBRAUCH_AUDIT_HEADERS, views.auditRows);
+  writeViewSheet(ss, "_view_verbrauch_bilanz_jahr", VERBRAUCH_BILANZ_JAHR_HEADERS, views.bilanzJahrRows);
 
   Logger.log("Verbrauchsviews aktualisiert: " + JSON.stringify({
     monatRows: views.monatRows.length,
     jahrRows: views.jahrRows.length,
-    auditRows: views.auditRows.length
+    auditRows: views.auditRows.length,
+    bilanzJahrRows: views.bilanzJahrRows.length
   }));
 
   return {
@@ -2117,6 +2284,7 @@ function updateVerbrauchViews() {
     monatRows: views.monatRows.length,
     jahrRows: views.jahrRows.length,
     auditRows: views.auditRows.length,
+    bilanzJahrRows: views.bilanzJahrRows.length,
     message: "Verbrauchsviews aktualisiert"
   };
 }
@@ -2137,11 +2305,13 @@ function doGet(e) {
     const sheetMonat = ss.getSheetByName("_view_verbrauch_monat");
     const sheetJahr = ss.getSheetByName("_view_verbrauch_jahr");
     const sheetAudit = ss.getSheetByName("_view_verbrauch_audit");
+    const sheetBilanzJahr = ss.getSheetByName("_view_verbrauch_bilanz_jahr");
 
     return sendJSON({
       "_view_verbrauch_monat": sheetMonat ? getSheetData(sheetMonat) : [],
       "_view_verbrauch_jahr": sheetJahr ? getSheetData(sheetJahr) : [],
-      "_view_verbrauch_audit": sheetAudit ? getSheetData(sheetAudit) : []
+      "_view_verbrauch_audit": sheetAudit ? getSheetData(sheetAudit) : [],
+      "_view_verbrauch_bilanz_jahr": sheetBilanzJahr ? getSheetData(sheetBilanzJahr) : []
     });
   }
 
