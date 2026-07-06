@@ -48,6 +48,15 @@
                 berechnete Zähler anzeigen
             </label>
 
+            <label style="display:flex; flex-direction:column; gap:4px; max-width:280px; margin-bottom:14px; font-weight:700; color:#334155;">
+                Tabellenfilter
+                <select id="consumption-status-filter" onchange="uiService.renderConsumptionDashboard()">
+                    <option value="all">Alle Zähler</option>
+                    <option value="missing">Nur fehlende Werte</option>
+                    <option value="warnings">Nur Warnungen</option>
+                </select>
+            </label>
+
             <div id="consumption-dashboard-output"></div>
         </section>
 
@@ -59,9 +68,9 @@
         </div>
     </div>
     
-    <script src="config.js?v=20260707-consumption-fixed-meter-list-v3"></script>
+    <script src="config.js?v=20260707-consumption-dashboard-controls-v1"></script>
     <script src="data-service.js?v=20260702-consumption-views-v7"></script>
-    <script src="cloud-service.js?v=20260707-consumption-fixed-meter-list-v3"></script>
+    <script src="cloud-service.js?v=20260707-consumption-dashboard-controls-v1"></script>
     <script src="calc-service.js?v=20260702-consumption-views-v7"></script>
 
     <script type="module">
@@ -73,7 +82,7 @@
       };
     </script>
 
-    <script src="ui-service.js?v=20260707-consumption-fixed-meter-list-v3"></script>
+    <script src="ui-service.js?v=20260707-consumption-dashboard-controls-v1"></script>
 
     <script>
     document.addEventListener('DOMContentLoaded', async () => {

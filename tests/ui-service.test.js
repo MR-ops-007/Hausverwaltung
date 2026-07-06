@@ -99,6 +99,7 @@ function loadUiService({
     'consumption-object-select': { style: {}, innerHTML: '', value: '', className: '' },
     'consumption-year-select': { style: {}, innerHTML: '', value: '', className: '' },
     'consumption-include-calculated': { style: {}, checked: true, innerHTML: '', className: '' },
+    'consumption-status-filter': { style: {}, innerHTML: '', value: 'all', className: '' },
     'consumption-dashboard-output': { style: {}, innerHTML: '', className: '' },
   };
 
@@ -335,8 +336,8 @@ describe('uiService consumption dashboard', () => {
             verbrauch_jahr: 253,
             verbrauch_monat_durchschnitt: 21.08,
             anzahl_monate_mit_verbrauch: 12,
-            anzahl_warnungen: 0,
-            plausibilitaet_status: 'OK',
+            anzahl_warnungen: 1,
+            plausibilitaet_status: 'WARNUNG_RUECKLAEUFIG',
             in_summe_beruecksichtigen: true,
           },
           {
@@ -424,6 +425,24 @@ describe('uiService consumption dashboard', () => {
             bezeichnung: 'Strom Büro Zwischenzähler',
             verbrauch_jahr: 25,
             verbrauch_monat_durchschnitt: 4.17,
+            anzahl_monate_mit_verbrauch: 6,
+            anzahl_warnungen: 0,
+            plausibilitaet_status: 'OK',
+            in_summe_beruecksichtigen: true,
+          },
+          {
+            jahr: 2026,
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_Allgemein_Flur',
+            einheit_name: 'Haus',
+            mieter_name: 'Leerstand',
+            verbrauchsgruppe: 'ALLGEMEIN',
+            untergruppe: 'FLUR',
+            zaehler_id: 'Z_STROM_KWH_FLUR',
+            medium: 'strom_ht_kwh',
+            bezeichnung: 'Strom Flur Zwischenzähler',
+            verbrauch_jahr: 7,
+            verbrauch_monat_durchschnitt: 1.17,
             anzahl_monate_mit_verbrauch: 6,
             anzahl_warnungen: 0,
             plausibilitaet_status: 'OK',
@@ -535,6 +554,10 @@ describe('uiService consumption dashboard', () => {
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('2 Rohwerte');
 
     const summaryHtml = elementsById['consumption-dashboard-output'].innerHTML.split('<div style="overflow:auto;')[0];
+    expect(summaryHtml).toContain('Formel und Quellen');
+    expect(summaryHtml).toContain('Privat HT + Privat NT - Flur - Heizung - Büro - Wohnung 3 - Wohnung 4');
+    expect(summaryHtml.indexOf('Strom · Flur')).toBeLessThan(summaryHtml.indexOf('Strom · Black Inn'));
+    expect(summaryHtml.indexOf('Strom · Black Inn')).toBeLessThan(summaryHtml.indexOf('Strom · Wohnungen'));
     expect(summaryHtml).toContain('Strom · Black Inn');
     expect(summaryHtml).not.toContain('Strom · Black Inn · Privat HT');
     expect(summaryHtml).not.toContain('Strom · Black Inn · Büro');
@@ -542,6 +565,18 @@ describe('uiService consumption dashboard', () => {
     const detailHtml = elementsById['consumption-dashboard-output'].innerHTML.split('<div style="overflow:auto;')[1];
     expect(detailHtml.indexOf('Strom Wohnung 1</div>')).toBeLessThan(detailHtml.indexOf('Kaltwasser Wohnung 1</div>'));
     expect(detailHtml.indexOf('Kaltwasser Wohnung 1</div>')).toBeLessThan(detailHtml.indexOf('Warmwasser Wohnung 1</div>'));
+
+    elementsById['consumption-status-filter'].value = 'missing';
+    await uiService.renderConsumptionDashboard();
+    const missingDetailHtml = elementsById['consumption-dashboard-output'].innerHTML.split('<div style="overflow:auto;')[1];
+    expect(missingDetailHtml).toContain('Kaltwasser Wohnung 10');
+    expect(missingDetailHtml).not.toContain('Strom Wohnung 1</div>');
+
+    elementsById['consumption-status-filter'].value = 'warnings';
+    await uiService.renderConsumptionDashboard();
+    const warningDetailHtml = elementsById['consumption-dashboard-output'].innerHTML.split('<div style="overflow:auto;')[1];
+    expect(warningDetailHtml).toContain('Strom Wohnung 1');
+    expect(warningDetailHtml).not.toContain('Kaltwasser Wohnung 10');
   });
 
   it('uses a fallback Black Inn balance tile when backend balance rows are not loaded yet', async () => {

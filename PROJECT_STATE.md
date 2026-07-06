@@ -344,6 +344,10 @@ Nächster sinnvoller Schritt:
 - Bilanzkennzahl `Strom · Black Inn`: `Strom · Black Inn · Privat HT + Strom · Black Inn · Privat NT - Strom · Flur - Strom · Heizung - Strom · Black Inn · Büro - Z_STROM_KWH_WOHNUNG_3 - Z_STROM_KWH_WOHNUNG_4`. Wohnung 2 wird explizit nicht abgezogen. Wohnung 1, 5, 10 und 11 werden nach aktuellem Stand nicht abgezogen, da als OVAG-Zähler geführt. Kodi HT/NT bleibt separat, da OVAG und kein Zwischenzähler.
 - Die Detailtabelle zeigt pro Objekt eine feste Zählerliste aus allen bekannten Jahresview-Zählern. Fehlt für das gewählte Jahr ein Jahreswert, bleibt der Zähler sichtbar und wird mit `Keine Werte` markiert; der Vorjahresverbrauch wird weiterhin angezeigt, sofern vorhanden. Damit wird sichtbar, welche Zähler im aktuellen Jahr noch nicht abgelesen oder noch nicht berechnet wurden.
 - Die Kachelübersicht zeigt die fachliche Bilanz `Strom · Black Inn` aggregiert. Die Quellzähler `Strom · Black Inn · Privat HT`, `Strom · Black Inn · Privat NT` und `Strom · Black Inn · Büro` bleiben in der Detailtabelle sichtbar, werden aber in der Kachelübersicht ausgeblendet, sobald die Black-Inn-Bilanz verfügbar ist. Bis die Backend-Bilanzview geladen ist, bildet die UI dieselbe Formel als Fallback nach.
-- Nächster UI-Ausbau: bessere Gruppierung nach Einheit/Medium, Filter für Statusfälle und später visuelle Auswertung.
+- Dashboard-Kacheln sind nach Blöcken sortiert: Allgemein, Gewerbe, Wohnungen, Öl. Bilanzkacheln zeigen ihre Formel und Quellzähler aufklappbar an.
+- Die Detailtabelle hat einen Statusfilter mit `Alle Zähler`, `Nur fehlende Werte` und `Nur Warnungen`.
+- Nächster UI-Ausbau: spätere visuelle Auswertung und fachliche Detailansichten pro Einheit/Medium.
 
 Spätere Auswertungen sollen den Testbereich `TEST` sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.
+
+Offener Sicherheits-/Konfigurationspunkt: Die produktive Apps-Script-Web-App-URL steht aktuell noch in der Frontend-Konfiguration. Vor einer breiteren Veröffentlichung muss die Backend-URL aus dem öffentlichen Quellcode herausgezogen oder über eine nicht committete lokale Konfiguration/Deployment-Umgebung bereitgestellt werden. Bereits veröffentlichte sensible Links sollten dann rotiert werden.
