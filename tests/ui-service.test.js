@@ -477,6 +477,11 @@ describe('uiService consumption dashboard', () => {
     expect(elementsById['consumption-dashboard-output'].innerHTML).not.toContain('150 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).not.toContain('353 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('2 Rohwerte');
+
+    const summaryHtml = elementsById['consumption-dashboard-output'].innerHTML.split('<div style="overflow:auto;')[0];
+    expect(summaryHtml).toContain('Strom · Black Inn');
+    expect(summaryHtml).not.toContain('Strom · Black Inn · Privat HT');
+    expect(summaryHtml).not.toContain('Strom · Black Inn · Büro');
   });
 });
 

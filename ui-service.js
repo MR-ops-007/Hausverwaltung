@@ -709,6 +709,25 @@ const uiService = {
       .sort((a, b) => String(a.label).localeCompare(String(b.label), 'de'));
   },
 
+  isConsumptionSummaryCoveredByBalance(row, balanceRows) {
+    const hasBlackInnBalance = (balanceRows || [])
+      .some(balanceRow => String(balanceRow.bilanz_id) === 'BILANZ_STROM_BLACK_INN');
+
+    if (!hasBlackInnBalance) return false;
+
+    const key = [
+      row && row.objekt_id,
+      row && row.einheit_id,
+      row && row.zaehler_id
+    ].map(value => String(value || '').trim()).join('||');
+
+    return [
+      'Ra-HS-29||Ra-HS-29_GE_02||Z_STROM_KWH_PRIVAT_HT',
+      'Ra-HS-29||Ra-HS-29_GE_02||Z_STROM_KWH_PRIVAT_NT',
+      'Ra-HS-29||Ra-HS-29_GE_02||Z_STROM_KWH_BUERO'
+    ].includes(key);
+  },
+
   setNavigationState(activeView) {
     const meterButton = document.getElementById('nav-meter-entry');
     const dashboardButton = document.getElementById('nav-consumption-dashboard');
@@ -831,7 +850,9 @@ const uiService = {
       .filter(row => String(row.jahr) === String(year));
     const previousYearMap = this.buildConsumptionPreviousYearMap(allRows);
     const balanceSummary = this.buildConsumptionBalanceSummary(selectedBalanceRows);
-    const summary = this.buildConsumptionSummaryFromViews(selectedRows);
+    const summaryRows = selectedRows
+      .filter(row => !this.isConsumptionSummaryCoveredByBalance(row, selectedBalanceRows));
+    const summary = this.buildConsumptionSummaryFromViews(summaryRows);
     const auditRows = (Array.isArray(dataService.state.view_verbrauch_audit) ? dataService.state.view_verbrauch_audit : [])
       .filter(row => String(row.objekt_id) === String(objektId));
     const openAuditRows = auditRows
