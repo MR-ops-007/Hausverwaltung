@@ -447,6 +447,24 @@ describe('uiService consumption dashboard', () => {
             plausibilitaet_status: 'OK',
             in_summe_beruecksichtigen: true,
           },
+          {
+            jahr: 2025,
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_10',
+            einheit_name: 'WE 10',
+            mieter_name: 'Leerstand',
+            verbrauchsgruppe: 'WOHNUNG',
+            untergruppe: '',
+            zaehler_id: 'Z_KALTWASSER_KW_WOHNUNG_10',
+            medium: 'kaltwasser_m3',
+            bezeichnung: 'Kaltwasser Wohnung 10',
+            verbrauch_jahr: 20,
+            verbrauch_monat_durchschnitt: 1.67,
+            anzahl_monate_mit_verbrauch: 12,
+            anzahl_warnungen: 0,
+            plausibilitaet_status: 'OK',
+            in_summe_beruecksichtigen: true,
+          },
         ],
         '_view_verbrauch_monat': [],
         '_view_verbrauch_audit': [
@@ -510,6 +528,8 @@ describe('uiService consumption dashboard', () => {
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('25 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('20 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Ø Monat: 1,67 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Kaltwasser Wohnung 10');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Keine Werte');
     expect(elementsById['consumption-dashboard-output'].innerHTML).not.toContain('150 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).not.toContain('353 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('2 Rohwerte');
@@ -520,8 +540,59 @@ describe('uiService consumption dashboard', () => {
     expect(summaryHtml).not.toContain('Strom · Black Inn · Büro');
 
     const detailHtml = elementsById['consumption-dashboard-output'].innerHTML.split('<div style="overflow:auto;')[1];
-    expect(detailHtml.indexOf('Strom Wohnung 1')).toBeLessThan(detailHtml.indexOf('Kaltwasser Wohnung 1'));
-    expect(detailHtml.indexOf('Kaltwasser Wohnung 1')).toBeLessThan(detailHtml.indexOf('Warmwasser Wohnung 1'));
+    expect(detailHtml.indexOf('Strom Wohnung 1</div>')).toBeLessThan(detailHtml.indexOf('Kaltwasser Wohnung 1</div>'));
+    expect(detailHtml.indexOf('Kaltwasser Wohnung 1</div>')).toBeLessThan(detailHtml.indexOf('Warmwasser Wohnung 1</div>'));
+  });
+
+  it('uses a fallback Black Inn balance tile when backend balance rows are not loaded yet', async () => {
+    const { uiService, elementsById } = loadUiService({
+      objects: [
+        {
+          objekt_id: 'Ra-HS-29',
+          bezeichnung: 'Rathausstraße 29',
+        },
+      ],
+      consumptionData: {
+        '_view_verbrauch_jahr': [
+          ['Ra-HS-29_GE_02', 'Z_STROM_KWH_PRIVAT_HT', 'strom_ht_kwh', 'Strom Hauptzähler (privat HT)', 100],
+          ['Ra-HS-29_GE_02', 'Z_STROM_KWH_PRIVAT_NT', 'strom_nt_kwh', 'Strom Hauptzähler (privat NT)', 80],
+          ['Ra-HS-29_GE_02', 'Z_STROM_KWH_BUERO', 'strom_ht_kwh', 'Strom Büro Zwischenzähler', 10],
+          ['Ra-HS-29_Allgemein_Flur', 'Z_STROM_KWH_FLUR', 'strom_ht_kwh', 'Strom Flur Zwischenzähler', 20],
+          ['Ra-HS-29_Allgemein_Heizung', 'Z_STROM_KWH_HEIZUNG', 'strom_ht_kwh', 'Strom Heizung Zwischenzähler', 30],
+          ['Ra-HS-29_WE_03', 'Z_STROM_KWH_WOHNUNG_3', 'strom_ht_kwh', 'Strom Wohnung 3 Zwischenzähler', 15],
+          ['Ra-HS-29_WE_04', 'Z_STROM_KWH_WOHNUNG_4', 'strom_ht_kwh', 'Strom Wohnung 4 Zwischenzähler', 5],
+        ].map(([einheit_id, zaehler_id, medium, bezeichnung, verbrauch_jahr]) => ({
+          jahr: 2026,
+          objekt_id: 'Ra-HS-29',
+          einheit_id,
+          einheit_name: einheit_id === 'Ra-HS-29_GE_02' ? 'Black Inn' : 'Haus',
+          mieter_name: 'Leerstand',
+          verbrauchsgruppe: einheit_id.indexOf('_GE_') !== -1 ? 'HAUPTZAEHLER' : 'ALLGEMEIN',
+          untergruppe: zaehler_id.indexOf('_NT') !== -1 ? 'PRIVAT_NT' : zaehler_id.indexOf('_HT') !== -1 ? 'PRIVAT_HT' : '',
+          zaehler_id,
+          medium,
+          bezeichnung,
+          verbrauch_jahr,
+          verbrauch_monat_durchschnitt: verbrauch_jahr / 12,
+          anzahl_monate_mit_verbrauch: 12,
+          anzahl_warnungen: 0,
+          plausibilitaet_status: 'OK',
+          in_summe_beruecksichtigen: true,
+        })),
+        '_view_verbrauch_monat': [],
+        '_view_verbrauch_audit': [],
+        '_view_verbrauch_bilanz_jahr': [],
+      },
+    });
+
+    await uiService.showConsumptionDashboard();
+
+    const summaryHtml = elementsById['consumption-dashboard-output'].innerHTML.split('<div style="overflow:auto;')[0];
+    expect(summaryHtml).toContain('Strom · Black Inn');
+    expect(summaryHtml).toContain('100 kWh');
+    expect(summaryHtml).not.toContain('Strom · Black Inn · Privat HT');
+    expect(summaryHtml).not.toContain('Strom · Black Inn · Privat NT');
+    expect(summaryHtml).not.toContain('Strom · Black Inn · Büro');
   });
 });
 
