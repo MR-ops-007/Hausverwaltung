@@ -342,6 +342,42 @@ describe('uiService consumption dashboard', () => {
           {
             jahr: 2026,
             objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_01',
+            einheit_name: 'Wohnung 1',
+            mieter_name: 'Duck, Donald',
+            verbrauchsgruppe: 'WOHNUNG',
+            untergruppe: '',
+            zaehler_id: 'Z_KALTWASSER_KW_WOHNUNG_1',
+            medium: 'kaltwasser_m3',
+            bezeichnung: 'Kaltwasser Wohnung 1',
+            verbrauch_jahr: 12,
+            verbrauch_monat_durchschnitt: 1,
+            anzahl_monate_mit_verbrauch: 12,
+            anzahl_warnungen: 0,
+            plausibilitaet_status: 'OK',
+            in_summe_beruecksichtigen: true,
+          },
+          {
+            jahr: 2026,
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_01',
+            einheit_name: 'Wohnung 1',
+            mieter_name: 'Duck, Donald',
+            verbrauchsgruppe: 'WOHNUNG',
+            untergruppe: '',
+            zaehler_id: 'Z_WARMWASSER_WW_WOHNUNG_1',
+            medium: 'warmwasser_m3',
+            bezeichnung: 'Warmwasser Wohnung 1',
+            verbrauch_jahr: 6,
+            verbrauch_monat_durchschnitt: 0.5,
+            anzahl_monate_mit_verbrauch: 12,
+            anzahl_warnungen: 0,
+            plausibilitaet_status: 'OK',
+            in_summe_beruecksichtigen: true,
+          },
+          {
+            jahr: 2026,
+            objekt_id: 'Ra-HS-29',
             einheit_id: 'Ra-HS-29_GE_02',
             einheit_name: 'Black Inn',
             mieter_name: 'Leerstand',
@@ -465,7 +501,7 @@ describe('uiService consumption dashboard', () => {
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Black Inn');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Black Inn · Privat HT');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Black Inn · Büro');
-    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Kochdippe · Privat HT');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Kodi HT');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Verbrauch Vorjahr');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('253 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('100 kWh');
@@ -482,6 +518,10 @@ describe('uiService consumption dashboard', () => {
     expect(summaryHtml).toContain('Strom · Black Inn');
     expect(summaryHtml).not.toContain('Strom · Black Inn · Privat HT');
     expect(summaryHtml).not.toContain('Strom · Black Inn · Büro');
+
+    const detailHtml = elementsById['consumption-dashboard-output'].innerHTML.split('<div style="overflow:auto;')[1];
+    expect(detailHtml.indexOf('Strom Wohnung 1')).toBeLessThan(detailHtml.indexOf('Kaltwasser Wohnung 1'));
+    expect(detailHtml.indexOf('Kaltwasser Wohnung 1')).toBeLessThan(detailHtml.indexOf('Warmwasser Wohnung 1'));
   });
 });
 

@@ -550,6 +550,8 @@ const uiService = {
       const unitLabel = row.einheit_name || this.getConsumptionGroupLabel('GEWERBE');
       const subgroupLabel = this.getConsumptionSubgroupLabel(subgroup);
       if (meterId === 'Z_STROM_KWH_BUERO') return `${unitLabel} · Büro`;
+      if (meterId === 'Z_STROM_KWH_KODI_HT') return 'Kodi HT';
+      if (meterId === 'Z_STROM_KWH_KODI_NT') return 'Kodi NT';
       return subgroupLabel ? `${unitLabel} · ${subgroupLabel}` : unitLabel;
     }
 
@@ -863,7 +865,7 @@ const uiService = {
       .slice()
       .sort((a, b) => (
         String(this.getConsumptionRowUnitLabel(a)).localeCompare(String(this.getConsumptionRowUnitLabel(b)), 'de') ||
-        String(a.medium).localeCompare(String(b.medium), 'de') ||
+        this.getConsumptionMediumSortOrder(a.medium) - this.getConsumptionMediumSortOrder(b.medium) ||
         String(a.bezeichnung).localeCompare(String(b.bezeichnung), 'de')
       ));
     const summaryHtml = summary.length > 0
