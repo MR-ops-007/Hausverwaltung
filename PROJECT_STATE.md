@@ -96,7 +96,7 @@ Aktueller Stand:
 - Plausibilitätswarnungen müssen bewusst bestätigt werden.
 - Die UI nutzt robuste Zählerlabels über `bezeichnung`, `medium`, `typ` oder `zaehler_id`.
 - Zeitstempel werden als `DD.MM.YYYY HH:mm` gespeichert.
-- Berechnete, inaktive oder nicht erfassbare Zähler werden nicht in der Eingabemaske angezeigt.
+- Berechnete, inaktive oder nicht erfassbare Zähler werden nicht in der manuellen Eingabemaske angezeigt. Sie bleiben im Datenmodell erhalten und können später in Verbrauchsviews, Dashboards und Auswertungen genutzt werden.
 - Letzte Vorwerte werden über `objekt_id + einheit_id + zaehler_id` gesucht.
 - Erfolgreich gespeicherte Zählerstände werden direkt in den lokalen UI-State übernommen, damit Folgeeingaben im Testbereich ohne Neuladen plausibilisiert werden.
 - Falls der Browser die modulare Plausibilitätsprüfung nicht initialisiert, nutzt die UI eine eingebaute Fallback-Validierung statt die Speicherung pauschal abzubrechen.

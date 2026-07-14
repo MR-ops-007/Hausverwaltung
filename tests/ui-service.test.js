@@ -287,14 +287,33 @@ describe('uiService helper methods', () => {
   it('detects manually enterable active meters for the input mask', () => {
     const { uiService } = loadUiService();
 
+    expect(uiService.toBoolean(true)).toBe(true);
+    expect(uiService.toBoolean(false)).toBe(false);
+    expect(uiService.toBoolean('TRUE')).toBe(true);
+    expect(uiService.toBoolean('FALSE')).toBe(false);
+    expect(uiService.toBoolean('1')).toBe(true);
+    expect(uiService.toBoolean('0')).toBe(false);
+    expect(uiService.toBoolean('ja')).toBe(true);
+    expect(uiService.toBoolean('nein')).toBe(false);
+    expect(uiService.toBoolean('wahr')).toBe(true);
+    expect(uiService.toBoolean('falsch')).toBe(false);
+    expect(uiService.toBoolean('')).toBe(null);
+    expect(uiService.isExplicitFalse(' nein ')).toBe(true);
+    expect(uiService.isZaehlerAktiv({ aktiv: 'falsch' })).toBe(false);
+    expect(uiService.isZaehlerErfassbar({ erfassbar: 'nein' })).toBe(false);
     expect(uiService.isZaehlerManuellErfassbar({ aktiv: true })).toBe(true);
     expect(uiService.isZaehlerManuellErfassbar({ aktiv: 'TRUE' })).toBe(true);
     expect(uiService.isZaehlerManuellErfassbar({ aktiv: false })).toBe(false);
     expect(uiService.isZaehlerManuellErfassbar({ aktiv: 'FALSE' })).toBe(false);
+    expect(uiService.isZaehlerManuellErfassbar({ aktiv: '0' })).toBe(false);
+    expect(uiService.isZaehlerManuellErfassbar({ aktiv: 'nein' })).toBe(false);
     expect(uiService.isZaehlerManuellErfassbar({ erfassbar: false })).toBe(false);
     expect(uiService.isZaehlerManuellErfassbar({ erfassbar: 'FALSE' })).toBe(false);
+    expect(uiService.isZaehlerManuellErfassbar({ erfassbar: 'falsch' })).toBe(false);
     expect(uiService.isZaehlerManuellErfassbar({ berechnet: true })).toBe(false);
     expect(uiService.isZaehlerManuellErfassbar({ berechnet: 'TRUE' })).toBe(false);
+    expect(uiService.isZaehlerManuellErfassbar({ berechnet: 'wahr' })).toBe(false);
+    expect(uiService.isZaehlerManuellErfassbar({ aktiv: 'TRUE', erfassbar: 'ja', berechnet: 'nein' })).toBe(true);
   });
 
   it('extracts available consumption years from meter readings', () => {
@@ -714,6 +733,47 @@ describe('uiService.showZaehlerMaske', () => {
     expect(modalBodyElement.innerHTML).toContain('Eingang B');
     expect(modalBodyElement.innerHTML).toContain('Donald Duck');
     expect(modalBodyElement.innerHTML).toContain('Einbauort: Eingang B');
+  });
+
+  it('renders a helpful message if no manually enterable meters exist', () => {
+    const { uiService, modalBodyElement, modalElement } = loadUiService({
+      currentMeters: [
+        {
+          zaehler_id: 'Z_INAKTIV',
+          einheit_id: 'WE001',
+          bezeichnung: 'Inaktiver Zähler',
+          aktiv: false,
+        },
+        {
+          zaehler_id: 'Z_NICHT_ERFASSBAR',
+          einheit_id: 'WE001',
+          bezeichnung: 'Nicht erfassbarer Zähler',
+          erfassbar: 'nein',
+        },
+        {
+          zaehler_id: 'Z_BERECHNET',
+          einheit_id: 'WE001',
+          bezeichnung: 'Berechneter Wert',
+          berechnet: 'wahr',
+        },
+        {
+          zaehler_id: 'Z_ANDERE_EINHEIT',
+          einheit_id: 'WE002',
+          bezeichnung: 'Andere Einheit',
+        },
+      ],
+    });
+
+    uiService.showZaehlerMaske('WE001');
+
+    expect(uiService.currentActiveMetersObjects).toHaveLength(0);
+    expect(modalBodyElement.innerHTML).toContain('keine manuell erfassbaren Zähler');
+    expect(modalBodyElement.innerHTML).not.toContain('Inaktiver Zähler');
+    expect(modalBodyElement.innerHTML).not.toContain('Nicht erfassbarer Zähler');
+    expect(modalBodyElement.innerHTML).not.toContain('Berechneter Wert');
+    expect(modalBodyElement.innerHTML).not.toContain('Andere Einheit');
+    expect(modalBodyElement.innerHTML).not.toContain('uiService.saveZaehler()');
+    expect(modalElement.style.display).toBe('flex');
   });
 });
 
