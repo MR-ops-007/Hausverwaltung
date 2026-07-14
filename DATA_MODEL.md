@@ -174,6 +174,8 @@ Diese Tabelle beschreibt, **welche Zähler existieren**, zu welchem Objekt bzw. 
 | **M** | `hinweis` | String | Freitext für Besonderheiten, z. B. `4-stelliger Zwischenzähler`, `OVAG-Hauptzähler`, `Zählerwechsel 2024` |
 | **N** | `erfassbar` | Boolean | `TRUE`/leer = erscheint in der manuellen Eingabemaske; `FALSE` = wird nicht manuell erfasst |
 | **O** | `berechnet` | Boolean | `TRUE` = berechneter/virtueller Wert; `FALSE`/leer = normaler physischer Zähler |
+| **P** | `dashboard_anzeigen` | Boolean | `TRUE` = Wert darf später in Übersichten/Dashboards angezeigt werden; `FALSE` = nicht anzeigen |
+| **Q** | `berechnungslogik` | String | Freitext zur fachlichen Herleitung eines berechneten Werts |
 
 #### Zähleridentität
 
@@ -224,12 +226,20 @@ berechnet ist nicht TRUE
 
 Berechnete oder virtuelle Werte bleiben Teil des Datenmodells und können für Auswertungen, Verbrauchsberechnungen und Dashboards genutzt werden. Sie werden aber nicht als Eingabefeld in der manuellen Zählererfassung angezeigt.
 
+Feldregeln:
+
+- `erfassbar = TRUE`: Zähler erscheint in der manuellen Eingabemaske.
+- `erfassbar = FALSE`: Zähler erscheint nicht in der manuellen Eingabemaske.
+- `berechnet = TRUE`: Wert wird berechnet und nicht manuell eingegeben.
+- `dashboard_anzeigen = TRUE`: Wert darf später in Übersichten/Dashboards angezeigt werden.
+- `berechnungslogik`: Freitext zur fachlichen Herleitung eines berechneten Werts.
+
 Beispiel:
 
-| zaehler_id | Bedeutung | erfassbar | berechnet |
-| :--- | :--- | :--- | :--- |
-| `Z_KALTWASSER_KW_WOHNUNG_4` | Physischer Kaltwasserzähler Wohnung 4 | `TRUE` | `FALSE` |
-| `Z_KALTWASSER_VERBRAUCH_WOHNUNG_4` | Berechneter Verbrauch zur Ermittlung des Warmwasser-Zulaufs | `FALSE` | `TRUE` |
+| zaehler_id | Bedeutung | erfassbar | berechnet | dashboard_anzeigen | berechnungslogik |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `Z_KALTWASSER_KW_WOHNUNG_4` | Physischer Kaltwasserzähler Wohnung 4 | `TRUE` | `FALSE` | `TRUE` | leer |
+| `Z_KALTWASSER_VERBRAUCH_WOHNUNG_4` | Berechneter Verbrauch zur Ermittlung des Warmwasser-Zulaufs | `FALSE` | `TRUE` | `TRUE` | Verbrauch aus physischem Kaltwasserzähler für Warmwasser-Zulauf-Berechnung |
 
 #### Plausibilitätsregeln für Zählerstände
 

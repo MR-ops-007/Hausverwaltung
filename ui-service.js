@@ -108,19 +108,61 @@ const uiService = {
     return viewRows.find(v => String(v.einheit_id) === String(einheitId));
   },
 
+  toBoolean(value) {
+    if (value === true || value === false) {
+      return value;
+    }
+
+    if (value === 1 || value === 0) {
+      return value === 1;
+    }
+
+    const normalized = String(value ?? '').trim().toLowerCase();
+
+    if (['true', '1', 'ja', 'wahr'].includes(normalized)) {
+      return true;
+    }
+
+    if (['false', '0', 'nein', 'falsch'].includes(normalized)) {
+      return false;
+    }
+
+    return null;
+  },
+
+  isExplicitFalse(value) {
+    return this.toBoolean(value) === false;
+  },
+
+  isExplicitTrue(value) {
+    return this.toBoolean(value) === true;
+  },
+
   isTrueValue(value) {
-    return value === true || value === 'TRUE' || value === 'true' || value === 1 || value === '1';
+    return this.isExplicitTrue(value);
   },
 
   isFalseValue(value) {
-    return value === false || value === 'FALSE' || value === 'false' || value === 0 || value === '0';
+    return this.isExplicitFalse(value);
+  },
+
+  isZaehlerAktiv(zaehler) {
+    return !this.isExplicitFalse(zaehler && zaehler.aktiv);
+  },
+
+  isZaehlerErfassbar(zaehler) {
+    return !this.isExplicitFalse(zaehler && zaehler.erfassbar);
+  },
+
+  isZaehlerBerechnet(zaehler) {
+    return this.isExplicitTrue(zaehler && zaehler.berechnet);
   },
 
   isZaehlerManuellErfassbar(zaehler) {
     return (
-      !this.isFalseValue(zaehler.aktiv) &&
-      !this.isFalseValue(zaehler.erfassbar) &&
-      !this.isTrueValue(zaehler.berechnet)
+      this.isZaehlerAktiv(zaehler) &&
+      this.isZaehlerErfassbar(zaehler) &&
+      !this.isZaehlerBerechnet(zaehler)
     );
   },
 
@@ -1318,23 +1360,27 @@ const uiService = {
     const entranceLabel = this.getUnitEntranceLabel(unit);
     const tenantName = this.formatMieterDisplayName(viewData && viewData.mieter_name ? viewData.mieter_name : 'Leerstand');
 
-    let inputsHtml = `<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:15px;">`;
+    const inputsHtml = activeMeters.length > 0
+      ? `
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:15px;">
+          ${activeMeters.map(z => {
+            const label = this.getZaehlerLabel(z);
+            const locationHtml = z.einbauort
+              ? `<div style="font-size:0.75rem; color:#666; margin:4px 0 6px;">Einbauort: ${this.escapeHtml(z.einbauort)}</div>`
+              : '';
 
-    activeMeters.forEach(z => {
-      const label = this.getZaehlerLabel(z);
-      const locationHtml = z.einbauort
-        ? `<div style="font-size:0.75rem; color:#666; margin:4px 0 6px;">Einbauort: ${this.escapeHtml(z.einbauort)}</div>`
-        : '';
-
-      inputsHtml += `
-        <div style="padding:10px; border:1px solid #ccc; border-radius:4px; background:#f9f9f9;">
-          <label for="input-${z.zaehler_id}" style="font-size:0.8rem;">${this.escapeHtml(label)}</label>
-          ${locationHtml}
-          <input type="number" id="input-${z.zaehler_id}" step="0.01" style="width:100%;">
+            return `
+              <div style="padding:10px; border:1px solid #ccc; border-radius:4px; background:#f9f9f9;">
+                <label for="input-${z.zaehler_id}" style="font-size:0.8rem;">${this.escapeHtml(label)}</label>
+                ${locationHtml}
+                <input type="number" id="input-${z.zaehler_id}" step="0.01" style="width:100%;">
+              </div>`;
+          }).join('')}
+        </div>`
+      : `
+        <div style="margin-top:15px; padding:12px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; color:#475569;">
+          Für diese Einheit sind keine manuell erfassbaren Zähler vorhanden.
         </div>`;
-    });
-
-    inputsHtml += `</div>`;
 
     modalBody.innerHTML = `
       <h3>Zählererfassung</h3>
@@ -1345,7 +1391,7 @@ const uiService = {
       ${inputsHtml}
 
       <div style="margin-top:20px;">
-        <button onclick="uiService.saveZaehler()" style="background:#28a745; color:white; padding:10px; border:none; border-radius:5px; cursor:pointer;">Speichern</button>
+        ${activeMeters.length > 0 ? '<button onclick="uiService.saveZaehler()" style="background:#28a745; color:white; padding:10px; border:none; border-radius:5px; cursor:pointer;">Speichern</button>' : ''}
         <button onclick="uiService.closeModal()" style="background:#6c757d; color:white; padding:10px; border:none; border-radius:5px; cursor:pointer; margin-left:10px;">Abbrechen</button>
       </div>
     `;
