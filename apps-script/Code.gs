@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.6.3
+ * Version: 4.6.4
  * Stand: 2026-07-03
  *
  * Änderungen seit v4.1:
@@ -58,8 +58,11 @@
  *
  * Änderungen seit v4.6.2:
  * - Bilanzview _view_verbrauch_bilanz_jahr für fachlich berechnete Jahreskennzahlen ergänzt
+ *
+ * Änderungen seit v4.6.3:
+ * - stand_id für neue UI-Eingaben nutzt kurzes Format ST_{zaehler_id}_{YYYY-MM-DD HH:mm}
  */
-const BACKEND_VERSION = "4.6.3";
+const BACKEND_VERSION = "4.6.4";
 
 function sendJSON(obj) {
   return ContentService
@@ -220,17 +223,11 @@ function formatStandIdTimestamp(value, fallbackDate) {
 }
 
 function buildStandId(item, fallbackDate) {
-  const objektId = isBlankValue(item.objekt_id)
-    ? "UNKNOWN_OBJEKT"
-    : String(item.objekt_id).trim();
-  const einheitId = isBlankValue(item.einheit_id)
-    ? "UNKNOWN_EINHEIT"
-    : String(item.einheit_id).trim();
   const zaehlerId = isBlankValue(item.zaehler_id)
     ? "UNKNOWN_ZAEHLER"
     : String(item.zaehler_id).trim();
 
-  return "ST_" + objektId + "_" + einheitId + "_" + zaehlerId + "_" + formatStandIdTimestamp(item.zeitstempel, fallbackDate);
+  return "ST_" + zaehlerId + "_" + formatStandIdTimestamp(item.zeitstempel, fallbackDate);
 }
 
 function getItemValueForHeader(item, header) {

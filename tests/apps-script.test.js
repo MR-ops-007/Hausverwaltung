@@ -22,7 +22,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
   it('declares the current backend version', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
 
-    expect(BACKEND_VERSION).toBe('4.6.3');
+    expect(BACKEND_VERSION).toBe('4.6.4');
   });
 
   it('formats German timestamps for stand_id values', () => {
@@ -288,7 +288,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert'];
     const rows = [
       [
-        'ST_Ra-HS-29_Ra-HS-29_GE_02_Z_STROM_HT_KWH_PRIVAT_HT_2025-01-01 00:00',
+        'ST_Z_STROM_HT_KWH_PRIVAT_HT_2025-01-01 00:00',
         'Ra-HS-29',
         'Ra-HS-29_GE_02',
         'Z_STROM_HT_KWH_PRIVAT_HT',
@@ -296,7 +296,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
         1000,
       ],
       [
-        'ST_Ra-HS-29_Ra-HS-29_GE_02_Z_STROM_KWH_PRIVAT_HT_2025-02-01 00:00',
+        'ST_Z_STROM_KWH_PRIVAT_HT_2025-02-01 00:00',
         'Ra-HS-29',
         'Ra-HS-29_GE_02',
         'Z_STROM_KWH_PRIVAT_HT',
@@ -327,7 +327,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
       status: 'KANONISCHE_ZAEHLER_ID',
       old_zaehler_id: 'Z_STROM_HT_KWH_PRIVAT_HT',
       new_zaehler_id: 'Z_STROM_KWH_PRIVAT_HT',
-      new_stand_id: 'ST_Ra-HS-29_Ra-HS-29_GE_02_Z_STROM_KWH_PRIVAT_HT_2025-01-01 00:00',
+      new_stand_id: 'ST_Z_STROM_KWH_PRIVAT_HT_2025-01-01 00:00',
     });
   });
 
@@ -344,7 +344,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
         1000,
       ],
       [
-        'ST_Ra-HS-29_Ra-HS-29_GE_02_Z_STROM_KWH_PRIVAT_HT_2025-01-01 00:00',
+        'ST_Z_STROM_KWH_PRIVAT_HT_2025-01-01 00:00',
         'Ra-HS-29',
         'Ra-HS-29_GE_02',
         'Z_STROM_KWH_PRIVAT_HT',
@@ -366,7 +366,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     expect(result.duplicateRows).toBe(1);
     expect(result.duplicates[0]).toMatchObject({
       row_number: 2,
-      new_stand_id: 'ST_Ra-HS-29_Ra-HS-29_GE_02_Z_STROM_KWH_PRIVAT_HT_2025-01-01 00:00',
+      new_stand_id: 'ST_Z_STROM_KWH_PRIVAT_HT_2025-01-01 00:00',
       duplicate_count: 2,
     });
   });
@@ -376,7 +376,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     const headers = ['stand_id', 'objekt_id', 'einheit_id', 'zaehler_id', 'zeitstempel', 'wert'];
     const rows = [
       [
-        'ST_Ra-HS-29_Ra-HS-29_Allgemein_Z_OEL_GETANKT_LITER_2025-12-23 00:00',
+        'ST_Z_OEL_GETANKT_LITER_2025-12-23 00:00',
         'Ra-HS-29',
         'Ra-HS-29_Allgemein',
         'Z_OEL_GETANKT_LITER',
@@ -449,7 +449,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     });
   });
 
-  it('builds compact stand_id values from object, unit, meter and timestamp', () => {
+  it('builds compact stand_id values from meter and timestamp', () => {
     const { buildStandId } = loadAppsScriptHelpers();
 
     const result = buildStandId({
@@ -459,7 +459,18 @@ describe('Apps Script Zaehlerstaende helpers', () => {
       zeitstempel: '02.06.2026 00:00',
     });
 
-    expect(result).toBe('ST_Ra-HS-29_Ra-HS-29_GE_02_Z_STROM_KWH_PRIVAT_NT_2026-06-02 00:00');
+    expect(result).toBe('ST_Z_STROM_KWH_PRIVAT_NT_2026-06-02 00:00');
+  });
+
+  it('builds stand_id values from JavaScript date strings', () => {
+    const { buildStandId } = loadAppsScriptHelpers();
+
+    const result = buildStandId({
+      zaehler_id: 'Z_STROM_KWH_PRIVAT_NT',
+      zeitstempel: 'Tue Jun 02 2026 00:00:00 GMT+0200 (Central European Summer Time)',
+    });
+
+    expect(result).toBe('ST_Z_STROM_KWH_PRIVAT_NT_2026-06-02 00:00');
   });
 
   it('adds a missing stand_id before a meter reading is saved', () => {
@@ -474,8 +485,8 @@ describe('Apps Script Zaehlerstaende helpers', () => {
       wert: 1234,
     });
 
-    expect(result.stand_id).toBe('ST_Ra-HS-29_Ra-HS-29_WE_01_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00');
-    expect(result['stand.id']).toBe('ST_Ra-HS-29_Ra-HS-29_WE_01_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00');
+    expect(result.stand_id).toBe('ST_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00');
+    expect(result['stand.id']).toBe('ST_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00');
     expect(result.wert).toBe(1234);
   });
 
@@ -490,10 +501,10 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     });
 
     expect(getItemValueForHeader(item, 'stand_id')).toBe(
-      'ST_Ra-HS-29_Ra-HS-29_WE_01_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00'
+      'ST_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00'
     );
     expect(getItemValueForHeader(item, 'stand.id')).toBe(
-      'ST_Ra-HS-29_Ra-HS-29_WE_01_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00'
+      'ST_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00'
     );
   });
 
@@ -507,6 +518,20 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     });
 
     expect(result.stand_id).toBe('ST_EXISTING');
+    expect(result['stand.id']).toBe('ST_EXISTING');
+  });
+
+  it('keeps an existing legacy stand.id unchanged', () => {
+    const { normalizeZaehlerstandItem } = loadAppsScriptHelpers();
+
+    const result = normalizeZaehlerstandItem({
+      'stand.id': 'ST_LEGACY_EXISTING',
+      zaehler_id: 'Z001',
+      zeitstempel: '19.06.2026 00:00',
+    });
+
+    expect(result.stand_id).toBe('ST_LEGACY_EXISTING');
+    expect(result['stand.id']).toBe('ST_LEGACY_EXISTING');
   });
 
   it('uses the fallback date if no timestamp was provided', () => {
@@ -522,18 +547,17 @@ describe('Apps Script Zaehlerstaende helpers', () => {
       new Date(2026, 5, 20, 9, 5)
     );
 
-    expect(result.stand_id).toBe('ST_TEST_TEST_WE_01_Z001_2026-06-20 09:05');
+    expect(result.stand_id).toBe('ST_Z001_2026-06-20 09:05');
   });
 
-  it('keeps missing object or unit explicit in generated stand_id values', () => {
+  it('uses an explicit fallback for missing meter ids', () => {
     const { buildStandId } = loadAppsScriptHelpers();
 
     const result = buildStandId({
-      zaehler_id: 'Z001',
       zeitstempel: '20.06.2026 09:05',
     });
 
-    expect(result).toBe('ST_UNKNOWN_OBJEKT_UNKNOWN_EINHEIT_Z001_2026-06-20 09:05');
+    expect(result).toBe('ST_UNKNOWN_ZAEHLER_2026-06-20 09:05');
   });
 
   it('detects existing rows by composite meter identity', () => {
@@ -924,12 +948,12 @@ describe('Apps Script Zaehlerstaende helpers', () => {
       status: 'ok',
       changed: true,
       oldStandId: 'ST_Z_STROM_KWH_WOHNUNG_1_20260619',
-      newStandId: 'ST_Ra-HS-29_Ra-HS-29_WE_01_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00',
+      newStandId: 'ST_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00',
     });
     expect(result.item).toMatchObject({
       objekt_id: 'Ra-HS-29',
       einheit_id: 'Ra-HS-29_WE_01',
-      stand_id: 'ST_Ra-HS-29_Ra-HS-29_WE_01_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00',
+      stand_id: 'ST_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00',
       wert: 1234,
     });
   });
@@ -961,7 +985,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     expect(result.duplicates[0]).toMatchObject({
       row: 3,
       duplicateOfRow: 2,
-      stand_id: 'ST_Ra-HS-29_Ra-HS-29_WE_01_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00',
+      stand_id: 'ST_Z_STROM_KWH_WOHNUNG_1_2026-06-19 00:00',
     });
   });
 
