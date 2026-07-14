@@ -346,6 +346,8 @@ Nächster sinnvoller Schritt:
 - Die Kachelübersicht zeigt die fachliche Bilanz `Strom · Black Inn` aggregiert. Die Quellzähler `Strom · Black Inn · Privat HT`, `Strom · Black Inn · Privat NT` und `Strom · Black Inn · Büro` bleiben in der Detailtabelle sichtbar, werden aber in der Kachelübersicht ausgeblendet, sobald die Black-Inn-Bilanz verfügbar ist. Bis die Backend-Bilanzview geladen ist, bildet die UI dieselbe Formel als Fallback nach.
 - Dashboard-Kacheln sind nach Blöcken sortiert: Allgemein, Gewerbe, Wohnungen, Öl. Bilanzkacheln zeigen ihre Formel und Quellzähler aufklappbar an.
 - Die Detailtabelle hat einen Statusfilter mit `Alle Zähler`, `Nur fehlende Werte` und `Nur Warnungen`.
+- Das Verbrauchsdashboard enthält eine kompakte Übersicht für Verbrauchszeilen, fehlende/offene Werte, Warnungen und berechnete Werte/Bilanzen.
+- Datenqualität wird aus den bereits vorhandenen Verbrauchs- und Audit-Views angezeigt; für diese Dashboard-Erweiterung wurde keine Backend-Logik geändert.
 - Nächster UI-Ausbau: spätere visuelle Auswertung und fachliche Detailansichten pro Einheit/Medium.
 
 Spätere Auswertungen sollen den Testbereich `TEST` sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.
