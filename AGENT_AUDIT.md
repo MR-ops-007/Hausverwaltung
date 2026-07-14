@@ -165,6 +165,13 @@ Getestete Fälle:
 - Zeitstempel werden als `DD.MM.YYYY HH:mm` gespeichert.
 - Backend-Schreibstruktur bleibt unverändert.
 
+### Verbrauchsdashboard erweitert
+
+- Dashboard-Übersicht für Verbrauchszeilen, fehlende/offene Werte, Warnungen und berechnete Werte ergänzt.
+- Datenqualitätsbereich nutzt die bestehenden Verbrauchs- und Audit-Views.
+- Berechnete Werte und Bilanzwerte werden in der UI erkennbar markiert.
+- Keine Backend-Änderung in diesem Arbeitspaket.
+
 ---
 
 ## Nächste sinnvolle Arbeitspakete

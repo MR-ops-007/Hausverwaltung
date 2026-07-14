@@ -903,9 +903,29 @@ const uiService = {
     return !['OK', 'KANONISCH_ZUGEORDNET', 'KEINE_WERTE'].includes(String(status || ''));
   },
 
+  isConsumptionMissingStatus(status) {
+    return [
+      'KEINE_WERTE',
+      'KEINE_ABLESUNG',
+      'NUR_EIN_WERT',
+      'UNGELOESTE_MESSWERTE',
+      'MONATSZEILEN_ABWEICHUNG',
+      'TEILWEISE_UNBERECHENBAR',
+      'NICHT_BERECHENBAR',
+      'UNBERECHENBAR'
+    ].includes(String(status || ''));
+  },
+
+  isConsumptionCalculatedRow(row) {
+    return (
+      String(row && row.verbrauchsgruppe ? row.verbrauchsgruppe : '').toUpperCase() === 'BERECHNET' ||
+      this.isTruthyValue(row && row.berechnet)
+    );
+  },
+
   filterConsumptionRowsByStatus(rows, filterValue) {
     if (filterValue === 'missing') {
-      return rows.filter(row => row.status === 'KEINE_WERTE');
+      return rows.filter(row => this.isConsumptionMissingStatus(row.status));
     }
 
     if (filterValue === 'warnings') {
@@ -913,6 +933,47 @@ const uiService = {
     }
 
     return rows;
+  },
+
+  buildConsumptionOverviewMetrics(rows, balanceRows, dataQualityRows) {
+    const warningKeys = new Set();
+    (rows || []).forEach(row => {
+      if (this.isConsumptionWarningStatus(row.status)) {
+        warningKeys.add(this.getConsumptionMeterKey(row));
+      }
+    });
+    (dataQualityRows || []).forEach(row => {
+      warningKeys.add([row.objekt_id, row.einheit_id, row.zaehler_id].map(value => String(value || '').trim()).join('||'));
+    });
+
+    return {
+      consumptionRows: rows.length,
+      missingRows: rows.filter(row => this.isConsumptionMissingStatus(row.status)).length,
+      warningRows: warningKeys.size,
+      calculatedRows: rows.filter(row => this.isConsumptionCalculatedRow(row)).length + (balanceRows || []).length
+    };
+  },
+
+  buildConsumptionDataQualityRows(auditRows, rows) {
+    const rowByKey = {};
+    (rows || []).forEach(row => {
+      rowByKey[this.getConsumptionMeterKey(row)] = row;
+    });
+
+    return (auditRows || [])
+      .filter(row => this.isConsumptionWarningStatus(row.status))
+      .map(row => {
+        const key = [row.objekt_id, row.einheit_id, row.zaehler_id].map(value => String(value || '').trim()).join('||');
+        const displayRow = rowByKey[key] || row;
+
+        return {
+          ...row,
+          label: row.bezeichnung || displayRow.bezeichnung || row.zaehler_id || 'Zähler',
+          unitLabel: this.getConsumptionRowUnitLabel(displayRow) || row.einheit_id || '',
+          statusLabel: this.getConsumptionStatusLabel(row.status),
+          hint: row.hinweis || ''
+        };
+      });
   },
 
   async ensureConsumptionViewData() {
@@ -1144,8 +1205,10 @@ const uiService = {
             <div style="font-size:1.15rem; font-weight:900; color:#0f172a;">${item.missing ? 'Keine Werte' : `${this.formatDashboardNumber(item.verbrauch)} ${this.escapeHtml(item.einheit || '')}`}</div>
             <div style="font-size:0.75rem; color:#64748b;">${item.zaehler_count} ${item.isBalance ? 'Quellen' : 'Zähler'}${item.warnungen ? ` · ${this.escapeHtml(item.status || `${item.warnungen} Warnungen`)}` : ''}</div>
             ${item.isBalance ? `
+              <span class="consumption-badge">Bilanz</span>
               <details class="consumption-card-details">
                 <summary>Formel und Quellen</summary>
+                <div>Dieser Wert wurde berechnet und nicht manuell erfasst.</div>
                 <div><strong>Formel:</strong> ${this.escapeHtml(item.formel || 'Keine Formel hinterlegt')}</div>
                 <div><strong>Quellen:</strong> ${this.escapeHtml(item.source_zaehler_ids || 'Keine Quellen hinterlegt')}</div>
                 ${item.missing_source_zaehler_ids ? `<div><strong>Fehlend:</strong> ${this.escapeHtml(item.missing_source_zaehler_ids)}</div>` : ''}
@@ -1167,6 +1230,64 @@ const uiService = {
           hint
         };
       });
+    const dataQualityRows = this.buildConsumptionDataQualityRows(auditRows, decoratedRows);
+    const overviewMetrics = this.buildConsumptionOverviewMetrics(decoratedRows, effectiveBalanceRows, dataQualityRows);
+    const overviewCardsHtml = [
+      {
+        label: 'Verbrauchszeilen',
+        value: overviewMetrics.consumptionRows,
+        hint: 'Jahreswerte in der Tabelle'
+      },
+      {
+        label: 'Fehlende Werte',
+        value: overviewMetrics.missingRows,
+        hint: 'Offene oder fehlende Verbräuche',
+        filter: 'missing'
+      },
+      {
+        label: 'Warnungen',
+        value: overviewMetrics.warningRows,
+        hint: 'Prüf- und Audit-Hinweise',
+        filter: 'warnings'
+      },
+      {
+        label: 'Berechnete Werte',
+        value: overviewMetrics.calculatedRows,
+        hint: 'Berechnete Werte und Bilanzen'
+      }
+    ].map(card => `
+      <button
+        type="button"
+        class="consumption-overview-card"
+        ${card.filter ? `onclick="document.getElementById('consumption-status-filter').value='${card.filter}'; uiService.renderConsumptionDashboard();"` : ''}
+        ${card.filter ? '' : 'disabled'}
+      >
+        <span>${this.escapeHtml(card.label)}</span>
+        <strong>${this.formatDashboardNumber(card.value)}</strong>
+        <small>${this.escapeHtml(card.hint)}</small>
+      </button>
+    `).join('');
+    const dataQualityHtml = dataQualityRows.length > 0
+      ? dataQualityRows.map(row => `
+        <div class="consumption-quality-row">
+          <div>
+            <strong>${this.escapeHtml(row.label)}</strong>
+            <div style="font-size:0.78rem; color:#64748b;">
+              ${this.escapeHtml([row.objekt_id, row.unitLabel].filter(Boolean).join(' · '))}
+            </div>
+          </div>
+          <div>
+            <span style="display:inline-block; padding:3px 7px; border-radius:999px; background:#fff7ed; color:${this.getConsumptionStatusColor(row.status)}; font-size:0.75rem; font-weight:800;">
+              ${this.escapeHtml(row.statusLabel)}
+            </span>
+            ${row.hint ? `<div style="font-size:0.75rem; color:#64748b; margin-top:4px;">${this.escapeHtml(row.hint)}</div>` : ''}
+          </div>
+          <div style="font-size:0.78rem; color:#475569;">
+            ${this.formatDashboardNumber(row.readings_count)} Rohwerte · ${this.formatDashboardNumber(row.intervalle_count)} Intervalle · ${this.formatDashboardNumber(row.monatszeilen)} Monatszeilen
+          </div>
+        </div>
+      `).join('')
+      : '<div style="color:#64748b;">Keine offenen Datenqualitäts-Hinweise für diese Auswahl.</div>';
     const filteredRows = this.filterConsumptionRowsByStatus(decoratedRows, statusFilter);
     const rowsHtml = filteredRows.length > 0
       ? filteredRows.map(row => {
@@ -1186,6 +1307,7 @@ const uiService = {
             <td>
               <div style="font-weight:700;">${this.escapeHtml(row.bezeichnung)}</div>
               <div style="font-size:0.75rem; color:#64748b;">${this.escapeHtml(this.getConsumptionSummaryLabel(row))}</div>
+              ${this.isConsumptionCalculatedRow(row) ? '<span class="consumption-badge">berechnet</span><div style="font-size:0.75rem; color:#64748b; margin-top:4px;">Dieser Wert wurde berechnet und nicht manuell erfasst.</div>' : ''}
             </td>
             <td>
               <div><strong>Monate:</strong> ${this.formatDashboardNumber(row.anzahl_monate_mit_verbrauch)}</div>
@@ -1225,6 +1347,15 @@ const uiService = {
         <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${canonicalAuditRows.length} historisch zugeordnet</span>
         <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">Summen nach Medium und Gruppe</span>
       </div>
+
+      <div class="consumption-overview-grid">
+        ${overviewCardsHtml}
+      </div>
+
+      <section class="consumption-quality-section">
+        <h3>Datenqualität</h3>
+        ${dataQualityHtml}
+      </section>
 
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px; margin-bottom:14px;">
         ${summaryHtml}

@@ -468,6 +468,25 @@ describe('uiService consumption dashboard', () => {
             in_summe_beruecksichtigen: true,
           },
           {
+            jahr: 2026,
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_Allgemein',
+            einheit_name: 'Haus',
+            mieter_name: 'Leerstand',
+            verbrauchsgruppe: 'BERECHNET',
+            untergruppe: '',
+            zaehler_id: 'Z_WARMWASSER_BERECHNET',
+            medium: 'warmwasser_m3',
+            bezeichnung: 'Warmwasser berechnet',
+            verbrauch_jahr: 3,
+            verbrauch_monat_durchschnitt: 0.25,
+            anzahl_monate_mit_verbrauch: 12,
+            anzahl_warnungen: 0,
+            plausibilitaet_status: 'OK',
+            in_summe_beruecksichtigen: true,
+            berechnet: true,
+          },
+          {
             jahr: 2025,
             objekt_id: 'Ra-HS-29',
             einheit_id: 'Ra-HS-29_GE_02',
@@ -513,6 +532,16 @@ describe('uiService consumption dashboard', () => {
             status: 'OK',
             readings_count: 2,
             intervalle_count: 1,
+          },
+          {
+            objekt_id: 'Ra-HS-29',
+            einheit_id: 'Ra-HS-29_WE_01',
+            zaehler_id: 'Z_KALTWASSER_KW_WOHNUNG_1',
+            status: 'MONATSZEILEN_ABWEICHUNG',
+            readings_count: 4,
+            intervalle_count: 3,
+            monatszeilen: 2,
+            hinweis: 'Monatszeilen prüfen',
           },
         ],
         '_view_verbrauch_bilanz_jahr': [
@@ -571,6 +600,21 @@ describe('uiService consumption dashboard', () => {
     expect(elementsById['consumption-dashboard-output'].innerHTML).not.toContain('150 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).not.toContain('353 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('2 Rohwerte');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Verbrauchszeilen');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Fehlende Werte');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Warnungen');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Berechnete Werte');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toMatch(/Verbrauchszeilen[\s\S]*?<strong>9<\/strong>/);
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toMatch(/Fehlende Werte[\s\S]*?<strong>2<\/strong>/);
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toMatch(/Warnungen[\s\S]*?<strong>2<\/strong>/);
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toMatch(/Berechnete Werte[\s\S]*?<strong>2<\/strong>/);
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Datenqualität');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Kaltwasser Wohnung 1');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Prüfen');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('4 Rohwerte · 3 Intervalle · 2 Monatszeilen');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('berechnet');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Bilanz');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Dieser Wert wurde berechnet und nicht manuell erfasst.');
 
     const summaryHtml = elementsById['consumption-dashboard-output'].innerHTML.split('<div style="overflow:auto;')[0];
     expect(summaryHtml).toContain('Formel und Quellen');
@@ -647,6 +691,7 @@ describe('uiService consumption dashboard', () => {
     expect(summaryHtml).not.toContain('Strom · Black Inn · Privat HT');
     expect(summaryHtml).not.toContain('Strom · Black Inn · Privat NT');
     expect(summaryHtml).not.toContain('Strom · Black Inn · Büro');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Keine offenen Datenqualitäts-Hinweise für diese Auswahl.');
   });
 });
 
