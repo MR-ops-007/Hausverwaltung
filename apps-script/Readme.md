@@ -119,7 +119,9 @@ Der virtuelle Zähler `Z_WARMWASSER_WW_GESAMT_BERECHNET` ist als `berechnet = TR
 
 ## Verbrauchsviews
 
-Version `4.6.0` ergänzt die Backend-Funktion `updateVerbrauchViews`. Version `4.6.3` erweitert diese Views um die Bilanz-Jahresview.
+Version `4.6.0` ergänzt die Backend-Funktion `updateVerbrauchViews`. Version `4.6.3` erweitert diese Views um die Bilanz-Jahresview. Lokal liegt diese Funktion aktuell in `apps-script/Code.gs` Version `4.6.4`.
+
+Wenn `updateVerbrauchViews()` im Google-Apps-Script-Editor nicht in der Funktionsauswahl erscheint, läuft dort nicht der aktuelle Stand aus `apps-script/Code.gs`. In diesem Fall muss zuerst der Apps-Script-Code aktualisiert bzw. neu bereitgestellt werden.
 
 Die Funktion berechnet aus `Zaehler`, `Zaehlerstaende`, `Einheiten` und `_view_aktive_mieter` materialisierte Lesetabellen:
 
@@ -140,6 +142,8 @@ Wichtige Fachregeln:
 - Überlaufwerte werden als Warnung markiert, bleiben aber für die fachliche Prüfung sichtbar.
 
 Die Web-App kann die Views schlank über `?view=verbrauch` abrufen. Dadurch muss die UI die historische Intervalllogik nicht selbst nachbauen.
+
+Wichtig: Neue Zählerstände werden durch die UI in `Zaehlerstaende` gespeichert. Die materialisierten Verbrauchsviews werden aktuell nicht automatisch beim Speichern aktualisiert. Nach neuen Ablesungen muss `updateVerbrauchViews()` manuell im Apps-Script-Editor ausgeführt werden, damit die Verbrauchsansicht den aktuellen Stand zeigt.
 
 Der Audit-View prüft pro Zähler:
 

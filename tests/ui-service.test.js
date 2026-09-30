@@ -339,6 +339,13 @@ describe('uiService consumption dashboard', () => {
           bezeichnung: 'Rathausstraße 29',
         },
       ],
+      viewAktiveMieter: [
+        {
+          einheit_id: 'Ra-HS-29_WE_01',
+          mieter_name: 'Duck, Donald',
+          start_datum: '01.03.2026',
+        },
+      ],
       consumptionData: {
         '_view_verbrauch_jahr': [
           {
@@ -354,7 +361,7 @@ describe('uiService consumption dashboard', () => {
             bezeichnung: 'Strom Wohnung 1',
             verbrauch_jahr: 253,
             verbrauch_monat_durchschnitt: 21.08,
-            anzahl_monate_mit_verbrauch: 12,
+            anzahl_monate_mit_verbrauch: 7,
             anzahl_warnungen: 1,
             plausibilitaet_status: 'WARNUNG_RUECKLAEUFIG',
             in_summe_beruecksichtigen: true,
@@ -523,7 +530,25 @@ describe('uiService consumption dashboard', () => {
             in_summe_beruecksichtigen: true,
           },
         ],
-        '_view_verbrauch_monat': [],
+        '_view_verbrauch_monat': [
+          '2026-01',
+          '2026-02',
+          '2026-03',
+          '2026-04',
+          '2026-05',
+          '2026-06',
+          '2026-07',
+          '2026-08',
+          '2026-09',
+        ].map(monat => ({
+          jahr: 2026,
+          monat,
+          objekt_id: 'Ra-HS-29',
+          einheit_id: 'Ra-HS-29_WE_01',
+          zaehler_id: 'Z_STROM_KWH_WOHNUNG_1',
+          medium: 'strom_ht_kwh',
+          verbrauch_monat: 10,
+        })),
         '_view_verbrauch_audit': [
           {
             objekt_id: 'Ra-HS-29',
@@ -587,8 +612,19 @@ describe('uiService consumption dashboard', () => {
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Black Inn · Privat HT');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Black Inn · Büro');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Strom · Kodi HT');
-    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Verbrauch Vorjahr');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Berechneter Zeitraum');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Jahresverbrauch');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Abrechnung bis heute');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Vorjahr gesamt');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Jahresverbrauch:</strong> Summe der Monatsverbräuche');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Abrechnung bis heute:</strong> Summe der Monatswerte');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Berechneter Zeitraum:</strong> zeigt die Monatssegmente');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('253 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('70 kWh');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('9 Monatssegmente · 7 mit Verbrauch');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Nicht jedes Monatssegment enthält berechenbaren Verbrauch.');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('01.03.2026 - 30.09.2026');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('unterjährig · ab Einzug 01.03.2026');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('100 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('50 kWh');
     expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('123 kWh');
@@ -626,6 +662,12 @@ describe('uiService consumption dashboard', () => {
     expect(summaryHtml).not.toContain('Strom · Black Inn · Büro');
 
     const detailHtml = elementsById['consumption-dashboard-output'].innerHTML.split('<div style="overflow:auto;')[1];
+    expect(detailHtml).toContain('Verbrauchsblock');
+    expect(detailHtml).toContain('Haus');
+    expect(detailHtml).toContain('Black Inn');
+    expect(detailHtml).toContain('border-left:6px solid #16a34a');
+    expect(detailHtml).toContain('border-left:6px solid #2563eb');
+    expect(detailHtml).toContain('border-left:6px solid #dc2626');
     expect(detailHtml.indexOf('Strom Wohnung 1</div>')).toBeLessThan(detailHtml.indexOf('Kaltwasser Wohnung 1</div>'));
     expect(detailHtml.indexOf('Kaltwasser Wohnung 1</div>')).toBeLessThan(detailHtml.indexOf('Warmwasser Wohnung 1</div>'));
 
@@ -778,6 +820,110 @@ describe('uiService.showZaehlerMaske', () => {
     expect(modalBodyElement.innerHTML).toContain('Eingang B');
     expect(modalBodyElement.innerHTML).toContain('Donald Duck');
     expect(modalBodyElement.innerHTML).toContain('Einbauort: Eingang B');
+  });
+
+  it('renders the latest reading with timestamp for each meter in the input mask', () => {
+    const { uiService, modalBodyElement } = loadUiService({
+      currentMeters: [
+        {
+          zaehler_id: 'Z_STROM',
+          objekt_id: 'OBJ001',
+          einheit_id: 'WE001',
+          bezeichnung: 'Strom Wohnung 1',
+          medium: 'strom_ht_kwh',
+          aktiv: 'TRUE',
+          erfassbar: 'TRUE',
+          berechnet: 'FALSE',
+        },
+      ],
+      zaehlerstaende: [
+        {
+          zaehler_id: 'Z_STROM',
+          objekt_id: 'OBJ001',
+          einheit_id: 'WE001',
+          wert: 123.45,
+          zeitstempel: '01.06.2026 08:30',
+        },
+        {
+          zaehler_id: 'Z_STROM',
+          objekt_id: 'OBJ001',
+          einheit_id: 'WE001',
+          wert: 130,
+          zeitstempel: '2026-07-03T07:00:00.000Z',
+        },
+        {
+          zaehler_id: 'Z_STROM',
+          objekt_id: 'OBJ001',
+          einheit_id: 'WE002',
+          wert: 999,
+          zeitstempel: '04.07.2026 09:00',
+        },
+      ],
+    });
+
+    uiService.showZaehlerMaske('WE001');
+
+    expect(modalBodyElement.innerHTML).toContain('Letzter Stand');
+    expect(modalBodyElement.innerHTML).toContain('130 kWh');
+    expect(modalBodyElement.innerHTML).toContain('03.07.2026 09:00');
+    expect(modalBodyElement.innerHTML).not.toContain('999');
+  });
+
+  it('renders a helpful note if no previous reading exists for a meter', () => {
+    const { uiService, modalBodyElement } = loadUiService({
+      currentMeters: [
+        {
+          zaehler_id: 'Z_NEU',
+          einheit_id: 'WE001',
+          bezeichnung: 'Neuer Zähler',
+          aktiv: 'TRUE',
+          erfassbar: 'TRUE',
+          berechnet: 'FALSE',
+        },
+      ],
+    });
+
+    uiService.showZaehlerMaske('WE001');
+
+    expect(modalBodyElement.innerHTML).toContain('Noch keine Ablesung vorhanden.');
+  });
+
+  it('colors meter cards by medium', () => {
+    const { uiService, modalBodyElement } = loadUiService({
+      currentMeters: [
+        {
+          zaehler_id: 'Z_STROM',
+          einheit_id: 'WE001',
+          bezeichnung: 'Strom',
+          medium: 'strom_ht_kwh',
+        },
+        {
+          zaehler_id: 'Z_KALTWASSER',
+          einheit_id: 'WE001',
+          bezeichnung: 'Kaltwasser',
+          medium: 'kaltwasser_m3',
+        },
+        {
+          zaehler_id: 'Z_WARMWASSER',
+          einheit_id: 'WE001',
+          bezeichnung: 'Warmwasser',
+          medium: 'warmwasser_m3',
+        },
+        {
+          zaehler_id: 'Z_OEL',
+          einheit_id: 'WE001',
+          bezeichnung: 'Öl',
+          medium: 'oel_stand_cm',
+        },
+      ],
+    });
+
+    uiService.showZaehlerMaske('WE001');
+
+    expect(modalBodyElement.innerHTML).toContain('background:#f0fdf4');
+    expect(modalBodyElement.innerHTML).toContain('background:#eff6ff');
+    expect(modalBodyElement.innerHTML).toContain('background:#fef2f2');
+    expect(modalBodyElement.innerHTML).toContain('background:#fffbeb');
   });
 
   it('renders a helpful message if no manually enterable meters exist', () => {

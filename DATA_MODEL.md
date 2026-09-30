@@ -438,9 +438,21 @@ Anzeige-Regeln:
 
 - Die Detailtabelle wird aus allen bekannten Jahresview-Zählern des gewählten Objekts aufgebaut.
 - Gibt es für den gewählten Zähler im gewählten Jahr keinen Jahreswert, zeigt die UI die Zeile trotzdem mit Status `Keine Werte`.
-- Der Vorjahresverbrauch wird zusätzlich angezeigt, sofern eine passende Jahreszeile für `jahr - 1`, `objekt_id`, `einheit_id` und `zaehler_id` vorhanden ist.
+- `Jahresverbrauch` ist die Summe der Monatsverbräuche des gewählten Jahres aus `_view_verbrauch_jahr.verbrauch_jahr`.
+- `Berechneter Zeitraum` zeigt, welche Monatssegmente aus `_view_verbrauch_monat` hinter dem Jahreswert liegen und welche Quellintervalle diese Monatssegmente erzeugt haben. Die angezeigte Segmentanzahl kann von `anzahl_monate_mit_verbrauch` abweichen, wenn Monatssegmente vorhanden sind, aber wegen Warnung, Rücklauf oder nicht berechenbarer Differenz kein Verbrauch in die Jahressumme eingeflossen ist.
+- `Abrechnung bis heute` summiert die Monatswerte des gewählten Jahres bis zum aktuellen Datum. Liegt ein Mietbeginn aus `_view_aktive_mieter.start_datum` im gewählten Jahr, startet die laufende Summe ab diesem Datum. Ohne unterjährigen Mietbeginn kann der Wert im aktuellen Jahr mit `Jahresverbrauch` identisch sein, da keine Zukunft prognostiziert wird. Unterjährig wird nur markiert, wenn der Zeitraum fachlich nicht am 01.01. beginnt.
+- `Vorjahr gesamt` ist der Jahresverbrauch des gleichen Zählers aus `jahr - 1`, sofern eine passende Jahreszeile für `objekt_id`, `einheit_id` und `zaehler_id` vorhanden ist.
 - Die Kachelübersicht nutzt physische Jahreswerte nur, wenn sie nicht durch eine fachliche Bilanzkennzahl ersetzt werden.
 - Für `Strom · Black Inn` ersetzt die Bilanzkennzahl die Quellkacheln `Strom · Black Inn · Privat HT`, `Strom · Black Inn · Privat NT` und `Strom · Black Inn · Büro`. Die Quellzähler bleiben in der Detailtabelle sichtbar.
+- Die Detailtabelle gruppiert Zeilen optisch nach Einheit/Block, z. B. `Haus`, `Black Inn`, `Kochdippe` oder einzelne Wohnungen.
+- Die Medium-Farben werden konsistent verwendet: Strom grün, Kaltwasser blau, Warmwasser rot, Öl hellbraun, sonstige Zusatzwerte neutral grau.
+- Die Farblogik dient nur der schnellen Orientierung in der UI; fachliche Summen und Filter werden weiterhin ausschließlich aus den View-Daten und Statusfeldern berechnet.
+
+Aktuelle Einschränkung bei Mieterwechseln:
+
+- `_view_verbrauch_jahr` und `_view_verbrauch_monat` verwenden derzeit den aktiven Mieter aus `_view_aktive_mieter`.
+- Ein Mieterwechsel erzeugt deshalb aktuell keine eigene Verbrauchszeile je Vertrag oder Mieter.
+- Für abrechnungsfähige unterjährige Mieterwechsel muss die Verbrauchsview später um historische Vertragszeiträume erweitert werden, z. B. Gruppierung nach `vertrag_id`, Mieter, `abrechnung_start` und `abrechnung_ende`.
 
 ### Migration: kanonische Zählerstand-Identitäten
 Historische, eindeutig auflösbare Abweichungen zwischen `Zaehlerstaende` und `Zaehler` werden über `previewCanonicalZaehlerstandMigration`, `writeCanonicalZaehlerstandMigrationReport` und `applyCanonicalZaehlerstandMigration` korrigiert.

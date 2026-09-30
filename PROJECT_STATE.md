@@ -308,6 +308,9 @@ Umgesetzt mit Backend-Version `4.6.1`:
 - Steigender Ölstand in cm wird als prüfpflichtiger Hinweis markiert.
 - Historische eindeutige Abweichungen wie `Z_STROM_HT_KWH_PRIVAT_HT` werden kanonisch den aktuellen Zähler-Stammdaten zugeordnet.
 - Die Web-App kann die Verbrauchsviews schlank über `?view=verbrauch` abrufen.
+- Die Funktion `updateVerbrauchViews()` ist in `apps-script/Code.gs` ab Backend-Version `4.6.0` enthalten; lokal steht sie aktuell in Version `4.6.4`.
+- Neue Zählerstände werden in `Zaehlerstaende` gespeichert, aktualisieren die materialisierten Verbrauchsviews aber derzeit nicht automatisch. Nach neuen Ablesungen muss `updateVerbrauchViews()` im Apps-Script-Editor ausgeführt werden, damit `_view_verbrauch_monat`, `_view_verbrauch_jahr`, `_view_verbrauch_audit` und `_view_verbrauch_bilanz_jahr` den neuen Stand enthalten.
+- Wenn `updateVerbrauchViews()` im Apps-Script-Editor nicht auffindbar ist, läuft dort nicht der aktuelle Stand aus `apps-script/Code.gs` und das Script muss zuerst aktualisiert bzw. neu bereitgestellt werden.
 
 Lokale Gegenprüfung mit den Live-Daten vom 2026-06-29:
 
@@ -353,3 +356,23 @@ Nächster sinnvoller Schritt:
 Spätere Auswertungen sollen den Testbereich `TEST` sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.
 
 Offener Sicherheits-/Konfigurationspunkt: Die produktive Apps-Script-Web-App-URL steht aktuell noch in der Frontend-Konfiguration. Vor einer breiteren Veröffentlichung muss die Backend-URL aus dem öffentlichen Quellcode herausgezogen oder über eine nicht committete lokale Konfiguration/Deployment-Umgebung bereitgestellt werden. Bereits veröffentlichte sensible Links sollten dann rotiert werden.
+
+### Fortschritt 2026-09-30
+
+Heute wurde die Zählererfassung und Verbrauchsansicht gezielt für bessere Bedienbarkeit und fachliche Nachvollziehbarkeit ausgebaut:
+
+- Die manuelle Zählererfassung zeigt je Zähler den letzten gespeicherten Stand mit Datum im Format `DD.MM.YYYY HH:MM`.
+- Das Zählererfassungs-Modal passt sich besser an Inhalt und Viewport an und scrollt intern, damit Speichern-/Abbrechen-Buttons nicht aus dem Rahmen laufen.
+- Zählerboxen sind nach Medium dezent eingefärbt: Strom grün, Kaltwasser blau, Warmwasser rot, Öl hellbraun und sonstige Zusatzwerte neutral.
+- Die Verbrauchstabelle unterscheidet klarer zwischen `Jahresverbrauch`, `Abrechnung bis heute`, `Vorjahr gesamt` und `Berechneter Zeitraum`.
+- `Abrechnung bis heute` wird nicht mehr irreführend als `unterjährig` markiert, wenn der Zeitraum am `01.01.` beginnt.
+- Der Hinweis zur Verbrauchstabelle steht direkt über der Tabelle.
+- Die Detailtabelle zeigt Monatssegmente und Monate mit berechenbarem Verbrauch getrennt, damit Abweichungen wie `12 Segmente, 11 mit Verbrauch` sichtbar werden.
+- Die Verbrauchstabelle ist optisch gruppiert nach Einheit/Block, z. B. `Haus`, `Black Inn`, `Kochdippe` oder Wohnung.
+- Medium-Farben werden in der Verbrauchstabelle als dezente Farbstreifen und Badges wiederverwendet.
+- Dokumentiert wurde, dass `_view_verbrauch_*` nach neuen Zählerständen aktuell manuell über `updateVerbrauchViews()` aktualisiert werden muss.
+- Dokumentiert wurde außerdem die aktuelle Einschränkung, dass Mieterwechsel noch keine eigenen Verbrauchszeilen je Vertrag/Mieter erzeugen.
+
+Validierung:
+
+- `npm test` läuft lokal grün mit `88 passed`.
