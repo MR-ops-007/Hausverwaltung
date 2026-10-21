@@ -202,7 +202,7 @@ const contractUiService = {
   initializeIndexBasis() {
     if (typeof vpiService === 'undefined') return;
     if (!this.field('index_reihe').value) this.field('index_reihe').value = vpiService.seriesLabel;
-    if (!this.field('index_basis_monat').value && !this.current().letzte_anpassung && this.current().start_datum) {
+    if (!this.field('index_basis_monat').value && !this.field('index_basis_wert').value && !this.current().letzte_anpassung && this.current().start_datum) {
       try { this.field('index_basis_monat').value = contractService.iso(contractService.date(this.current().start_datum)).slice(0, 7); }
       catch (error) { return; }
     }
@@ -274,10 +274,11 @@ const contractUiService = {
     if (this.busy) return;
     try {
       const current = this.current();
-      const data = isIndex ? this.indexInput() : contractService.editable.reduce((patch, key) => {
-        patch[key] = this.field(key).value;
-        return patch;
-      }, {});
+      const data = isIndex ? this.indexInput() : contractService.diff(current, contractService.editable.reduce((values, key) => {
+        values[key] = this.field(key).value;
+        return values;
+      }, {}));
+      if (!isIndex && !Object.keys(data).length) { this.message('Keine Änderungen zu speichern.'); return; }
       if (isIndex) contractService.prepareIndex(current, data, this.unit(current));
       else contractService.preparePatch(current, data);
       const token = this.field('token').value;

@@ -81,6 +81,27 @@ describe('contract domain rules', () => {
     expect(() => service.preparePatch(current, { index_basis_wert: 110 })).toThrow();
     expect(() => service.preparePatch({ ...current, soll_nebenkosten: '' }, {})).toThrow();
   });
+  it('compares sheet values and form strings by value', () => {
+    expect(service.same(600, '600')).toBe(true);
+    expect(service.same(600, '600,00')).toBe(true);
+    expect(service.same('', undefined)).toBe(true);
+    expect(service.same(600, '')).toBe(false);
+    expect(service.same('2024-03', '2024-03')).toBe(true);
+  });
+  it('diffs only changed editable fields', () => {
+    const form = Object.fromEntries(service.editable.map(key => [key, current[key] === undefined ? '' : String(current[key])]));
+    expect(service.diff(current, form)).toEqual({});
+    expect(service.diff(current, { ...form, vertrag_hinweis: 'Neu', soll_nebenkosten: '210' }))
+      .toEqual({ vertrag_hinweis: 'Neu', soll_nebenkosten: '210' });
+  });
+  it('lets an empty index series be completed but never changes a stored index basis', () => {
+    const legacy = { ...current, index_reihe: '' };
+    expect(service.preparePatch(legacy, { index_basis_wert: '100', index_basis_monat: '2024-03', index_reihe: 'VPI Deutschland 2020=100' }))
+      .toMatchObject({ index_reihe: 'VPI Deutschland 2020=100' });
+    expect(() => service.preparePatch(current, { index_reihe: 'Andere Reihe' })).toThrow(/Indexbasis/);
+    expect(() => service.preparePatch(current, { index_basis_wert: '101' })).toThrow(/Indexbasis/);
+    expect(() => service.preparePatch(current, { index_basis_monat: '2024-04' })).toThrow(/Indexbasis/);
+  });
   it('parses Berlin Sheets dates and validates calendar dates', () => {
     expect(service.iso(service.date('2024-02-29T23:00:00.000Z'))).toBe('2024-03-01');
     expect(service.iso(service.date('01.03.2024'))).toBe('2024-03-01');
@@ -168,6 +189,22 @@ describe('contract backend persistence', () => {
     expect(JSON.parse(result.anpassung.nachher_json).soll_nebenkosten).toBe(200);
     expect(fixture.updates()).toBe(1);
   });
+  it('rejects a save without real changes and writes no history entry', () => {
+    const fixture = backendFixture();
+    expect(() => fixture.write({ typ: 'VERTRAG_AKTUALISIEREN', data: { vertrag_hinweis: '', soll_nebenkosten: '200,00' } }))
+      .toThrow(/Keine Aenderungen/);
+    expect(fixture.log).toHaveLength(1);
+    expect(Object.fromEntries(fixture.headers.map((key, i) => [key, fixture.grid[1][i]]))).toEqual(fixture.original);
+  });
+  it('completes a missing index series on a legacy contract', () => {
+    const fixture = backendFixture();
+    fixture.grid[1][fixture.headers.indexOf('index_reihe')] = '';
+    const stand = service.snapshot(Object.fromEntries(fixture.headers.map((key, i) => [key, fixture.grid[1][i]])));
+    const result = fixture.write({ typ: 'VERTRAG_AKTUALISIEREN', erwarteter_stand: stand,
+      data: { index_basis_wert: '100', index_basis_monat: '2024-03', index_reihe: 'VPI Deutschland 2020=100' } });
+    expect(result.vertrag.index_reihe).toBe('VPI Deutschland 2020=100');
+    expect(fixture.log).toHaveLength(2);
+  });
   it('rejects concurrent edits and unconfigured access before writing', () => {
     const fixture = backendFixture();
     expect(() => fixture.write({ data: {}, erwarteter_stand: 'stale' })).toThrow(/inzwischen/);
@@ -248,6 +285,22 @@ describe('contract view', () => {
     expect(dataService.state.vertraege[1]).toEqual(second);
     expect(dataService.state.view_aktive_mieter[0].soll_gesamt).toBe(820);
     expect(dataService.state.mietanpassungen).toHaveLength(1);
+    expect(ui.busy).toBe(false);
+  });
+  it('does not send or require a token when nothing was changed', async () => {
+    const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
+    const saveContract = vi.fn();
+    const first = { ...current, erhoehungs_typ: 'Normal' };
+    const dataService = { state: { vertraege: [first], einheiten: [unit], mietanpassungen: [], view_aktive_mieter: [] } };
+    const fields = Object.fromEntries(service.editable.map(key => ['contract-' + key, { value: first[key] ?? '' }]));
+    fields['contract-token'] = { value: '' };
+    fields['contract-message'] = { textContent: '' };
+    const ui = new Function('dataService', 'contractService', 'cloudService', 'document', `${source};return contractUiService;`)(
+      dataService, service, { saveContract }, { getElementById: id => fields[id] });
+    ui.selectedId = first.vertrag_id;
+    await ui.save(false);
+    expect(saveContract).not.toHaveBeenCalled();
+    expect(fields['contract-message'].textContent).toMatch(/Keine Änderungen/);
     expect(ui.busy).toBe(false);
   });
   it('renders existing document links, contract fields and adjustment history safely', () => {

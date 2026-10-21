@@ -45,6 +45,9 @@ function handleContractWrite(ss, payload) {
   if (!isIndex && rentChanged && current.soll_kaltmiete !== '' && current.soll_kaltmiete != null) {
     patch.letzte_anpassung = contractService.iso(contractService.date(new Date()));
   }
+  // Write real changes only; a save without changes must not create a history entry.
+  Object.keys(patch).forEach(key => { if (contractService.same(patch[key], current[key])) delete patch[key]; });
+  if (!Object.keys(patch).length) throw new Error('Keine Aenderungen zu speichern.');
   const keys = Object.keys(patch);
   keys.forEach(key => { if (headers.indexOf(key) < 0) throw new Error('Vertragsspalte fehlt: ' + key); });
   const historyHeaders = history.getRange(1, 1, 1, history.getLastColumn()).getValues()[0];

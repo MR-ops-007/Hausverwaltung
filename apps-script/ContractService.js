@@ -64,6 +64,25 @@ const contractService = {
     return text;
   },
 
+  blank(value) { return value === undefined || value === null || String(value).trim() === ''; },
+
+  /** Value equality for sheet values vs. form strings: '' == undefined, 600 == '600' == '600,00'. */
+  same(a, b) {
+    if (this.blank(a) || this.blank(b)) return this.blank(a) && this.blank(b);
+    const numeric = value => typeof value === 'number' ? value : Number(String(value).trim().replace(',', '.'));
+    const x = numeric(a), y = numeric(b);
+    if (Number.isFinite(x) && Number.isFinite(y) && String(a).trim() !== '' && String(b).trim() !== '') return x === y;
+    return String(a).trim() === String(b).trim();
+  },
+
+  /** Returns only the editable fields whose form value differs from the stored contract. */
+  diff(current, values) {
+    return this.editable.reduce((patch, key) => {
+      if (Object.prototype.hasOwnProperty.call(values, key) && !this.same(current[key], values[key])) patch[key] = values[key];
+      return patch;
+    }, {});
+  },
+
   snapshot(contract) {
     return JSON.stringify(Object.keys(contract).sort().reduce((result, key) => {
       const value = contract[key];
@@ -97,9 +116,10 @@ const contractService = {
         result.soll_kaltmiete !== Number(current.soll_kaltmiete)) {
       throw new Error('Indexmiete nur ueber dokumentierte Indexanpassung aendern.');
     }
-    if (current.index_basis_wert !== '' && current.index_basis_wert != null) {
+    if (!this.blank(current.index_basis_wert)) {
+      // Stored values are protected; empty companion fields (e.g. a missing series) may be completed.
       ['index_basis_wert', 'index_basis_monat', 'index_reihe'].forEach(key => {
-        if (key in patch && String(patch[key]) !== String(current[key])) {
+        if (key in patch && !this.blank(current[key]) && !this.same(patch[key], current[key])) {
           throw new Error('Bestehende Indexbasis nicht ueber Stammdaten aendern.');
         }
       });
