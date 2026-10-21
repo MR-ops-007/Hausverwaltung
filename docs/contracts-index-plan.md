@@ -108,8 +108,8 @@ Die Vorschau ersetzt keine Pruefung der konkreten Indexvereinbarung.
 2. Erst nach ausdruecklicher Freigabe: produktives GAS mit `clasp:pull` abgleichen.
    Pull zuerst in einer separaten Arbeitskopie ausfuehren, damit lokaler Entwurf
    erhalten bleibt. Diff einschliesslich Manifest und neuen Script-Dateien pruefen.
-3. Erst nach Freigabe Code pushen und Deployment aktualisieren. Lokale
-   Backendversion `4.7.0`; beobachteter produktiver Editorstand war `4.6.3`.
+3. Erst nach Freigabe Code pushen und Deployment aktualisieren. Versionen und
+   Status stehen in `CHANGELOG.md`; dort nach dem Deploy `4.7.0` auf `produktiv` setzen.
 4. `prepareContractSchema()` nach Freigabe manuell ausfuehren. Die Funktion haengt
    fehlende Spalten an und erzeugt das leere Historienblatt. Keine Seed-Daten,
    keine bestehenden Betraege, IDs oder Familienzuordnungen werden geaendert.

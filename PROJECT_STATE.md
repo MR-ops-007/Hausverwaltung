@@ -8,7 +8,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 
 ### Lokaler Ausbau 2026-10-21: Mietverträge / Indexmieten
 
-- Branch `codex/rental-contract-index`; lokale Backend-Version `4.7.0`.
+- Branch `codex/rental-contract-index`; Backend-Version und Status siehe `CHANGELOG.md`.
 - Vertragsansicht für vorhandene Verträge, Dokumentlinks, NK-Teilbeträge und Indexvorschau.
 - Indexvereinbarung und Indexanpassung sind nur bei ausgewähltem Erhöhungstyp `Index` sichtbar.
 - Vertragsauswahl über Objekt, Wohnung/Einheit und Mieter mit Mietbeginn statt technischer Vertragsnummer.
@@ -217,37 +217,18 @@ Dieser Bereich erlaubt produktive Schreibtests, ohne reale Objekt-, Einheiten- o
 
 ## Google Apps Script
 
-Google Apps Script wird weiterhin manuell versioniert.
+Google Apps Script wird weiterhin manuell versioniert und über `clasp` gepflegt.
 
-Aktuelle Backend-Version:
+Versionen und Deploy-Status stehen ausschließlich in [CHANGELOG.md](CHANGELOG.md).
+Im Code steht die Version in `BACKEND_VERSION` (`apps-script/Code.gs`).
 
-```text
-4.7.0 (lokal vorbereitet)
-```
+Wichtige Regeln:
 
-Produktiver Editorstand zuletzt vom Nutzer mit `4.6.3` angegeben. Der neue Stand
-ist nicht deployt. Ältere Meilensteinangaben bleiben als Historie erhalten.
-
-Die Version steht im Kopf von `apps-script/Code.gs` und in `BACKEND_VERSION`.
-
-Wichtige Regel:
-
-- Jede fachliche oder technische Apps-Script-Änderung erhöht die Backend-Version.
-- Tests prüfen die erwartete `BACKEND_VERSION`.
-- `4.3.1` repariert das zeitzonenstabile Parsing von JavaScript-Date-Strings für `stand_id`.
-- `4.4.0` ergänzt eine Preview-/Apply-Migration für Bestands-Zählerstände.
-- `4.4.1` ergänzt ein Report-Sheet für die Migrationsanalyse.
-- `4.4.2` lernt eindeutige `zaehler_id`/`einheit_id`-Mappings aus bereits vorbereiteten Bestandsdaten.
-- `4.4.3` löst bekannte fehlerhafte Bestands-Mappings per Override auf.
-- `4.4.4` ergänzt den virtuellen Warmwasser-Gesamtzähler für historische Werte.
-- `4.4.5` ergänzt einen separaten Duplikat-Report für die `stand_id`-Migration.
-- `4.4.6` löst historische Doppelwerte als Zählerstand plus berechneten Verbrauch auf.
-- `4.5.0` ergänzt die LOK-Zählerstruktur und Eingang-Stammdaten.
-- `4.5.1` teilt LOK Wohnung 10 in A/B/S und lässt `ensureLokStructureData` fehlende LOK-Einheiten anlegen.
-- `4.5.2` stellt LOK auf einheitgebundene `zaehler_id`s nach `Z_{einheit_id}_{medium}` um und deaktiviert alte Kurz-IDs.
-- `4.6.0` ergänzt materialisierte Verbrauchsviews für Monats- und Jahreswerte.
-- `4.6.1` ergänzt kanonische Zuordnung historischer Zählerstand-IDs und einen Audit-View für Verbrauchsdaten.
-- `4.6.2` ergänzt eine Preview-/Report-/Apply-Migration für kanonische Zählerstand-Identitäten.
+- Jede fachliche oder technische Apps-Script-Änderung erhöht die Backend-Version
+  und bekommt einen Eintrag im Changelog.
+- Beim Deploy wird der Status im Changelog umgestellt (`produktiv` / `ersetzt`).
+- Tests prüfen Format der Version, Übereinstimmung mit dem Kopfkommentar und
+  den Changelog-Eintrag.
 - `clasp` ist lokal mit dem bestehenden GAS-Projekt verbunden; `npm run clasp:pull` funktioniert unter Node 22.
 
 ---
@@ -346,7 +327,7 @@ Umgesetzt mit Backend-Version `4.6.1`:
 - Steigender Ölstand in cm wird als prüfpflichtiger Hinweis markiert.
 - Historische eindeutige Abweichungen wie `Z_STROM_HT_KWH_PRIVAT_HT` werden kanonisch den aktuellen Zähler-Stammdaten zugeordnet.
 - Die Web-App kann die Verbrauchsviews schlank über `?view=verbrauch` abrufen.
-- Die Funktion `updateVerbrauchViews()` ist in `apps-script/Code.gs` ab Backend-Version `4.6.0` enthalten; sie bleibt im lokalen Stand `4.7.0` erhalten.
+- Die Funktion `updateVerbrauchViews()` ist in `apps-script/Code.gs` ab Backend-Version `4.6.0` enthalten; sie bleibt im Vertragsausbau erhalten.
 - Neue Zählerstände werden in `Zaehlerstaende` gespeichert, aktualisieren die materialisierten Verbrauchsviews aber derzeit nicht automatisch. Nach neuen Ablesungen muss `updateVerbrauchViews()` im Apps-Script-Editor ausgeführt werden, damit `_view_verbrauch_monat`, `_view_verbrauch_jahr`, `_view_verbrauch_audit` und `_view_verbrauch_bilanz_jahr` den neuen Stand enthalten.
 - Wenn `updateVerbrauchViews()` im Apps-Script-Editor nicht auffindbar ist, läuft dort nicht der aktuelle Stand aus `apps-script/Code.gs` und das Script muss zuerst aktualisiert bzw. neu bereitgestellt werden.
 

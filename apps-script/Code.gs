@@ -2,7 +2,7 @@
  * HAUSVERWALTUNG - BACKEND
  * Version: 4.7.0
  * Stand: 2026-10-21
- * - Vertragsfelder, dokumentierte Indexanpassungen und geschuetzter Vertrags-Schreibweg
+ * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
  * Änderungen seit v4.1:
  * - stand_id nutzt zusammengesetzte Zähleridentität
@@ -62,6 +62,9 @@
  *
  * Änderungen seit v4.6.3:
  * - stand_id für neue UI-Eingaben nutzt kurzes Format ST_{zaehler_id}_{YYYY-MM-DD HH:mm}
+ *
+ * Änderungen seit v4.6.4:
+ * - Vertragsfelder, dokumentierte Indexanpassungen und geschuetzter Vertrags-Schreibweg
  */
 const BACKEND_VERSION = "4.7.0";
 
