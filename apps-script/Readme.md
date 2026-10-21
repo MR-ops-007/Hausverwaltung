@@ -9,7 +9,7 @@ Die aktuelle Backend-Version steht im Kopf von `Code.gs` und zusätzlich in der 
 Aktueller Stand:
 
 ```text
-4.6.2
+4.7.0 (lokal vorbereitet, nicht produktiv bereitgestellt)
 ```
 
 Regel:
@@ -34,6 +34,16 @@ Regel:
 - Version `4.6.2` ergänzt eine Preview-/Report-/Apply-Migration für kanonische Zählerstand-Identitäten.
 
 ## Zweck
+
+### Vertragsausbau 4.7.0
+
+`ContractService.js` enthält gemeinsame Regeln für Browser und GAS; `Contracts.gs`
+den geschützten Schreibweg und die manuelle Schema-Vorbereitung. Beide Dateien
+müssen bei einem späteren Deployment enthalten sein. `prepareContractSchema()`
+niemals ohne ausdrückliche Freigabe produktiv ausführen. Neue Aktionen brauchen
+die lokale Script Property `CONTRACT_WRITE_TOKEN`. Keine Freigabewerte committen.
+Vor Push produktiven Stand in separater Arbeitskopie pullen und Diff prüfen.
+Details: [Vertragskonzept und Rollback](../docs/contracts-index-plan.md).
 
 Das produktive Backend liegt weiterhin im Google Apps Script Projekt. Die Synchronisierung über `clasp` ist vorbereitet.
 
@@ -119,7 +129,7 @@ Der virtuelle Zähler `Z_WARMWASSER_WW_GESAMT_BERECHNET` ist als `berechnet = TR
 
 ## Verbrauchsviews
 
-Version `4.6.0` ergänzt die Backend-Funktion `updateVerbrauchViews`. Version `4.6.3` erweitert diese Views um die Bilanz-Jahresview. Lokal liegt diese Funktion aktuell in `apps-script/Code.gs` Version `4.6.4`.
+Version `4.6.0` ergänzt die Backend-Funktion `updateVerbrauchViews`. Version `4.6.3` erweitert diese Views um die Bilanz-Jahresview. Diese Funktionen bleiben im lokalen Entwurf `4.7.0` erhalten.
 
 Wenn `updateVerbrauchViews()` im Google-Apps-Script-Editor nicht in der Funktionsauswahl erscheint, läuft dort nicht der aktuelle Stand aus `apps-script/Code.gs`. In diesem Fall muss zuerst der Apps-Script-Code aktualisiert bzw. neu bereitgestellt werden.
 

@@ -1,10 +1,45 @@
 # PROJECT_STATE - Hausverwaltung
 
-## Stand: 2026-06-27
+## Stand: 2026-10-22
 
 Der aktuelle Branch erweitert die stabile Basis um robustere UI-Regressionstests, eine sauberere Zähleridentität, versionierte Apps-Script-Logik und einen produktiven Testbereich.
 
 Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die nächsten sinnvollen Arbeitspakete.
+
+### Lokaler Ausbau 2026-10-21: Mietverträge / Indexmieten
+
+- Branch `codex/rental-contract-index`; lokale Backend-Version `4.7.0`.
+- Vertragsansicht für vorhandene Verträge, Dokumentlinks, NK-Teilbeträge und Indexvorschau.
+- Indexvereinbarung und Indexanpassung sind nur bei ausgewähltem Erhöhungstyp `Index` sichtbar.
+- Vertragsauswahl über Objekt, Wohnung/Einheit und Mieter mit Mietbeginn statt technischer Vertragsnummer.
+- Alte Vertragsverweise auf gelöschte Einheiten (z. B. LOK Wohnung 10 vor Aufteilung)
+  werden als ungeklärt markiert und nicht automatisch umgebucht.
+- Nutzer hat LOK-Verträge auf Wohnung 10 A/B/S ergänzt; geprüfte Zuordnung:
+  `10 -> LOK_WE_10_A`, `30 -> LOK_WE_10_B`, `31 -> LOK_WE_10_S`.
+  IDs bleiben unabhängig von Sheet-Zeilen. Keine produktiven Daten durch diesen Check geändert.
+- Optionaler automatischer VPI-Abruf in `vpi-service.js` über die offizielle
+  Bundesbank-Schnittstelle (Destatis-Daten). Bei leerer Basis wird der Mietbeginn
+  als Bezugsmonat vorgeschlagen; nur veröffentlichte, passende Werte werden geladen.
+- Indexreihe ist eine Vorauswahl statt eines unklaren Freitextfelds. Checkboxen
+  bestätigen Dokumentation/Übernahme, lösen allein aber keine Änderung aus.
+- Zugangsschlüssel liegt im Administratorbereich. Deaktiviertes Speichern erklärt
+  die noch fehlende produktive Einrichtung. Vertragsbuttons verwenden blaue CTAs.
+- Die Indexreihe wird aktuell als feste Bezugsbasis `VPI Deutschland 2020=100`
+  geführt; das Stylesheet verwendet eine neue Versionskennung für zuverlässige
+  Browser-Aktualisierung. `!important` wird für die Vertragsbuttons nicht benötigt.
+- `soll_nebenkosten` bleibt Pflicht-Rechengröße. Kein NK-Abrechnungsmodul.
+- Bestätigte Indexanpassungen benötigen dokumentierte Textform, Zugang, Wirksamkeit
+  und Historie. Keine automatische Mieterhöhung oder zukünftige Sollmietänderung.
+- Neue Schreibaktionen sind gesondert freigeschaltet, mit Standvergleich gegen
+  parallele Änderungen und ohne Offline-Queue.
+- Keine produktiven Schemaänderungen oder Deployments ausgeführt; Vertrag 21 bleibt
+  unverändert. Das Favicon aus dem vorherigen Auftrag wird im Arbeitsstand erhalten.
+- Analyse, Datenmodell-Diff, Rollback und Freigabeschritte stehen in
+  `docs/contracts-index-plan.md`. Frühere Versionsangaben unten sind historisch.
+- Validierung: 135 automatisierte Tests; Vertragsansicht mit synthetischen Daten
+  auf Desktop (1440 px) und Mobil (390 px) geprüft, ohne JS-Fehler/Horizontalüberlauf.
+- Ein vorhandener zeitabhängiger Dashboard-Test wurde auf einen festen Stichtag
+  gesetzt; ISO-Ablesedaten werden explizit in Europe/Berlin angezeigt.
 
 ---
 
@@ -187,8 +222,11 @@ Google Apps Script wird weiterhin manuell versioniert.
 Aktuelle Backend-Version:
 
 ```text
-4.6.2
+4.7.0 (lokal vorbereitet)
 ```
+
+Produktiver Editorstand zuletzt vom Nutzer mit `4.6.3` angegeben. Der neue Stand
+ist nicht deployt. Ältere Meilensteinangaben bleiben als Historie erhalten.
 
 Die Version steht im Kopf von `apps-script/Code.gs` und in `BACKEND_VERSION`.
 
@@ -308,7 +346,7 @@ Umgesetzt mit Backend-Version `4.6.1`:
 - Steigender Ölstand in cm wird als prüfpflichtiger Hinweis markiert.
 - Historische eindeutige Abweichungen wie `Z_STROM_HT_KWH_PRIVAT_HT` werden kanonisch den aktuellen Zähler-Stammdaten zugeordnet.
 - Die Web-App kann die Verbrauchsviews schlank über `?view=verbrauch` abrufen.
-- Die Funktion `updateVerbrauchViews()` ist in `apps-script/Code.gs` ab Backend-Version `4.6.0` enthalten; lokal steht sie aktuell in Version `4.6.4`.
+- Die Funktion `updateVerbrauchViews()` ist in `apps-script/Code.gs` ab Backend-Version `4.6.0` enthalten; sie bleibt im lokalen Stand `4.7.0` erhalten.
 - Neue Zählerstände werden in `Zaehlerstaende` gespeichert, aktualisieren die materialisierten Verbrauchsviews aber derzeit nicht automatisch. Nach neuen Ablesungen muss `updateVerbrauchViews()` im Apps-Script-Editor ausgeführt werden, damit `_view_verbrauch_monat`, `_view_verbrauch_jahr`, `_view_verbrauch_audit` und `_view_verbrauch_bilanz_jahr` den neuen Stand enthalten.
 - Wenn `updateVerbrauchViews()` im Apps-Script-Editor nicht auffindbar ist, läuft dort nicht der aktuelle Stand aus `apps-script/Code.gs` und das Script muss zuerst aktualisiert bzw. neu bereitgestellt werden.
 

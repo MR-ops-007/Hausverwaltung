@@ -7,6 +7,7 @@ const dataService = {
         einheiten: [],
         personen: [],
         vertraege: [],
+        mietanpassungen: [],
         vertragsparteien: [],
         zaehler: [],
         zaehlerstaende: [],
@@ -83,6 +84,7 @@ const dataService = {
         
         this.state.personen = data.Personen || [];
         this.state.vertraege = data.Vertraege || [];
+        this.state.mietanpassungen = data.Mietanpassungen || [];
         this.state.vertragsparteien = data.Vertragsparteien || [];
         this.state.zaehler = data.Zaehler || [];
         this.state.zaehlerstaende = data.Zaehlerstaende || [];

@@ -22,7 +22,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
   it('declares the current backend version', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
 
-    expect(BACKEND_VERSION).toBe('4.6.4');
+    expect(BACKEND_VERSION).toBe('4.7.0');
   });
 
   it('formats German timestamps for stand_id values', () => {

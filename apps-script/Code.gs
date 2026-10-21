@@ -1,7 +1,8 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.6.4
- * Stand: 2026-07-03
+ * Version: 4.7.0
+ * Stand: 2026-10-21
+ * - Vertragsfelder, dokumentierte Indexanpassungen und geschuetzter Vertrags-Schreibweg
  *
  * Änderungen seit v4.1:
  * - stand_id nutzt zusammengesetzte Zähleridentität
@@ -62,7 +63,7 @@
  * Änderungen seit v4.6.3:
  * - stand_id für neue UI-Eingaben nutzt kurzes Format ST_{zaehler_id}_{YYYY-MM-DD HH:mm}
  */
-const BACKEND_VERSION = "4.6.4";
+const BACKEND_VERSION = "4.7.0";
 
 function sendJSON(obj) {
   return ContentService
@@ -85,6 +86,10 @@ function doPost(e) {
 
     const payload = JSON.parse(e.postData.contents);
     const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    if (payload.typ === 'VERTRAG_AKTUALISIEREN' || payload.typ === 'INDEX_ANWENDEN') {
+      return sendJSON(handleContractWrite(ss, payload));
+    }
 
     const targetSheet = payload.typ === "ZAHLUNG"
       ? "Zahlungen"
@@ -2289,6 +2294,10 @@ function updateVerbrauchViews() {
 function doGet(e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const param = e ? e.parameter : {};
+
+  if (param.view === 'vertrag_capabilities') {
+    return sendJSON({ backend_version: BACKEND_VERSION, contract_writes: true });
+  }
 
   if (param.view === "dashboard") {
     const sheetView = ss.getSheetByName("_view_aktive_mieter");

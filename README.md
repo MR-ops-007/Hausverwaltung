@@ -37,6 +37,11 @@ Das Google Apps Script Backend wird im Repository unter `apps-script/Code.gs` ve
 | `ui-service.js` | Rendering und UI-Logik |
 | `calc-service.js` | Berechnungslogik / ältere Hilfsfunktionen |
 | `validation-service.js` | Isolierte Plausibilitätsprüfung für Zählerstände |
+| `contract-ui.js` | Vertragsansicht, Dokumentlinks und Indexvorschau |
+| `vpi-service.js` | Offizieller Monatsindex-Abruf mit Prüfung von Reihe und Basisjahr |
+| `apps-script/ContractService.js` | Gemeinsame Vertrags-/Indexregeln für Browser und Backend |
+| `apps-script/Contracts.gs` | Vertragsupdates, Änderungshistorie und explizite Schema-Vorbereitung |
+| `docs/contracts-index-plan.md` | Analyse, Datenmodell-Diff und freizugebende Migration |
 | `DATA_MODEL.md` | Fachliches Datenmodell des Google Sheets |
 | `PROJECT_STATE.md` | Aktueller Projektstand, nächste Schritte und Historie |
 | `AGENT_AUDIT.md` | Bestandsaufnahme und Regeln für KI-/Agentenarbeit |
@@ -85,3 +90,9 @@ Tests werden mit Vitest ausgeführt:
 
 ```bash
 npm test
+```
+
+Der Vertragsausbau ist lokal vorbereitet. Die neue Vertragsansicht liest auch
+Bestandsdaten ohne neue Spalten. Schreiben erfordert Backend 4.7.0, die separat
+freizugebende Schema-Vorbereitung und eine Schreibfreigabe. Es wurden keine
+Produktivdaten migriert. Siehe `docs/contracts-index-plan.md`.

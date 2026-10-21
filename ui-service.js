@@ -55,6 +55,14 @@ const uiService = {
       return String(value);
     }
 
+    if (/^\d{4}-\d{2}-\d{2}T/.test(String(value))) {
+      const parts = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin',
+        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+        .formatToParts(new Date(timestamp));
+      const part = type => parts.find(item => item.type === type).value;
+      return `${part('day')}.${part('month')}.${part('year')} ${part('hour')}:${part('minute')}`;
+    }
+
     return this.formatGermanTimestamp(new Date(timestamp));
   },
 
@@ -1340,6 +1348,10 @@ const uiService = {
   },
 
   setNavigationState(activeView) {
+    const contractsSection = document.getElementById('contracts-section');
+    const contractsButton = document.getElementById('nav-contracts');
+    if (contractsSection && activeView !== 'contracts') contractsSection.style.display = 'none';
+    if (contractsButton) contractsButton.className = activeView === 'contracts' ? 'tab-btn-active' : 'tab-btn-inactive';
     const meterButton = document.getElementById('nav-meter-entry');
     const dashboardButton = document.getElementById('nav-consumption-dashboard');
 

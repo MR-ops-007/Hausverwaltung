@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { validateZaehlerstand, VALIDATION_STATUS } from '../validation-service.js';
 
@@ -330,6 +330,11 @@ describe('uiService helper methods', () => {
 });
 
 describe('uiService consumption dashboard', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 30, 12));
+  });
+  afterEach(() => vi.useRealTimers());
   it('switches to the consumption dashboard view and renders backend view summary plus rows', async () => {
     const calcCalls = [];
     const { uiService, elementsById } = loadUiService({

@@ -10,6 +10,15 @@ Dieses Modell folgt dem Prinzip eines **Transaction Log**. Jede Eingabe in der A
 ## 2. Erweiterbarkeit
 Siehe Originalversion (zusatz_wert, bezeichnung).
 
+### IDs und Sortierung
+
+`vertrag_id`, `einheit_id` und `person_id` sind eindeutige fachliche Schlüssel,
+keine Zeilennummern. Zeilen dürfen zur Übersicht eingefügt und vollständig sortiert
+werden; IDs und Fremdschlüssel bleiben dabei unverändert. Nur ganze Datensätze
+sortieren, nicht einzelne Spalten gegeneinander verschieben.
+Schreiboperationen lösen die aktuelle Zeilenposition anhand der eindeutigen ID auf.
+Der Vertrags-Schreibweg verweigert Änderungen bei doppelter `vertrag_id`.
+
 ---
 
 ## 3. Transaktions-Daten (Dynamisch)
@@ -140,6 +149,46 @@ Die Zuordnung wird in Apps Script zentral über `getLokEinheitEntranceMapping` g
 | **L** | `soll_gesamt` | Zahl | Summe aus soll_kaltmiete und soll_nebenkosten |
 | **M** | `kaution_soll` | Zahl | Vereinbarte Kautionssumme |
 | **N** | `kaution_ist` | Zahl | Tatsächlich bisher gezahlte Kaution |
+
+#### Lokale Erweiterung ab Backend 4.7.0 (noch nicht produktiv migriert)
+
+Neue Felder werden nach vorhandenen Spalten angehängt, nicht anhand fester
+Spaltenbuchstaben geschrieben:
+
+| Feld | Typ | Bedeutung |
+| --- | --- | --- |
+| `vertragsdokument_url` | String | HTTPS-Link auf bestehenden Vertrag |
+| `sondervereinbarungen_url` | String | HTTPS-Link auf bestehende Zusatzvereinbarung |
+| `vertrag_hinweis` | String | Vertragliche Besonderheiten |
+| `nk_betriebskosten` | Zahl, optional | Dokumentierter Teilbetrag |
+| `nk_heizung_warmwasser` | Zahl, optional | Dokumentierter Teilbetrag |
+| `index_basis_monat` | Text YYYY-MM | Monat des maßgeblichen Indexstands |
+| `index_basis_wert` | Zahl | Maßgeblicher Indexstand |
+| `index_reihe` | String | VPI-Reihe einschließlich Basisjahr |
+
+`mietmodell` und `erhoehungs_typ` bleiben getrennt. `Pauschal` bedeutet hier keine
+Nebenkostenabrechnung. `soll_nebenkosten` bleibt Pflicht beim Speichern und die
+verbindliche Rechengröße. Optionale Teilbeträge ändern sie nicht.
+`soll_gesamt = soll_kaltmiete + soll_nebenkosten`.
+
+Neue Tabelle `Mietanpassungen` (append-only): `anpassung_id`, `vertrag_id` (FK),
+`art` (`INDEX`/`STAMMDATEN`), `erfasst_am`, `wirksam_ab`, `zugang_datum`,
+`erklaerung_url`, `index_neu_monat`, `index_neu_wert`, `index_reihe`,
+`vorher_json`, `nachher_json`. Snapshots dokumentieren Historie; aktueller Stand
+bleibt ausschließlich in `Vertraege`.
+
+Indexvorschau betrifft ausschließlich Nettokaltmiete; die Übernahme benötigt
+explizite Bestätigung und dokumentierte Erklärung. `aktiv` bleibt maßgeblicher
+Vertragszustand. Etage/Kündigungsverzicht sind nicht Bestandteil dieses Ausbaus.
+Vollständige Analyse, Fristen, Einschränkungen und reversibler Migrationsplan:
+[Vertragskonzept](docs/contracts-index-plan.md).
+
+Die UI kann ungespeicherte Indexwerte aus der öffentlichen Bundesbank-Reihe
+`BBDP1.M.DE.N.VPI.C.A00000.I20.L` abrufen (Destatis-Daten, VPI Deutschland,
+monatlicher Gesamtindex, unbereinigt, 2020=100). Indexstände werden abgerufen,
+nicht aus Mietbeträgen geschätzt. Monat, Reihe und Basis werden geprüft; fehlende
+oder zukünftige Werte bleiben leer. Eine bestehende gespeicherte Indexbasis wird
+nicht automatisch ersetzt. Der Abruf ändert keine produktiven Vertragsdaten.
 
 ### Tabelle: `Vertragsparteien` (N:M zwischen Vertrag und Person)
 **Wichtig:** Ermöglicht mehrere Hauptmieter (z.B. 2 Personen mit Rolle "Hauptmieter").

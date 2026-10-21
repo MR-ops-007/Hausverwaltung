@@ -5,6 +5,21 @@ const cloudService = {
     scriptUrl: CONFIG.API_URL,
     ENABLE_OFFLINE_SYNC: true,
 
+    async saveContract(payload) {
+        // Financial changes must receive an explicit server acknowledgement; never queue them.
+        const capabilityResponse = await fetch(`${this.scriptUrl}?view=vertrag_capabilities&t=${Date.now()}`);
+        if (!capabilityResponse.ok) throw new Error('Backend-Version konnte nicht geprueft werden.');
+        const capabilities = await capabilityResponse.json();
+        if (capabilities.contract_writes !== true) throw new Error('Backend unterstuetzt Vertragsaenderungen noch nicht.');
+        const response = await fetch(this.scriptUrl, { method: 'POST', body: JSON.stringify(payload) });
+        if (!response.ok) throw new Error(`HTTP-Fehler! ${response.status}`);
+        const result = await response.json();
+        if (!result || result.status !== 'success' || !result.vertrag || !result.anpassung) {
+            throw new Error(result && result.message || 'Vertragsaenderung nicht bestaetigt.');
+        }
+        return result;
+    },
+
     async loadDashboardData() {
         const response = await fetch(`${this.scriptUrl}?view=dashboard&t=${Date.now()}`);
         if (!response.ok) throw new Error(`HTTP-Fehler! ${response.status}`);
