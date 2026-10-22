@@ -1,14 +1,14 @@
 # PROJECT_STATE - Hausverwaltung
 
-## Stand: 2026-10-22
+## Stand: 2026-10-23
 
-Der aktuelle Branch erweitert die stabile Basis um robustere UI-Regressionstests, eine sauberere Zähleridentität, versionierte Apps-Script-Logik und einen produktiven Testbereich.
+`main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau (Backend 4.7.0, Tag `v4.7.0`).
 
 Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die nächsten sinnvollen Arbeitspakete.
 
-### Lokaler Ausbau 2026-10-21: Mietverträge / Indexmieten
+### Vertragsausbau 2026-10-21/22: Mietverträge / Indexmieten (produktiv)
 
-- Branch `codex/rental-contract-index`; Backend-Version und Status siehe `CHANGELOG.md`.
+- Umgesetzt in PR #16 und #17; Backend-Version und Status siehe `CHANGELOG.md`.
 - Vertragsansicht für vorhandene Verträge, Dokumentlinks, NK-Teilbeträge und Indexvorschau.
 - Indexvereinbarung und Indexanpassung sind nur bei ausgewähltem Erhöhungstyp `Index` sichtbar.
 - Vertragsauswahl über Objekt, Wohnung/Einheit und Mieter mit Mietbeginn statt technischer Vertragsnummer.
@@ -22,6 +22,8 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   als Bezugsmonat vorgeschlagen; nur veröffentlichte, passende Werte werden geladen.
 - Indexreihe ist eine Vorauswahl statt eines unklaren Freitextfelds. Checkboxen
   bestätigen Dokumentation/Übernahme, lösen allein aber keine Änderung aus.
+- Statusmeldungen beim Speichern erscheinen als farbiges Hinweisfeld am unteren Bildschirmrand
+  (grün/blau blenden nach 6 s aus, Fehler bleiben bis zum Klick).
 - Zugangsschlüssel liegt im Administratorbereich. Deaktiviertes Speichern erklärt
   die noch fehlende produktive Einrichtung. Vertragsbuttons verwenden blaue CTAs.
 - Die Indexreihe wird aktuell als feste Bezugsbasis `VPI Deutschland 2020=100`
@@ -38,7 +40,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Arbeitsstand erhalten.
 - Analyse, Datenmodell-Diff, Rollback und Freigabeschritte stehen in
   `docs/contracts-index-plan.md`. Frühere Versionsangaben unten sind historisch.
-- Validierung: 135 automatisierte Tests; Vertragsansicht mit synthetischen Daten
+- Validierung: 143 automatisierte Tests; Vertragsansicht mit synthetischen Daten
   auf Desktop (1440 px) und Mobil (390 px) geprüft, ohne JS-Fehler/Horizontalüberlauf.
 - Ein vorhandener zeitabhängiger Dashboard-Test wurde auf einen festen Stichtag
   gesetzt; ISO-Ablesedaten werden explizit in Europe/Berlin angezeigt.
@@ -219,7 +221,11 @@ Dieser Bereich erlaubt produktive Schreibtests, ohne reale Objekt-, Einheiten- o
 
 ## Google Apps Script
 
-Google Apps Script wird weiterhin manuell versioniert und über `clasp` gepflegt.
+Das Backend wird derzeit **manuell per Copy-Paste im Apps-Script-Editor** aktualisiert
+(zuletzt 4.7.0 am 2026-10-22: `Code.gs` ersetzt, `Contracts` und `ContractService`
+neu angelegt, dann neue Version der bestehenden Bereitstellung veröffentlicht; die
+Web-App-URL bleibt dabei gleich). `clasp` ist vorbereitet und für den Abgleich nutzbar,
+aber noch nicht der Standardweg.
 
 Versionen und Deploy-Status stehen ausschließlich in [CHANGELOG.md](CHANGELOG.md).
 Im Code steht die Version in `BACKEND_VERSION` (`apps-script/Code.gs`).
@@ -231,7 +237,19 @@ Wichtige Regeln:
 - Beim Deploy wird der Status im Changelog umgestellt (`produktiv` / `ersetzt`).
 - Tests prüfen Format der Version, Übereinstimmung mit dem Kopfkommentar und
   den Changelog-Eintrag.
+- Nach dem Deploy wird ein Git-Tag `vX.Y.Z` auf den Merge-Commit gesetzt.
 - `clasp` ist lokal mit dem bestehenden GAS-Projekt verbunden; `npm run clasp:pull` funktioniert unter Node 22.
+- Beim Anlegen einer **neuen Bereitstellung** ändert sich die Web-App-URL; dann muss `API_URL` in `config.js` angepasst werden. Neue Versionen einer bestehenden Bereitstellung ändern sie nicht.
+
+---
+
+## Nächste Schritte (Stand 2026-10-23)
+
+1. **Technisches Aufräumen** (Paket 1): tote Konfiguration entfernt, CI nutzt Node aus `.nvmrc` und `npm ci`, Doku an die Realität angepasst.
+2. **Backend-Lesezugriff absichern** (geplant 4.8.0): `doGet` liefert derzeit ohne Anmeldung alle Blätter aus; geplant ist ein Lese-Schlüssel analog zu `CONTRACT_WRITE_TOKEN`. Hinweis: `config.js` wird mit der öffentlichen GitHub-Pages-Seite ausgeliefert, ein privates Repo schützt die Backend-URL daher nicht.
+3. **Verbrauch je Mieter/Vertrag:** Mieterwechsel erzeugen noch keine eigenen Verbrauchszeilen je Vertrag. Grundlage für eine spätere Nebenkostenabrechnung.
+4. **Verbrauchsviews automatisch aktualisieren:** Zeitauslöser für `updateVerbrauchViews()`, statt manuellem Start nach neuen Ablesungen.
+5. **Weitere Indexreihen:** erst nötig, wenn das Statistische Bundesamt auf ein neues VPI-Basisjahr umstellt und ein passender Vertrag existiert.
 
 ---
 
@@ -254,7 +272,7 @@ Aktueller Stand:
 - Die echte Script-ID ist lokal in `.clasp.json` hinterlegt und wird nicht committed.
 - Der produktive GAS-Stand wurde per Apps-Script-API abgerufen und lokal nachvollzogen.
 - `apps-script/appsscript.json` entspricht dem produktiven Manifest.
-- `apps-script/Migration.gs.gs` bildet die bestehende produktive Migrationsdatei ab.
+- `apps-script/Migration.gs.gs` bildet die bestehende produktive Migrationsdatei ab (heißt im GAS-Projekt tatsächlich so; bewusst unverändert).
 - `apps-script/StandIdMigration.gs` ergänzt die neue Bestandsdatenmigration.
 
 Noch erforderlich:
@@ -263,33 +281,7 @@ Noch erforderlich:
 2. Pull-Diff prüfen.
 3. Erst danach `npm run clasp:push` nutzen.
 
-### 2. Bestandsdatenmigration abgeschlossen
-
-Die Migration der 1.910 bestehenden `Zaehlerstaende` auf die neue `stand_id`-Logik wurde am 2026-06-28 erfolgreich ausgeführt.
-
-Finaler Prüfstand:
-
-```json
-{"totalRows":1910,"migratableRows":1910,"changedRows":0,"unchangedRows":1910,"unresolvedRows":0,"duplicateRows":0,"mappingConflictRows":0,"missingHeaders":[]}
-```
-
-Historische Doppelwerte mit niedrigerem Verbrauchswert und höherem Zählerstand wurden automatisch in getrennte virtuelle Verbrauchszähler umgeschlüsselt.
-
-Optionaler Folgeschritt: Historische `zaehler_id`s von Ra-HS-29 erst in einem separaten, kontrollierten Schritt auf das neue einheitgebundene Format migrieren.
-
-### 3. Ölstand-Plausibilität abgeschlossen
-
-Der Zähler `oel_stand_cm` ist rückläufig: Ein sinkender Stand bedeutet Verbrauch und ist grundsätzlich plausibel. Ein steigender Stand bedeutet Betankung, Korrektur oder Messfehler und braucht eigene Regeln.
-
-Umgesetzt:
-
-1. Testfälle in `tests/validation-service.test.js` für `oel_stand_cm` ergänzt.
-2. Plausibilitätslogik in `validation-service.js` um rückläufige Füllstandszähler erweitert.
-3. Sinkender Ölstand wird als Verbrauch akzeptiert.
-4. Steigender Ölstand erzeugt eine Warnung für Betankung, Korrektur oder Messfehler.
-5. Überlauf wird für Ölstand in cm nicht angewendet.
-
-### 4. LOK-Zählerstruktur
+### 2. LOK-Zählerstruktur
 
 Der Lokschuppen (`LOK`) wird analog zur neuen Zähleridentität über einheitgebundene `zaehler_id`s aufgebaut.
 
@@ -312,7 +304,7 @@ Apps Script `ensureLokStructureData` ergänzt:
 
 Die Funktion überschreibt bestehende Eingangswerte nicht, sondern ergänzt nur leere Felder. Falls `LOK_WE_10` bereits durch einen früheren Lauf angelegt wurde, bleibt diese Einheit zunächst unverändert und kann in einem separaten Bereinigungsschritt deaktiviert oder historisch dokumentiert werden.
 
-### 5. Dashboard/Auswertungen
+### 3. Dashboard/Auswertungen
 
 Die erste Dashboard-Version hatte die Verbrauchsberechnung testbar im Frontend vorbereitet. Wegen der historischen Datenqualität und der notwendigen Nachvollziehbarkeit wird die fachliche Verbrauchsberechnung jetzt ins Apps-Script-Backend verschoben.
 
@@ -397,3 +389,33 @@ Heute wurde die Zählererfassung und Verbrauchsansicht gezielt für bessere Bedi
 Validierung:
 
 - `npm test` läuft lokal grün mit `88 passed`.
+
+---
+
+## Abgeschlossene Arbeitspakete
+
+### Bestandsdatenmigration (abgeschlossen 2026-06-28)
+
+Die Migration der 1.910 bestehenden `Zaehlerstaende` auf die neue `stand_id`-Logik wurde am 2026-06-28 erfolgreich ausgeführt.
+
+Finaler Prüfstand:
+
+```json
+{"totalRows":1910,"migratableRows":1910,"changedRows":0,"unchangedRows":1910,"unresolvedRows":0,"duplicateRows":0,"mappingConflictRows":0,"missingHeaders":[]}
+```
+
+Historische Doppelwerte mit niedrigerem Verbrauchswert und höherem Zählerstand wurden automatisch in getrennte virtuelle Verbrauchszähler umgeschlüsselt.
+
+Optionaler Folgeschritt: Historische `zaehler_id`s von Ra-HS-29 erst in einem separaten, kontrollierten Schritt auf das neue einheitgebundene Format migrieren.
+
+### Ölstand-Plausibilität (abgeschlossen)
+
+Der Zähler `oel_stand_cm` ist rückläufig: Ein sinkender Stand bedeutet Verbrauch und ist grundsätzlich plausibel. Ein steigender Stand bedeutet Betankung, Korrektur oder Messfehler und braucht eigene Regeln.
+
+Umgesetzt:
+
+1. Testfälle in `tests/validation-service.test.js` für `oel_stand_cm` ergänzt.
+2. Plausibilitätslogik in `validation-service.js` um rückläufige Füllstandszähler erweitert.
+3. Sinkender Ölstand wird als Verbrauch akzeptiert.
+4. Steigender Ölstand erzeugt eine Warnung für Betankung, Korrektur oder Messfehler.
+5. Überlauf wird für Ölstand in cm nicht angewendet.

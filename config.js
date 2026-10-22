@@ -1,18 +1,13 @@
  /**
  * HAUSVERWALTUNG - FRONTEND CONFIGURATION
- * Version: 3.5 (Backend-Stand siehe CHANGELOG.md)
- * Stand: 27.06.2026
+ * Versionen und Deploy-Status: siehe CHANGELOG.md
  */
 
 const CONFIG = {
     // 1. Die zentrale URL (Single Source of Truth)
     API_URL: "https://script.google.com/macros/s/AKfycbxP1AzOxbGQH3aFYEJzSwxbsQkaUQQ4EKXLpMJvdJYc0TD7sTEw6C_9h1SZshG7A9USog/exec",
     
-    // 2. Globale Anwendungseinstellungen
-    APP_VERSION: "3.5",
-    DEBUG_MODE: true,
-
-    // 3. Bestehende Objekt-Einstellungen (DÜRFEN NICHT GELÖSCHT WERDEN!)
+    // 2. Bestehende Objekt-Einstellungen (DÜRFEN NICHT GELÖSCHT WERDEN!)
     "LOK": {
         name: "🏠 Lokschuppen",
         units: 15,

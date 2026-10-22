@@ -16,6 +16,8 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
   - `produktiv` – im Apps-Script-Projekt deployt (genau eine Version)
   - `ersetzt` – war produktiv oder gemergt, inzwischen überholt
 - **Beim Deploy:** neue Version auf `produktiv` setzen, die bisherige auf `ersetzt`.
+  Danach einen Git-Tag auf den Merge-Commit setzen:
+  `git tag -a vX.Y.Z <commit> -m "Backend X.Y.Z: ..."` und `git push origin vX.Y.Z`.
   Der Test `apps-script.test.js` prüft das Format, die Reihenfolge und dass genau
   eine Version `produktiv` ist.
 - Datumsangaben bis 4.6.4 stammen aus der Git-Historie (Commit, der die Version
@@ -23,7 +25,7 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 
 ## 4.7.0 · 2026-10-21 · produktiv
 
-Deployt am 2026-10-22 (PR #16), zusammen mit 4.6.4. Schema vorbereitet,
+Deployt am 2026-10-22 (PR #16), zusammen mit 4.6.4. Git-Tag `v4.7.0` (Commit `c670676`). Schema vorbereitet,
 `CONTRACT_WRITE_TOKEN` gesetzt, Speichern und Überschreiben von Vertragsdaten
 im Produktivsystem geprüft.
 
