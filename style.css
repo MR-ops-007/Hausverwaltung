@@ -31,6 +31,17 @@ body {
 .contract-field-note { font-size: 0.85rem; color: #475569; line-height: 1.5; }
 .contract-notice { padding: 12px 0; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; color: #475569; }
 .contract-access { margin: 14px 0; }
+.contract-status {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 1000;
+    max-width: min(92vw, 560px); margin: 0; padding: 12px 18px;
+    border: 1px solid; border-radius: 8px; font-weight: 600; line-height: 1.4;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.18); cursor: pointer;
+}
+.contract-status:empty { display: none; }
+.contract-status-info { background: #e0f2fe; color: #075985; border-color: #7dd3fc; }
+.contract-status-success { background: #dcfce7; color: #166534; border-color: #86efac; }
+.contract-status-error { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
 .contract-index { margin: 24px 0; padding-top: 16px; border-top: 2px solid #cbd5e1; }
 #contracts-output .contract-checkbox { flex-direction: row; align-items: center; margin: 10px 0; }
 #contracts-output .contract-checkbox input { width: auto; }

@@ -92,7 +92,8 @@ Tests werden mit Vitest ausgeführt:
 npm test
 ```
 
-Der Vertragsausbau ist lokal vorbereitet. Die neue Vertragsansicht liest auch
-Bestandsdaten ohne neue Spalten. Schreiben erfordert Backend 4.7.0, die separat
-freizugebende Schema-Vorbereitung und eine Schreibfreigabe. Es wurden keine
-Produktivdaten migriert. Siehe `docs/contracts-index-plan.md`.
+Der Vertragsausbau ist produktiv (Stand siehe `CHANGELOG.md`). Die Vertragsansicht
+liest auch Bestandsdaten ohne neue Spalten. Schreiben erfordert Backend ab 4.7.0,
+die einmalige Schema-Vorbereitung (`prepareContractSchema()`) und die Script
+Property `CONTRACT_WRITE_TOKEN`. Es wurden keine Produktivdaten migriert.
+Siehe `docs/contracts-index-plan.md`.

@@ -286,6 +286,50 @@ describe('contract view', () => {
     expect(dataService.state.view_aktive_mieter[0].soll_gesamt).toBe(820);
     expect(dataService.state.mietanpassungen).toHaveLength(1);
     expect(ui.busy).toBe(false);
+    expect(fields['contract-message'].textContent).toMatch(/Gespeichert/);
+    expect(fields['contract-message'].className).toContain('contract-status-success');
+  });
+  it('reports a failed save as an error message', async () => {
+    const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
+    const first = { ...current, erhoehungs_typ: 'Normal' };
+    const dataService = { state: { vertraege: [first], einheiten: [unit], mietanpassungen: [], view_aktive_mieter: [] } };
+    const fields = Object.fromEntries(service.editable.map(key => ['contract-' + key, { value: first[key] ?? '' }]));
+    fields['contract-token'] = { value: 'falsch' };
+    fields['contract-message'] = { textContent: '' };
+    fields['contract-soll_nebenkosten'].value = '220';
+    const saveContract = vi.fn().mockRejectedValue(new Error('Vertrags-Schreibzugriff nicht freigeschaltet.'));
+    const ui = new Function('dataService', 'contractService', 'cloudService', 'document', `${source};return contractUiService;`)(
+      dataService, service, { saveContract }, { getElementById: id => fields[id] });
+    ui.selectedId = first.vertrag_id;
+    ui.loadedSnapshot = service.snapshot(first);
+    ui.render = vi.fn();
+    await ui.save(false);
+    expect(fields['contract-message'].textContent).toMatch(/nicht freigeschaltet/);
+    expect(fields['contract-message'].className).toContain('contract-status-error');
+    expect(ui.busy).toBe(false);
+  });
+  it('fades out success messages but keeps errors, even when messages replace each other', () => {
+    vi.useFakeTimers();
+    const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
+    const element = { textContent: '', className: '', setAttribute: vi.fn() };
+    const ui = new Function('dataService', 'contractService', 'cloudService', 'document', `${source};return contractUiService;`)(
+      {}, service, {}, { getElementById: () => element });
+    ui.message('✓ Gespeichert', 'success');
+    expect(element.setAttribute).toHaveBeenLastCalledWith('role', 'status');
+    vi.advanceTimersByTime(6000);
+    expect(element.textContent).toBe('');
+    ui.message('Erste', 'success');
+    vi.advanceTimersByTime(3000);
+    ui.message('Zweite', 'success');
+    vi.advanceTimersByTime(3500);
+    expect(element.textContent).toBe('Zweite');
+    vi.advanceTimersByTime(3000);
+    expect(element.textContent).toBe('');
+    ui.message('Fehler', 'error');
+    expect(element.setAttribute).toHaveBeenLastCalledWith('role', 'alert');
+    vi.advanceTimersByTime(60000);
+    expect(element.textContent).toBe('Fehler');
+    vi.useRealTimers();
   });
   it('does not send or require a token when nothing was changed', async () => {
     const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');

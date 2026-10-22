@@ -21,9 +21,11 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - Datumsangaben bis 4.6.4 stammen aus der Git-Historie (Commit, der die Version
   eingeführt hat), nicht aus dem Deployment.
 
-## 4.7.0 · 2026-10-21 · lokal
+## 4.7.0 · 2026-10-21 · produktiv
 
-Branch `codex/rental-contract-index`, noch nicht deployt.
+Deployt am 2026-10-22 (PR #16), zusammen mit 4.6.4. Schema vorbereitet,
+`CONTRACT_WRITE_TOKEN` gesetzt, Speichern und Überschreiben von Vertragsdaten
+im Produktivsystem geprüft.
 
 - Vertragsfelder (Dokumentlinks, NK-Teilbeträge, Indexbasis) und Tabelle `Mietanpassungen`.
 - Geschützter Vertrags-Schreibweg (`Contracts.gs`, `ContractService.js`) mit
@@ -31,15 +33,16 @@ Branch `codex/rental-contract-index`, noch nicht deployt.
 - Vor der Nutzung nötig: `prepareContractSchema()` manuell ausführen und Script
   Property `CONTRACT_WRITE_TOKEN` setzen. Siehe `docs/contracts-index-plan.md`.
 
-## 4.6.4 · 2026-07-15 · main
+## 4.6.4 · 2026-07-15 · ersetzt
 
 - `stand_id` für neue UI-Eingaben im kurzen Format `ST_{zaehler_id}_{YYYY-MM-DD HH:mm}`.
-- Deploy-Status bitte bestätigen. Bei Deploy: 4.6.4 auf `produktiv`, 4.6.3 auf `ersetzt`.
+- Wurde nicht einzeln deployt, sondern ging am 2026-10-22 zusammen mit 4.7.0 live.
+  Ältere `stand_id`s behalten das lange Format.
 
-## 4.6.3 · 2026-07-04 · produktiv
+## 4.6.3 · 2026-07-04 · ersetzt
 
 - Bilanzview `_view_verbrauch_bilanz_jahr` für fachlich berechnete Jahreskennzahlen.
-- Status laut Angabe des Nutzers zum Editorstand.
+- Produktiv bis 2026-10-22.
 
 ## 4.6.2 · 2026-07-02 · ersetzt
 

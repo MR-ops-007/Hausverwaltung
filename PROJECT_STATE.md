@@ -32,8 +32,10 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   und Historie. Keine automatische Mieterhöhung oder zukünftige Sollmietänderung.
 - Neue Schreibaktionen sind gesondert freigeschaltet, mit Standvergleich gegen
   parallele Änderungen und ohne Offline-Queue.
-- Keine produktiven Schemaänderungen oder Deployments ausgeführt; Vertrag 21 bleibt
-  unverändert. Das Favicon aus dem vorherigen Auftrag wird im Arbeitsstand erhalten.
+- Produktiv freigegeben am 2026-10-22 (Backend 4.7.0, siehe `CHANGELOG.md`): Schema
+  vorbereitet, Schreibfreigabe gesetzt, Speichern und Überschreiben geprüft. Es wurden
+  keine Produktivdaten migriert. Das Favicon aus dem vorherigen Auftrag wird im
+  Arbeitsstand erhalten.
 - Analyse, Datenmodell-Diff, Rollback und Freigabeschritte stehen in
   `docs/contracts-index-plan.md`. Frühere Versionsangaben unten sind historisch.
 - Validierung: 135 automatisierte Tests; Vertragsansicht mit synthetischen Daten
