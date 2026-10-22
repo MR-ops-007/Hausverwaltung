@@ -4,36 +4,27 @@ Dieses Verzeichnis enthält die versionierte Kopie des Google Apps Script Backen
 
 ## Versionierung
 
-Die aktuelle Backend-Version steht im Kopf von `Code.gs` und zusätzlich in der Konstante `BACKEND_VERSION`.
-
-Aktueller Stand:
-
-```text
-4.6.2
-```
+Die Backend-Version steht in der Konstante `BACKEND_VERSION` und im Kopfkommentar von `Code.gs`.
+Historie und Deploy-Status (welche Version ist produktiv?) stehen in [../CHANGELOG.md](../CHANGELOG.md).
 
 Regel:
 
-- Jede fachliche oder technische Änderung am Apps-Script-Backend erhöht die Version.
+- Jede fachliche oder technische Änderung am Apps-Script-Backend erhöht die Version und bekommt einen Changelog-Eintrag.
 - Patch-Version (`x.y.Z`) für kleine Korrekturen ohne neues Verhalten.
 - Minor-Version (`x.Y.0`) für neues Verhalten, Datenmodelländerungen oder neue Hilfsfunktionen.
-- Die Tests prüfen die erwartete `BACKEND_VERSION`, damit vergessene Versionsupdates auffallen.
-- Version `4.3.1` repariert das zeitzonenstabile Parsing von JavaScript-Date-Strings für generierte `stand_id`-Zeitstempel.
-- Version `4.4.0` ergänzt eine Preview-/Apply-Migration für Bestands-Zählerstände.
-- Version `4.4.1` ergänzt ein Report-Sheet für die Migrationsanalyse.
-- Version `4.4.2` lernt eindeutige `zaehler_id`/`einheit_id`-Mappings aus bereits vorbereiteten Bestandsdaten.
-- Version `4.4.3` löst bekannte fehlerhafte Bestands-Mappings per Override auf.
-- Version `4.4.4` ergänzt den virtuellen Warmwasser-Gesamtzähler für historische Werte.
-- Version `4.4.5` ergänzt einen separaten Duplikat-Report für die `stand_id`-Migration.
-- Version `4.4.6` löst historische Doppelwerte als Zählerstand plus berechneten Verbrauch auf.
-- Version `4.5.0` ergänzt die LOK-Zählerstruktur und Eingang-Stammdaten.
-- Version `4.5.1` teilt LOK Wohnung 10 in `LOK_WE_10_A`, `LOK_WE_10_B` und `LOK_WE_10_S` und legt fehlende LOK-Einheiten an.
-- Version `4.5.2` stellt LOK auf einheitgebundene `zaehler_id`s nach `Z_{einheit_id}_{medium}` um und deaktiviert alte Kurz-IDs.
-- Version `4.6.0` ergänzt materialisierte Verbrauchsviews für Monats- und Jahreswerte.
-- Version `4.6.1` ergänzt kanonische Zuordnung historischer Zählerstand-IDs und einen Audit-View für Verbrauchsdaten.
-- Version `4.6.2` ergänzt eine Preview-/Report-/Apply-Migration für kanonische Zählerstand-Identitäten.
+- Die Tests prüfen Versionsformat, Übereinstimmung mit dem Kopfkommentar und den Changelog-Eintrag, damit vergessene Versionsupdates auffallen.
 
 ## Zweck
+
+### Vertragsausbau (ab 4.7.0)
+
+`ContractService.js` enthält gemeinsame Regeln für Browser und GAS; `Contracts.gs`
+den geschützten Schreibweg und die manuelle Schema-Vorbereitung. Beide Dateien
+müssen bei einem späteren Deployment enthalten sein. `prepareContractSchema()`
+niemals ohne ausdrückliche Freigabe produktiv ausführen. Neue Aktionen brauchen
+die lokale Script Property `CONTRACT_WRITE_TOKEN`. Keine Freigabewerte committen.
+Vor Push produktiven Stand in separater Arbeitskopie pullen und Diff prüfen.
+Details: [Vertragskonzept und Rollback](../docs/contracts-index-plan.md).
 
 Das produktive Backend liegt weiterhin im Google Apps Script Projekt. Die Synchronisierung über `clasp` ist vorbereitet.
 
@@ -119,7 +110,9 @@ Der virtuelle Zähler `Z_WARMWASSER_WW_GESAMT_BERECHNET` ist als `berechnet = TR
 
 ## Verbrauchsviews
 
-Version `4.6.0` ergänzt die Backend-Funktion `updateVerbrauchViews`. Version `4.6.3` erweitert diese Views um die Bilanz-Jahresview.
+Version `4.6.0` ergänzt die Backend-Funktion `updateVerbrauchViews`. Version `4.6.3` erweitert diese Views um die Bilanz-Jahresview. Diese Funktionen bleiben im Vertragsausbau erhalten.
+
+Wenn `updateVerbrauchViews()` im Google-Apps-Script-Editor nicht in der Funktionsauswahl erscheint, läuft dort nicht der aktuelle Stand aus `apps-script/Code.gs`. In diesem Fall muss zuerst der Apps-Script-Code aktualisiert bzw. neu bereitgestellt werden.
 
 Die Funktion berechnet aus `Zaehler`, `Zaehlerstaende`, `Einheiten` und `_view_aktive_mieter` materialisierte Lesetabellen:
 
@@ -140,6 +133,8 @@ Wichtige Fachregeln:
 - Überlaufwerte werden als Warnung markiert, bleiben aber für die fachliche Prüfung sichtbar.
 
 Die Web-App kann die Views schlank über `?view=verbrauch` abrufen. Dadurch muss die UI die historische Intervalllogik nicht selbst nachbauen.
+
+Wichtig: Neue Zählerstände werden durch die UI in `Zaehlerstaende` gespeichert. Die materialisierten Verbrauchsviews werden aktuell nicht automatisch beim Speichern aktualisiert. Nach neuen Ablesungen muss `updateVerbrauchViews()` manuell im Apps-Script-Editor ausgeführt werden, damit die Verbrauchsansicht den aktuellen Stand zeigt.
 
 Der Audit-View prüft pro Zähler:
 

@@ -46,6 +46,26 @@ const uiService = {
     return `${day}.${month}.${year} ${hour}:${minute}`;
   },
 
+  formatReadingTimestamp(value) {
+    if (!value) return '';
+
+    const timestamp = this.parseGermanDate(value);
+
+    if (!timestamp) {
+      return String(value);
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}T/.test(String(value))) {
+      const parts = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin',
+        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+        .formatToParts(new Date(timestamp));
+      const part = type => parts.find(item => item.type === type).value;
+      return `${part('day')}.${part('month')}.${part('year')} ${part('hour')}:${part('minute')}`;
+    }
+
+    return this.formatGermanTimestamp(new Date(timestamp));
+  },
+
   getZaehlerLabel(zaehler) {
     return (
       zaehler.bezeichnung ||
@@ -54,6 +74,67 @@ const uiService = {
       zaehler.zaehler_id ||
       'Zähler'
     );
+  },
+
+  getZaehlerTheme(zaehler) {
+    const mediumFamily = this.getConsumptionMediumFamily(zaehler && zaehler.medium);
+    const fallbackText = [
+      zaehler && zaehler.medium,
+      zaehler && zaehler.bezeichnung,
+      zaehler && zaehler.zaehler_id
+    ].join(' ').toLowerCase();
+
+    const resolvedFamily = mediumFamily !== 'SONSTIGES'
+      ? mediumFamily
+      : fallbackText.includes('kaltwasser')
+        ? 'KALTWASSER'
+        : fallbackText.includes('warmwasser')
+          ? 'WARMWASSER'
+          : fallbackText.includes('strom')
+            ? 'STROM'
+            : (fallbackText.includes('oel') || fallbackText.includes('öl'))
+              ? 'OEL'
+              : 'SONSTIGES';
+
+    const themes = {
+      KALTWASSER: {
+        accent: '#2563eb',
+        border: '#bfdbfe',
+        background: '#eff6ff',
+        previousBackground: '#f8fbff',
+        previousBorder: '#dbeafe'
+      },
+      WARMWASSER: {
+        accent: '#dc2626',
+        border: '#fecaca',
+        background: '#fef2f2',
+        previousBackground: '#fff7f7',
+        previousBorder: '#fecaca'
+      },
+      STROM: {
+        accent: '#16a34a',
+        border: '#bbf7d0',
+        background: '#f0fdf4',
+        previousBackground: '#f7fef9',
+        previousBorder: '#dcfce7'
+      },
+      OEL: {
+        accent: '#b45309',
+        border: '#fde68a',
+        background: '#fffbeb',
+        previousBackground: '#fff8e6',
+        previousBorder: '#fde68a'
+      },
+      SONSTIGES: {
+        accent: '#64748b',
+        border: '#e2e8f0',
+        background: '#f8fafc',
+        previousBackground: '#f8fafc',
+        previousBorder: '#e2e8f0'
+      }
+    };
+
+    return themes[resolvedFamily] || themes.SONSTIGES;
   },
 
   escapeHtml(value) {
@@ -363,6 +444,29 @@ const uiService = {
     return matchingReadings[0] || null;
   },
 
+  getLatestZaehlerstandDisplay(zaehler) {
+    const latestReading = this.getLatestZaehlerstand(zaehler);
+
+    if (!latestReading) {
+      return {
+        hasReading: false,
+        label: 'Letzter Stand',
+        valueText: 'Noch keine Ablesung vorhanden.',
+        timestampText: ''
+      };
+    }
+
+    const unit = this.getConsumptionDisplayUnit(zaehler);
+    const unitLabel = unit ? ` ${unit}` : '';
+
+    return {
+      hasReading: true,
+      label: 'Letzter Stand',
+      valueText: `${this.formatDashboardNumber(latestReading.wert)}${unitLabel}`,
+      timestampText: this.formatReadingTimestamp(latestReading.zeitstempel)
+    };
+  },
+
   formatValidationMessage(zaehler, latestReading, result, neuerWert) {
     const name = this.getZaehlerLabel(zaehler);
     const alterWert = latestReading ? latestReading.wert : 'kein Vorwert';
@@ -623,6 +727,14 @@ const uiService = {
     return (row && (row.einheit_name || row.einheit_id)) || '';
   },
 
+  getConsumptionTableGroupLabel(row) {
+    return this.getConsumptionRowUnitLabel(row) || 'Ohne Einheit';
+  },
+
+  getConsumptionTableCellStyle(extra = '') {
+    return `padding:10px; border-bottom:1px solid #e2e8f0; vertical-align:top; background:white; ${extra}`;
+  },
+
   getConsumptionAuditByMeter() {
     const result = {};
     const auditRows = Array.isArray(dataService.state.view_verbrauch_audit)
@@ -667,6 +779,195 @@ const uiService = {
       .join('||');
 
     return previousYearMap[key] || null;
+  },
+
+  getConsumptionMeterYearKey(row, yearOverride) {
+    const year = yearOverride !== undefined ? yearOverride : row && row.jahr;
+    return [
+      year,
+      row && row.objekt_id,
+      row && row.einheit_id,
+      row && row.zaehler_id
+    ].map(value => String(value || '').trim()).join('||');
+  },
+
+  buildConsumptionMonthRowsByMeterYear(rows) {
+    const result = {};
+
+    rows.forEach(row => {
+      const key = this.getConsumptionMeterYearKey(row);
+      if (!result[key]) result[key] = [];
+      result[key].push(row);
+    });
+
+    Object.keys(result).forEach(key => {
+      result[key].sort((a, b) => {
+        const aRange = this.getConsumptionMonthRowDateRange(a);
+        const bRange = this.getConsumptionMonthRowDateRange(b);
+        return aRange.start - bRange.start;
+      });
+    });
+
+    return result;
+  },
+
+  getConsumptionMonthRowsForRow(row, monthRowsByMeterYear) {
+    return monthRowsByMeterYear[this.getConsumptionMeterYearKey(row)] || [];
+  },
+
+  parseConsumptionMonth(value) {
+    const match = String(value || '').trim().match(/^(\d{4})-(\d{1,2})$/);
+    if (!match) return null;
+
+    return {
+      year: Number(match[1]),
+      month: Number(match[2])
+    };
+  },
+
+  getMonthEndDate(year, monthIndex) {
+    return new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
+  },
+
+  getConsumptionMonthRowDateRange(row) {
+    const startTimestamp = this.parseGermanDate(row && row.start_datum);
+    const endTimestamp = this.parseGermanDate(row && row.end_datum);
+
+    if (startTimestamp && endTimestamp) {
+      return {
+        start: new Date(startTimestamp),
+        end: new Date(endTimestamp)
+      };
+    }
+
+    const month = this.parseConsumptionMonth(row && row.monat);
+
+    if (month) {
+      return {
+        start: new Date(month.year, month.month - 1, 1),
+        end: this.getMonthEndDate(month.year, month.month - 1)
+      };
+    }
+
+    const year = Number(row && row.jahr);
+
+    if (Number.isFinite(year)) {
+      return {
+        start: new Date(year, 0, 1),
+        end: this.getMonthEndDate(year, 11)
+      };
+    }
+
+    return {
+      start: new Date(0),
+      end: new Date(0)
+    };
+  },
+
+  formatGermanDateOnly(value) {
+    const timestamp = value instanceof Date
+      ? value.getTime()
+      : this.parseGermanDate(value);
+
+    if (!timestamp) return '';
+
+    const date = new Date(timestamp);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+
+    return `${day}.${month}.${year}`;
+  },
+
+  getConsumptionPeriodDisplay(row, monthRows) {
+    const months = Number(row && row.anzahl_monate_mit_verbrauch);
+    const monthCount = Number.isFinite(months) ? months : 0;
+
+    if (!monthRows || monthRows.length === 0) {
+      return {
+        monthsText: `${this.formatDashboardNumber(monthCount)} Monate mit Verbrauch`,
+        rangeText: monthCount > 0 ? 'Quellzeitraum nur aus Jahresview bekannt' : 'Kein Verbrauchszeitraum',
+        hintText: ''
+      };
+    }
+
+    const ranges = monthRows.map(monthRow => this.getConsumptionMonthRowDateRange(monthRow));
+    const start = new Date(Math.min(...ranges.map(range => range.start.getTime())));
+    const end = new Date(Math.max(...ranges.map(range => range.end.getTime())));
+    const distinctMonths = new Set(monthRows.map(monthRow => String(monthRow.monat || ''))).size || monthRows.length;
+    const monthsText = distinctMonths !== monthCount && monthCount > 0
+      ? `${this.formatDashboardNumber(distinctMonths)} Monatssegmente · ${this.formatDashboardNumber(monthCount)} mit Verbrauch`
+      : `${this.formatDashboardNumber(monthCount || distinctMonths)} Monate mit Verbrauch`;
+
+    return {
+      monthsText,
+      rangeText: `Quellintervalle: ${this.formatGermanDateOnly(start)} - ${this.formatGermanDateOnly(end)}`,
+      hintText: distinctMonths !== monthCount && monthCount > 0
+        ? 'Nicht jedes Monatssegment enthält berechenbaren Verbrauch.'
+        : ''
+    };
+  },
+
+  getActiveTenantStartDate(row) {
+    const viewRows = Array.isArray(dataService.state.view_aktive_mieter)
+      ? dataService.state.view_aktive_mieter
+      : [];
+    const tenantRow = viewRows.find(viewRow => String(viewRow.einheit_id) === String(row && row.einheit_id));
+    const timestamp = this.parseGermanDate(tenantRow && tenantRow.start_datum);
+
+    return timestamp ? new Date(timestamp) : null;
+  },
+
+  getConsumptionRunningUsage(row, monthRows, selectedYear) {
+    const year = Number(selectedYear || row && row.jahr);
+    if (!Number.isFinite(year) || !monthRows || monthRows.length === 0) {
+      return null;
+    }
+
+    const today = new Date();
+    const isCurrentYear = year === today.getFullYear();
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = isCurrentYear ? today : this.getMonthEndDate(year, 11);
+    const tenantStart = this.getActiveTenantStartDate(row);
+    const start = tenantStart && tenantStart.getFullYear() === year && tenantStart > yearStart
+      ? tenantStart
+      : yearStart;
+
+    let value = 0;
+    let usedRows = 0;
+
+    monthRows.forEach(monthRow => {
+      const monthValue = this.toDashboardNumber(monthRow.verbrauch_monat);
+      if (monthValue === null) return;
+
+      const range = this.getConsumptionMonthRowDateRange(monthRow);
+      const overlapStart = new Date(Math.max(range.start.getTime(), start.getTime()));
+      const overlapEnd = new Date(Math.min(range.end.getTime(), yearEnd.getTime()));
+
+      if (overlapEnd < overlapStart) return;
+
+      const rangeDays = Math.max(1, Math.ceil((range.end - range.start) / 86400000) + 1);
+      const overlapDays = Math.max(1, Math.ceil((overlapEnd - overlapStart) / 86400000) + 1);
+      const factor = Math.min(1, overlapDays / rangeDays);
+
+      value += monthValue * factor;
+      usedRows += 1;
+    });
+
+    if (usedRows === 0) return null;
+
+    const startsAfterYearStart = start > yearStart;
+
+    return {
+      value,
+      start,
+      end: yearEnd,
+      isPartial: startsAfterYearStart,
+      note: startsAfterYearStart
+        ? `unterjährig · ab Einzug ${this.formatGermanDateOnly(start)}`
+        : (isCurrentYear ? 'laufendes Jahr bis heute' : 'volles Kalenderjahr'),
+      rangeText: `${this.formatGermanDateOnly(start)} - ${this.formatGermanDateOnly(yearEnd)}`
+    };
   },
 
   getConsumptionMeterKey(row) {
@@ -1047,6 +1348,10 @@ const uiService = {
   },
 
   setNavigationState(activeView) {
+    const contractsSection = document.getElementById('contracts-section');
+    const contractsButton = document.getElementById('nav-contracts');
+    if (contractsSection && activeView !== 'contracts') contractsSection.style.display = 'none';
+    if (contractsButton) contractsButton.className = activeView === 'contracts' ? 'tab-btn-active' : 'tab-btn-inactive';
     const meterButton = document.getElementById('nav-meter-entry');
     const dashboardButton = document.getElementById('nav-consumption-dashboard');
 
@@ -1139,6 +1444,11 @@ const uiService = {
     const allRows = Array.isArray(dataService.state.view_verbrauch_jahr)
       ? dataService.state.view_verbrauch_jahr
       : [];
+    const monthRowsByMeterYear = this.buildConsumptionMonthRowsByMeterYear(
+      Array.isArray(dataService.state.view_verbrauch_monat)
+        ? dataService.state.view_verbrauch_monat
+        : []
+    );
     const year = yearSelect.value || this.getAvailableConsumptionYears()[0] || '';
     let objektId = objectSelect.value || objectIds[0] || '';
     const firstObjectWithRows = objectIds.find(objId => allRows.some(row => String(row.objekt_id) === String(objId) && String(row.jahr) === String(year)));
@@ -1290,30 +1600,58 @@ const uiService = {
       : '<div style="color:#64748b;">Keine offenen Datenqualitäts-Hinweise für diese Auswahl.</div>';
     const filteredRows = this.filterConsumptionRowsByStatus(decoratedRows, statusFilter);
     const rowsHtml = filteredRows.length > 0
-      ? filteredRows.map(row => {
+      ? filteredRows.map((row, index) => {
         const audit = row.audit;
         const unit = this.getConsumptionDisplayUnit(row);
         const unitLabel = this.getConsumptionRowUnitLabel(row);
+        const groupLabel = this.getConsumptionTableGroupLabel(row);
+        const previousGroupLabel = index > 0
+          ? this.getConsumptionTableGroupLabel(filteredRows[index - 1])
+          : '';
         const previousYearRow = this.getConsumptionPreviousYearRow(row, previousYearMap);
+        const monthRows = this.getConsumptionMonthRowsForRow(row, monthRowsByMeterYear);
+        const periodDisplay = this.getConsumptionPeriodDisplay(row, monthRows);
+        const runningUsage = this.getConsumptionRunningUsage(row, monthRows, year);
         const status = row.status;
         const hint = row.hint;
+        const theme = this.getZaehlerTheme(row);
+        const mediumLabel = this.getConsumptionMediumLabel(row.medium);
+        const groupHeaderHtml = groupLabel !== previousGroupLabel
+          ? `
+            <tr>
+              <td colspan="7" style="padding:12px 10px 8px; border-top:3px solid #cbd5e1; background:#f8fafc;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                  <strong style="font-size:0.95rem; color:#0f172a;">${this.escapeHtml(groupLabel)}</strong>
+                  <span style="font-size:0.72rem; color:#64748b; font-weight:800; text-transform:uppercase; letter-spacing:0.03em;">Verbrauchsblock</span>
+                </div>
+              </td>
+            </tr>`
+          : '';
+        const firstCellStyle = this.getConsumptionTableCellStyle(`border-left:6px solid ${theme.accent};`);
+        const cellStyle = this.getConsumptionTableCellStyle();
 
         return `
+          ${groupHeaderHtml}
           <tr>
-            <td>
+            <td style="${firstCellStyle}">
               <div style="font-weight:800;">${this.escapeHtml(unitLabel)}</div>
               ${row.mieter_name ? `<div style="font-size:0.75rem; color:#64748b;">${this.escapeHtml(this.formatMieterDisplayName(row.mieter_name))}</div>` : ''}
             </td>
-            <td>
+            <td style="${cellStyle}">
               <div style="font-weight:700;">${this.escapeHtml(row.bezeichnung)}</div>
               <div style="font-size:0.75rem; color:#64748b;">${this.escapeHtml(this.getConsumptionSummaryLabel(row))}</div>
+              <span style="display:inline-block; margin-top:5px; padding:3px 7px; border-radius:999px; background:${theme.background}; color:${theme.accent}; border:1px solid ${theme.border}; font-size:0.72rem; font-weight:800;">
+                ${this.escapeHtml(mediumLabel)}
+              </span>
               ${this.isConsumptionCalculatedRow(row) ? '<span class="consumption-badge">berechnet</span><div style="font-size:0.75rem; color:#64748b; margin-top:4px;">Dieser Wert wurde berechnet und nicht manuell erfasst.</div>' : ''}
             </td>
-            <td>
-              <div><strong>Monate:</strong> ${this.formatDashboardNumber(row.anzahl_monate_mit_verbrauch)}</div>
+            <td style="${cellStyle}">
+              <div><strong>${this.escapeHtml(periodDisplay.monthsText)}</strong></div>
+              <div style="font-size:0.75rem; color:#475569;">${this.escapeHtml(periodDisplay.rangeText)}</div>
+              ${periodDisplay.hintText ? `<div style="font-size:0.75rem; color:#b45309;">${this.escapeHtml(periodDisplay.hintText)}</div>` : ''}
               <div style="font-size:0.75rem; color:#64748b;">${audit ? `${this.formatDashboardNumber(audit.readings_count)} Rohwerte · ${this.formatDashboardNumber(audit.intervalle_count)} Intervalle` : 'View-Datensatz'}</div>
             </td>
-            <td>
+            <td style="${cellStyle}">
               ${row.is_missing_for_year ? `
                 <span style="color:#94a3b8;">Keine Werte</span>
               ` : `
@@ -1321,13 +1659,20 @@ const uiService = {
                 <div style="font-size:0.75rem; color:#64748b;">Ø Monat: ${this.formatDashboardNumber(row.verbrauch_monat_durchschnitt)} ${this.escapeHtml(unit)}</div>
               `}
             </td>
-            <td>
+            <td style="${cellStyle}">
+              ${runningUsage ? `
+                <div style="font-weight:800;">${this.formatDashboardNumber(runningUsage.value)} ${this.escapeHtml(unit)}</div>
+                <div style="font-size:0.75rem; color:#64748b;">${this.escapeHtml(runningUsage.rangeText)}</div>
+                <div style="font-size:0.75rem; color:${runningUsage.isPartial ? '#b45309' : '#64748b'};">${this.escapeHtml(runningUsage.note)}</div>
+              ` : '<span style="color:#94a3b8;">Keine Monatsdaten</span>'}
+            </td>
+            <td style="${cellStyle}">
               ${previousYearRow ? `
                 <div style="font-weight:800;">${this.formatDashboardNumber(previousYearRow.verbrauch_jahr)} ${this.escapeHtml(unit)}</div>
                 <div style="font-size:0.75rem; color:#64748b;">Ø Monat: ${this.formatDashboardNumber(previousYearRow.verbrauch_monat_durchschnitt)} ${this.escapeHtml(unit)}</div>
               ` : '<span style="color:#94a3b8;">Keine Daten</span>'}
             </td>
-            <td>
+            <td style="${cellStyle}">
               <span style="display:inline-block; padding:3px 7px; border-radius:999px; background:#f8fafc; color:${this.getConsumptionStatusColor(status)}; font-size:0.75rem; font-weight:800;">
                 ${this.escapeHtml(this.getConsumptionStatusLabel(status))}
               </span>
@@ -1336,7 +1681,7 @@ const uiService = {
           </tr>
         `;
       }).join('')
-      : '<tr><td colspan="6" style="padding:14px; color:#64748b;">Keine Zähler für diesen Filter gefunden.</td></tr>';
+      : '<tr><td colspan="7" style="padding:14px; color:#64748b;">Keine Zähler für diesen Filter gefunden.</td></tr>';
 
     output.innerHTML = `
       <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; color:#475569; font-size:0.85rem;">
@@ -1361,15 +1706,24 @@ const uiService = {
         ${summaryHtml}
       </div>
 
+      <section style="background:white; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:14px; color:#475569; font-size:0.86rem;">
+        <strong style="display:block; color:#334155; margin-bottom:4px;">Hinweis zur Verbrauchstabelle</strong>
+        <div><strong>Jahresverbrauch:</strong> Summe der Monatsverbräuche im ausgewählten Jahr aus <code>_view_verbrauch_jahr</code>.</div>
+        <div><strong>Abrechnung bis heute:</strong> Summe der Monatswerte des gewählten Jahres bis heute; bei Einzug im Jahr ab Startdatum des Mietvertrags. Ohne unterjährigen Mietbeginn kann dieser Wert im aktuellen Jahr mit dem Jahresverbrauch identisch sein, weil keine Zukunft prognostiziert wird.</div>
+        <div><strong>Berechneter Zeitraum:</strong> zeigt die Monatssegmente und die Quellintervalle aus <code>_view_verbrauch_monat</code>. Wenn Segmentanzahl und Monate mit Verbrauch abweichen, gibt es Monatssegmente ohne berechenbaren Verbrauch.</div>
+        <div><strong>Vorjahr gesamt:</strong> Jahresverbrauch des gleichen Zählers aus dem Vorjahr.</div>
+      </section>
+
       <div style="overflow:auto; background:white; border:1px solid #e2e8f0; border-radius:8px;">
         <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
           <thead>
             <tr style="background:#f8fafc; color:#334155; text-align:left;">
               <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Einheit</th>
               <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Zähler</th>
-              <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Zeitraum</th>
-              <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Verbrauch</th>
-              <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Verbrauch Vorjahr</th>
+              <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Berechneter Zeitraum</th>
+              <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Jahresverbrauch</th>
+              <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Abrechnung bis heute</th>
+              <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Vorjahr gesamt</th>
               <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Status</th>
             </tr>
           </thead>
@@ -1493,17 +1847,49 @@ const uiService = {
 
     const inputsHtml = activeMeters.length > 0
       ? `
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:15px;">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin-top:15px;">
           ${activeMeters.map(z => {
             const label = this.getZaehlerLabel(z);
+            const latestReadingDisplay = this.getLatestZaehlerstandDisplay(z);
+            const theme = this.getZaehlerTheme(z);
             const locationHtml = z.einbauort
               ? `<div style="font-size:0.75rem; color:#666; margin:4px 0 6px;">Einbauort: ${this.escapeHtml(z.einbauort)}</div>`
               : '';
+            const latestReadingHtml = `
+              <div style="
+                display:flex;
+                flex-direction:column;
+                gap:3px;
+                margin:6px 0 8px;
+                padding:8px 10px;
+                border:1px solid ${latestReadingDisplay.hasReading ? theme.previousBorder : '#e2e8f0'};
+                border-radius:12px;
+                background:${latestReadingDisplay.hasReading ? theme.previousBackground : '#f8fafc'};
+              ">
+                <span style="
+                  color:#64748b;
+                  font-size:0.68rem;
+                  font-weight:800;
+                  letter-spacing:0.02em;
+                  text-transform:uppercase;
+                ">${this.escapeHtml(latestReadingDisplay.label)}</span>
+                <span style="
+                  display:flex;
+                  flex-wrap:wrap;
+                  gap:2px 10px;
+                  align-items:baseline;
+                  justify-content:space-between;
+                ">
+                  <strong style="color:#0f172a; font-size:0.95rem; line-height:1.2;">${this.escapeHtml(latestReadingDisplay.valueText)}</strong>
+                  ${latestReadingDisplay.timestampText ? `<span style="color:#475569; font-size:0.76rem; font-weight:700; line-height:1.2;">${this.escapeHtml(latestReadingDisplay.timestampText)}</span>` : ''}
+                </span>
+              </div>`;
 
             return `
-              <div style="padding:10px; border:1px solid #ccc; border-radius:4px; background:#f9f9f9;">
+              <div style="padding:10px; border:1px solid ${theme.border}; border-left:6px solid ${theme.accent}; border-radius:8px; background:${theme.background};">
                 <label for="input-${z.zaehler_id}" style="font-size:0.8rem;">${this.escapeHtml(label)}</label>
                 ${locationHtml}
+                ${latestReadingHtml}
                 <input type="number" id="input-${z.zaehler_id}" step="0.01" style="width:100%;">
               </div>`;
           }).join('')}

@@ -19,10 +19,17 @@ function loadAppsScriptHelpers() {
 }
 
 describe('Apps Script Zaehlerstaende helpers', () => {
-  it('declares the current backend version', () => {
+  it('keeps backend version, header comment and CHANGELOG.md consistent', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
+    const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
+    const changelog = readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8');
+    const entries = [...changelog.matchAll(/^## (\d+\.\d+\.\d+) · (\d{4}-\d{2}-\d{2}) · (lokal|main|produktiv|ersetzt)$/gm)];
 
-    expect(BACKEND_VERSION).toBe('4.6.4');
+    expect(BACKEND_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(code.match(/^ \* Version: (\S+)$/m)[1]).toBe(BACKEND_VERSION);
+    expect(entries[0][1]).toBe(BACKEND_VERSION);
+    expect(new Set(entries.map(entry => entry[1])).size).toBe(entries.length);
+    expect(entries.filter(entry => entry[3] === 'produktiv')).toHaveLength(1);
   });
 
   it('formats German timestamps for stand_id values', () => {

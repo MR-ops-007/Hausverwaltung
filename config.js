@@ -1,6 +1,6 @@
  /**
  * HAUSVERWALTUNG - FRONTEND CONFIGURATION
- * Version: 3.5 (Backend 4.3.1 Deployment)
+ * Version: 3.5 (Backend-Stand siehe CHANGELOG.md)
  * Stand: 27.06.2026
  */
 
