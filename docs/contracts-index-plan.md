@@ -1,7 +1,8 @@
 # Mietvertragsdaten und Indexmieten
 
-Stand: 2026-10-21. Branch: `codex/rental-contract-index`. Nur lokale Vorbereitung;
-keine produktive Schemaaenderung, kein Deployment und keine Aenderung an Vertrag 21.
+Stand: 2026-10-22. Branch: `codex/rental-contract-index` (PR #16, gemergt). Backend 4.7.0
+ist produktiv freigegeben, Details und Status in `CHANGELOG.md`. Der Abschnitt zu
+Rollback und Freigabe unten beschreibt den durchgefuehrten Ablauf.
 
 ## A. Bestandsaufnahme
 
@@ -138,10 +139,8 @@ Titel: Mietvertragsdaten und dokumentierte Indexanpassungen ergaenzen
 Die App erhaelt eine Vertragsansicht mit Dokumentlinks, optionaler
 Nebenkosten-Aufschluesselung und Indexvorschau. Bestaetigte wirksame Anpassungen
 werden mit unveraenderten Nebenkosten und Alt-/Neu-Snapshot dokumentiert.
-Schema und Backend sind nur lokal vorbereitet; Produktionsfreigabe steht aus.
-
-Vor Merge: `npm test`, Diff pruefen; vor produktiver Nutzung zusaetzlich
-GAS-Abgleich, Schemafreigabe und Deployment. Kein PR wurde remote erstellt.
+Schema und Backend sind am 2026-10-22 produktiv freigegeben (siehe `CHANGELOG.md`).
+Der PR wurde als #16 gemergt.
 
 Validierung: 135 Tests in sieben Dateien. Neue Tests decken alle Mietmodelle,
 Indexanstieg/-rueckgang, unveraenderte NK, Jahresfrist, Zugang/Wirksamkeit,
