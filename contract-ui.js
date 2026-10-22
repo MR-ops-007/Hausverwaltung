@@ -7,7 +7,23 @@ const contractUiService = {
   current() { return dataService.state.vertraege.find(row => String(row.vertrag_id) === this.selectedId); },
   unit(contract) { return dataService.state.einheiten.find(row => String(row.einheit_id) === String(contract.einheit_id)); },
   field(name) { return document.getElementById('contract-' + name); },
-  message(text) { document.getElementById('contract-message').textContent = text; },
+  messageSeq: 0,
+  /** Shows a status toast (fixed at the bottom of the screen). kind: info | success | error. */
+  message(text, kind = 'info') {
+    const element = document.getElementById('contract-message');
+    if (!element) return;
+    const seq = ++this.messageSeq;
+    element.textContent = text;
+    element.className = 'contract-status contract-status-' + kind;
+    if (element.setAttribute) element.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+    // Success and info fade out on their own; errors stay until clicked or replaced.
+    if (kind !== 'error' && text) {
+      setTimeout(() => {
+        const current = document.getElementById('contract-message');
+        if (current && this.messageSeq === seq) current.textContent = '';
+      }, 6000);
+    }
+  },
 
   objectId(contract) {
     const unit = this.unit(contract);
@@ -162,7 +178,7 @@ const contractUiService = {
         <p class="contract-field-note">Das Anhaken allein ändert keine Miete. Erst der folgende Button übernimmt und dokumentiert die Anpassung.</p>
         <button class="contract-button-primary" type="button" onclick="contractUiService.save(true)" ${!schemaReady ? 'disabled' : ''}>Dokumentierte Anpassung übernehmen</button>
       </section>
-      <p id="contract-message" role="status"></p>
+      <p id="contract-message" class="contract-status" role="status" title="Zum Schließen klicken" onclick="this.textContent=''"></p>
       <section><h3>Aenderungsverlauf</h3>${history.length ? history.map(row => {
         let before = {}, after = {};
         try { before = JSON.parse(row.vorher_json); after = JSON.parse(row.nachher_json); } catch (error) { /* Preserve legacy history display. */ }
@@ -278,13 +294,13 @@ const contractUiService = {
         values[key] = this.field(key).value;
         return values;
       }, {}));
-      if (!isIndex && !Object.keys(data).length) { this.message('Keine Änderungen zu speichern.'); return; }
+      if (!isIndex && !Object.keys(data).length) { this.message('Keine Änderungen zu speichern.', 'info'); return; }
       if (isIndex) contractService.prepareIndex(current, data, this.unit(current));
       else contractService.preparePatch(current, data);
       const token = this.field('token').value;
       if (!token) throw new Error('Schreibfreigabe fehlt.');
       this.busy = true;
-      this.message('Wird gespeichert ...');
+      this.message('Wird gespeichert ...', 'info');
       const result = await cloudService.saveContract({ typ: isIndex ? 'INDEX_ANWENDEN' : 'VERTRAG_AKTUALISIEREN',
         vertrag_id: current.vertrag_id, erwarteter_stand: this.loadedSnapshot, data, token });
       const index = dataService.state.vertraege.findIndex(row => String(row.vertrag_id) === String(current.vertrag_id));
@@ -294,8 +310,8 @@ const contractUiService = {
       });
       dataService.state.mietanpassungen.push(result.anpassung);
       this.render();
-      this.message(result.view_warning ? 'Gespeichert. Mieteransicht konnte noch nicht aktualisiert werden.' : 'Gespeichert und im Verlauf dokumentiert.');
-    } catch (error) { this.message(error.message); }
+      this.message(result.view_warning ? '✓ Gespeichert. Mieteransicht konnte noch nicht aktualisiert werden.' : '✓ Gespeichert und im Verlauf dokumentiert.', 'success');
+    } catch (error) { this.message(error.message, 'error'); }
     finally { this.busy = false; }
   }
 };
