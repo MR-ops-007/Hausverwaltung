@@ -1,7 +1,7 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.7.0
- * Stand: 2026-10-21
+ * Version: 4.8.0
+ * Stand: 2026-10-28
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
  * Änderungen seit v4.1:
@@ -65,13 +65,89 @@
  *
  * Änderungen seit v4.6.4:
  * - Vertragsfelder, dokumentierte Indexanpassungen und geschuetzter Vertrags-Schreibweg
+ *
+ * Änderungen seit v4.7.0:
+ * - Zugangsschlüssel (Script Property APP_ACCESS_KEY) schützt Lesen und Schreiben
+ * - Lesen per POST (typ LESEN); GET liefert mit gesetztem Schlüssel keine Daten mehr
+ * - Schreibtypen per Erlaubnisliste; unbekannte Typen schreiben nichts mehr
+ * - Ohne gesetzten Schlüssel gilt der Übergangsmodus (Verhalten wie 4.7.0)
  */
-const BACKEND_VERSION = "4.7.0";
+const BACKEND_VERSION = "4.8.0";
 
 function sendJSON(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+const ACCESS_KEY_PROPERTY = 'APP_ACCESS_KEY';
+const ZAEHLER_WRITE_TYPES = ['ZAEHLERSTAND_NEU', 'ZAHLUNG'];
+
+/** True, sobald die Script Property APP_ACCESS_KEY gesetzt ist. Ohne sie gilt der Übergangsmodus. */
+function isAccessProtected() {
+  return Boolean(PropertiesService.getScriptProperties().getProperty(ACCESS_KEY_PROPERTY));
+}
+
+/** Vergleich ohne frühen Abbruch, damit die Antwortzeit nichts über den Schlüssel verrät. */
+function constantTimeEquals(a, b) {
+  const x = String(a === undefined || a === null ? '' : a);
+  const y = String(b === undefined || b === null ? '' : b);
+  let diff = x.length ^ y.length;
+  const length = Math.max(x.length, y.length);
+  for (let i = 0; i < length; i++) {
+    diff |= (x.charCodeAt(i) || 0) ^ (y.charCodeAt(i) || 0);
+  }
+  return diff === 0;
+}
+
+/** Ohne konfigurierten Schlüssel (Übergangsmodus) ist alles erlaubt, sonst muss der Schlüssel stimmen. */
+function hasValidAccessKey(providedKey) {
+  const configured = PropertiesService.getScriptProperties().getProperty(ACCESS_KEY_PROPERTY);
+  if (!configured) return true;
+  return constantTimeEquals(providedKey, configured);
+}
+
+function sendUnauthorized() {
+  return sendJSON({
+    status: 'error',
+    code: 'UNAUTHORIZED',
+    message: 'Zugangsschlüssel fehlt oder ist falsch.'
+  });
+}
+
+/** Lesezugriff auf Views; wird von GET (Übergangsmodus) und POST (typ LESEN) genutzt. */
+function readView(ss, view) {
+  if (view === 'vertrag_capabilities') {
+    return {
+      backend_version: BACKEND_VERSION,
+      contract_writes: true,
+      access_protected: isAccessProtected()
+    };
+  }
+
+  if (view === 'dashboard') {
+    const sheetView = ss.getSheetByName('_view_aktive_mieter');
+    return { '_view_aktive_mieter': sheetView ? getSheetData(sheetView) : [] };
+  }
+
+  if (view === 'verbrauch') {
+    const names = ['_view_verbrauch_monat', '_view_verbrauch_jahr', '_view_verbrauch_audit', '_view_verbrauch_bilanz_jahr'];
+    const result = {};
+    names.forEach(name => {
+      const sheet = ss.getSheetByName(name);
+      result[name] = sheet ? getSheetData(sheet) : [];
+    });
+    return result;
+  }
+
+  const data = {};
+  ss.getSheets().forEach(sheet => {
+    const name = sheet.getName();
+    if (!name.startsWith('OLD_')) {
+      data[name] = getSheetData(sheet);
+    }
+  });
+  return data;
 }
 
 function doPost(e) {
@@ -82,16 +158,48 @@ function doPost(e) {
     });
   }
 
+  let payload;
+  try {
+    payload = JSON.parse(e.postData.contents);
+  } catch (err) {
+    return sendJSON({
+      status: "error",
+      message: err.toString()
+    });
+  }
+
+  // Zugriffsprüfung vor dem Lock, damit unberechtigte Aufrufe nichts blockieren.
+  if (!payload || !hasValidAccessKey(payload.key)) {
+    return sendUnauthorized();
+  }
+
+  if (payload.typ === 'LESEN') {
+    try {
+      return sendJSON(readView(SpreadsheetApp.getActiveSpreadsheet(), payload.view));
+    } catch (err) {
+      return sendJSON({
+        status: "error",
+        message: err.toString()
+      });
+    }
+  }
+
   const lock = LockService.getScriptLock();
 
   try {
     lock.waitLock(10000);
 
-    const payload = JSON.parse(e.postData.contents);
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
     if (payload.typ === 'VERTRAG_AKTUALISIEREN' || payload.typ === 'INDEX_ANWENDEN') {
       return sendJSON(handleContractWrite(ss, payload));
+    }
+
+    if (ZAEHLER_WRITE_TYPES.indexOf(payload.typ) === -1) {
+      return sendJSON({
+        status: "error",
+        message: "Unbekannter Typ."
+      });
     }
 
     const targetSheet = payload.typ === "ZAHLUNG"
@@ -2295,46 +2403,18 @@ function updateVerbrauchViews() {
 }
 
 function doGet(e) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  // Mit gesetztem Schlüssel gibt es per GET keine Daten mehr (Lesen läuft per POST, typ LESEN).
+  if (isAccessProtected()) {
+    return sendJSON({
+      status: 'error',
+      code: 'UNAUTHORIZED',
+      message: 'Lesezugriff nur per POST mit Zugangsschlüssel.'
+    });
+  }
+
+  // Übergangsmodus (kein Schlüssel gesetzt): Verhalten wie 4.7.0.
   const param = e ? e.parameter : {};
-
-  if (param.view === 'vertrag_capabilities') {
-    return sendJSON({ backend_version: BACKEND_VERSION, contract_writes: true });
-  }
-
-  if (param.view === "dashboard") {
-    const sheetView = ss.getSheetByName("_view_aktive_mieter");
-
-    return sendJSON({
-      "_view_aktive_mieter": sheetView ? getSheetData(sheetView) : []
-    });
-  }
-
-  if (param.view === "verbrauch") {
-    const sheetMonat = ss.getSheetByName("_view_verbrauch_monat");
-    const sheetJahr = ss.getSheetByName("_view_verbrauch_jahr");
-    const sheetAudit = ss.getSheetByName("_view_verbrauch_audit");
-    const sheetBilanzJahr = ss.getSheetByName("_view_verbrauch_bilanz_jahr");
-
-    return sendJSON({
-      "_view_verbrauch_monat": sheetMonat ? getSheetData(sheetMonat) : [],
-      "_view_verbrauch_jahr": sheetJahr ? getSheetData(sheetJahr) : [],
-      "_view_verbrauch_audit": sheetAudit ? getSheetData(sheetAudit) : [],
-      "_view_verbrauch_bilanz_jahr": sheetBilanzJahr ? getSheetData(sheetBilanzJahr) : []
-    });
-  }
-
-  const data = {};
-
-  ss.getSheets().forEach(s => {
-    const name = s.getName();
-
-    if (!name.startsWith("OLD_")) {
-      data[name] = getSheetData(s);
-    }
-  });
-
-  return sendJSON(data);
+  return sendJSON(readView(SpreadsheetApp.getActiveSpreadsheet(), param.view));
 }
 
 function getSheetData(sheet) {

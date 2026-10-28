@@ -97,3 +97,7 @@ liest auch Bestandsdaten ohne neue Spalten. Schreiben erfordert Backend ab 4.7.0
 die einmalige Schema-Vorbereitung (`prepareContractSchema()`) und die Script
 Property `CONTRACT_WRITE_TOKEN`. Es wurden keine Produktivdaten migriert.
 Siehe `docs/contracts-index-plan.md`.
+
+Zugriffsschutz (Backend ab 4.8.0): Lesen und Schreiben erfordern einen Zugangsschlüssel
+(Script Property `APP_ACCESS_KEY`). Einspielen, Rollback und Schlüsselwechsel stehen in
+`docs/access-control.md`.

@@ -246,7 +246,7 @@ Wichtige Regeln:
 ## Nächste Schritte (Stand 2026-10-23)
 
 1. **Technisches Aufräumen** (Paket 1): tote Konfiguration entfernt, CI nutzt Node aus `.nvmrc` und `npm ci`, Doku an die Realität angepasst.
-2. **Backend-Lesezugriff absichern** (geplant 4.8.0): `doGet` liefert derzeit ohne Anmeldung alle Blätter aus; geplant ist ein Lese-Schlüssel analog zu `CONTRACT_WRITE_TOKEN`. Hinweis: `config.js` wird mit der öffentlichen GitHub-Pages-Seite ausgeliefert, ein privates Repo schützt die Backend-URL daher nicht.
+2. **Backend-Zugriff absichern** (4.8.0, umgesetzt, Einspielen siehe `docs/access-control.md`): `doGet` liefert derzeit ohne Anmeldung alle Blätter aus; geplant ist ein Lese-Schlüssel analog zu `CONTRACT_WRITE_TOKEN`. Hinweis: `config.js` wird mit der öffentlichen GitHub-Pages-Seite ausgeliefert, ein privates Repo schützt die Backend-URL daher nicht.
 3. **Verbrauch je Mieter/Vertrag:** Mieterwechsel erzeugen noch keine eigenen Verbrauchszeilen je Vertrag. Grundlage für eine spätere Nebenkostenabrechnung.
 4. **Verbrauchsviews automatisch aktualisieren:** Zeitauslöser für `updateVerbrauchViews()`, statt manuellem Start nach neuen Ablesungen.
 5. **Weitere Indexreihen:** erst nötig, wenn das Statistische Bundesamt auf ein neues VPI-Basisjahr umstellt und ein passender Vertrag existiert.
