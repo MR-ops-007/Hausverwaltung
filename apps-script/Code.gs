@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.2
+ * Version: 4.8.3
  * Stand: 2026-10-29
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
@@ -76,8 +76,11 @@
  *
  * Änderungen seit v4.8.1:
  * - Verbrauchsberechnungen schreiben berechnet_am mit Datum und Uhrzeit
+ *
+ * Änderungen seit v4.8.2:
+ * - Berechnungszeitpunkte werden explizit in Europe/Berlin formatiert
  */
-const BACKEND_VERSION = "4.8.2";
+const BACKEND_VERSION = "4.8.3";
 
 function sendJSON(obj) {
   return ContentService
@@ -1288,12 +1291,7 @@ function formatVerbrauchDate(value) {
 
 function formatVerbrauchTimestamp(value) {
   const date = value instanceof Date ? value : parseTimestampForStandId(value);
-
-  return [
-    date.getFullYear(),
-    pad2(date.getMonth() + 1),
-    pad2(date.getDate())
-  ].join("-") + " " + pad2(date.getHours()) + ":" + pad2(date.getMinutes());
+  return Utilities.formatDate(date, "Europe/Berlin", "yyyy-MM-dd HH:mm");
 }
 
 function formatVerbrauchMonth(date) {
