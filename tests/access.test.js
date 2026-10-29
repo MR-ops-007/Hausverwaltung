@@ -133,7 +133,7 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     const api = backend({ key: KEY });
     expect(api.post({ typ: 'VERBRAUCH_VIEWS_AKTUALISIEREN', key: 'falsch' })).toMatchObject({ status: 'error', code: 'UNAUTHORIZED' });
     expect(api.calls.locks).toBe(0);
-    expect(api.post({ typ: 'VERBRAUCH_VIEWS_AKTUALISIEREN', key: KEY })).toEqual({ status: 'success', message: 'Verbrauchsviews aktualisiert' });
+    expect(api.post({ typ: 'VERBRAUCH_VIEWS_AKTUALISIEREN', key: KEY })).toMatchObject({ status: 'success', message: 'Verbrauchsviews aktualisiert' });
     expect(api.calls.locks).toBe(1);
   });
 });

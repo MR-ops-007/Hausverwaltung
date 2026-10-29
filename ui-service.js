@@ -1311,10 +1311,13 @@ const uiService = {
       if (typeof cloudService === 'undefined' || !cloudService.refreshConsumptionViews) {
         throw new Error('Das Backend unterstützt die Aktualisierung der Verbrauchsviews noch nicht.');
       }
-      await cloudService.refreshConsumptionViews();
+      const refreshResult = await cloudService.refreshConsumptionViews();
       const data = await cloudService.loadConsumptionData();
       if (dataService.setConsumptionData) dataService.setConsumptionData(data);
-      if (status) status.textContent = `Aktualisiert um ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
+      const refreshedAt = refreshResult && refreshResult.berechnetAm
+        ? refreshResult.berechnetAm
+        : new Date().toLocaleString('de-DE');
+      if (status) status.textContent = `Verbrauchsviews zuletzt aktualisiert: ${refreshedAt}`;
       await this.renderConsumptionDashboard();
     } catch (error) {
       if (status) status.textContent = `Aktualisierung fehlgeschlagen: ${error.message || error}`;

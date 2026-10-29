@@ -76,6 +76,26 @@ button:active {
     transform: scale(0.96);
 }
 
+.consumption-refresh-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 0 0 14px;
+}
+
+.btn-primary {
+    background: #2563eb;
+    color: white;
+    border: 1px solid #2563eb;
+    padding: 10px 14px;
+    cursor: pointer;
+}
+
+.btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+.btn-primary:disabled { opacity: 0.6; cursor: wait; }
+.consumption-refresh-status { color: #475569; font-size: 0.95rem; font-weight: 600; }
+
 .tab-btn-active {
     background-color: #2563eb !important;
     color: white !important;

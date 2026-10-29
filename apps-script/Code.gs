@@ -2377,6 +2377,7 @@ function writeViewSheet(ss, sheetName, headers, rows) {
 
 function updateVerbrauchViews() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const berechnetAm = formatVerbrauchDate(new Date());
   const data = {
     Zaehler: getSheetData(ss.getSheetByName("Zaehler")),
     Zaehlerstaende: getSheetData(ss.getSheetByName("Zaehlerstaende")),
@@ -2386,7 +2387,7 @@ function updateVerbrauchViews() {
       : []
   };
   const views = buildVerbrauchViewData(data, {
-    berechnetAm: formatVerbrauchDate(new Date())
+    berechnetAm: berechnetAm
   });
 
   writeViewSheet(ss, "_view_verbrauch_monat", VERBRAUCH_MONAT_HEADERS, views.monatRows);
@@ -2407,6 +2408,7 @@ function updateVerbrauchViews() {
     jahrRows: views.jahrRows.length,
     auditRows: views.auditRows.length,
     bilanzJahrRows: views.bilanzJahrRows.length,
+    berechnetAm: berechnetAm,
     message: "Verbrauchsviews aktualisiert"
   };
 }

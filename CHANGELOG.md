@@ -31,6 +31,8 @@ Geschützte Nutzeraktion zum Aktualisieren der materialisierten Verbrauchsviews 
   `APP_ACCESS_KEY`-Prüfung und ruft `updateVerbrauchViews()` auf.
 - Das Frontend bietet im Tab `Verbrauch` einen expliziten Aktualisieren-Button und lädt die
   Views nach erfolgreicher Neuberechnung neu.
+- Die erfolgreiche Backend-Antwort enthält den Berechnungszeitpunkt; dieser wird neben dem
+  Button als „Verbrauchsviews zuletzt aktualisiert“ angezeigt.
 - Vor dem produktiven Apps-Script-Deploy bleibt 4.8.0 die produktive Version.
 
 ## 4.8.0 · 2026-10-29 · produktiv
