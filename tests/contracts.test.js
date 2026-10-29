@@ -221,7 +221,11 @@ describe('contract backend persistence', () => {
 
 describe('contract client data access', () => {
   const cloudSource = readFileSync(new URL('../cloud-service.js', import.meta.url), 'utf8');
-  const loadCloud = fetch => new Function('CONFIG', 'fetch', `${cloudSource};return cloudService;`)({ API_URL: 'https://example.test/api' }, fetch);
+  const store = { hv_access_key: 'test-key' };
+  const localStorage = { getItem: key => store[key] ?? null, setItem: (key, value) => { store[key] = String(value); }, removeItem: key => { delete store[key]; } };
+  const loadCloud = fetch => new Function('CONFIG', 'fetch', 'localStorage', 'navigator', `${cloudSource};return cloudService;`)(
+    { API_URL: 'https://example.test/api' }, fetch, localStorage, { onLine: true });
+  const reply = body => ({ ok: true, text: async () => JSON.stringify(body) });
   it('loads legacy contracts, new fields and history through the existing state', () => {
     const source = readFileSync(new URL('../data-service.js', import.meta.url), 'utf8');
     const data = new Function(`${source};return dataService;`)();
@@ -232,26 +236,27 @@ describe('contract client data access', () => {
     expect(data.state.mietanpassungen).toEqual([]);
   });
   it('does not POST contract writes to an old backend', async () => {
-    const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ Vertraege: [] }) });
+    const fetch = vi.fn().mockResolvedValue(reply({ Vertraege: [] }));
     await expect(loadCloud(fetch).saveContract({ typ: 'VERTRAG_AKTUALISIEREN' })).rejects.toThrow(/noch nicht/);
     expect(fetch).toHaveBeenCalledTimes(1);
   });
   it('requires a real acknowledgement and sends financial edits only once', async () => {
     const fetch = vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ contract_writes: true }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'success', vertrag: current, anpassung: { art: 'INDEX' } }) });
+      .mockResolvedValueOnce(reply({ contract_writes: true }))
+      .mockResolvedValueOnce(reply({ status: 'success', vertrag: current, anpassung: { art: 'INDEX' } }));
     const payload = { typ: 'INDEX_ANWENDEN', vertrag_id: current.vertrag_id, data: input };
     expect((await loadCloud(fetch).saveContract(payload)).vertrag).toEqual(current);
-    expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual(payload);
+    expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({ ...payload, key: 'test-key' });
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({ typ: 'LESEN', view: 'vertrag_capabilities', key: 'test-key' });
   });
   it('does not turn network or backend failures into queued success', async () => {
     const fetch = vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ contract_writes: true }) })
+      .mockResolvedValueOnce(reply({ contract_writes: true }))
       .mockRejectedValueOnce(new Error('Network failure'));
     await expect(loadCloud(fetch).saveContract({})).rejects.toThrow('Network failure');
     const errorFetch = vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ contract_writes: true }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'error', message: 'Conflict' }) });
+      .mockResolvedValueOnce(reply({ contract_writes: true }))
+      .mockResolvedValueOnce(reply({ status: 'error', message: 'Conflict' }));
     await expect(loadCloud(errorFetch).saveContract({})).rejects.toThrow('Conflict');
   });
 });

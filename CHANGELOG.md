@@ -23,6 +23,18 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - Datumsangaben bis 4.6.4 stammen aus der Git-Historie (Commit, der die Version
   eingeführt hat), nicht aus dem Deployment.
 
+## 4.8.0 · 2026-10-28 · lokal
+
+Zugriffsschutz, noch nicht deployt. Ablauf und Rollback: `docs/access-control.md`.
+
+- Script Property `APP_ACCESS_KEY` schützt Lesen und Schreiben (Zähler, Zahlungen, Verträge).
+- Lesen per POST (`typ: LESEN`); GET liefert mit gesetztem Schlüssel keine Daten mehr.
+- Schreibtypen per Erlaubnisliste; unbekannte Typen schreiben nichts mehr (vorher landete jede
+  unbekannte Anfrage als Zeile in `Zaehlerstaende`).
+- Ohne gesetzten Schlüssel gilt der Übergangsmodus (Verhalten wie 4.7.0); das Frontend warnt dann.
+- Passend dazu im Frontend (eigener PR, erst nach dem Backend einspielen): Eingabedialog für den
+  Schlüssel, Lesen per POST, Offline-Queue verliert keine abgelehnten Einträge mehr.
+
 ## 4.7.0 · 2026-10-21 · produktiv
 
 Deployt am 2026-10-22 (PR #16), zusammen mit 4.6.4. Git-Tag `v4.7.0` (Commit `c670676`). Schema vorbereitet,
