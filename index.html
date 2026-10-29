@@ -65,6 +65,13 @@
                 </select>
             </label>
 
+            <div class="consumption-refresh-bar">
+                <button id="refresh-consumption-views" class="btn-primary" type="button" onclick="uiService.refreshConsumptionViews()">
+                    Verbrauchsdaten aktualisieren
+                </button>
+                <span id="consumption-view-refresh-status" class="consumption-refresh-status" role="status" aria-live="polite"></span>
+            </div>
+
             <div id="consumption-dashboard-output"></div>
         </section>
 

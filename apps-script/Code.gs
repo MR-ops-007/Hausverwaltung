@@ -1,7 +1,7 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.0
- * Stand: 2026-10-28
+ * Version: 4.8.1
+ * Stand: 2026-10-29
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
  * Änderungen seit v4.1:
@@ -71,8 +71,10 @@
  * - Lesen per POST (typ LESEN); GET liefert mit gesetztem Schlüssel keine Daten mehr
  * - Schreibtypen per Erlaubnisliste; unbekannte Typen schreiben nichts mehr
  * - Ohne gesetzten Schlüssel gilt der Übergangsmodus (Verhalten wie 4.7.0)
+ * Änderungen seit v4.8.0:
+ * - Geschützte Aktion zum expliziten Aktualisieren der materialisierten Verbrauchsviews ergänzt
  */
-const BACKEND_VERSION = "4.8.0";
+const BACKEND_VERSION = "4.8.1";
 
 function sendJSON(obj) {
   return ContentService
@@ -82,6 +84,7 @@ function sendJSON(obj) {
 
 const ACCESS_KEY_PROPERTY = 'APP_ACCESS_KEY';
 const ZAEHLER_WRITE_TYPES = ['ZAEHLERSTAND_NEU', 'ZAHLUNG'];
+const BACKEND_ACTION_TYPES = ['VERBRAUCH_VIEWS_AKTUALISIEREN'];
 
 /** True, sobald die Script Property APP_ACCESS_KEY gesetzt ist. Ohne sie gilt der Übergangsmodus. */
 function isAccessProtected() {
@@ -193,6 +196,12 @@ function doPost(e) {
 
     if (payload.typ === 'VERTRAG_AKTUALISIEREN' || payload.typ === 'INDEX_ANWENDEN') {
       return sendJSON(handleContractWrite(ss, payload));
+    }
+
+    if (BACKEND_ACTION_TYPES.indexOf(payload.typ) !== -1) {
+      if (payload.typ === 'VERBRAUCH_VIEWS_AKTUALISIEREN') {
+        return sendJSON(updateVerbrauchViews());
+      }
     }
 
     if (ZAEHLER_WRITE_TYPES.indexOf(payload.typ) === -1) {
@@ -2368,6 +2377,7 @@ function writeViewSheet(ss, sheetName, headers, rows) {
 
 function updateVerbrauchViews() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const berechnetAm = formatVerbrauchDate(new Date());
   const data = {
     Zaehler: getSheetData(ss.getSheetByName("Zaehler")),
     Zaehlerstaende: getSheetData(ss.getSheetByName("Zaehlerstaende")),
@@ -2377,7 +2387,7 @@ function updateVerbrauchViews() {
       : []
   };
   const views = buildVerbrauchViewData(data, {
-    berechnetAm: formatVerbrauchDate(new Date())
+    berechnetAm: berechnetAm
   });
 
   writeViewSheet(ss, "_view_verbrauch_monat", VERBRAUCH_MONAT_HEADERS, views.monatRows);
@@ -2398,6 +2408,7 @@ function updateVerbrauchViews() {
     jahrRows: views.jahrRows.length,
     auditRows: views.auditRows.length,
     bilanzJahrRows: views.bilanzJahrRows.length,
+    berechnetAm: berechnetAm,
     message: "Verbrauchsviews aktualisiert"
   };
 }

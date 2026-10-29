@@ -2,7 +2,7 @@
 
 ## Stand: 2026-10-23
 
-`main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau (Backend 4.7.0, Tag `v4.7.0`).
+`main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz 4.8.0 ist produktiv aktiviert.
 
 Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die nächsten sinnvollen Arbeitspakete.
 
@@ -246,9 +246,12 @@ Wichtige Regeln:
 ## Nächste Schritte (Stand 2026-10-23)
 
 1. **Technisches Aufräumen** (Paket 1): tote Konfiguration entfernt, CI nutzt Node aus `.nvmrc` und `npm ci`, Doku an die Realität angepasst.
-2. **Backend-Zugriff absichern** (4.8.0, umgesetzt, Einspielen siehe `docs/access-control.md`): `doGet` liefert derzeit ohne Anmeldung alle Blätter aus; geplant ist ein Lese-Schlüssel analog zu `CONTRACT_WRITE_TOKEN`. Hinweis: `config.js` wird mit der öffentlichen GitHub-Pages-Seite ausgeliefert, ein privates Repo schützt die Backend-URL daher nicht.
+2. **Backend-Zugriff absichern** (4.8.0, produktiv umgesetzt, Einspielen siehe `docs/access-control.md`): Lesen und Schreiben laufen mit `APP_ACCESS_KEY`; alte Bereitstellungen wurden archiviert. Der direkte GET-Test liefert `UNAUTHORIZED`.
 3. **Verbrauch je Mieter/Vertrag:** Mieterwechsel erzeugen noch keine eigenen Verbrauchszeilen je Vertrag. Grundlage für eine spätere Nebenkostenabrechnung.
-4. **Verbrauchsviews automatisch aktualisieren:** Zeitauslöser für `updateVerbrauchViews()`, statt manuellem Start nach neuen Ablesungen.
+4. **Verbrauchsviews aktualisieren:** Die Web-App bietet jetzt eine geschützte Nutzeraktion
+   `Verbrauchsdaten aktualisieren`. Sie stößt `updateVerbrauchViews()` im Backend an und lädt
+   anschließend die vier materialisierten Views neu. Bis Backend 4.8.1 deployt ist, bleibt
+   die manuelle Apps-Script-Funktion als Fallback erforderlich.
 5. **Weitere Indexreihen:** erst nötig, wenn das Statistische Bundesamt auf ein neues VPI-Basisjahr umstellt und ein passender Vertrag existiert.
 
 ---
@@ -322,7 +325,10 @@ Umgesetzt mit Backend-Version `4.6.1`:
 - Historische eindeutige Abweichungen wie `Z_STROM_HT_KWH_PRIVAT_HT` werden kanonisch den aktuellen Zähler-Stammdaten zugeordnet.
 - Die Web-App kann die Verbrauchsviews schlank über `?view=verbrauch` abrufen.
 - Die Funktion `updateVerbrauchViews()` ist in `apps-script/Code.gs` ab Backend-Version `4.6.0` enthalten; sie bleibt im Vertragsausbau erhalten.
-- Neue Zählerstände werden in `Zaehlerstaende` gespeichert, aktualisieren die materialisierten Verbrauchsviews aber derzeit nicht automatisch. Nach neuen Ablesungen muss `updateVerbrauchViews()` im Apps-Script-Editor ausgeführt werden, damit `_view_verbrauch_monat`, `_view_verbrauch_jahr`, `_view_verbrauch_audit` und `_view_verbrauch_bilanz_jahr` den neuen Stand enthalten.
+- Neue Zählerstände werden in `Zaehlerstaende` gespeichert. Die materialisierten Verbrauchsviews
+  werden bewusst nicht bei jedem einzelnen Eintrag neu berechnet. Nach mehreren Ablesungen wird
+  die Aktualisierung gesammelt über den Button im Verbrauchs-Tab ausgelöst; bis zum Deploy von
+  Backend 4.8.1 bleibt `updateVerbrauchViews()` im Apps-Script-Editor der Fallback.
 - Wenn `updateVerbrauchViews()` im Apps-Script-Editor nicht auffindbar ist, läuft dort nicht der aktuelle Stand aus `apps-script/Code.gs` und das Script muss zuerst aktualisiert bzw. neu bereitgestellt werden.
 
 Lokale Gegenprüfung mit den Live-Daten vom 2026-06-29:

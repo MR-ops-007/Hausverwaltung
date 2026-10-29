@@ -34,6 +34,7 @@ function backend({ key } = {}) {
   };
   const factory = new Function(...Object.keys(globals), 'calls', `${code}
     updateAktiveMieterView = () => { calls.viewUpdates++; };
+    updateVerbrauchViews = () => { calls.viewUpdates++; return { status: 'success', message: 'Verbrauchsviews aktualisiert' }; };
     handleContractWrite = (spreadsheet, payload) => { calls.contractWrites.push(payload); return { status: 'success', vertrag: {}, anpassung: {} }; };
     return { doGet, doPost, constantTimeEquals };`);
   const api = factory(...Object.values(globals), calls);
@@ -126,6 +127,14 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     expect(api.calls.viewUpdates).toBe(2);
     api.post({ typ: 'INDEX_ANWENDEN', token: 'vertrag', data: {}, key: KEY });
     expect(api.calls.contractWrites).toHaveLength(1);
+  });
+
+  it('aktualisiert Verbrauchsviews nur mit richtigem Schlüssel', () => {
+    const api = backend({ key: KEY });
+    expect(api.post({ typ: 'VERBRAUCH_VIEWS_AKTUALISIEREN', key: 'falsch' })).toMatchObject({ status: 'error', code: 'UNAUTHORIZED' });
+    expect(api.calls.locks).toBe(0);
+    expect(api.post({ typ: 'VERBRAUCH_VIEWS_AKTUALISIEREN', key: KEY })).toMatchObject({ status: 'success', message: 'Verbrauchsviews aktualisiert' });
+    expect(api.calls.locks).toBe(1);
   });
 });
 

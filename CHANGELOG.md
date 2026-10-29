@@ -23,9 +23,21 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - Datumsangaben bis 4.6.4 stammen aus der Git-Historie (Commit, der die Version
   eingeführt hat), nicht aus dem Deployment.
 
-## 4.8.0 · 2026-10-28 · lokal
+## 4.8.1 · 2026-10-29 · lokal
 
-Zugriffsschutz, noch nicht deployt. Ablauf und Rollback: `docs/access-control.md`.
+Geschützte Nutzeraktion zum Aktualisieren der materialisierten Verbrauchsviews vorbereitet.
+
+- Neue Backend-Aktion `VERBRAUCH_VIEWS_AKTUALISIEREN`; sie läuft nur nach erfolgreicher
+  `APP_ACCESS_KEY`-Prüfung und ruft `updateVerbrauchViews()` auf.
+- Das Frontend bietet im Tab `Verbrauch` einen expliziten Aktualisieren-Button und lädt die
+  Views nach erfolgreicher Neuberechnung neu.
+- Die erfolgreiche Backend-Antwort enthält den Berechnungszeitpunkt; dieser wird neben dem
+  Button als „Verbrauchsviews zuletzt aktualisiert“ angezeigt.
+- Vor dem produktiven Apps-Script-Deploy bleibt 4.8.0 die produktive Version.
+
+## 4.8.0 · 2026-10-29 · produktiv
+
+Zugriffsschutz produktiv bereitgestellt. Ablauf und Rollback: `docs/access-control.md`.
 
 - Script Property `APP_ACCESS_KEY` schützt Lesen und Schreiben (Zähler, Zahlungen, Verträge).
 - Lesen per POST (`typ: LESEN`); GET liefert mit gesetztem Schlüssel keine Daten mehr.
@@ -34,8 +46,10 @@ Zugriffsschutz, noch nicht deployt. Ablauf und Rollback: `docs/access-control.md
 - Ohne gesetzten Schlüssel gilt der Übergangsmodus (Verhalten wie 4.7.0); das Frontend warnt dann.
 - Passend dazu im Frontend (eigener PR, erst nach dem Backend einspielen): Eingabedialog für den
   Schlüssel, Lesen per POST, Offline-Queue verliert keine abgelehnten Einträge mehr.
+- Produktiv geprüft: alter GET-Lesezugriff liefert `UNAUTHORIZED`; Lesen und Schreiben über die
+  geschützte Web-App funktionieren mit `APP_ACCESS_KEY`.
 
-## 4.7.0 · 2026-10-21 · produktiv
+## 4.7.0 · 2026-10-21 · ersetzt
 
 Deployt am 2026-10-22 (PR #16), zusammen mit 4.6.4. Git-Tag `v4.7.0` (Commit `c670676`). Schema vorbereitet,
 `CONTRACT_WRITE_TOKEN` gesetzt, Speichern und Überschreiben von Vertragsdaten

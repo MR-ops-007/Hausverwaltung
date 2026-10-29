@@ -1282,11 +1282,12 @@ const uiService = {
       dataService.state.view_verbrauch_jahr.length > 0;
 
     if (hasYearRows) {
+      this.updateConsumptionRefreshStatus({ _view_verbrauch_jahr: dataService.state.view_verbrauch_jahr });
       return;
     }
 
     if (typeof cloudService === 'undefined' || !cloudService.loadConsumptionData) {
-      throw new Error('Verbrauchsviews können nicht geladen werden.');
+      throw new Error('Die Verbrauchsdaten konnten nicht geladen werden.');
     }
 
     const data = await cloudService.loadConsumptionData();
@@ -1298,6 +1299,53 @@ const uiService = {
       dataService.state.view_verbrauch_jahr = data["_view_verbrauch_jahr"] || [];
       dataService.state.view_verbrauch_audit = data["_view_verbrauch_audit"] || [];
       dataService.state.view_verbrauch_bilanz_jahr = data["_view_verbrauch_bilanz_jahr"] || [];
+    }
+
+    this.updateConsumptionRefreshStatus(data);
+  },
+
+  formatConsumptionRefreshTimestamp(value) {
+    if (!value) return '';
+    const text = String(value).trim();
+    const match = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+    if (match) {
+      return `${match[3]}.${match[2]}.${match[1]} ${match[4] || '00'}:${match[5] || '00'}`;
+    }
+    return text;
+  },
+
+  updateConsumptionRefreshStatus(data) {
+    const status = document.getElementById('consumption-view-refresh-status');
+    if (!status) return;
+    const rows = data && data._view_verbrauch_jahr;
+    const firstRow = Array.isArray(rows) ? rows.find(row => row && row.berechnet_am) : null;
+    const timestamp = firstRow && this.formatConsumptionRefreshTimestamp(firstRow.berechnet_am);
+    if (timestamp) status.textContent = `Verbrauchsdaten zuletzt aktualisiert: ${timestamp}`;
+  },
+
+  async refreshConsumptionViews() {
+    const button = document.getElementById('refresh-consumption-views');
+    const status = document.getElementById('consumption-view-refresh-status');
+    if (button) button.disabled = true;
+    if (status) status.textContent = 'Verbrauchsdaten werden aktualisiert...';
+
+    try {
+      if (typeof cloudService === 'undefined' || !cloudService.refreshConsumptionViews) {
+        throw new Error('Die Aktualisierung der Verbrauchsdaten ist noch nicht verfügbar.');
+      }
+      const refreshResult = await cloudService.refreshConsumptionViews();
+      const data = await cloudService.loadConsumptionData();
+      if (dataService.setConsumptionData) dataService.setConsumptionData(data);
+      this.updateConsumptionRefreshStatus(data);
+      const refreshedAt = refreshResult && refreshResult.berechnetAm
+        ? this.formatConsumptionRefreshTimestamp(refreshResult.berechnetAm)
+        : '';
+      if (status) status.textContent = `Verbrauchsdaten zuletzt aktualisiert: ${refreshedAt}`;
+      await this.renderConsumptionDashboard();
+    } catch (error) {
+      if (status) status.textContent = `Aktualisierung fehlgeschlagen: ${error.message || error}`;
+    } finally {
+      if (button) button.disabled = false;
     }
   },
 
@@ -1429,12 +1477,12 @@ const uiService = {
     const requestedYear = yearSelect.value;
 
     this.renderConsumptionDashboardControls();
-    output.innerHTML = '<div style="padding:12px; background:white; border:1px solid #e2e8f0; border-radius:8px;">Verbrauchsviews werden geladen...</div>';
+    output.innerHTML = '<div style="padding:12px; background:white; border:1px solid #e2e8f0; border-radius:8px;">Verbrauchsdaten werden geladen...</div>';
 
     try {
       await this.ensureConsumptionViewData();
     } catch (error) {
-      output.innerHTML = `<div style="padding:12px; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px;">Verbrauchsviews konnten nicht geladen werden: ${this.escapeHtml(error.message || String(error))}</div>`;
+      output.innerHTML = `<div style="padding:12px; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px;">Die Verbrauchsdaten konnten nicht geladen werden: ${this.escapeHtml(error.message || String(error))}</div>`;
       return;
     }
 
@@ -1649,7 +1697,7 @@ const uiService = {
               <div><strong>${this.escapeHtml(periodDisplay.monthsText)}</strong></div>
               <div style="font-size:0.75rem; color:#475569;">${this.escapeHtml(periodDisplay.rangeText)}</div>
               ${periodDisplay.hintText ? `<div style="font-size:0.75rem; color:#b45309;">${this.escapeHtml(periodDisplay.hintText)}</div>` : ''}
-              <div style="font-size:0.75rem; color:#64748b;">${audit ? `${this.formatDashboardNumber(audit.readings_count)} Rohwerte · ${this.formatDashboardNumber(audit.intervalle_count)} Intervalle` : 'View-Datensatz'}</div>
+              <div style="font-size:0.75rem; color:#64748b;">${audit ? `${this.formatDashboardNumber(audit.readings_count)} Rohwerte · ${this.formatDashboardNumber(audit.intervalle_count)} Intervalle` : 'Berechnete Daten'}</div>
             </td>
             <td style="${cellStyle}">
               ${row.is_missing_for_year ? `
