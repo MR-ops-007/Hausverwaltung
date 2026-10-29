@@ -1340,8 +1340,8 @@ const uiService = {
       const refreshedAt = refreshResult && refreshResult.berechnetAm
         ? this.formatConsumptionRefreshTimestamp(refreshResult.berechnetAm)
         : '';
-      if (status) status.textContent = `Verbrauchsdaten zuletzt aktualisiert: ${refreshedAt}`;
       await this.renderConsumptionDashboard();
+      if (status && refreshedAt) status.textContent = `Verbrauchsdaten zuletzt aktualisiert: ${refreshedAt}`;
     } catch (error) {
       if (status) status.textContent = `Aktualisierung fehlgeschlagen: ${error.message || error}`;
     } finally {
