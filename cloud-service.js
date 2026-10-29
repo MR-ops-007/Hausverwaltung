@@ -85,7 +85,7 @@ const cloudService = {
     async refreshConsumptionViews() {
         const result = await this.post({ typ: 'VERBRAUCH_VIEWS_AKTUALISIEREN' });
         if (!result || result.status !== 'success') {
-            throw new Error(result && result.message || 'Verbrauchsviews konnten nicht aktualisiert werden.');
+            throw new Error(result && result.message || 'Die Verbrauchsdaten konnten nicht aktualisiert werden.');
         }
         return result;
     },
