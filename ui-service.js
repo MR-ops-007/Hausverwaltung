@@ -1309,7 +1309,7 @@ const uiService = {
     const text = String(value).trim();
     const match = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
     if (match) {
-      return `${match[3]}-${match[2]}-${match[1]} ${match[4] || '00'}:${match[5] || '00'}`;
+      return `${match[3]}.${match[2]}.${match[1]} ${match[4] || '00'}:${match[5] || '00'}`;
     }
     return text;
   },
@@ -1320,7 +1320,7 @@ const uiService = {
     const rows = data && data._view_verbrauch_jahr;
     const firstRow = Array.isArray(rows) ? rows.find(row => row && row.berechnet_am) : null;
     const timestamp = firstRow && this.formatConsumptionRefreshTimestamp(firstRow.berechnet_am);
-    if (timestamp) status.textContent = `Verbrauchsviews zuletzt aktualisiert: ${timestamp}`;
+    if (timestamp) status.textContent = `Verbrauchsdaten zuletzt aktualisiert: ${timestamp}`;
   },
 
   async refreshConsumptionViews() {
@@ -1340,7 +1340,7 @@ const uiService = {
       const refreshedAt = refreshResult && refreshResult.berechnetAm
         ? this.formatConsumptionRefreshTimestamp(refreshResult.berechnetAm)
         : '';
-      if (status) status.textContent = `Verbrauchsviews zuletzt aktualisiert: ${refreshedAt}`;
+      if (status) status.textContent = `Verbrauchsdaten zuletzt aktualisiert: ${refreshedAt}`;
       await this.renderConsumptionDashboard();
     } catch (error) {
       if (status) status.textContent = `Aktualisierung fehlgeschlagen: ${error.message || error}`;
