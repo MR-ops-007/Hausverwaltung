@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.1
+ * Version: 4.8.3
  * Stand: 2026-10-29
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
@@ -73,8 +73,14 @@
  * - Ohne gesetzten Schlüssel gilt der Übergangsmodus (Verhalten wie 4.7.0)
  * Änderungen seit v4.8.0:
  * - Geschützte Aktion zum expliziten Aktualisieren der materialisierten Verbrauchsviews ergänzt
+ *
+ * Änderungen seit v4.8.1:
+ * - Verbrauchsberechnungen schreiben berechnet_am mit Datum und Uhrzeit
+ *
+ * Änderungen seit v4.8.2:
+ * - Berechnungszeitpunkte werden explizit in Europe/Berlin formatiert
  */
-const BACKEND_VERSION = "4.8.1";
+const BACKEND_VERSION = "4.8.3";
 
 function sendJSON(obj) {
   return ContentService
@@ -1283,6 +1289,11 @@ function formatVerbrauchDate(value) {
   ].join("-");
 }
 
+function formatVerbrauchTimestamp(value) {
+  const date = value instanceof Date ? value : parseTimestampForStandId(value);
+  return Utilities.formatDate(date, "Europe/Berlin", "yyyy-MM-dd HH:mm");
+}
+
 function formatVerbrauchMonth(date) {
   return [
     date.getFullYear(),
@@ -2377,7 +2388,7 @@ function writeViewSheet(ss, sheetName, headers, rows) {
 
 function updateVerbrauchViews() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const berechnetAm = formatVerbrauchDate(new Date());
+  const berechnetAm = formatVerbrauchTimestamp(new Date());
   const data = {
     Zaehler: getSheetData(ss.getSheetByName("Zaehler")),
     Zaehlerstaende: getSheetData(ss.getSheetByName("Zaehlerstaende")),

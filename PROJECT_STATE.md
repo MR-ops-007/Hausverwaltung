@@ -250,7 +250,7 @@ Wichtige Regeln:
 3. **Verbrauch je Mieter/Vertrag:** Mieterwechsel erzeugen noch keine eigenen Verbrauchszeilen je Vertrag. Grundlage für eine spätere Nebenkostenabrechnung.
 4. **Verbrauchsviews aktualisieren:** Die Web-App bietet jetzt eine geschützte Nutzeraktion
    `Verbrauchsdaten aktualisieren`. Sie stößt `updateVerbrauchViews()` im Backend an und lädt
-   anschließend die vier materialisierten Views neu. Bis Backend 4.8.1 deployt ist, bleibt
+   anschließend die vier materialisierten Views neu. Bis Backend 4.8.3 deployt ist, bleibt
    die manuelle Apps-Script-Funktion als Fallback erforderlich.
 5. **Weitere Indexreihen:** erst nötig, wenn das Statistische Bundesamt auf ein neues VPI-Basisjahr umstellt und ein passender Vertrag existiert.
 
@@ -328,7 +328,7 @@ Umgesetzt mit Backend-Version `4.6.1`:
 - Neue Zählerstände werden in `Zaehlerstaende` gespeichert. Die materialisierten Verbrauchsviews
   werden bewusst nicht bei jedem einzelnen Eintrag neu berechnet. Nach mehreren Ablesungen wird
   die Aktualisierung gesammelt über den Button im Verbrauchs-Tab ausgelöst; bis zum Deploy von
-  Backend 4.8.1 bleibt `updateVerbrauchViews()` im Apps-Script-Editor der Fallback.
+  Backend 4.8.3 bleibt `updateVerbrauchViews()` im Apps-Script-Editor der Fallback.
 - Wenn `updateVerbrauchViews()` im Apps-Script-Editor nicht auffindbar ist, läuft dort nicht der aktuelle Stand aus `apps-script/Code.gs` und das Script muss zuerst aktualisiert bzw. neu bereitgestellt werden.
 
 Lokale Gegenprüfung mit den Live-Daten vom 2026-06-29:

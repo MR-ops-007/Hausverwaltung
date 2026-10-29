@@ -23,7 +23,22 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - Datumsangaben bis 4.6.4 stammen aus der Git-Historie (Commit, der die Version
   eingeführt hat), nicht aus dem Deployment.
 
-## 4.8.1 · 2026-10-29 · lokal
+## 4.8.3 · 2026-10-29 · lokal
+
+Zeitzone der Verbrauchszeitpunkte korrigiert.
+
+- `berechnet_am` wird explizit in `Europe/Berlin` formatiert.
+- Sommer- und Winterzeit werden automatisch korrekt berücksichtigt.
+- Die Anzeige bleibt für Nutzer bei `DD.MM.YYYY HH:MM` ohne Serverzeit- oder UTC-Verschiebung.
+
+## 4.8.2 · 2026-10-29 · ersetzt
+
+Zeitstempel der Verbrauchsdaten korrigiert.
+
+- `berechnet_am` enthält jetzt Datum und Uhrzeit im Format `YYYY-MM-DD HH:mm`.
+- Die Web-App kann damit den tatsächlichen Berechnungszeitpunkt eindeutig anzeigen.
+
+## 4.8.1 · 2026-10-29 · ersetzt
 
 Geschützte Nutzeraktion zum Aktualisieren der materialisierten Verbrauchsviews vorbereitet.
 
