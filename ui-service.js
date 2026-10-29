@@ -1282,6 +1282,7 @@ const uiService = {
       dataService.state.view_verbrauch_jahr.length > 0;
 
     if (hasYearRows) {
+      this.updateConsumptionRefreshStatus({ _view_verbrauch_jahr: dataService.state.view_verbrauch_jahr });
       return;
     }
 
@@ -1299,6 +1300,27 @@ const uiService = {
       dataService.state.view_verbrauch_audit = data["_view_verbrauch_audit"] || [];
       dataService.state.view_verbrauch_bilanz_jahr = data["_view_verbrauch_bilanz_jahr"] || [];
     }
+
+    this.updateConsumptionRefreshStatus(data);
+  },
+
+  formatConsumptionRefreshTimestamp(value) {
+    if (!value) return '';
+    const text = String(value).trim();
+    const match = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+    if (match) {
+      return `${match[3]}-${match[2]}-${match[1]} ${match[4] || '00'}:${match[5] || '00'}`;
+    }
+    return text;
+  },
+
+  updateConsumptionRefreshStatus(data) {
+    const status = document.getElementById('consumption-view-refresh-status');
+    if (!status) return;
+    const rows = data && data._view_verbrauch_jahr;
+    const firstRow = Array.isArray(rows) ? rows.find(row => row && row.berechnet_am) : null;
+    const timestamp = firstRow && this.formatConsumptionRefreshTimestamp(firstRow.berechnet_am);
+    if (timestamp) status.textContent = `Verbrauchsviews zuletzt aktualisiert: ${timestamp}`;
   },
 
   async refreshConsumptionViews() {
@@ -1314,9 +1336,10 @@ const uiService = {
       const refreshResult = await cloudService.refreshConsumptionViews();
       const data = await cloudService.loadConsumptionData();
       if (dataService.setConsumptionData) dataService.setConsumptionData(data);
+      this.updateConsumptionRefreshStatus(data);
       const refreshedAt = refreshResult && refreshResult.berechnetAm
-        ? refreshResult.berechnetAm
-        : new Date().toLocaleString('de-DE');
+        ? this.formatConsumptionRefreshTimestamp(refreshResult.berechnetAm)
+        : '';
       if (status) status.textContent = `Verbrauchsviews zuletzt aktualisiert: ${refreshedAt}`;
       await this.renderConsumptionDashboard();
     } catch (error) {
