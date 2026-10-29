@@ -82,6 +82,14 @@ const cloudService = {
     loadDashboardData() { return this.read('dashboard'); },
     loadConsumptionData() { return this.read('verbrauch'); },
 
+    async refreshConsumptionViews() {
+        const result = await this.post({ typ: 'VERBRAUCH_VIEWS_AKTUALISIEREN' });
+        if (!result || result.status !== 'success') {
+            throw new Error(result && result.message || 'Verbrauchsviews konnten nicht aktualisiert werden.');
+        }
+        return result;
+    },
+
     async loadBackgroundData() {
         const data = await this.read('alle');
         await this.processOfflineQueue();

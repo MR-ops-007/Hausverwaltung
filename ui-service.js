@@ -1301,6 +1301,28 @@ const uiService = {
     }
   },
 
+  async refreshConsumptionViews() {
+    const button = document.getElementById('refresh-consumption-views');
+    const status = document.getElementById('consumption-view-refresh-status');
+    if (button) button.disabled = true;
+    if (status) status.textContent = 'Verbrauchsviews werden aktualisiert...';
+
+    try {
+      if (typeof cloudService === 'undefined' || !cloudService.refreshConsumptionViews) {
+        throw new Error('Das Backend unterstützt die Aktualisierung der Verbrauchsviews noch nicht.');
+      }
+      await cloudService.refreshConsumptionViews();
+      const data = await cloudService.loadConsumptionData();
+      if (dataService.setConsumptionData) dataService.setConsumptionData(data);
+      if (status) status.textContent = `Aktualisiert um ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
+      await this.renderConsumptionDashboard();
+    } catch (error) {
+      if (status) status.textContent = `Aktualisierung fehlgeschlagen: ${error.message || error}`;
+    } finally {
+      if (button) button.disabled = false;
+    }
+  },
+
   buildConsumptionBalanceSummary(rows) {
     return (rows || [])
       .map(row => ({

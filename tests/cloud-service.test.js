@@ -25,6 +25,19 @@ function loadCloud({ key = '', online = true, accessUi } = {}) {
 const transaction = { typ: 'ZAEHLERSTAND_NEU', data: [{ zaehler_id: 'Z1', wert: 5 }] };
 
 describe('Lesen per POST mit Zugangsschlüssel', () => {
+  it('fordert die geschützte Aktualisierung der Verbrauchsviews an', async () => {
+    const { cloud, fetch } = loadCloud({ key: 'k1' });
+    fetch.mockResolvedValue(reply({ status: 'success', message: 'Verbrauchsviews aktualisiert' }));
+    await expect(cloud.refreshConsumptionViews()).resolves.toMatchObject({ status: 'success' });
+    expect(bodyOf(fetch, 0)).toEqual({ typ: 'VERBRAUCH_VIEWS_AKTUALISIEREN', key: 'k1' });
+  });
+
+  it('meldet einen Fehler beim Aktualisieren der Verbrauchsviews', async () => {
+    const { cloud, fetch } = loadCloud({ key: 'k1' });
+    fetch.mockResolvedValue(reply({ status: 'error', message: 'Nicht erlaubt' }));
+    await expect(cloud.refreshConsumptionViews()).rejects.toThrow('Nicht erlaubt');
+  });
+
   it('sendet Typ, Ansicht und Schlüssel und liefert die Daten', async () => {
     const { cloud, fetch } = loadCloud({ key: 'k1' });
     fetch.mockResolvedValue(reply({ _view_aktive_mieter: [{ name: 'A' }] }));
