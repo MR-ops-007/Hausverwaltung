@@ -47,6 +47,18 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 
 ---
 
+### Verbrauchsdiagramme (Feature-Branch 2026-11-02; noch nicht produktiv)
+
+- Erweiterung der bestehenden Verbrauchsansicht um Monatsbalkendiagramme je auswählbarem Zähler mit Vorjahresvergleich.
+- Zusätzlich werden verfügbare Jahresverbräuche als Zeitreihe (bis zu sechs Jahre) gezeigt.
+- Reine Frontend-Erweiterung auf Basis von `_view_verbrauch_monat` und `_view_verbrauch_jahr`.
+- Fehlende oder unberechenbare Monate werden bewusst nicht als 0 dargestellt.
+- Prüfhinweise aus Monatsdaten werden farblich kenntlich gemacht; Warnungen und Audit bleiben erhalten.
+- Keine Änderungen an vorhandener Zählererfassung, Datenmodellen, Backend oder produktiven Daten.
+- Nächster Schritt nach Prüfung: QR-Etiketten mit Klartextbezeichnung, Scan öffnet bestehende Wohnungserfassungsmaske und fokussiert exakt das richtige Zählerfeld. Keine eigenständige QR-Eingabemaske.
+
+---
+
 ## Aktueller Projektstand
 
 Die App dient der Verwaltung von Immobilien, Einheiten, Mietverhältnissen, Zählerständen und perspektivisch Mieteingängen sowie Auswertungen.

@@ -23,7 +23,7 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - Datumsangaben bis 4.6.4 stammen aus der Git-Historie (Commit, der die Version
   eingeführt hat), nicht aus dem Deployment.
 
-## 4.8.3 · 2026-10-29 · lokal
+## 4.8.3 · 2026-10-29 · produktiv
 
 Zeitzone der Verbrauchszeitpunkte korrigiert.
 
@@ -50,7 +50,7 @@ Geschützte Nutzeraktion zum Aktualisieren der materialisierten Verbrauchsviews 
   Button als „Verbrauchsviews zuletzt aktualisiert“ angezeigt.
 - Vor dem produktiven Apps-Script-Deploy bleibt 4.8.0 die produktive Version.
 
-## 4.8.0 · 2026-10-29 · produktiv
+## 4.8.0 · 2026-10-29 · ersetzt
 
 Zugriffsschutz produktiv bereitgestellt. Ablauf und Rollback: `docs/access-control.md`.
 

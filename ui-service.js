@@ -1731,6 +1731,29 @@ const uiService = {
       }).join('')
       : '<tr><td colspan="7" style="padding:14px; color:#64748b;">Keine Zähler für diesen Filter gefunden.</td></tr>';
 
+    const chartRows = sortedRows.filter(row => row && row.zaehler_id);
+    const requestedChartKey = this.consumptionChartSelection || '';
+    const selectedChartRow = typeof consumptionChartService !== 'undefined'
+      ? chartRows.find(row => consumptionChartService.getMeterKey(row) === requestedChartKey)
+      : null;
+    const chartSelection = selectedChartRow
+      ? requestedChartKey
+      : (typeof consumptionChartService !== 'undefined' && chartRows.length
+        ? consumptionChartService.getMeterKey(chartRows.find(row =>
+          this.getConsumptionMonthRowsForRow(row, monthRowsByMeterYear).length > 0
+        ) || chartRows[0])
+        : '');
+    this.consumptionChartSelection = chartSelection;
+    const chartHtml = typeof consumptionChartService !== 'undefined'
+      ? consumptionChartService.render({
+        meters: chartRows,
+        selectedKey: chartSelection,
+        selectedYear: year,
+        monthlyRows: dataService.state.view_verbrauch_monat || [],
+        annualRows: allRows
+      })
+      : '';
+
     output.innerHTML = `
       <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; color:#475569; font-size:0.85rem;">
         <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${this.escapeHtml(year)} · ${this.escapeHtml(this.getObjectDisplayName(objektId))}</span>
@@ -1753,6 +1776,8 @@ const uiService = {
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px; margin-bottom:14px;">
         ${summaryHtml}
       </div>
+
+      ${chartHtml}
 
       <section style="background:white; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:14px; color:#475569; font-size:0.86rem;">
         <strong style="display:block; color:#334155; margin-bottom:4px;">Hinweis zur Verbrauchstabelle</strong>
