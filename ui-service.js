@@ -1588,6 +1588,27 @@ const uiService = {
           hint
         };
       });
+    const chartRows = decoratedRows.filter(row => row && row.zaehler_id);
+    const chartKey = this.consumptionChartSelection || '';
+    const chartMeter = typeof consumptionChartService !== 'undefined'
+      ? chartRows.find(row => consumptionChartService.getMeterKey(row) === chartKey)
+      : null;
+    const effectiveChartKey = chartMeter
+      ? chartKey
+      : (typeof consumptionChartService !== 'undefined' && chartRows.length
+        ? consumptionChartService.getMeterKey(chartRows[0])
+        : '');
+    this.consumptionChartSelection = effectiveChartKey;
+    const chartHtml = typeof consumptionChartService !== 'undefined'
+      ? consumptionChartService.render({
+        meters: chartRows,
+        selectedKey: effectiveChartKey,
+        selectedYear: year,
+        monthlyRows: dataService.state.view_verbrauch_monat || [],
+        annualRows: allRows,
+        readingRows: (dataService.state.zaehlerstaende || []).filter(row => String(row.objekt_id) === String(objektId))
+      })
+      : '';
     const dataQualityRows = this.buildConsumptionDataQualityRows(auditRows, decoratedRows);
     const overviewMetrics = this.buildConsumptionOverviewMetrics(decoratedRows, effectiveBalanceRows, dataQualityRows);
     const overviewCardsHtml = [
@@ -1744,6 +1765,8 @@ const uiService = {
       <div class="consumption-overview-grid">
         ${overviewCardsHtml}
       </div>
+
+      ${chartHtml}
 
       <section class="consumption-quality-section">
         <h3>Datenqualität</h3>
