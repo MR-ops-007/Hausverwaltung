@@ -46,6 +46,39 @@ const consumptionChartService = (() => {
     return `<svg class="consumption-chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(alt)}" xmlns="http://www.w3.org/2000/svg"><line x1="${left}" x2="${W-right}" y1="${H-bottom}" y2="${H-bottom}" stroke="#cbd5e1"/><polyline points="${points}" fill="none" stroke="#2563eb" stroke-width="3"/>${dots}</svg>`;
   }
 
+  function trendChart({ labels, current, previous = [], currentLabel, previousLabel, unit, alt, mode = 'line' }) {
+    const rows = [...current, ...previous].filter(item => item && item.value !== null);
+    if (!rows.length) return '<p class="consumption-chart-empty">Keine berechenbaren Verbrauchswerte vorhanden.</p>';
+    const W = 760, H = 276, left = 60, right = 12, top = 14, bottom = 38;
+    const iw = W - left - right, ih = H - top - bottom;
+    const maximum = Math.max(1, ...rows.map(item => item.value)) * 1.1;
+    const x = index => left + (labels.length === 1 ? iw / 2 : index * iw / (labels.length - 1));
+    const y = value => top + ih - value / maximum * ih;
+    const grid = [0, 1, 2, 3, 4].map(i => {
+      const gy = top + ih - i * ih / 4;
+      return `<line x1="${left}" x2="${W-right}" y1="${gy}" y2="${gy}" stroke="#e2e8f0"/><text x="${left-8}" y="${gy+4}" font-size="11" text-anchor="end" fill="#64748b">${esc(fmt(maximum*i/4))}</text>`;
+    }).join('');
+    const renderSeries = (items, color, label, dash) => {
+      const points = items.map((item, index) => item && item.value !== null ? `${x(index).toFixed(1)},${y(item.value).toFixed(1)}` : '').filter(Boolean);
+      if (!points.length) return '';
+      const line = points.length > 1 ? `<polyline points="${points.join(' ')}" fill="none" stroke="${color}" stroke-width="3"${dash ? ' stroke-dasharray="7 5"' : ''}/>` : '';
+      const markers = items.map((item, index) => item && item.value !== null
+        ? `<circle cx="${x(index).toFixed(1)}" cy="${y(item.value).toFixed(1)}" r="4" fill="${color}"><title>${esc(labels[index])} ${esc(label)}: ${fmt(item.value)} ${unit}${item.flagged ? ' (Prüfhinweis)' : ''}</title></circle>`
+        : '').join('');
+      return `${line}${markers}`;
+    };
+    const currentColor = '#2563eb', previousColor = '#94a3b8';
+    const currentSvg = renderSeries(current, currentColor, currentLabel, false);
+    const previousSvg = previous.length ? renderSeries(previous, previousColor, previousLabel, true) : '';
+    const area = mode === 'area' && current.length
+      ? `<polygon points="${left},${top+ih} ${current.map((item,index) => item && item.value !== null ? `${x(index).toFixed(1)},${y(item.value).toFixed(1)}` : '').filter(Boolean).join(' ')} ${W-right},${top+ih}" fill="#2563eb" opacity="0.12"/>`
+      : '';
+    const bars = mode === 'bar' ? current.map((item,index) => item && item.value !== null
+      ? `<rect x="${(x(index)-10).toFixed(1)}" y="${y(item.value).toFixed(1)}" width="20" height="${(top+ih-y(item.value)).toFixed(1)}" fill="${currentColor}" opacity="0.85"><title>${esc(labels[index])}: ${fmt(item.value)} ${unit}</title></rect>` : '').join('') : '';
+    const legend = `<div class="consumption-chart-key"><span class="consumption-chart-year-current">${esc(currentLabel)}</span>${previous.length ? `<span class="consumption-chart-year-prior">${esc(previousLabel)}</span>` : ''}</div>`;
+    return `${legend}<svg class="consumption-chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(alt)}" xmlns="http://www.w3.org/2000/svg">${grid}${area}${bars}${mode === 'bar' ? '' : previousSvg}${mode === 'bar' ? '' : currentSvg}${labels.map((label,index) => `<text x="${x(index).toFixed(1)}" y="${H-15}" text-anchor="middle" font-size="11" fill="#475569">${esc(label)}</text>`).join('')}</svg>`;
+  }
+
   function monthlySeries(rows, meter, year) {
     const totals = Array.from({ length: 12 }, () => ({ amount: 0, count: 0, flagged: false }));
     (rows || []).forEach(row => {
@@ -122,6 +155,7 @@ const consumptionChartService = (() => {
     const year = Number(selectedYear);
     if (!Number.isInteger(year)) return '';
     const priorYear = year - 1;
+    const chartMode = typeof uiService !== 'undefined' ? (uiService.consumptionChartMode || 'line') : 'line';
     const curr = monthlySeries(monthlyRows, meter, year);
     const prior = monthlySeries(monthlyRows, meter, priorYear);
     const history = annualSeries(annualRows, meter, year);
@@ -138,18 +172,18 @@ const consumptionChartService = (() => {
       return `<option value="${esc(id(row))}"${id(row) === id(meter) ? ' selected' : ''}>${esc(label)}</option>`;
     }).join('');
     const monthChart = hasCurrent || hasPrior
-      ? barChart({ labels: MONTHS, current: curr, previous: prior, currentLabel: String(year), previousLabel: String(priorYear), unit,
+      ? trendChart({ labels: MONTHS, current: curr, previous: prior, currentLabel: String(year), previousLabel: String(priorYear), unit, mode: chartMode,
         alt: `Monatlicher Verbrauch ${year} und ${priorYear} in ${unit}. Fehlende Monate sind nicht als Null dargestellt.` })
       : '<p class="consumption-chart-empty">Für diesen Zähler liegen im gewählten Jahr und Vorjahr keine berechenbaren Monatswerte vor.</p>';
     const annualChart = history.some(row => row.value !== null)
-      ? barChart({ labels: yearLabels, current: history, currentLabel: 'Jahresverbrauch', unit,
+      ? trendChart({ labels: yearLabels, current: history, currentLabel: 'Jahresverbrauch', unit, mode: chartMode,
         alt: `Jahresverbrauch der letzten bis zu sechs Jahre in ${unit}. Fehlende Jahre sind nicht als Null dargestellt.` })
       : '<p class="consumption-chart-empty">Keine Jahreswerte vorhanden.</p>';
     return `<section class="consumption-charts" aria-label="Verbrauchsdiagramme">
       <div class="consumption-charts-heading"><div><h3>Verbrauchsstatistik</h3><p>Zählerstand und Verbrauch werden getrennt dargestellt. Die Verbrauchswerte stammen aus den bestehenden Verbrauchsviews.</p></div>
       ${filterOptions(groups, selectedGroup, 'Gruppe')}${filterOptions(media, selectedMedium, 'Medium')}<label>Einheit und Zähler
         <select id="consumption-chart-meter-select" onchange="uiService.consumptionChartSelection=this.value;uiService.renderConsumptionDashboard()">${options}</select>
-      </label></div>
+      </label><label>Darstellung<select onchange="uiService.consumptionChartMode=this.value;uiService.renderConsumptionDashboard()"><option value="line"${chartMode === 'line' ? ' selected' : ''}>Linie</option><option value="bar"${chartMode === 'bar' ? ' selected' : ''}>Balken</option><option value="area"${chartMode === 'area' ? ' selected' : ''}>Fläche</option></select></label></div>
       <div class="consumption-charts-grid">
         <div class="consumption-chart-panel"><h4>Zählerstandsverlauf</h4>${lineChart(readingSeries(readingRows, meter), unit, `Zählerstandsverlauf für ${meter.bezeichnung || meter.zaehler_id} in ${unit}`)}</div>
         <div class="consumption-chart-panel"><h4>Monatsverbrauch ${esc(year)} / ${esc(priorYear)}</h4>
