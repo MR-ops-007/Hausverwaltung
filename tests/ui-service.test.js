@@ -14,6 +14,7 @@ function loadUiService({
   viewVerbrauchAudit = [],
   viewVerbrauchBilanzJahr = [],
   consumptionData = null,
+  loadConsumptionDataImpl = null,
   calcService = {
     buildConsumptionDashboard() {
       return {
@@ -67,6 +68,7 @@ function loadUiService({
 
   const cloudService = {
     async loadConsumptionData() {
+      if (loadConsumptionDataImpl) return loadConsumptionDataImpl();
       return consumptionData || {
         '_view_verbrauch_jahr': viewVerbrauchJahr,
         '_view_verbrauch_monat': viewVerbrauchMonat,
@@ -171,6 +173,7 @@ function loadUiService({
     modalElement,
     modalBodyElement,
     elementsById,
+    cloudService,
   };
 }
 
@@ -687,6 +690,58 @@ describe('uiService consumption dashboard', () => {
     const warningDetailHtml = elementsById['consumption-dashboard-output'].innerHTML.split('<div style="overflow:auto;')[1];
     expect(warningDetailHtml).toContain('Strom Wohnung 1');
     expect(warningDetailHtml).not.toContain('Kaltwasser Wohnung 10');
+  });
+
+  it('ignores stale dashboard renders after a user changes the object during loading', async () => {
+    let resolveConsumptionLoad;
+    const pendingLoad = new Promise(resolve => {
+      resolveConsumptionLoad = resolve;
+    });
+    const { uiService, elementsById } = loadUiService({
+      objects: [
+        { objekt_id: 'O1', bezeichnung: 'Objekt 1' },
+        { objekt_id: 'O2', bezeichnung: 'Objekt 2' },
+      ],
+      loadConsumptionDataImpl: () => pendingLoad,
+    });
+
+    const firstRender = uiService.renderConsumptionDashboard();
+    elementsById['consumption-object-select'].value = 'O2';
+    elementsById['consumption-object-select'].dataset = {};
+    const secondRender = uiService.renderConsumptionDashboard();
+
+    resolveConsumptionLoad({
+      '_view_verbrauch_jahr': [
+        {
+          jahr: 2026,
+          objekt_id: 'O1',
+          einheit_id: 'O1_WE_01',
+          zaehler_id: 'Z_O1',
+          bezeichnung: 'Zähler O1',
+          medium: 'strom_kwh',
+          verbrauch_jahr: 10,
+        },
+        {
+          jahr: 2026,
+          objekt_id: 'O2',
+          einheit_id: 'O2_WE_01',
+          zaehler_id: 'Z_O2',
+          bezeichnung: 'Zähler O2',
+          medium: 'strom_kwh',
+          verbrauch_jahr: 20,
+        },
+      ],
+      '_view_verbrauch_monat': [],
+      '_view_verbrauch_audit': [],
+      '_view_verbrauch_bilanz_jahr': [],
+    });
+
+    await Promise.all([firstRender, secondRender]);
+
+    expect(elementsById['consumption-object-select'].value).toBe('O2');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Objekt 2');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Zähler O2');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).not.toContain('Zähler O1');
   });
 
   it('uses a fallback Black Inn balance tile when backend balance rows are not loaded yet', async () => {

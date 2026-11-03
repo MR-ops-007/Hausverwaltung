@@ -1473,18 +1473,28 @@ const uiService = {
 
     if (!output || !objectSelect || !yearSelect) return;
 
+    const renderRequestId = (this.consumptionRenderRequestId || 0) + 1;
+    this.consumptionRenderRequestId = renderRequestId;
     const userSelectedObject = objectSelect.dataset && objectSelect.dataset.userSelected === 'true';
     const requestedYear = yearSelect.value;
 
     this.renderConsumptionDashboardControls();
+    const objectValueBeforeLoad = objectSelect.value;
+    const objectValueAtPreviousRender = this.consumptionObjectValueAtRenderStart;
+    const objectChangedBeforeLoad = objectValueAtPreviousRender !== undefined &&
+      objectValueBeforeLoad !== objectValueAtPreviousRender;
+    this.consumptionObjectValueAtRenderStart = objectValueBeforeLoad;
     output.innerHTML = '<div style="padding:12px; background:white; border:1px solid #e2e8f0; border-radius:8px;">Verbrauchsdaten werden geladen...</div>';
 
     try {
       await this.ensureConsumptionViewData();
     } catch (error) {
+      if (this.consumptionRenderRequestId !== renderRequestId) return;
       output.innerHTML = `<div style="padding:12px; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px;">Die Verbrauchsdaten konnten nicht geladen werden: ${this.escapeHtml(error.message || String(error))}</div>`;
       return;
     }
+
+    if (this.consumptionRenderRequestId !== renderRequestId) return;
 
     this.renderConsumptionDashboardControls();
 
@@ -1500,8 +1510,9 @@ const uiService = {
     const year = yearSelect.value || this.getAvailableConsumptionYears()[0] || '';
     let objektId = objectSelect.value || objectIds[0] || '';
     const firstObjectWithRows = objectIds.find(objId => allRows.some(row => String(row.objekt_id) === String(objId) && String(row.jahr) === String(year)));
+    const objectChangedDuringLoad = objectSelect.value && objectSelect.value !== objectValueBeforeLoad;
 
-    if (!userSelectedObject && firstObjectWithRows) {
+    if (!userSelectedObject && !objectChangedBeforeLoad && !objectChangedDuringLoad && firstObjectWithRows) {
       objektId = firstObjectWithRows;
       objectSelect.value = firstObjectWithRows;
     }
@@ -1589,15 +1600,42 @@ const uiService = {
         };
       });
     const chartRows = decoratedRows.filter(row => row && row.zaehler_id);
+    const hasChartSelection = Boolean(this.consumptionChartSelection);
     const chartKey = this.consumptionChartSelection || '';
     const chartMeter = typeof consumptionChartService !== 'undefined'
       ? chartRows.find(row => consumptionChartService.getMeterKey(row) === chartKey)
       : null;
-    const effectiveChartKey = chartMeter
+    const chartService = typeof consumptionChartService !== 'undefined' ? consumptionChartService : null;
+    const hasNumericValue = value => {
+      if (value === null || value === undefined || String(value).trim() === '') return false;
+      const numeric = Number(String(value).trim().replace(',', '.'));
+      return Number.isFinite(numeric);
+    };
+    const chartRowsWithData = chartService ? chartRows.filter(row => {
+      const key = chartService.getMeterKey(row);
+      const hasMonthlyData = (dataService.state.view_verbrauch_monat || []).some(monthRow =>
+        chartService.getMeterKey(monthRow) === key &&
+        (String(monthRow.jahr) === String(year) || String(monthRow.jahr) === String(Number(year) - 1)) &&
+        hasNumericValue(monthRow.verbrauch_monat)
+      );
+      const hasAnnualData = allRows.some(yearRow =>
+        chartService.getMeterKey(yearRow) === key &&
+        String(yearRow.jahr) === String(year) &&
+        hasNumericValue(yearRow.verbrauch_jahr)
+      );
+      const hasReadings = (dataService.state.zaehlerstaende || []).some(reading =>
+        chartService.getMeterKey(reading) === key && hasNumericValue(reading.wert)
+      );
+      return hasMonthlyData || hasAnnualData || hasReadings;
+    }) : [];
+    const effectiveChartKey = hasChartSelection && chartMeter
       ? chartKey
-      : (typeof consumptionChartService !== 'undefined' && chartRows.length
-        ? consumptionChartService.getMeterKey(chartRows[0])
-        : '');
+      : (typeof consumptionChartService !== 'undefined' && chartRowsWithData.length
+        ? consumptionChartService.getMeterKey(chartRowsWithData[0])
+        : (typeof consumptionChartService !== 'undefined' && chartRows.length
+          ? consumptionChartService.getMeterKey(chartRows[0])
+          : '')
+      );
     this.consumptionChartSelection = effectiveChartKey;
     const chartHtml = typeof consumptionChartService !== 'undefined'
       ? consumptionChartService.render({

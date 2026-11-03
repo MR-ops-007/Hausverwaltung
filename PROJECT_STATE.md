@@ -370,6 +370,12 @@ Nächster sinnvoller Schritt:
 - Die Detailtabelle hat einen Statusfilter mit `Alle Zähler`, `Nur fehlende Werte` und `Nur Warnungen`.
 - Das Verbrauchsdashboard enthält eine kompakte Übersicht für Verbrauchszeilen, fehlende/offene Werte, Warnungen und berechnete Werte/Bilanzen.
 - Datenqualität wird aus den bereits vorhandenen Verbrauchs- und Audit-Views angezeigt; für diese Dashboard-Erweiterung wurde keine Backend-Logik geändert.
+- Die Verbrauchsstatistik V2 ergänzt je Zähler einen beschrifteten Zählerstandsverlauf, Monatsverbrauch und Jahresentwicklung. Achsen, Monatswertkarten und Herleitungs-Badges machen die Werte nachvollziehbar.
+- Historische Monatslücken werden aus Rohintervallen oder einem gekennzeichneten Jahresrest ergänzt; laufende Jahre werden nicht in zukünftige Monate prognostiziert. Ein belegtes, aber nicht berechenbares Monatssegment kann als Jahresrest ergänzt und bleibt als Prüfhinweis sichtbar.
+- Die Diagrammzuordnung verarbeitet deutsche Zahlenformate, ein- und zweistellige Monatsangaben sowie historische Zähler-ID-Aliase aus dem Audit.
+- Beim Objektwechsel während des Nachladens werden veraltete Render-Ergebnisse verworfen.
+- Die vollständige QA-Matrix vom 2026-11-03 umfasst 378 Zähler-/Jahr-Kombinationen ohne Monats-/Jahresabweichung über 0,2; der Detailbericht steht unter `docs/verbrauchsstatistik-v2-qa-20261103.md`.
+- `npm test` läuft mit 209 Tests grün; `git diff --check` ist sauber. Für die Statistik V2 wurden keine Apps-Script- oder Backend-Dateien geändert.
 - Nächster UI-Ausbau: spätere visuelle Auswertung und fachliche Detailansichten pro Einheit/Medium.
 
 Spätere Auswertungen sollen den Testbereich `TEST` sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.
