@@ -115,9 +115,10 @@ describe('QA-Matrix Verbrauchsstatistik', () => {
     expect(report.largeMismatch).toBe(1);
     expect(report.combinations[0].rawDifference).toBe(6);
     expect(report.combinations[0].displayedDifference).toBe(6);
-    expect(report.displayedDifferencesUnexplained).toBe(1);
+    expect(report.displayedDifferencesUnexpectedWithMarker).toBe(1);
     expect(report.displayedDifferencesExplained).toBe(0);
-    expect(report.combinations[0].displayedDifferenceClass).toBe('unexplained');
+    expect(report.displayedDifferencesUnexplained).toBe(0);
+    expect(report.combinations[0].displayedDifferenceClass).toBe('unexpected_with_marker');
   });
 
   it('trennt angezeigte Abweichungen mit dokumentierter Ergänzung von ungeklärten Abweichungen', () => {
@@ -135,7 +136,8 @@ describe('QA-Matrix Verbrauchsstatistik', () => {
     expect(report.displayedDifferencesExplained).toBe(1);
     expect(report.displayedDifferencesUnexplained).toBe(0);
     expect(report.combinations[0].displayedDifference).toBeGreaterThan(0);
-    expect(report.combinations[0].displayedDifferenceClass).toBe('explained');
+    expect(report.displayedReadingsOutsideRelativeThreshold).toBe(1);
+    expect(report.combinations[0].displayedDifferenceClass).toBe('explained_by_readings');
     expect(report.combinations[0].fromReadings).toBe(true);
   });
 

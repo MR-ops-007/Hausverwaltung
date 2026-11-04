@@ -320,8 +320,8 @@ const consumptionChartService = (() => {
       if (annualTotal !== null && missingCoveredIndexes.length) {
         const currentTotal = totals.reduce((sum, entry) => sum + (entry.count ? entry.amount : 0), 0);
         const residual = annualTotal - currentTotal;
-        if (residual >= -0.01) {
-          const amountPerMonth = Math.max(0, residual) / missingCoveredIndexes.length;
+        if (residual > 0.01) {
+          const amountPerMonth = residual / missingCoveredIndexes.length;
           missingCoveredIndexes.forEach(index => {
             totals[index].amount = amountPerMonth;
             totals[index].count = 1;
@@ -335,7 +335,7 @@ const consumptionChartService = (() => {
       Number.isFinite(expectedMonthCount) && expectedMonthCount > 0 &&
       expectedMonthCount <= totals.filter(entry => entry.count).length
     );
-    if (canReconcileCurrentYear && annualTotal !== null) {
+    if (annualTotal !== null) {
       const activeIndexes = totals
         .map((entry, index) => entry.count ? index : null)
         .filter(index => index !== null);
@@ -347,7 +347,7 @@ const consumptionChartService = (() => {
       const difference = Math.abs(currentTotal - annualTotal);
       const reconciliationLimit = Math.max(0.05, Math.abs(annualTotal) * 0.02);
       if (activeIndexes.length && difference > 0.05) {
-        if (currentTotal > 0 && difference <= reconciliationLimit) {
+        if (canReconcileCurrentYear && currentTotal > 0 && difference <= reconciliationLimit) {
           const factor = annualTotal / currentTotal;
           activeIndexes.forEach(index => {
             totals[index].amount *= factor;

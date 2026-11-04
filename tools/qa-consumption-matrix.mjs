@@ -61,6 +61,7 @@ const asRows = (payload, ...keys) => {
 
 const number = value => chartService.toNumber(value);
 const DISPLAYED_MATCH_TOLERANCE = 0.05;
+const DISPLAYED_READINGS_RELATIVE_TOLERANCE = 0.02;
 const yearOf = row => Number(row && row.jahr);
 const sameMeter = (left, right) => chartService.sameMeter(left, right);
 const exactKey = row => chartService.getMeterKey(row);
@@ -116,14 +117,22 @@ export function buildMatrixReport(payload, { objectId = '', years = [], now = ne
     const displayedDifference = hasAnnual && displayedValues.length
       ? Math.abs(displayedTotal - annualValue)
       : null;
-    const hasDisplayedAdjustment = series.some(item => item.derived || item.fromReadings || item.fromAnnual || item.reconciled);
+    const hasReadingAdjustment = series.some(item => item.fromReadings);
+    const hasOtherAdjustment = series.some(item => item.derived || item.fromAnnual || item.reconciled);
+    const displayedRelativeDifference = displayedDifference !== null && annualValue !== 0
+      ? displayedDifference / Math.abs(annualValue)
+      : displayedDifference === null ? null : displayedDifference === 0 ? 0 : Infinity;
+    const displayedReadingsWithinRelativeThreshold = hasReadingAdjustment && displayedDifference !== null &&
+      displayedDifference <= Math.max(DISPLAYED_MATCH_TOLERANCE, Math.abs(annualValue) * DISPLAYED_READINGS_RELATIVE_TOLERANCE);
     const displayedDifferenceClass = !hasAnnual || !displayedValues.length
       ? 'no_displayed_value'
       : displayedDifference <= DISPLAYED_MATCH_TOLERANCE
         ? 'match'
-        : hasDisplayedAdjustment
-          ? 'explained'
-          : 'unexplained';
+        : hasReadingAdjustment
+          ? 'explained_by_readings'
+          : hasOtherAdjustment || series.some(item => item.flagged)
+            ? 'unexpected_with_marker'
+            : 'unexplained';
 
     combinations.push({
       objekt_id: meter.objekt_id || '',
@@ -137,6 +146,8 @@ export function buildMatrixReport(payload, { objectId = '', years = [], now = ne
       rawDifference,
       displayedTotal: displayedValues.length ? displayedTotal : null,
       displayedDifference,
+      displayedRelativeDifference,
+      displayedReadingsWithinRelativeThreshold,
       displayedDifferenceClass,
       derived: series.some(item => item.derived),
       fromReadings: series.some(item => item.fromReadings),
@@ -166,7 +177,9 @@ export function buildMatrixReport(payload, { objectId = '', years = [], now = ne
     compared: count(row => row.hasMonthly && row.hasAnnual),
     displayedComparable: count(row => row.displayedDifference !== null),
     displayedMatchesAnnual: count(row => row.displayedDifferenceClass === 'match'),
-    displayedDifferencesExplained: count(row => row.displayedDifferenceClass === 'explained'),
+    displayedDifferencesExplained: count(row => row.displayedDifferenceClass === 'explained_by_readings'),
+    displayedReadingsOutsideRelativeThreshold: count(row => row.displayedDifferenceClass === 'explained_by_readings' && !row.displayedReadingsWithinRelativeThreshold),
+    displayedDifferencesUnexpectedWithMarker: count(row => row.displayedDifferenceClass === 'unexpected_with_marker'),
     displayedDifferencesUnexplained: count(row => row.displayedDifferenceClass === 'unexplained'),
     displayedWithoutValue: count(row => row.displayedDifferenceClass === 'no_displayed_value'),
     rawMatchWithoutAdjustment: count(row => row.rawMatchWithoutAdjustment),

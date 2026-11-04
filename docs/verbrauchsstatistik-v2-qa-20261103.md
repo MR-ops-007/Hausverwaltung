@@ -1,10 +1,11 @@
 # QA-Bericht Verbrauchsstatistik V2
 
-Stand: 2026-11-04
+Stand: 2026-11-05
 Branch: `feature/verbrauchsstatistik-v2`
 Objekt: `Ra-HS-29` / Hauptstraße 29
 Testserver: lokaler Vite-Server auf Port 5182; bei belegtem Port alternativ 5183
 Diagramm-Asset: `consumption-charts.js?v=20261104-verbrauchsstatistik-v29`
+Review-Nachlauf: 2026-11-05 auf demselben Rohdaten-Snapshot vom 2026-11-04
 
 ## Auftrag und Prüfumfang
 
@@ -94,8 +95,10 @@ Der Rohdaten-Snapshot enthielt 49 Zählerstammdaten und 1.910 historische Zähle
 | Treffer ohne Anpassung | 356 |
 | Angezeigte Monatssumme gegen Jahreswert vergleichbar | 356 |
 | Angezeigte Summe trifft den Jahreswert | 322 |
-| Angezeigte Abweichung durch dokumentierten Darstellungsweg erklärbar | 31 |
-| Angezeigte Abweichung ohne erklärenden Darstellungsmarker | 3 |
+| Angezeigte Abweichung aus Rohintervall (`explained_by_readings`) | 31 |
+| Rohintervall-Abweichungen innerhalb der relativen 2%-Schwelle | 0 |
+| Unerwartete Abweichung mit Prüfmarker (`unexpected_with_marker`) | 3 |
+| Ungeklärte Abweichung ohne Marker | 0 |
 | Maximale angezeigte Abweichung | 660,86 |
 | Kleiner Abgleich | 0 |
 | Große Abweichung | 0 |
@@ -219,12 +222,12 @@ Die Regressionstests decken unter anderem ab:
 Die UI-Berechnung ist für die Fälle ohne große Monats-/Jahresabweichung konsistent. Offen bleiben Datenbasisfälle, die fachlich in den Views beziehungsweise im Audit sichtbar bleiben müssen:
 
 - Für berechnete Zähler ohne manuelle Rohablesungen gibt es keinen Zählerstandsverlauf. Das betrifft im aktuellen Rohdatenlauf ausschließlich die beiden oben genannten berechneten Warmwasserzähler und ist erwartbar.
-- Der aktuelle Rohdatenlauf zeigt drei Kombinationen, in denen die angezeigte Monatssumme vom Jahreswert abweicht, ohne dass die UI dafür einen dokumentierten Darstellungsmarker gesetzt hat: `Z_WARMWASSER_WW_ZULAUF_MINUS_ALLER_WW_LOKAL` / `Ra-HS-29_GE_02` (2026), `Z_WARMWASSER_WW_GESAMT_BERECHNET` / `Ra-HS-29_Allgemein_Heizung` (2026) und `Z_OEL_STAND_IN_CM` / `Ra-HS-29_Allgemein` (2026). Die Roh-Monatssummen und Jahreswerte stimmen in diesen Fällen, die Abweichung entsteht in der UI-Zuordnung bzw. Aufbereitung und ist vor dem Merge fachlich zu prüfen. Sie wird nicht als gelöst ausgegeben.
-- Weitere 31 angezeigte Abweichungen sind durch einen expliziten Darstellungsweg (`aus Rohintervall ergänzt`, `aus Jahresrest ergänzt`, `linear fortgeschrieben` oder `Jahreswert abgeglichen`) markiert. „Erklärbar“ bedeutet hier nur, dass die Herleitung maschinell gekennzeichnet ist; es ist keine fachliche Freigabe des Wertes.
+- Der aktuelle Rohdatenlauf zeigt drei Kombinationen, in denen die angezeigte Monatssumme vom Jahreswert abweicht und die UI nun ausdrücklich einen Prüfmarker setzt: `Z_WARMWASSER_WW_ZULAUF_MINUS_ALLER_WW_LOKAL` / `Ra-HS-29_GE_02` (2026), `Z_WARMWASSER_WW_GESAMT_BERECHNET` / `Ra-HS-29_Allgemein_Heizung` (2026) und `Z_OEL_STAND_IN_CM` / `Ra-HS-29_Allgemein` (2026). Die Roh-Monatssummen und Jahreswerte stimmen in diesen Fällen; die Abweichung entsteht in der UI-Zuordnung bzw. Aufbereitung und ist fachlich weiter zu prüfen. Sie wird nicht als gelöst ausgegeben.
+- Weitere 31 angezeigte Abweichungen stammen aus Rohintervallen (`explained_by_readings`). Die Herleitung ist damit bekannt, aber keine fachliche Freigabe: Alle 31 liegen außerhalb der relativen 2%-Schwelle und bleiben als Prüfhinweis relevant. Abweichungen aus `derived`, `fromAnnual` oder `reconciled` würden bei einer Restabweichung nicht als erklärt, sondern als unerwartet mit Marker klassifiziert.
 - 84 Zähler-/Jahr-Kombinationen haben im Rohdatenlauf weder nutzbaren Monats- noch Jahresverbrauch. Das sind Datenlücken in der festen Stammdatenmatrix, nicht automatisch Join- oder Aliasfehler.
 - Für `Z_OEL_GETANKT_LITER` existiert 2023 eine Jahreszeile mit 0 Verbrauch und 14 nicht berechenbaren Monatssegmenten wegen rückläufiger Rohwerte. Dieser Fall bleibt ein fachlicher Öl-Datenbefund.
 - Die Darstellung verwendet bei fortgeschriebenen oder abgeglichenen Werten bewusst eine Kennzeichnung. Diese Werte sind keine zusätzlichen Rohablesungen.
-- Die Matrix-Klassifikation ist unter `tools/qa-consumption-matrix.mjs` reproduzierbar. Sie weist jetzt zusätzlich `displayedDifference`, `displayedDifferenceClass`, `displayedDifferencesExplained` und `displayedDifferencesUnexplained` aus. Das Skript arbeitet bewusst mit einem exportierten View-Snapshot und benötigt keine Zugangsdaten. Ein vollständiger Live-Export der Produktivdaten gehört nicht ins Repository.
+- Die Matrix-Klassifikation ist unter `tools/qa-consumption-matrix.mjs` reproduzierbar. Sie weist zusätzlich `displayedDifference`, `displayedRelativeDifference`, `displayedDifferenceClass`, `displayedDifferencesExplained`, `displayedReadingsOutsideRelativeThreshold`, `displayedDifferencesUnexpectedWithMarker` und `displayedDifferencesUnexplained` aus. Das Skript arbeitet bewusst mit einem exportierten View-Snapshot und benötigt keine Zugangsdaten. Ein vollständiger Live-Export der Produktivdaten gehört nicht ins Repository.
 
 ## Reproduzierbarer QA-Ablauf
 

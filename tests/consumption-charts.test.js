@@ -277,6 +277,34 @@ describe('Verbrauchsdiagramme', () => {
     expect(series.slice(2).every(item => item.value === null)).toBe(true);
     expect(series.slice(0, 2).reduce((sum, item) => sum + item.value, 0)).toBeCloseTo(17.49, 1);
   });
+  it('markiert eine laufende Abweichung auch ohne Monatsanzahl als Prüfhinweis', () => {
+    const currentYear = 2026;
+    const series = service.monthlySeries([row(`${currentYear}-01`, 800)], meter, currentYear, {
+      annualRow: { ...meter, jahr: currentYear, verbrauch_jahr: 1300 },
+      now: new Date(2026, 10, 3)
+    });
+
+    expect(series[0].value).toBe(800);
+    expect(series[0].flagged).toBe(true);
+    expect(series[0].reconciled).not.toBe(true);
+  });
+  it('erzeugt bei einem ausgeschöpften laufenden Jahresrest keine Nullmonate', () => {
+    const currentYear = 2026;
+    const series = service.monthlySeries([
+      ...Array.from({ length: 8 }, (_, index) => row(`${currentYear}-${index + 1}`, 100)),
+      row(`${currentYear}-09`, ''),
+      row(`${currentYear}-10`, '')
+    ], meter, currentYear, {
+      annualRow: { ...meter, jahr: currentYear, verbrauch_jahr: 800, anzahl_monate_mit_verbrauch: 10 },
+      now: new Date(2026, 10, 3)
+    });
+
+    expect(series.slice(0, 8).every(item => item.value === 100)).toBe(true);
+    expect(series[8]).toMatchObject({ value: null, flagged: true, derived: false });
+    expect(series[9]).toMatchObject({ value: null, flagged: true, derived: false });
+    expect(series[8].fromAnnual).not.toBe(true);
+    expect(series[9].fromAnnual).not.toBe(true);
+  });
   it('ergänzt ein belegtes laufendes Segment aus dem Jahresrest, aber keine Zukunft', () => {
     const currentYear = 2026;
     const now = new Date(2026, 10, 3);
@@ -305,7 +333,7 @@ describe('Verbrauchsdiagramme', () => {
       now
     });
 
-    expect(series[0]).toEqual({ value: 10, flagged: false, derived: false });
+    expect(series[0]).toEqual({ value: 10, flagged: true, derived: false });
     expect(series.slice(1).every(item => item.value === null && item.derived === false)).toBe(true);
   });
   it('rendert Vorjahresvergleich ohne fehlende Monate als Null zu behaupten', () => {
