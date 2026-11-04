@@ -71,6 +71,10 @@ describe('Verbrauchsdiagramme', () => {
     );
 
     expect(series[0].value).toBe(1000.5);
+    // JSON-Zahlen bleiben numerisch; ein punktgetrennter String ist ohne
+    // Locale-Metadaten mehrdeutig und wird deshalb als Dezimalzahl gelesen.
+    expect(service.toNumber(1040)).toBe(1040);
+    expect(service.toNumber('1.040')).toBeCloseTo(1.04);
   });
   it('ordnet historisch dokumentierte Zähler-IDs dem aktuellen Zähler zu', () => {
     const currentMeter = {
@@ -92,6 +96,18 @@ describe('Verbrauchsdiagramme', () => {
     expect(html).toContain('<polyline');
     expect(html).toContain('01.01.2026');
   });
+  it('führt einen historischen Alias nicht über eine andere Einheit zusammen', () => {
+    const currentMeter = {
+      ...meter,
+      zaehler_id: 'Z_STROM_KWH_PRIVAT_HT',
+      audit: { source_keys: 'O1||W1||Z_STROM_HT_KWH_PRIVAT_HT' }
+    };
+    const series = service.monthlySeries([
+      { ...currentMeter, einheit_id: 'W2', zaehler_id: 'Z_STROM_HT_KWH_PRIVAT_HT', jahr: 2026, monat: '2026-01', verbrauch_monat: 99 }
+    ], currentMeter, 2026);
+
+    expect(series[0].value).toBe(null);
+  });
   it('zeigt fehlende Jahre und entwertet sie nicht zu Null', () => {
     const s = service.annualSeries([{...meter,jahr:2024,verbrauch_jahr:78},{...meter,jahr:2026,verbrauch_jahr:122}],meter,2026);
     expect(s.map(v=>[v.year,v.value])).toEqual([[2024,78],[2025,null],[2026,122]]);
@@ -109,7 +125,7 @@ describe('Verbrauchsdiagramme', () => {
 
     expect(series).toHaveLength(12);
     expect(series.slice(0, 9).every(item => item.value !== null && item.derived === false)).toBe(true);
-    expect(series.slice(9).every(item => item.value !== null && item.derived === true)).toBe(true);
+    expect(series.slice(9).every(item => item.value !== null && item.fromReadings === true && item.derived === false)).toBe(true);
     expect(series.reduce((sum, item) => sum + item.value, 0)).toBeCloseTo(120, 1);
   });
   it('verteilt einen historischen Jahresrest nur als gekennzeichneten Fallback', () => {
@@ -120,6 +136,17 @@ describe('Verbrauchsdiagramme', () => {
     expect(series[0]).toEqual({ value: 10, flagged: false, derived: false });
     expect(series.slice(1).every(item => item.derived === true)).toBe(true);
     expect(series.reduce((sum, item) => sum + item.value, 0)).toBeCloseTo(120);
+  });
+  it('füllt historische Monate bei ausgeschöpftem Jahreswert nicht mit künstlichen Nullen', () => {
+    const series = service.monthlySeries(
+      Array.from({ length: 8 }, (_, index) => row(`2025-${index + 1}`, 100)),
+      meter,
+      2025,
+      { annualRow: { ...meter, jahr: 2025, verbrauch_jahr: 800, anzahl_monate_mit_verbrauch: 8 } }
+    );
+
+    expect(series.slice(0, 8).every(item => item.value === 100)).toBe(true);
+    expect(series.slice(8).every(item => item.value === null && item.derived === false)).toBe(true);
   });
   it('behandelt den Jahreswert als Prüfsumme, wenn Rohintervall und View abweichen', () => {
     const series = service.monthlySeries(
@@ -136,25 +163,87 @@ describe('Verbrauchsdiagramme', () => {
     );
 
     expect(series.slice(0, 9).every(item => item.value === 10)).toBe(true);
-    expect(series.slice(9).every(item => item.derived === true)).toBe(true);
+    expect(series.slice(9).every(item => item.derived === true && item.fromReadings !== true)).toBe(true);
     expect(series.reduce((sum, item) => sum + item.value, 0)).toBeCloseTo(100);
   });
-  it('gleicht vollständige historische Monatsreihen proportional mit dem Jahreswert ab', () => {
+  it('markiert größere Abweichungen statt gemessene Monatswerte zu skalieren', () => {
     const series = service.monthlySeries(
       Array.from({ length: 12 }, (_, index) => row(`2025-${index + 1}`, 10)),
       meter,
       2025,
-      { annualRow: { ...meter, jahr: 2025, verbrauch_jahr: 100 } }
+      { annualRow: { ...meter, jahr: 2025, verbrauch_jahr: 126 } }
     );
 
-    expect(series.every(item => item.value !== null && item.reconciled === true)).toBe(true);
-    expect(series.reduce((sum, item) => sum + item.value, 0)).toBeCloseTo(100);
-    expect(series[0].value).toBeCloseTo(100 / 12);
+    expect(series.every(item => item.value === 10 && item.reconciled !== true && item.flagged === true)).toBe(true);
+    expect(series.reduce((sum, item) => sum + item.value, 0)).toBeCloseTo(120);
+  });
+  it('kennzeichnet große Abweichungen auch in den sichtbaren Monatswerten', () => {
+    const html = service.render({
+      meters: [meter],
+      selectedKey: service.getMeterKey(meter),
+      selectedYear: '2025',
+      monthlyRows: Array.from({ length: 12 }, (_, index) => row(`2025-${index + 1}`, 10)),
+      annualRows: [{ ...meter, jahr: 2025, verbrauch_jahr: 126 }]
+    });
+
+    expect(html).toContain('2025: 10 kWh · Prüfhinweis');
+  });
+  it('kennzeichnet angebrochene Monate als Teilmonat', () => {
+    const series = service.monthlySeries([
+      row('2026-06', 12, { tage_im_monat: 2 })
+    ], meter, 2026);
+    const html = service.render({
+      meters: [meter],
+      selectedKey: service.getMeterKey(meter),
+      selectedYear: '2026',
+      monthlyRows: [row('2026-06', 12, { tage_im_monat: 2 })],
+      annualRows: [{ ...meter, jahr: 2026, verbrauch_jahr: 12 }]
+    });
+
+    expect(series[5]).toMatchObject({ value: 12, partial: true });
+    expect(html).toContain('2026: 12 kWh · Teilmonat');
+    expect(html).toContain('Teilmonat');
+  });
+  it('verschweigt rückläufige Rohintervalle nicht im Diagramm', () => {
+    const now = new Date(2026, 10, 4);
+    const series = service.monthlySeries([], meter, 2026, {
+      now,
+      readingRows: [
+        { ...meter, zeitstempel: '01.01.2026 00:00', wert: 100 },
+        { ...meter, zeitstempel: '01.02.2026 00:00', wert: 90 }
+      ]
+    });
+    const html = service.render({
+      meters: [meter],
+      selectedKey: service.getMeterKey(meter),
+      selectedYear: '2026',
+      readingRows: [
+        { ...meter, zeitstempel: '01.01.2026 00:00', wert: 100 },
+        { ...meter, zeitstempel: '01.02.2026 00:00', wert: 90 }
+      ],
+      now
+    });
+
+    expect(series[0]).toMatchObject({ value: null, flagged: true, invalidReading: true });
+    expect(html).toContain('Rückläufiger Zählerstand erkannt');
+  });
+  it('gleicht kleine Abweichungen transparent ab und markiert sie', () => {
+    const series = service.monthlySeries(
+      Array.from({ length: 12 }, (_, index) => row(`2025-${index + 1}`, 100)),
+      meter,
+      2025,
+      { annualRow: { ...meter, jahr: 2025, verbrauch_jahr: 1201.2 } }
+    );
+
+    expect(series.every(item => item.value !== null && item.reconciled === true && item.flagged === true)).toBe(true);
+    expect(series.reduce((sum, item) => sum + item.value, 0)).toBeCloseTo(1201.2);
   });
   it('ergänzt im laufenden Jahr nur Monate aus vorhandenen Rohintervallen', () => {
-    const currentYear = new Date().getFullYear();
+    const currentYear = 2026;
+    const now = new Date(2026, 10, 3);
     const series = service.monthlySeries([], meter, currentYear, {
       annualRow: { ...meter, jahr: currentYear, verbrauch_jahr: 20 },
+      now,
       readingRows: [
         { ...meter, zeitstempel: `01.01.${currentYear} 00:00`, wert: 100 },
         { ...meter, zeitstempel: `01.03.${currentYear} 00:00`, wert: 120 }
@@ -168,28 +257,34 @@ describe('Verbrauchsdiagramme', () => {
     expect(series.slice(2).every(item => item.value === null)).toBe(true);
     expect(series.slice(0, 2).reduce((sum, item) => sum + item.value, 0)).toBeCloseTo(20);
   });
-  it('gleicht das laufende Jahr nur für den belegten Zeitraum mit der Jahresview ab', () => {
-    const currentYear = new Date().getFullYear();
+  it('markiert eine größere Abweichung im laufenden Jahr statt sie zu skalieren', () => {
+    const currentYear = 2026;
+    const now = new Date(2026, 10, 3);
     const series = service.monthlySeries([row(`${currentYear}-01`, 8)], meter, currentYear, {
       annualRow: { ...meter, jahr: currentYear, verbrauch_jahr: 20, anzahl_monate_mit_verbrauch: 2 },
+      now,
       readingRows: [
         { ...meter, zeitstempel: `01.01.${currentYear} 00:00`, wert: 100 },
         { ...meter, zeitstempel: `01.03.${currentYear} 00:00`, wert: 120 }
       ]
     });
 
-    expect(series[0].reconciled).toBe(true);
-    expect(series[1].reconciled).toBe(true);
+    expect(series[0].reconciled).not.toBe(true);
+    expect(series[1].reconciled).not.toBe(true);
+    expect(series[0].flagged).toBe(true);
+    expect(series[1].flagged).toBe(true);
     expect(series.slice(2).every(item => item.value === null)).toBe(true);
-    expect(series.slice(0, 2).reduce((sum, item) => sum + item.value, 0)).toBeCloseTo(20);
+    expect(series.slice(0, 2).reduce((sum, item) => sum + item.value, 0)).toBeCloseTo(17.49, 1);
   });
   it('ergänzt ein belegtes laufendes Segment aus dem Jahresrest, aber keine Zukunft', () => {
-    const currentYear = new Date().getFullYear();
+    const currentYear = 2026;
+    const now = new Date(2026, 10, 3);
     const series = service.monthlySeries([
       row(`${currentYear}-01`, 8),
       row(`${currentYear}-02`, '')
     ], meter, currentYear, {
       annualRow: { ...meter, jahr: currentYear, verbrauch_jahr: 20, anzahl_monate_mit_verbrauch: 2 },
+      now,
       readingRows: [
         { ...meter, zeitstempel: `01.01.${currentYear} 00:00`, wert: 100 },
         { ...meter, zeitstempel: `01.03.${currentYear} 00:00`, wert: 90 }
@@ -202,9 +297,11 @@ describe('Verbrauchsdiagramme', () => {
     expect(series.slice(2).every(item => item.value === null)).toBe(true);
   });
   it('prognostiziert im laufenden Jahr keine fehlenden Zukunftsmonate', () => {
-    const currentYear = new Date().getFullYear();
+    const currentYear = 2026;
+    const now = new Date(2026, 10, 3);
     const series = service.monthlySeries([row(`${currentYear}-01`, 10)], meter, currentYear, {
-      annualRow: { ...meter, jahr: currentYear, verbrauch_jahr: 120, anzahl_monate_mit_verbrauch: 12 }
+      annualRow: { ...meter, jahr: currentYear, verbrauch_jahr: 120, anzahl_monate_mit_verbrauch: 12 },
+      now
     });
 
     expect(series[0]).toEqual({ value: 10, flagged: false, derived: false });
@@ -221,6 +318,36 @@ describe('Verbrauchsdiagramme', () => {
     expect(html).toContain('2026: 42 kWh');
     expect((html.match(/aria-label="Monatliche Verbrauchswerte"/g) || [])).toHaveLength(1);
     expect(html).not.toContain('undefined');
+  });
+  it('unterbricht Linien an fehlenden Monaten und zeigt im Balkenmodus beide Jahre', () => {
+    const html = service.render({
+      meters: [meter],
+      selectedKey: service.getMeterKey(meter),
+      selectedYear: '2026',
+      monthlyRows: [row('2025-01', 30), row('2025-03', 50), row('2026-01', 42)],
+      annualRows: [
+        { ...meter, jahr: 2025, verbrauch_jahr: 80 },
+        { ...meter, jahr: 2026, verbrauch_jahr: 42 }
+      ]
+    });
+    const lineCount = (html.match(/<polyline /g) || []).length;
+    // Die verbleibende Linie gehört zur Jahresentwicklung; die Monatsreihe
+    // besitzt wegen der Lücke keine verbindende Linie.
+    expect(lineCount).toBe(1);
+
+    const barHtml = service.render({
+      meters: [meter],
+      selectedKey: service.getMeterKey(meter),
+      selectedYear: '2026',
+      mode: 'bar',
+      monthlyRows: [row('2025-01', 30), row('2026-01', 42)],
+      annualRows: [
+        { ...meter, jahr: 2025, verbrauch_jahr: 30 },
+        { ...meter, jahr: 2026, verbrauch_jahr: 42 }
+      ]
+    });
+    expect(barHtml).toContain('2026: 42 kWh');
+    expect(barHtml).toContain('2025: 30 kWh');
   });
   it('entwertet HTML in Zählerbezeichnungen', () => {
     const dangerous = {...meter,bezeichnung:'<script>test</script>'};

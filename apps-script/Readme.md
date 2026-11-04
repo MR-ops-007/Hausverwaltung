@@ -124,6 +124,8 @@ Die Funktion berechnet aus `Zaehler`, `Zaehlerstaende`, `Einheiten` und `_view_a
 Die Monatsview ist die Detailbasis. Zwei aufeinanderfolgende Zählerstände bilden ein Verbrauchsintervall. Der Intervallverbrauch wird tagesgenau auf die überlappten Monate verteilt. Die Jahresview aggregiert anschließend aus der Monatsview.
 Die Bilanz-Jahresview enthält fachlich berechnete Kennzahlen wie `Strom · Black Inn` und bleibt bewusst getrennt von den physischen Zähler-Jahreswerten.
 
+Die Verbrauchsviews schreiben Mess-, Verbrauchs- und Bilanzwerte als echte numerische Zellwerte. Das Google Sheet verwendet die Region `de_DE` und für numerische Wertespalten das Anzeigeformat `#,##0.00`, sodass beispielsweise `12741.12` als `12.741,12` erscheint. Die Formatierung ändert nicht den gespeicherten Zahlenwert; JSON-Snapshots und Auswertungen müssen den numerischen Wert verwenden.
+
 Wichtige Fachregeln:
 
 - Verbrauchswerte mit Warnstatus bleiben sichtbar und werden nicht ausgeblendet.

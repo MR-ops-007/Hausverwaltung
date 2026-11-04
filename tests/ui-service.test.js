@@ -330,6 +330,39 @@ describe('uiService helper methods', () => {
 
     expect(uiService.getAvailableConsumptionYears()).toEqual(['2026', '2025']);
   });
+
+  it('excludes meters marked in_summe_beruecksichtigen=false from summaries and balances', () => {
+    const { uiService } = loadUiService();
+    const rows = [
+      {
+        objekt_id: 'Ra-HS-29',
+        einheit_id: 'Ra-HS-29_GE_02',
+        zaehler_id: 'Z_STROM_KWH_PRIVAT_HT',
+        verbrauchsgruppe: 'HAUPTZAEHLER',
+        untergruppe: 'PRIVAT_HT',
+        medium: 'strom_ht_kwh',
+        verbrauch_jahr: 100,
+        in_summe_beruecksichtigen: true,
+      },
+      {
+        objekt_id: 'Ra-HS-29',
+        einheit_id: 'Ra-HS-29_Allgemein_Flur',
+        zaehler_id: 'Z_STROM_KWH_FLUR',
+        verbrauchsgruppe: 'ALLGEMEIN',
+        untergruppe: 'FLUR',
+        medium: 'strom_ht_kwh',
+        verbrauch_jahr: 999,
+        in_summe_beruecksichtigen: false,
+      },
+    ];
+
+    const summary = uiService.buildConsumptionSummaryFromViews(rows);
+    const balance = uiService.buildFallbackBlackInnBalanceRows(rows);
+
+    expect(summary.reduce((sum, item) => sum + item.verbrauch, 0)).toBe(100);
+    expect(balance[0].wert).toBe(100);
+    expect(balance[0].missing_source_zaehler_ids).toContain('Z_STROM_KWH_FLUR');
+  });
 });
 
 describe('uiService consumption dashboard', () => {
