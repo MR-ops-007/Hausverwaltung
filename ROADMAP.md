@@ -19,14 +19,15 @@ Diese Datei beschreibt offene und geplante Arbeit.
 ### P0 Verbrauchsstatistik V2 abschließen
 
 - Branch: `feature/verbrauchsstatistik-v2`
-- Status: Technisch bestätigt, fachliche Abnahme offen
+- Status: Folgefix in Arbeit, technische Prüfung grün
 - Scope: Prüfhinweise im laufenden Jahr, keine künstlichen Nullmonate, Matrixklassifikation
   und QA-Dokumentation.
 - Review bestätigt in Commit `8ecdf73`: 229 Tests grün; beide Berechnungsfixes und die
   Klassifikation wurden geprüft.
-- Vor Merge: fachliche Bewertung der drei als `unexpected_with_marker` ausgewiesenen
-  Fälle. Technisch sind sie sichtbar markiert; sie gelten dadurch nicht als fachlich
-  freigegeben.
+- Folgefix-Branch: `fix/consumption-timestamp-normalization`.
+- Der Folgefix normalisiert UTC-Monatsgrenzen nach `Europe/Berlin`. Der Rohdatenlauf
+  weist danach 356/356 angezeigte Treffer und keine unerklärten Abweichungen aus.
+- Vor Merge: `npm test`, `git diff --check` und fachliche Sichtung des Ölfüllstands.
 
 ### P1 Apps Script 4.8.4
 

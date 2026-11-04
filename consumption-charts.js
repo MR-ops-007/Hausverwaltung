@@ -43,13 +43,30 @@ const consumptionChartService = (() => {
   const groupOf = row => String(row.verbrauchsgruppe || row.gruppe || '').toUpperCase();
   const mediumOf = row => String(row.medium || '').toLowerCase();
   const daysInMonth = (year, monthIndex) => new Date(Number(year), Number(monthIndex) + 1, 0).getDate();
+  const berlinMonthParts = value => {
+    const date = new Date(String(value || '').trim());
+    if (!Number.isFinite(date.getTime())) return null;
+    const parts = new Intl.DateTimeFormat('en', {
+      timeZone: 'Europe/Berlin',
+      year: 'numeric',
+      month: 'numeric'
+    }).formatToParts(date);
+    const year = Number(parts.find(part => part.type === 'year')?.value);
+    const month = Number(parts.find(part => part.type === 'month')?.value);
+    return Number.isInteger(year) && month >= 1 && month <= 12
+      ? { year, month }
+      : null;
+  };
+  const consumptionMonth = row => {
+    const value = String(row && (row.monat || row.monat_id || row.monat_key) || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}T/.test(value)) return berlinMonthParts(value);
+    const match = value.match(/^(\d{4})[-/.](1[0-2]|0?[1-9])/);
+    return match ? { year: Number(match[1]), month: Number(match[2]) } : null;
+  };
   const isPartialMonth = row => {
-    const year = Number(row && row.jahr);
-    const match = String(row && (row.monat || row.monat_id || row.monat_key) || '')
-      .match(/^\d{4}[-/.](1[0-2]|0?[1-9])/);
+    const month = consumptionMonth(row);
     const days = num(row && row.tage_im_monat);
-    return Number.isInteger(year) && Boolean(match) && days !== null &&
-      days < daysInMonth(year, Number(match[1]) - 1);
+    return Boolean(month) && days !== null && days < daysInMonth(month.year, month.month - 1);
   };
 
   function readingSeries(rows, meter) {
@@ -230,10 +247,9 @@ const consumptionChartService = (() => {
     (rows || []).forEach(row => {
       if (!sameMeter(row, meter)) return;
       if (String(row.jahr) !== String(year)) return;
-      const monthValue = String(row.monat || row.monat_id || row.monat_key || '').trim();
-      const match = monthValue.match(/^(\d{4})[-/.](1[0-2]|0?[1-9])(?:[-/.]\d{1,2})?/);
-      if (!match || Number(match[1]) !== Number(year)) return;
-      const entry = totals[Number(match[2]) - 1];
+      const month = consumptionMonth(row);
+      if (!month || month.year !== Number(year)) return;
+      const entry = totals[month.month - 1];
       entry.hasSegment = true;
       entry.partial = entry.partial || isPartialMonth(row);
       const amount = num(row.verbrauch_monat);

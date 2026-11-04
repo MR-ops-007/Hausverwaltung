@@ -62,6 +62,31 @@ describe('Verbrauchsdiagramme', () => {
     expect(series[10].value).toBe(20);
     expect(series[11].value).toBe(30);
   });
+  it('ordnet UTC-Monatsgrenzen nach deutscher Lokalzeit dem richtigen Verbrauchsjahr zu', () => {
+    const rows = [
+      { ...meter, jahr: 2026, monat: '2025-12-31T23:00:00.000Z', verbrauch_monat: 10 },
+      { ...meter, jahr: 2026, monat: '2026-01-31T23:00:00.000Z', verbrauch_monat: 20 },
+      { ...meter, jahr: 2026, monat: '2026-02-28T23:00:00.000Z', verbrauch_monat: 30 }
+    ];
+    const series = service.monthlySeries(rows, meter, 2026);
+
+    expect(series[0].value).toBe(10);
+    expect(series[1].value).toBe(20);
+    expect(series[2].value).toBe(30);
+    expect(series.reduce((sum, item) => sum + (item.value || 0), 0)).toBe(60);
+  });
+  it('behält mehrere UTC-Segmente am lokalen Jahresanfang im Ölverlauf', () => {
+    const oilMeter = { ...meter, medium: 'oel_stand_cm' };
+    const rows = [
+      { ...oilMeter, jahr: 2026, monat: '2025-12-31T23:00:00.000Z', verbrauch_monat: 0 },
+      { ...oilMeter, jahr: 2026, monat: '2025-12-31T23:00:00.000Z', verbrauch_monat: 11.92 },
+      { ...oilMeter, jahr: 2026, monat: '2026-01-31T23:00:00.000Z', verbrauch_monat: 13.9 }
+    ];
+    const series = service.monthlySeries(rows, oilMeter, 2026);
+
+    expect(series[0].value).toBeCloseTo(11.92);
+    expect(series[1].value).toBeCloseTo(13.9);
+  });
   it('verarbeitet deutsche Tausender- und Dezimaltrennzeichen', () => {
     const series = service.monthlySeries(
       [row('2025-01', '1.000,50')],
