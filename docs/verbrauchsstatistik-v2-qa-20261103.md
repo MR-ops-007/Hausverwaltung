@@ -37,6 +37,37 @@ Die damaligen 213 Fälle „Monatswert ohne Jahreswert“ waren damit ein Befund
 
 Die 18 leeren Zählerstandsverläufe trotz Monatswerten gehören zu berechneten oder anderweitig nicht manuell erfassbaren Zählern. Für diese existieren keine passenden Rohablesungen in `Zaehlerstaende`; ein Linienverlauf kann deshalb nicht seriös erfunden werden. Der Monats- und Jahresverbrauch kann trotzdem aus den materialisierten Verbrauchsviews dargestellt werden.
 
+## Review-Status vom 2026-11-05
+
+Commit `8ecdf73` wurde technisch geprüft. Die beiden Regressionen für das laufende
+Jahr sind bestätigt: ausgeschöpfte Jahresreste erzeugen keine künstlichen Nullmonate,
+und große Abweichungen werden auch ohne `anzahl_monate_mit_verbrauch` als Prüfhinweis
+markiert. Die Klassifikation `explained_by_readings`, `unexpected_with_marker` und
+`unexplained` wurde ebenfalls bestätigt. Die Testsuite umfasst 229 grüne Tests.
+
+Vor dem Merge bleiben ausschließlich fachliche Prüfungen offen:
+
+1. `Z_WARMWASSER_WW_ZULAUF_MINUS_ALLER_WW_LOKAL` / `Ra-HS-29_GE_02` für 2026
+2. `Z_WARMWASSER_WW_GESAMT_BERECHNET` / `Ra-HS-29_Allgemein_Heizung` für 2026
+3. `Z_OEL_STAND_IN_CM` / `Ra-HS-29_Allgemein` für 2026
+
+Bei den beiden Warmwasserzählern handelt es sich um berechnete Werte ohne physische
+Rohablesungen. Bei `Z_OEL_STAND_IN_CM` handelt es sich um einen Füllstand in cm und
+nicht um einen monoton steigenden Verbrauchszähler. Nachfüllungen und Tankwechsel
+erfordern deshalb eine eigene fachliche Behandlung. Die UI markiert alle drei Fälle;
+keiner wird als fachlich freigegeben oder still als korrekt behandelt.
+
+Zusätzlich bleiben 31 `explained_by_readings`-Fälle sichtbar. Ihre Herkunft aus
+Rohintervallen ist bekannt, aber alle liegen außerhalb der relativen 2%-Schwelle.
+Dadurch ist die technische Herleitung nachvollziehbar, die fachliche Gleichheit mit
+dem Jahreswert aber nicht bewiesen. Die Entscheidung, ob die Backend-View diese
+Rohintervallwerte künftig selbst in die Jahresdarstellung übernimmt oder die UI den
+Unterschied nur explizit erklärt, ist als Folgeaufgabe dokumentiert.
+
+Eine kompakte `--explain`-Ausgabe für die Matrixprüfung ist ebenfalls als Folgeaufgabe
+in `ROADMAP.md` vermerkt. Sie ist für die fachliche Abnahme hilfreich, aber keine
+Voraussetzung für die technische Merge-Freigabe.
+
 ## Live-Snapshot-Prüfung vom 2026-11-04
 
 Der geschützte Snapshot wurde am 2026-11-04 erfolgreich über den POST-Endpunkt abgerufen. Die Antwort enthielt:

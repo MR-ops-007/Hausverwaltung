@@ -19,11 +19,14 @@ Diese Datei beschreibt offene und geplante Arbeit.
 ### P0 Verbrauchsstatistik V2 abschließen
 
 - Branch: `feature/verbrauchsstatistik-v2`
-- Status: In Arbeit, Review-Nachlauf
+- Status: Technisch bestätigt, fachliche Abnahme offen
 - Scope: Prüfhinweise im laufenden Jahr, keine künstlichen Nullmonate, Matrixklassifikation
   und QA-Dokumentation.
-- Vor Merge: `npm test`, `git diff --check`, erneuter Rohdaten-Matrixlauf und Prüfung
-  der drei als `unexpected_with_marker` ausgewiesenen Fälle.
+- Review bestätigt in Commit `8ecdf73`: 229 Tests grün; beide Berechnungsfixes und die
+  Klassifikation wurden geprüft.
+- Vor Merge: fachliche Bewertung der drei als `unexpected_with_marker` ausgewiesenen
+  Fälle. Technisch sind sie sichtbar markiert; sie gelten dadurch nicht als fachlich
+  freigegeben.
 
 ### P1 Apps Script 4.8.4
 
@@ -41,6 +44,8 @@ Diese Datei beschreibt offene und geplante Arbeit.
 - Darstellung: Balkenfarben vereinheitlichen und Teilmonat-Anzeige fachlich klarer
   gestalten oder aus der sichtbaren UI entfernen.
 - Datenqualität: Alias-Konflikte gezielt prüfen und LOK-/TEST-Smoke-Tests ergänzen.
+- Diagnose: optionalen Matrix-Schalter `--explain` ergänzen, damit Monatswerte,
+  Jahreswert und Abweichungsgrund je auffälliger Kombination kompakt ausgegeben werden.
 - Betrieb: manuelles Cache-Busting durch eine zentrale, nachvollziehbare
   Asset-Version oder später einen Build-Hash ersetzen.
 
