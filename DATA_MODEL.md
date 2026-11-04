@@ -478,6 +478,19 @@ Wichtige Felder:
 | `formel_text` | String | Lesbare Herleitung |
 | `plausibilitaet_status` | String | `OK`, `QUELLWERTE_FEHLEN` oder `WARNUNGEN_IN_QUELLWERTEN` |
 
+### Zahlen-, Locale- und Zeitformat der Verbrauchsviews
+Die materialisierten Verbrauchsviews speichern Messwerte, Verbrauchswerte und Bilanzwerte als echte numerische Zellwerte. Formatierte Zahlenstrings wie `"12.741,12"` dürfen nicht als fachliche Datenquelle verwendet werden.
+
+Für das Google Sheet gilt:
+
+- Region/Locale: `de_DE`
+- Zeitzone: `Europe/Berlin`
+- numerische Wertespalten: Zahlenformat `#,##0.00`
+- Anzeige in der Tabelle: deutsches Tausender- und Dezimalformat, z.B. `12.741,12`
+- Datums- und Zeitfelder: echte Datum/Zeit-Werte, keine formatierten Textstrings
+
+Das Zahlenformat ist eine Darstellungsregel. Es verändert nicht den gespeicherten numerischen Wert. Exporte und Snapshot-Prüfungen müssen die numerischen JSON-Werte verwenden und dürfen nicht auf der lokalisierten Anzeigezeichenkette rechnen.
+
 **Konsistenz-Regel:** Die Verbrauchsviews und der Audit-View sind reine Read-Only-Caches. Fachliche Korrekturen erfolgen in den Quelltabellen oder über dokumentierte Migrationsfunktionen, nicht direkt in den View-Sheets.
 
 ### UI-Regeln für Verbrauchsansicht

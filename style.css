@@ -311,3 +311,36 @@ input[type="text"] {
 .access-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .access-actions button { padding: 9px 16px; border-radius: 6px; border: 1px solid #cbd5e1; background: #f8fafc; cursor: pointer; font-size: 1rem; }
 .access-actions .access-save { background: #2563eb; border-color: #2563eb; color: #fff; }
+
+/* Verbrauchsstatistik V2 */
+.consumption-charts { background: #fff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 16px; margin: 0 0 16px; }
+.consumption-charts-heading { display:flex; flex-wrap:wrap; align-items:end; gap:12px; margin-bottom:16px; }
+.consumption-charts-heading h3 { margin:0 0 4px; color:#0f172a; }
+.consumption-charts-heading p { margin:0; color:#475569; font-size:.85rem; max-width:620px; }
+.consumption-charts-heading label { display:flex; flex-direction:column; gap:5px; min-width:170px; color:#334155; font-size:.8rem; font-weight:700; }
+.consumption-charts-heading select { width:100%; padding:8px; border:1px solid #94a3b8; border-radius:7px; background:#fff; }
+.consumption-charts-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,370px),1fr)); gap:14px; }
+.consumption-chart-panel { min-width:0; border:1px solid #e2e8f0; border-radius:8px; padding:12px 10px; }
+.consumption-chart-panel h4 { margin:0 0 8px; color:#334155; font-size:.92rem; }
+.consumption-chart-key { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:0 0 8px; color:#475569; font-size:.78rem; }
+.consumption-chart-key span { display:inline-flex; align-items:center; gap:5px; padding:3px 8px; border-radius:999px; background:#f8fafc; }
+.consumption-chart-year-current::before { content:""; width:9px; height:9px; border-radius:50%; background:#2563eb; }
+.consumption-chart-year-prior::before { content:""; width:9px; height:9px; border-radius:50%; background:#94a3b8; }
+.consumption-chart-year-warning { color:#92400e; background:#fffbeb !important; }
+.consumption-chart-year-warning::before { content:""; width:9px; height:9px; border-radius:50%; background:#f59e0b; }
+.consumption-chart-year-derived { color:#92400e; background:#fffbeb !important; }
+.consumption-chart-year-derived::before { content:""; width:9px; height:9px; border-radius:50%; background:#f59e0b; }
+.consumption-chart-year-from-readings { color:#075985; background:#f0f9ff !important; }
+.consumption-chart-year-from-readings::before { content:""; width:9px; height:9px; border-radius:50%; background:#0284c7; }
+.consumption-chart-year-from-annual { color:#9a3412; background:#fff7ed !important; }
+.consumption-chart-year-from-annual::before { content:""; width:9px; height:9px; border-radius:50%; background:#ea580c; }
+.consumption-chart-year-reconciled { color:#115e59; background:#ecfeff !important; }
+.consumption-chart-year-reconciled::before { content:""; width:9px; height:9px; border-radius:50%; background:#0f766e; }
+.consumption-chart-values { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; margin-top:10px; }
+.consumption-chart-value { border-top:1px solid #e2e8f0; padding:6px 4px 0; color:#475569; font-size:.72rem; line-height:1.35; }
+.consumption-chart-value strong { display:block; color:#334155; margin-bottom:2px; }
+.consumption-chart-value span { display:block; }
+.consumption-chart-svg { display:block; width:100%; max-width:100%; height:auto; }
+.consumption-chart-empty { color:#64748b; padding:32px 8px; font-size:.85rem; }
+.consumption-chart-note { color:#64748b; font-size:.79rem; margin:11px 0 0; line-height:1.45; }
+@media (max-width:600px) { .consumption-chart-values { grid-template-columns:repeat(3,minmax(0,1fr)); } }

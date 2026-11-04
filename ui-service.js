@@ -1473,18 +1473,28 @@ const uiService = {
 
     if (!output || !objectSelect || !yearSelect) return;
 
+    const renderRequestId = (this.consumptionRenderRequestId || 0) + 1;
+    this.consumptionRenderRequestId = renderRequestId;
     const userSelectedObject = objectSelect.dataset && objectSelect.dataset.userSelected === 'true';
     const requestedYear = yearSelect.value;
 
     this.renderConsumptionDashboardControls();
+    const objectValueBeforeLoad = objectSelect.value;
+    const objectValueAtPreviousRender = this.consumptionObjectValueAtRenderStart;
+    const objectChangedBeforeLoad = objectValueAtPreviousRender !== undefined &&
+      objectValueBeforeLoad !== objectValueAtPreviousRender;
+    this.consumptionObjectValueAtRenderStart = objectValueBeforeLoad;
     output.innerHTML = '<div style="padding:12px; background:white; border:1px solid #e2e8f0; border-radius:8px;">Verbrauchsdaten werden geladen...</div>';
 
     try {
       await this.ensureConsumptionViewData();
     } catch (error) {
+      if (this.consumptionRenderRequestId !== renderRequestId) return;
       output.innerHTML = `<div style="padding:12px; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px;">Die Verbrauchsdaten konnten nicht geladen werden: ${this.escapeHtml(error.message || String(error))}</div>`;
       return;
     }
+
+    if (this.consumptionRenderRequestId !== renderRequestId) return;
 
     this.renderConsumptionDashboardControls();
 
@@ -1500,8 +1510,9 @@ const uiService = {
     const year = yearSelect.value || this.getAvailableConsumptionYears()[0] || '';
     let objektId = objectSelect.value || objectIds[0] || '';
     const firstObjectWithRows = objectIds.find(objId => allRows.some(row => String(row.objekt_id) === String(objId) && String(row.jahr) === String(year)));
+    const objectChangedDuringLoad = objectSelect.value && objectSelect.value !== objectValueBeforeLoad;
 
-    if (!userSelectedObject && firstObjectWithRows) {
+    if (!userSelectedObject && !objectChangedBeforeLoad && !objectChangedDuringLoad && firstObjectWithRows) {
       objektId = firstObjectWithRows;
       objectSelect.value = firstObjectWithRows;
     }
@@ -1588,6 +1599,65 @@ const uiService = {
           hint
         };
       });
+    const chartRows = decoratedRows.filter(row => row && row.zaehler_id);
+    const hasChartSelection = Boolean(this.consumptionChartSelection);
+    const chartKey = this.consumptionChartSelection || '';
+    const chartMeter = typeof consumptionChartService !== 'undefined'
+      ? chartRows.find(row => consumptionChartService.getMeterKey(row) === chartKey)
+      : null;
+    const chartService = typeof consumptionChartService !== 'undefined' ? consumptionChartService : null;
+    const hasNumericValue = value => {
+      if (chartService && typeof chartService.toNumber === 'function') {
+        return chartService.toNumber(value) !== null;
+      }
+      if (value === null || value === undefined || String(value).trim() === '') return false;
+      const numeric = Number(String(value).trim().replace(',', '.'));
+      return Number.isFinite(numeric);
+    };
+    const chartRowsWithData = chartService ? chartRows.filter(row => {
+      const matchesMeter = candidate => chartService.sameMeter
+        ? chartService.sameMeter(row, candidate)
+        : chartService.getMeterKey(candidate) === chartService.getMeterKey(row);
+      const hasMonthlyData = (dataService.state.view_verbrauch_monat || []).some(monthRow =>
+        matchesMeter(monthRow) &&
+        (String(monthRow.jahr) === String(year) || String(monthRow.jahr) === String(Number(year) - 1)) &&
+        hasNumericValue(monthRow.verbrauch_monat)
+      );
+      const hasAnnualData = allRows.some(yearRow =>
+        matchesMeter(yearRow) &&
+        String(yearRow.jahr) === String(year) &&
+        hasNumericValue(yearRow.verbrauch_jahr)
+      );
+      const hasReadings = (dataService.state.zaehlerstaende || []).some(reading =>
+        matchesMeter(reading) && hasNumericValue(reading.wert)
+      );
+      return hasMonthlyData || hasAnnualData || hasReadings;
+    }) : [];
+    const effectiveChartKey = hasChartSelection && chartMeter
+      ? chartKey
+      : (typeof consumptionChartService !== 'undefined' && chartRowsWithData.length
+        ? consumptionChartService.getMeterKey(chartRowsWithData[0])
+        : (typeof consumptionChartService !== 'undefined' && chartRows.length
+          ? consumptionChartService.getMeterKey(chartRows[0])
+          : '')
+      );
+    this.consumptionChartSelection = effectiveChartKey;
+    let chartHtml = '';
+    if (typeof consumptionChartService !== 'undefined') {
+      try {
+        chartHtml = consumptionChartService.render({
+          meters: chartRows,
+          selectedKey: effectiveChartKey,
+          selectedYear: year,
+          monthlyRows: dataService.state.view_verbrauch_monat || [],
+          annualRows: allRows,
+          readingRows: (dataService.state.zaehlerstaende || []).filter(row => String(row.objekt_id) === String(objektId))
+        });
+      } catch (error) {
+        console.error('Verbrauchsdiagramme konnten nicht dargestellt werden:', error);
+        chartHtml = '<section class="consumption-charts" aria-label="Verbrauchsdiagramme"><p class="consumption-chart-empty">Die Diagramme konnten nicht geladen werden. Tabelle und Datenqualität bleiben verfügbar.</p></section>';
+      }
+    }
     const dataQualityRows = this.buildConsumptionDataQualityRows(auditRows, decoratedRows);
     const overviewMetrics = this.buildConsumptionOverviewMetrics(decoratedRows, effectiveBalanceRows, dataQualityRows);
     const overviewCardsHtml = [
@@ -1744,6 +1814,8 @@ const uiService = {
       <div class="consumption-overview-grid">
         ${overviewCardsHtml}
       </div>
+
+      ${chartHtml}
 
       <section class="consumption-quality-section">
         <h3>Datenqualität</h3>
