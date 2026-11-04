@@ -60,6 +60,7 @@ const asRows = (payload, ...keys) => {
 };
 
 const number = value => chartService.toNumber(value);
+const DISPLAYED_MATCH_TOLERANCE = 0.05;
 const yearOf = row => Number(row && row.jahr);
 const sameMeter = (left, right) => chartService.sameMeter(left, right);
 const exactKey = row => chartService.getMeterKey(row);
@@ -112,6 +113,17 @@ export function buildMatrixReport(payload, { objectId = '', years = [], now = ne
     });
     const displayedValues = series.map(item => item.value).filter(value => value !== null);
     const displayedTotal = displayedValues.reduce((sum, value) => sum + value, 0);
+    const displayedDifference = hasAnnual && displayedValues.length
+      ? Math.abs(displayedTotal - annualValue)
+      : null;
+    const hasDisplayedAdjustment = series.some(item => item.derived || item.fromReadings || item.fromAnnual || item.reconciled);
+    const displayedDifferenceClass = !hasAnnual || !displayedValues.length
+      ? 'no_displayed_value'
+      : displayedDifference <= DISPLAYED_MATCH_TOLERANCE
+        ? 'match'
+        : hasDisplayedAdjustment
+          ? 'explained'
+          : 'unexplained';
 
     combinations.push({
       objekt_id: meter.objekt_id || '',
@@ -124,12 +136,14 @@ export function buildMatrixReport(payload, { objectId = '', years = [], now = ne
       annualTotal: comparable ? annualValue : null,
       rawDifference,
       displayedTotal: displayedValues.length ? displayedTotal : null,
+      displayedDifference,
+      displayedDifferenceClass,
       derived: series.some(item => item.derived),
       fromReadings: series.some(item => item.fromReadings),
       reconciled: series.some(item => item.reconciled),
       flagged: series.some(item => item.flagged),
-      rawMatchWithoutAdjustment: comparable && rawDifference <= 0.05,
-      smallReconciliation: comparable && rawDifference > 0.05 && rawDifference <= reconciliationLimit,
+      rawMatchWithoutAdjustment: comparable && rawDifference <= DISPLAYED_MATCH_TOLERANCE,
+      smallReconciliation: comparable && rawDifference > DISPLAYED_MATCH_TOLERANCE && rawDifference <= reconciliationLimit,
       largeMismatch: comparable && rawDifference > reconciliationLimit,
       annualMatchType: annual ? (annualExact ? 'exact' : 'alias') : 'none',
       annualWithoutMonthly: hasAnnual && !hasMonthly,
@@ -150,6 +164,11 @@ export function buildMatrixReport(payload, { objectId = '', years = [], now = ne
     meterCount: meters.length,
     total: combinations.length,
     compared: count(row => row.hasMonthly && row.hasAnnual),
+    displayedComparable: count(row => row.displayedDifference !== null),
+    displayedMatchesAnnual: count(row => row.displayedDifferenceClass === 'match'),
+    displayedDifferencesExplained: count(row => row.displayedDifferenceClass === 'explained'),
+    displayedDifferencesUnexplained: count(row => row.displayedDifferenceClass === 'unexplained'),
+    displayedWithoutValue: count(row => row.displayedDifferenceClass === 'no_displayed_value'),
     rawMatchWithoutAdjustment: count(row => row.rawMatchWithoutAdjustment),
     smallReconciliation: count(row => row.smallReconciliation),
     largeMismatch: count(row => row.largeMismatch),
@@ -166,6 +185,7 @@ export function buildMatrixReport(payload, { objectId = '', years = [], now = ne
     combinationsReconciled: count(row => row.reconciled),
     combinationsFlagged: count(row => row.flagged),
     maxRawDifference: Math.max(0, ...combinations.map(row => row.rawDifference || 0)),
+    maxDisplayedDifference: Math.max(0, ...combinations.map(row => row.displayedDifference || 0)),
     combinations
   };
 }

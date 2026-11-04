@@ -142,7 +142,7 @@ const consumptionChartService = (() => {
     const x = item => left + (series.length === 1 ? (W-left-right)/2 : (item.date - series[0].date) / Math.max(1, series[series.length-1].date - series[0].date) * (W-left-right));
     const y = value => top + (max - value) / range * (H-top-bottom);
     const points = series.map(item => `${x(item).toFixed(1)},${y(item.value).toFixed(1)}`).join(' ');
-    const dots = series.map(item => `<circle cx="${x(item).toFixed(1)}" cy="${y(item.value).toFixed(1)}" r="4" fill="#2563eb"><title>${esc(item.date.toLocaleString('de-DE'))} · ${fmt(item.value)} ${unit}</title></circle>`).join('');
+    const dots = series.map(item => `<circle cx="${x(item).toFixed(1)}" cy="${y(item.value).toFixed(1)}" r="4" fill="#2563eb"><title>${esc(item.date.toLocaleString('de-DE'))} · ${fmt(item.value)} ${esc(unit)}</title></circle>`).join('');
     const grid = [0, 1, 2, 3, 4].map(i => {
       const gy = top + (H - top - bottom) - i * (H - top - bottom) / 4;
       const value = min + range * i / 4;
@@ -185,7 +185,7 @@ const consumptionChartService = (() => {
         .map(points => `<polyline points="${points.join(' ')}" fill="none" stroke="${color}" stroke-width="3"${dash ? ' stroke-dasharray="7 5"' : ''}/>`)
         .join('');
       const markers = items.map((item, index) => item && item.value !== null
-        ? `<circle cx="${x(index).toFixed(1)}" cy="${y(item.value).toFixed(1)}" r="4" fill="${item.derived ? '#f59e0b' : item.fromAnnual ? '#ea580c' : item.reconciled ? '#0f766e' : item.fromReadings ? '#0284c7' : color}"${item.partial ? ' stroke="#f97316" stroke-width="2"' : ''}><title>${esc(labels[index])} ${esc(label)}: ${fmt(item.value)} ${unit}${item.partial ? ' (Teilmonat)' : ''}${item.invalidReading ? ' (rückläufiger Zählerstand prüfen)' : ''}${item.derived ? ' (linear fortgeschrieben)' : ''}${item.fromReadings ? ' (aus Rohintervall ergänzt)' : ''}${item.fromAnnual ? ' (aus Jahresrest ergänzt)' : ''}${item.reconciled ? ' (mit Jahreswert abgeglichen)' : ''}${item.flagged ? ' (Prüfhinweis)' : ''}</title></circle>`
+        ? `<circle cx="${x(index).toFixed(1)}" cy="${y(item.value).toFixed(1)}" r="4" fill="${item.derived ? '#f59e0b' : item.fromAnnual ? '#ea580c' : item.reconciled ? '#0f766e' : item.fromReadings ? '#0284c7' : color}"${item.partial ? ' stroke="#f97316" stroke-width="2"' : ''}><title>${esc(labels[index])} ${esc(label)}: ${fmt(item.value)} ${esc(unit)}${item.partial ? ' (Teilmonat)' : ''}${item.invalidReading ? ' (rückläufiger Zählerstand prüfen)' : ''}${item.derived ? ' (linear fortgeschrieben)' : ''}${item.fromReadings ? ' (aus Rohintervall ergänzt)' : ''}${item.fromAnnual ? ' (aus Jahresrest ergänzt)' : ''}${item.reconciled ? ' (mit Jahreswert abgeglichen)' : ''}${item.flagged ? ' (Prüfhinweis)' : ''}</title></circle>`
         : '').join('');
       return `${line}${markers}`;
     };

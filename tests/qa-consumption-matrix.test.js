@@ -75,6 +75,12 @@ describe('QA-Matrix Verbrauchsstatistik', () => {
     expect(report.total).toBe(1);
     expect(report.compared).toBe(1);
     expect(report.rawMatchWithoutAdjustment).toBe(1);
+    expect(report.displayedComparable).toBe(1);
+    expect(report.displayedMatchesAnnual).toBe(1);
+    expect(report.displayedDifferencesExplained).toBe(0);
+    expect(report.displayedDifferencesUnexplained).toBe(0);
+    expect(report.combinations[0].displayedDifference).toBe(0);
+    expect(report.combinations[0].displayedDifferenceClass).toBe('match');
     expect(report.monthlyWithoutAnnual).toBe(0);
     expect(report.annualMatchesExactKey).toBe(1);
   });
@@ -108,6 +114,29 @@ describe('QA-Matrix Verbrauchsstatistik', () => {
     expect(report.smallReconciliation).toBe(0);
     expect(report.largeMismatch).toBe(1);
     expect(report.combinations[0].rawDifference).toBe(6);
+    expect(report.combinations[0].displayedDifference).toBe(6);
+    expect(report.displayedDifferencesUnexplained).toBe(1);
+    expect(report.displayedDifferencesExplained).toBe(0);
+    expect(report.combinations[0].displayedDifferenceClass).toBe('unexplained');
+  });
+
+  it('trennt angezeigte Abweichungen mit dokumentierter Ergänzung von ungeklärten Abweichungen', () => {
+    const report = buildMatrixReport({
+      Zaehler: [meter],
+      _view_verbrauch_monat: [month('2026-01', 10)],
+      _view_verbrauch_jahr: [{ ...meter, jahr: 2026, verbrauch_jahr: 20, anzahl_monate_mit_verbrauch: 2 }],
+      Zaehlerstaende: [
+        { ...meter, zeitstempel: '01.01.2026 00:00', wert: 100 },
+        { ...meter, zeitstempel: '01.03.2026 00:00', wert: 110 }
+      ]
+    }, { years: [2026], now: new Date(2026, 2, 4) });
+
+    expect(report.displayedComparable).toBe(1);
+    expect(report.displayedDifferencesExplained).toBe(1);
+    expect(report.displayedDifferencesUnexplained).toBe(0);
+    expect(report.combinations[0].displayedDifference).toBeGreaterThan(0);
+    expect(report.combinations[0].displayedDifferenceClass).toBe('explained');
+    expect(report.combinations[0].fromReadings).toBe(true);
   });
 
   it('weist fehlende Jahreszuordnung als diagnostizierbaren Schlüsselbefund aus', () => {

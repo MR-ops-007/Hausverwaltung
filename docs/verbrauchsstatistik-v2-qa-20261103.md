@@ -21,7 +21,7 @@ Für jede Kombination wurden automatisiert geprüft:
 
 Die Browserprüfung wurde nach einem zwischenzeitlichen Vite-Verbindungsabbruch wiederholt. Die erste Auswertung enthielt außerdem zwei Fehler im Prüfskript selbst: einmal wurde das fehlende Jahres-`aria-label` angenommen, danach wurden aktuelle und Vorjahreswerte aus derselben Monatskarte gemeinsam gelesen. Beide Prüfskriptfehler wurden korrigiert. Nach der Korrektur der nicht-zirkulären Abgleichslogik wurde die Matrix erneut bewertet; die folgenden Zahlen trennen echte Abweichungen von kleinen, transparent gekennzeichneten Abgleichen. Die fachliche Matrix stammt vom 2026-11-03; die technische Nachprüfung und Dokumentationsaktualisierung erfolgten am 2026-11-04.
 
-## Ergebnis der vollständigen Matrixprüfung
+## Historischer Browserlauf vom 2026-11-03 (nicht aktueller Datenstand)
 
 | Jahre | Kombinationen | Mit Jahres- und Monatswert verglichen | Abweichung > 0,2 | Maximale Abweichung | Jahreswert ohne Monatswerte | Monatswert ohne Jahreswert | Leerer Zählerstandsverlauf trotz Monatswerten | Kombinationen mit Jahresrest | mit Rohintervall ergänzt | klein abgeglichen |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -30,9 +30,9 @@ Die Browserprüfung wurde nach einem zwischenzeitlichen Vite-Verbindungsabbruch 
 | 2024–2026 | 126 | 43 | 11 | 660,86 | 0 | 69 | 6 | 59 | 46 | 2 |
 | **Gesamt** | **378** | **134** | **11** | **660,86** | **1** | **213** | **18** | **232** | **89** | **10** |
 
-Die Prüfung ist nicht mehr zirkulär: Von 134 tatsächlich vergleichbaren Kombinationen stimmen 113 bereits ohne Anpassung mit dem Jahreswert überein. Zehn weitere Kombinationen liegen innerhalb des kleinen Abgleichsfensters und werden proportional abgeglichen sowie gekennzeichnet. In 11 Kombinationen des laufenden Jahres weicht die Monatssumme deutlich vom Jahreswert ab; die Roh-Monatswerte werden nicht skaliert, sondern bleiben sichtbar und werden mit `Prüfhinweis` markiert. Die Matrix zählt hier Kombinationen mit einem entsprechenden Marker, nicht einzelne Monatszellen.
+Dieser Lauf ist als historische Referenz erhalten. Die Zahlen sind nicht die aktuelle Abnahmebasis. Von 134 damals vergleichbaren Kombinationen stimmten 113 ohne Anpassung mit dem Jahreswert überein. Zehn weitere Kombinationen lagen innerhalb des kleinen Abgleichsfensters und wurden proportional abgeglichen sowie gekennzeichnet. Die damals gezählten 11 großen Abweichungen und 213 Monatswerte ohne Jahreswert konnten im anschließenden Live- und Rohdaten-Snapshot nicht reproduziert werden.
 
-Die 213 Fälle „Monatswert ohne Jahreswert“ sind keine bewiesene Rechenkorrektheit. Sie zeigen zunächst, dass Monats- und Jahresdatensatz in der Browserprüfung nicht über denselben fachlichen Schlüssel zusammengeführt wurden. Da `updateVerbrauchViews()` die Jahreszeilen aus den Monatszeilen aufbaut, ist ein fehlender Jahresdatensatz im Sheet nicht bewiesen. Alias-/Schlüsselzuordnung, Objekt-/Einheitsschlüssel und der genaue Prüfvergleich müssen vor einer Backend-Änderung isoliert werden. Das Dashboard zeigt die Monatsdaten trotzdem und lässt den nicht zugeordneten Jahreswert als fehlend erkennbar.
+Die damaligen 213 Fälle „Monatswert ohne Jahreswert“ waren damit ein Befund dieses Browserlaufs, aber keine belastbare Aussage über die aktuelle View. Die aktuelle Matrix weist Schlüsselbefunde getrennt aus (`annualMatchType`) und wird für neue Aussagen mit einem aktuellen Snapshot erneut ausgeführt.
 
 Die 18 leeren Zählerstandsverläufe trotz Monatswerten gehören zu berechneten oder anderweitig nicht manuell erfassbaren Zählern. Für diese existieren keine passenden Rohablesungen in `Zaehlerstaende`; ein Linienverlauf kann deshalb nicht seriös erfunden werden. Der Monats- und Jahresverbrauch kann trotzdem aus den materialisierten Verbrauchsviews dargestellt werden.
 
@@ -92,6 +92,11 @@ Der Rohdaten-Snapshot enthielt 49 Zählerstammdaten und 1.910 historische Zähle
 | :--- | ---: |
 | Mit Monats- und Jahreswert verglichen | 356 |
 | Treffer ohne Anpassung | 356 |
+| Angezeigte Monatssumme gegen Jahreswert vergleichbar | 356 |
+| Angezeigte Summe trifft den Jahreswert | 322 |
+| Angezeigte Abweichung durch dokumentierten Darstellungsweg erklärbar | 31 |
+| Angezeigte Abweichung ohne erklärenden Darstellungsmarker | 3 |
+| Maximale angezeigte Abweichung | 660,86 |
 | Kleiner Abgleich | 0 |
 | Große Abweichung | 0 |
 | Jahreszeile ohne nutzbaren Monatsverbrauch | 1 |
@@ -213,11 +218,13 @@ Die Regressionstests decken unter anderem ab:
 
 Die UI-Berechnung ist für die Fälle ohne große Monats-/Jahresabweichung konsistent. Offen bleiben Datenbasisfälle, die fachlich in den Views beziehungsweise im Audit sichtbar bleiben müssen:
 
-- Für berechnete Zähler ohne manuelle Rohablesungen gibt es keinen Zählerstandsverlauf.
-- In 11 Kombinationen des Jahres 2026 weicht die Monatssumme deutlich vom Jahreswert ab. Die UI verändert diese Werte nicht, sondern markiert sie als Prüfhinweis.
-- In 213 Kombinationen konnte die Browserprüfung Monats- und Jahresdaten nicht über denselben Schlüssel verbinden. Das ist kein bewiesener Rechenfehler und kein Beleg für fehlende Sheet-Zeilen; Alias-/Schlüsselzuordnung muss vor einer Backend-Änderung untersucht werden.
+- Für berechnete Zähler ohne manuelle Rohablesungen gibt es keinen Zählerstandsverlauf. Das betrifft im aktuellen Rohdatenlauf ausschließlich die beiden oben genannten berechneten Warmwasserzähler und ist erwartbar.
+- Der aktuelle Rohdatenlauf zeigt drei Kombinationen, in denen die angezeigte Monatssumme vom Jahreswert abweicht, ohne dass die UI dafür einen dokumentierten Darstellungsmarker gesetzt hat: `Z_WARMWASSER_WW_ZULAUF_MINUS_ALLER_WW_LOKAL` / `Ra-HS-29_GE_02` (2026), `Z_WARMWASSER_WW_GESAMT_BERECHNET` / `Ra-HS-29_Allgemein_Heizung` (2026) und `Z_OEL_STAND_IN_CM` / `Ra-HS-29_Allgemein` (2026). Die Roh-Monatssummen und Jahreswerte stimmen in diesen Fällen, die Abweichung entsteht in der UI-Zuordnung bzw. Aufbereitung und ist vor dem Merge fachlich zu prüfen. Sie wird nicht als gelöst ausgegeben.
+- Weitere 31 angezeigte Abweichungen sind durch einen expliziten Darstellungsweg (`aus Rohintervall ergänzt`, `aus Jahresrest ergänzt`, `linear fortgeschrieben` oder `Jahreswert abgeglichen`) markiert. „Erklärbar“ bedeutet hier nur, dass die Herleitung maschinell gekennzeichnet ist; es ist keine fachliche Freigabe des Wertes.
+- 84 Zähler-/Jahr-Kombinationen haben im Rohdatenlauf weder nutzbaren Monats- noch Jahresverbrauch. Das sind Datenlücken in der festen Stammdatenmatrix, nicht automatisch Join- oder Aliasfehler.
+- Für `Z_OEL_GETANKT_LITER` existiert 2023 eine Jahreszeile mit 0 Verbrauch und 14 nicht berechenbaren Monatssegmenten wegen rückläufiger Rohwerte. Dieser Fall bleibt ein fachlicher Öl-Datenbefund.
 - Die Darstellung verwendet bei fortgeschriebenen oder abgeglichenen Werten bewusst eine Kennzeichnung. Diese Werte sind keine zusätzlichen Rohablesungen.
-- Die Matrix-Klassifikation ist jetzt unter `tools/qa-consumption-matrix.mjs` reproduzierbar. Das Skript arbeitet bewusst mit einem exportierten View-Snapshot und benötigt keine Zugangsdaten. Ein vollständiger Live-Export der Produktivdaten gehört nicht ins Repository.
+- Die Matrix-Klassifikation ist unter `tools/qa-consumption-matrix.mjs` reproduzierbar. Sie weist jetzt zusätzlich `displayedDifference`, `displayedDifferenceClass`, `displayedDifferencesExplained` und `displayedDifferencesUnexplained` aus. Das Skript arbeitet bewusst mit einem exportierten View-Snapshot und benötigt keine Zugangsdaten. Ein vollständiger Live-Export der Produktivdaten gehört nicht ins Repository.
 
 ## Reproduzierbarer QA-Ablauf
 

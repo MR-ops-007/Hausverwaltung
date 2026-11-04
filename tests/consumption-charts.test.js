@@ -75,6 +75,7 @@ describe('Verbrauchsdiagramme', () => {
     // Locale-Metadaten mehrdeutig und wird deshalb als Dezimalzahl gelesen.
     expect(service.toNumber(1040)).toBe(1040);
     expect(service.toNumber('1.040')).toBeCloseTo(1.04);
+    expect(service.toNumber('1.040,82')).toBeCloseTo(1040.82);
   });
   it('ordnet historisch dokumentierte Zähler-IDs dem aktuellen Zähler zu', () => {
     const currentMeter = {
@@ -350,9 +351,26 @@ describe('Verbrauchsdiagramme', () => {
     expect(barHtml).toContain('2025: 30 kWh');
   });
   it('entwertet HTML in Zählerbezeichnungen', () => {
-    const dangerous = {...meter,bezeichnung:'<script>test</script>'};
-    const html = service.render({meters:[dangerous],selectedYear:2026});
+    const dangerous = {
+      ...meter,
+      medium: 'unknown',
+      einheit: '<img src=x onerror=alert(1)>',
+      bezeichnung: '<script>test</script>'
+    };
+    const html = service.render({
+      meters: [dangerous],
+      selectedKey: service.getMeterKey(dangerous),
+      selectedYear: 2026,
+      monthlyRows: [row('2026-01', 10, dangerous)],
+      annualRows: [{ ...dangerous, jahr: 2026, verbrauch_jahr: 10 }],
+      readingRows: [
+        { ...dangerous, zeitstempel: '01.01.2026 12:30', wert: 100 },
+        { ...dangerous, zeitstempel: '01.02.2026 12:30', wert: 110 }
+      ]
+    });
     expect(html).not.toContain('<script>');
+    expect(html).not.toContain('<img');
     expect(html).toContain('&lt;script&gt;');
+    expect(html).toContain('&lt;img');
   });
 });
