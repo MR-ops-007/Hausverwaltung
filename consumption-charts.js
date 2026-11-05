@@ -205,7 +205,7 @@ const consumptionChartService = (() => {
         .map(points => `<polyline points="${points.join(' ')}" fill="none" stroke="${color}" stroke-width="3"${dash ? ' stroke-dasharray="7 5"' : ''}/>`)
         .join('');
       const markers = items.map((item, index) => item && item.value !== null
-        ? `<circle cx="${x(index).toFixed(1)}" cy="${y(item.value).toFixed(1)}" r="4" fill="${item.derived ? '#f59e0b' : item.fromAnnual ? '#ea580c' : item.reconciled ? '#0f766e' : item.fromReadings ? '#0284c7' : color}"><title>${esc(labels[index])} ${esc(label)}: ${fmt(item.value)} ${esc(unit)}${item.invalidReading ? ' (rückläufiger Zählerstand prüfen)' : ''}${item.derived ? ' (linear fortgeschrieben)' : ''}${item.fromReadings ? ' (aus Rohintervall ergänzt)' : ''}${item.fromAnnual ? ' (aus Jahresrest ergänzt)' : ''}${item.reconciled ? ' (mit Jahreswert abgeglichen)' : ''}${item.flagged ? ' (Prüfhinweis)' : ''}</title></circle>`
+        ? `<circle cx="${x(index).toFixed(1)}" cy="${y(item.value).toFixed(1)}" r="4" fill="${item.derived ? '#f59e0b' : item.fromAnnual ? '#ea580c' : item.reconciled ? '#0f766e' : item.fromReadings ? '#0284c7' : color}"><title>${esc(labels[index])} ${esc(label)}: ${fmt(item.value)} ${esc(unit)}${item.invalidReading ? ' (rückläufiger Zählerstand prüfen)' : ''}${item.derived ? ' (linear fortgeschrieben)' : ''}${item.fromReadings ? ' (aus Rohintervall ergänzt)' : ''}${item.fromAnnual ? ' (aus Jahresrest ergänzt)' : ''}${item.reconciled ? ' (mit Jahreswert abgeglichen)' : ''}${item.oilRefill ? ' (Tankfüllung oder Korrektur erkannt)' : ''}${item.flagged ? ' (Prüfhinweis)' : ''}</title></circle>`
         : '').join('');
       return `${line}${markers}`;
     };
@@ -409,7 +409,7 @@ const consumptionChartService = (() => {
     return (rows || []).find(row => sameMeter(row, meter) && Number(row.jahr) === Number(year)) || null;
   }
 
-  function render({ meters = [], selectedKey = '', selectedYear, monthlyRows = [], annualRows = [], readingRows = [], mode = '', now = new Date() }) {
+  function render({ meters = [], selectedKey = '', selectedYear, monthlyRows = [], annualRows = [], readingRows = [], haustechnikRows = [], mode = '', now = new Date() }) {
     const unique = [...new Map(meters.filter(row => row && row.zaehler_id).map(row => [id(row), row])).values()];
     if (!unique.length) return '';
     const selectedGroup = typeof uiService !== 'undefined' ? (uiService.consumptionChartGroup || 'ALL') : 'ALL';
@@ -421,28 +421,45 @@ const consumptionChartService = (() => {
     if (!Number.isInteger(year)) return '';
     const priorYear = year - 1;
     const chartMode = mode || (typeof uiService !== 'undefined' ? (uiService.consumptionChartMode || 'area') : 'area');
-    const curr = monthlySeries(monthlyRows, meter, year, {
+    const oilService = typeof heatingOilService !== 'undefined' ? heatingOilService : null;
+    const isOil = Boolean(oilService && oilService.isOilLevelMeter(meter));
+    const oilSeries = selected => {
+      if (!isOil) return null;
+      const result = oilService.calculate(readingRows, meter, haustechnikRows, selected);
+      return result.monthly.map((item, month) => ({
+        value: item.hasValue ? item.liter : null,
+        flagged: result.refillMonths && result.refillMonths.has(month),
+        derived: false,
+        ...(result.refillMonths && result.refillMonths.has(month) ? { oilRefill: true } : {})
+      }));
+    };
+    const curr = oilSeries(year) || monthlySeries(monthlyRows, meter, year, {
       readingRows,
       annualRow: annualRowForYear(annualRows, meter, year),
       now
     });
-    const prior = monthlySeries(monthlyRows, meter, priorYear, {
+    const prior = oilSeries(priorYear) || monthlySeries(monthlyRows, meter, priorYear, {
       readingRows,
       annualRow: annualRowForYear(annualRows, meter, priorYear),
       now
     });
-    const history = annualSeries(annualRows, meter, year);
+    const history = isOil
+      ? oilService.annualSeries(readingRows, meter, haustechnikRows, year)
+      : annualSeries(annualRows, meter, year);
     const yearLabels = history.map(row => String(row.year));
     const hasCurrent = curr.some(row => row.value !== null);
     const hasPrior = prior.some(row => row.value !== null);
-    const hasInvalidReading = reverseReadingMonths(readingRows, meter, year).size > 0 ||
-      reverseReadingMonths(readingRows, meter, priorYear).size > 0;
+    const hasInvalidReading = !isOil && (
+      reverseReadingMonths(readingRows, meter, year).size > 0 ||
+      reverseReadingMonths(readingRows, meter, priorYear).size > 0
+    );
     const flagged = [...curr, ...prior].some(row => row.flagged);
     const derived = [...curr, ...prior].some(row => row.derived);
     const fromReadings = [...curr, ...prior].some(row => row.fromReadings);
     const fromAnnual = [...curr, ...prior].some(row => row.fromAnnual);
     const reconciled = [...curr, ...prior].some(row => row.reconciled);
-    const unit = /kwh/i.test(String(meter.medium)) ? 'kWh' : /m3/i.test(String(meter.medium)) ? 'm³' : /cm/i.test(String(meter.medium)) ? 'cm' : /liter|_l$/i.test(String(meter.medium)) ? 'l' : (meter.einheit || '');
+    const levelUnit = /cm/i.test(String(meter.medium)) ? 'cm' : /liter|_l$/i.test(String(meter.medium)) ? 'l' : (meter.einheit || '');
+    const unit = isOil ? 'l' : /kwh/i.test(String(meter.medium)) ? 'kWh' : /m3/i.test(String(meter.medium)) ? 'm³' : levelUnit;
     const groups = [...new Set(unique.map(groupOf).filter(Boolean))].sort();
     const media = [...new Set(unique.map(mediumOf).filter(Boolean))].sort();
     const chartYears = [...new Set([
@@ -474,11 +491,11 @@ const consumptionChartService = (() => {
         <select id="consumption-chart-meter-select" onchange="uiService.consumptionChartSelection=this.value;uiService.renderConsumptionDashboard()">${options}</select>
       </label><label>Darstellung<select onchange="uiService.consumptionChartMode=this.value;uiService.renderConsumptionDashboard()"><option value="line"${chartMode === 'line' ? ' selected' : ''}>Linie</option><option value="bar"${chartMode === 'bar' ? ' selected' : ''}>Balken</option><option value="area"${chartMode === 'area' ? ' selected' : ''}>Fläche</option></select></label></div>
       <div class="consumption-charts-grid">
-        <div class="consumption-chart-panel"><h4>Zählerstandsverlauf</h4>${lineChart(readingSeries(readingRows, meter), unit, `Zählerstandsverlauf für ${meter.bezeichnung || meter.zaehler_id} in ${unit}`)}</div>
+        <div class="consumption-chart-panel"><h4>Zählerstandsverlauf</h4>${lineChart(readingSeries(readingRows, meter), levelUnit, `Zählerstandsverlauf für ${meter.bezeichnung || meter.zaehler_id} in ${levelUnit}`)}</div>
         <div class="consumption-chart-panel"><h4>Monatsverbrauch ${esc(year)} / ${esc(priorYear)}</h4>${monthChart}</div>
         <div class="consumption-chart-panel"><h4>Jahresentwicklung</h4>${annualChart}</div>
       </div>
-      <p class="consumption-chart-note">Die Monatswerte verteilen Ableseintervalle zeitanteilig. Monate ohne berechenbaren Wert bleiben leer, nicht null. Das laufende Jahr kann unvollständig sein.${derived ? ' Orange markierte Monatswerte wurden für ein abgeschlossenes historisches Jahr linear aus dem Jahresrest fortgeschrieben.' : ''}${fromReadings ? ' Blau markierte Monatswerte wurden aus vorhandenen Rohintervallen ergänzt.' : ''}${fromAnnual ? ' Dunkelorange markierte Monatswerte wurden innerhalb des bereits belegten Messzeitraums aus dem verbleibenden Jahreswert ergänzt; spätere Monate werden nicht prognostiziert.' : ''}${reconciled ? ' Türkis markierte Monatswerte wurden wegen einer kleinen Abweichung proportional mit dem Jahreswert aus der Jahresview abgeglichen.' : ''}${hasInvalidReading ? ' Rückläufige Zählerstände werden nicht automatisch als Verbrauch interpretiert und müssen als Zählerwechsel, Reset oder Eingabefehler geprüft werden.' : ''}${flagged ? ' Einzelne Monatssegmente besitzen Prüfhinweise; Details stehen in der Verbrauchstabelle und Datenqualität.' : ''}</p>
+      <p class="consumption-chart-note">${isOil ? 'Heizölverbrauch wird aus den kumulierten Rückgängen des Füllstands berechnet: Zentimeter Verbrauch × Liter pro Zentimeter. Tankfüllungen oder steigende Füllstände erhöhen den Verbrauch nicht; sie setzen nur den neuen Ausgangspunkt.' : 'Die Monatswerte verteilen Ableseintervalle zeitanteilig.'} Monate ohne berechenbaren Wert bleiben leer, nicht null. Das laufende Jahr kann unvollständig sein.${derived ? ' Orange markierte Monatswerte wurden für ein abgeschlossenes historisches Jahr linear aus dem Jahresrest fortgeschrieben.' : ''}${fromReadings ? ' Blau markierte Monatswerte wurden aus vorhandenen Rohintervallen ergänzt.' : ''}${fromAnnual ? ' Dunkelorange markierte Monatswerte wurden innerhalb des bereits belegten Messzeitraums aus dem verbleibenden Jahreswert ergänzt; spätere Monate werden nicht prognostiziert.' : ''}${reconciled ? ' Türkis markierte Monatswerte wurden wegen einer kleinen Abweichung proportional mit dem Jahreswert aus der Jahresview abgeglichen.' : ''}${hasInvalidReading ? ' Rückläufige Zählerstände werden nicht automatisch als Verbrauch interpretiert und müssen als Zählerwechsel, Reset oder Eingabefehler geprüft werden.' : ''}${flagged ? ' Einzelne Monatssegmente besitzen Prüfhinweise; Details stehen in der Verbrauchstabelle und Datenqualität.' : ''}</p>
     </section>`;
   }
   return { getMeterKey: id, sameMeter, toNumber: num, consumptionMonth, monthlySeries, annualSeries, render };

@@ -6,6 +6,10 @@ const consumptionChartService = new Function(
   readFileSync(new URL('../consumption-charts.js', import.meta.url), 'utf8') +
   '; return consumptionChartService;'
 )();
+const heatingOilService = new Function(
+  readFileSync(new URL('../heating-oil-service.js', import.meta.url), 'utf8') +
+  '; return heatingOilService;'
+)();
 
 function loadUiService({
   zaehlerstaende = [],
@@ -18,6 +22,7 @@ function loadUiService({
   viewVerbrauchMonat = [],
   viewVerbrauchAudit = [],
   viewVerbrauchBilanzJahr = [],
+  haustechnik = [],
   consumptionData = null,
   loadConsumptionDataImpl = null,
   calcService = {
@@ -62,6 +67,7 @@ function loadUiService({
       view_verbrauch_monat: viewVerbrauchMonat,
       view_verbrauch_audit: viewVerbrauchAudit,
       view_verbrauch_bilanz_jahr: viewVerbrauchBilanzJahr,
+      haustechnik,
     },
     setZaehlerstaende(data) {
       if (!data || !Array.isArray(data.Zaehlerstaende)) throw new Error('keine Zählerstände');
@@ -173,6 +179,7 @@ function loadUiService({
         VALIDATION_STATUS,
       }
       : undefined,
+    heatingOilService,
   };
 
   const alert = (message) => {
@@ -1184,6 +1191,38 @@ describe('uiService.saveZaehler', () => {
     expect(confirms).toHaveLength(0);
     expect(alerts).toContain('Erfolgreich gespeichert!');
     expect(modalElement.style.display).toBe('none');
+  });
+
+  it('schlägt nach einer Tankfüllung ohne neuen Ölstand den maximalen Füllstand vor', async () => {
+    const fillMeter = {
+      objekt_id: 'Ra-HS-29',
+      einheit_id: 'Ra-HS-29_Allgemein',
+      zaehler_id: 'Z_OEL_GETANKT_LITER',
+      medium: 'oel_stand_l',
+      bezeichnung: 'Heizung Öl getankt (Liter)',
+    };
+    const levelMeter = {
+      objekt_id: 'Ra-HS-29',
+      einheit_id: 'Ra-HS-29_Allgemein',
+      zaehler_id: 'Z_OEL_STAND_IN_CM',
+      medium: 'oel_stand_cm',
+      bezeichnung: 'Heizung Ölstand (cm)',
+    };
+    const { uiService, saveCalls, confirms, alerts } = loadUiService({
+      currentMeters: [fillMeter, levelMeter],
+      inputValuesByZaehlerId: { Z_OEL_GETANKT_LITER: '3000' },
+    });
+
+    await uiService.saveZaehler();
+
+    expect(confirms).toHaveLength(1);
+    expect(confirms[0]).toContain('Tankfüllung');
+    expect(saveCalls[0].data).toHaveLength(2);
+    expect(saveCalls[0].data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ zaehler_id: 'Z_OEL_GETANKT_LITER', wert: 3000 }),
+      expect.objectContaining({ zaehler_id: 'Z_OEL_STAND_IN_CM', wert: 140 }),
+    ]));
+    expect(alerts).toContain('Erfolgreich gespeichert!');
   });
 
   it('blocks negative values and does not save', async () => {

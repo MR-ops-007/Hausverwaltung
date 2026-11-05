@@ -447,3 +447,26 @@ Umgesetzt:
 3. Sinkender Ölstand wird als Verbrauch akzeptiert.
 4. Steigender Ölstand erzeugt eine Warnung für Betankung, Korrektur oder Messfehler.
 5. Überlauf wird für Ölstand in cm nicht angewendet.
+
+### Heizöl-Verbrauch (in Arbeit auf `feature/heizoel-verbrauch`)
+
+Die Verbrauchsstatistik unterscheidet jetzt zwischen dem rückläufigen Füllstand
+des Haupttanks und dem daraus abgeleiteten Verbrauch in Litern. Für Hauptstraße 29
+werden zunächst 10.000 Liter bei 140 cm für den Haupttank und 2.000 Liter bei
+140 cm für den separaten Zusatztank angenommen. Die Werte sind in der optionalen
+Tabelle `Haustechnik` objekt- und tankspezifisch anpassbar.
+
+- Sinkende Füllstände werden als `cm` und `l` zeitanteilig auf Monate verteilt.
+- Steigende Füllstände werden als Tankfüllung/Korrektur markiert und nicht als
+  Verbrauch gezählt.
+- Eine Tankfüllung ohne neuen Füllstand erzeugt in der Eingabe einen Prüfhinweis;
+  bei Bestätigung kann der Füllstand auf das konfigurierte Maximum gesetzt werden.
+- Der Zusatztank bleibt separat und ist standardmäßig nicht Teil der allgemeinen
+  Hausverbrauchsauswertung.
+- Eine kWh-Umrechnung ist bis zur Klärung von Heizmedium, Heizwert und beheizter
+  Fläche ausdrücklich nicht enthalten.
+- `npm test` läuft auf diesem Branch mit 240 Tests in 12 Testdateien grün; zusätzlich
+  sind `node --check` für die geänderten JavaScript-Dateien und `git diff --check`
+  sauber. Das Paket ändert keine Apps-Script-Datei und benötigt für die lokale
+  Prüfung keinen Live-Zugriffsschlüssel.
+- Details und Grenzen stehen in `docs/heizoel-verbrauch.md`.

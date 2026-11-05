@@ -72,15 +72,20 @@ Diese Datei beschreibt offene und geplante Arbeit.
 ### P3 Heizöl-Verbrauch
 
 - Branch: `feature/heizoel-verbrauch`
-- Status: Offen, nach P0/P1
+- Status: In Arbeit, lokales Paket vorbereitet; PR/Deployment offen
 - Haupttank: 10.000 Liter; Zusatztank: 2.000 Liter, zunächst separat.
 - Verbrauch zunächst in cm und Litern darstellen; die Arbeitshypothese für den
-  Haupttank ist circa 12.000 Liter bei 140 cm.
+  Haupttank ist 10.000 Liter bei 140 cm, der Zusatztank 2.000 Liter bei 140 cm.
 - Liter-pro-cm und Tankparameter objektbezogen konfigurierbar machen.
 - Tankfüllungen als Ereignisse erfassen und bei fehlendem neuen Füllstand einen
   Prüfhinweis mit Vorschlag `Vollgetankt: Ja` anzeigen.
 - Keine kWh-Umrechnung, bevor Heizmedium, Heizwert und beheizte Fläche festgelegt
   sind.
+- Umsetzung: `heating-oil-service.js` kapselt Tankparameter, Literberechnung,
+  Monats-/Jahresreihen und die Erkennung fehlender Füllstände. Die UI zeigt den
+  Füllstandsverlauf weiterhin in cm und den berechneten Verbrauch zusätzlich in l.
+- Tests: Haupttank, Zusatztank, steigende Füllstände, fremde Zähleridentitäten,
+  fehlender Füllstand nach Tankfüllung und Jahresentwicklung.
 
 ### P4 Spätere technische Themen
 

@@ -359,6 +359,36 @@ Duplikate werden vor der Anwendung der Migration separat über `writeStandIdDupl
 | **E** | `gueltig_ab` | Datum | Beginn der Vertragsperiode |
 | **F** | `gueltig_bis` | Datum | Ende der Vertragsperiode |
 
+### Tabelle: `Haustechnik` (objektbezogene technische Parameter)
+
+Die Tabelle ist optional. Fehlt für ein Objekt oder einen Tank eine Zeile, verwendet
+die UI nur für die Heizöl-Hypothese die dokumentierten Fallbackwerte. Sobald die
+realen Tankdaten bekannt sind, werden sie hier gepflegt; die gespeicherten
+Zählerstände selbst müssen dafür nicht umgerechnet werden.
+
+| Spalte | Feldname | Datentyp | Beschreibung |
+| :--- | :--- | :--- | :--- |
+| **A** | `objekt_id` | String | FK -> `Objekte.objekt_id` |
+| **B** | `tank_id` | String | Eindeutiger Tank innerhalb des Objekts, z. B. `HAUPTTANK` oder `ZUSATZTANK` |
+| **C** | `bezeichnung` | String | Anzeigename des Tanks |
+| **D** | `volumen_l` | Zahl | Nennvolumen des Tanks in Litern |
+| **E** | `max_fuellstand_cm` | Zahl | Füllstand bei voller Tankhöhe in cm |
+| **F** | `liter_pro_cm` | Zahl | Liter je cm; falls leer, wird `volumen_l / max_fuellstand_cm` verwendet |
+| **G** | `aktiv` | Boolean | Technische Konfiguration aktiv/inaktiv |
+| **H** | `in_verbrauch_auswertung` | Boolean | Ob der Tank in der allgemeinen Heizöl-Auswertung berücksichtigt wird |
+
+Für Hauptstraße 29 gilt zunächst die Arbeitshypothese `HAUPTTANK = 10.000 l /
+140 cm` und `ZUSATZTANK = 2.000 l / 140 cm`. Der Zusatztank wird separat erfasst
+und ist standardmäßig nicht Bestandteil der allgemeinen Hausauswertung.
+
+Bei `oel_stand_cm` ist der Messwert ein rückläufiger Füllstand. Der Literverbrauch
+eines Intervalls ist `max(0, Stand_alt - Stand_neu) * liter_pro_cm`. Ein höherer
+Folgewert wird als Tankfüllung, Korrektur oder Messfehler markiert und nicht als
+Verbrauch gezählt. Eine Tankfüllung ohne neuen Füllstand erzeugt in der Eingabe
+einen Prüfhinweis; bei Bestätigung kann der Füllstand auf `max_fuellstand_cm`
+gesetzt werden. Eine kWh-Umrechnung ist bewusst nicht enthalten, solange Heizmedium,
+Heizwert und beheizte Fläche nicht festgelegt sind.
+
 ### Tabelle: `Fixkosten`
 | Spalte | Feldname | Datentyp | Beschreibung |
 | :--- | :--- | :--- | :--- |

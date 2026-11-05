@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-const service = new Function(readFileSync(new URL('../consumption-charts.js', import.meta.url), 'utf8') + ';return consumptionChartService;')();
+const heatingOilService = new Function(
+  readFileSync(new URL('../heating-oil-service.js', import.meta.url), 'utf8') +
+  ';return heatingOilService;'
+)();
+const service = new Function(
+  'heatingOilService',
+  readFileSync(new URL('../consumption-charts.js', import.meta.url), 'utf8') +
+  ';return consumptionChartService;'
+)(heatingOilService);
 const meter = {objekt_id:'O1',einheit_id:'W1',zaehler_id:'Z1',medium:'strom_kwh',einheit_name:'Wohnung 1',bezeichnung:'Strom'};
 const row = (monat, verbrauch_monat, extra={}) => ({...meter,jahr:Number(monat.slice(0,4)),monat,verbrauch_monat,...extra});
 
@@ -460,5 +468,30 @@ describe('Verbrauchsdiagramme', () => {
     expect(html).not.toContain('<img');
     expect(html).toContain('&lt;script&gt;');
     expect(html).toContain('&lt;img');
+  });
+
+  it('zeigt beim Ölstand den Verlauf in cm und den Verbrauch in Litern', () => {
+    const oilMeter = {
+      ...meter,
+      objekt_id: 'Ra-HS-29',
+      einheit_id: 'Ra-HS-29_Allgemein',
+      zaehler_id: 'Z_OEL_STAND_IN_CM',
+      medium: 'oel_stand_cm',
+      bezeichnung: 'Heizung Ölstand (cm)',
+    };
+    const html = service.render({
+      meters: [oilMeter],
+      selectedKey: service.getMeterKey(oilMeter),
+      selectedYear: 2026,
+      readingRows: [
+        { ...oilMeter, zeitstempel: '01.01.2026 00:00', wert: 100 },
+        { ...oilMeter, zeitstempel: '01.02.2026 00:00', wert: 80 },
+      ],
+    });
+
+    expect(html).toContain('Zählerstandsverlauf für Heizung Ölstand (cm) in cm');
+    expect(html).toContain('Monatlicher Verbrauch 2026 und 2025 in l');
+    expect(html).toContain('1.428,57 l');
+    expect(html).not.toContain('rückläufiger Zählerstand prüfen');
   });
 });
