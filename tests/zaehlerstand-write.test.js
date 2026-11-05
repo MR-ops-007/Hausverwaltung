@@ -225,6 +225,27 @@ describe('Korrekturfenster (Minutenwechsel)', () => {
     expect(send(api, [reading('Z2', 5, '09:02')])).toMatchObject({ status: 'success', angelegt: 1 });
   });
 
+  it('legt einen historischen gleichen Nullstand als neue Ablesung an', () => {
+    const api = backend();
+    const historicalZero = {
+      ...reading('Z1', 0),
+      zeitstempel: '01.10.2026 09:00',
+      stand_id: 'ST_Z1_2026-10-01 09:00',
+    };
+
+    const result = send(api, [historicalZero]);
+
+    expect(result).toMatchObject({ status: 'success', angelegt: 1, bereits_vorhanden: 0 });
+    expect(api.data.Zaehlerstaende).toHaveLength(3);
+    expect(api.data.Zaehlerstaende[2]).toEqual([
+      historicalZero.stand_id,
+      'Z1',
+      0,
+      historicalZero.zeitstempel,
+      'UI',
+    ]);
+  });
+
   it('ignoriert Einträge mit früherem Zeitpunkt als der vorhandene Wert', () => {
     const api = backend();
     expect(send(api, [reading('Z1', 1400, '08:55')])).toMatchObject({ status: 'success', angelegt: 1 });

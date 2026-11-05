@@ -2078,6 +2078,41 @@ const uiService = {
     return value === undefined || value === null ? '' : String(value).trim();
   },
 
+  formatZaehlerSaveSuccess(res) {
+    const counts = [res && res.angelegt, res && res.bereits_vorhanden, res && res.ueberschrieben]
+      .map(value => value === undefined || value === null || value === '' ? NaN : Number(value));
+    if (!counts.some(Number.isFinite)) return 'Erfolgreich gespeichert!';
+
+    const [angelegt, bereitsVorhanden, ueberschrieben] = counts
+      .map(value => Number.isFinite(value) ? value : 0);
+
+    if (angelegt === 0 && bereitsVorhanden > 0 && ueberschrieben === 0) {
+      const countText = bereitsVorhanden === 1
+        ? 'Die identische Eingabe war bereits verarbeitet.'
+        : `${bereitsVorhanden} identische Eingaben waren bereits verarbeitet.`;
+      return `${countText} Es wurde keine neue Zeile und kein neuer Zeitstempel angelegt.`;
+    }
+
+    const details = [];
+    if (angelegt > 0) {
+      details.push(angelegt === 1 ? '1 neuer Zählerstand' : `${angelegt} neue Zählerstände`);
+    }
+    if (ueberschrieben > 0) {
+      details.push(ueberschrieben === 1
+        ? '1 Zählerstand korrigiert; der bestehende Zeitstempel bleibt unverändert'
+        : `${ueberschrieben} Zählerstände korrigiert; die bestehenden Zeitstempel bleiben unverändert`);
+    }
+    if (bereitsVorhanden > 0) {
+      details.push(bereitsVorhanden === 1
+        ? '1 identische Eingabe war bereits verarbeitet'
+        : `${bereitsVorhanden} identische Eingaben waren bereits verarbeitet`);
+    }
+
+    return details.length > 0
+      ? `Erfolgreich gespeichert! ${details.join('; ')}.`
+      : 'Erfolgreich verarbeitet. Es wurde keine neue Zeile angelegt.';
+  },
+
   /** stand_id wie im Backend: ST_{zaehler_id}_{YYYY-MM-DD HH:mm}, aus dem deutschen Zeitstempel. */
   buildStandId(zaehlerId, germanTimestamp) {
     const match = String(germanTimestamp).match(/^(\d{1,2})\.(\d{1,2})\.(\d{4}) (\d{1,2}):(\d{2})$/);
@@ -2471,7 +2506,7 @@ const uiService = {
         alert('Offline gespeichert. Die Werte sind noch NICHT in der Datenbank und werden gesendet, sobald eine Verbindung besteht. Den Status siehst du oben auf der Seite.');
       } else {
         await this.refreshZaehlerstaendeAfterSave(res, transactions, overwrittenByZaehler);
-        alert('Erfolgreich gespeichert!');
+        alert(this.formatZaehlerSaveSuccess(res));
       }
 
       this.closeModal();
