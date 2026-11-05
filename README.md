@@ -42,6 +42,7 @@ Das Google Apps Script Backend wird im Repository unter `apps-script/Code.gs` ve
 | `apps-script/ContractService.js` | Gemeinsame Vertrags-/Indexregeln für Browser und Backend |
 | `apps-script/Contracts.gs` | Vertragsupdates, Änderungshistorie und explizite Schema-Vorbereitung |
 | `docs/contracts-index-plan.md` | Analyse, Datenmodell-Diff und freizugebende Migration |
+| `docs/offline-sync-und-korrekturen.md` | Offline-Queue, Konflikte, Überschreiben mit Grund, Protokoll |
 | `DATA_MODEL.md` | Fachliches Datenmodell des Google Sheets |
 | `PROJECT_STATE.md` | Aktueller Projektstand, nächste Schritte und Historie |
 | `AGENT_AUDIT.md` | Bestandsaufnahme und Regeln für KI-/Agentenarbeit |
@@ -97,6 +98,8 @@ liest auch Bestandsdaten ohne neue Spalten. Schreiben erfordert Backend ab 4.7.0
 die einmalige Schema-Vorbereitung (`prepareContractSchema()`) und die Script
 Property `CONTRACT_WRITE_TOKEN`. Es wurden keine Produktivdaten migriert.
 Siehe `docs/contracts-index-plan.md`.
+
+Offline-Queue und Korrekturen (Backend ab 4.8.4): Nicht gespeicherte Werte werden oben angezeigt und lassen sich erneut senden; Überschreiben nur mit Grund. Siehe `docs/offline-sync-und-korrekturen.md`.
 
 Zugriffsschutz (Backend ab 4.8.0): Lesen und Schreiben erfordern einen Zugangsschlüssel
 (Script Property `APP_ACCESS_KEY`). Einspielen, Rollback und Schlüsselwechsel stehen in

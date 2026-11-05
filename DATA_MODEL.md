@@ -36,6 +36,21 @@ Speichert jeden Zählerstand (nicht mehr `Transaktionen`).
 | **F** | `wert` | Zahl | Gemessener Wert (m³, kWh, l) |
 | **G** | `quelle` | String | `UI`, `Import`, `Korrektur` |
 
+**Identität neuer UI-Eingaben (ab Backend 4.6.4):** `ST_{zaehler_id}_{YYYY-MM-DD HH:mm}` (kurzes Format, ältere Zeilen behalten das lange Format oben). Die UI bildet die `stand_id` beim Erfassen; eine Wiederholung mit gleicher `stand_id` und gleichem Wert wird nicht doppelt geschrieben, bei anderem Wert meldet das Backend einen Konflikt (ab 4.8.4, siehe `docs/offline-sync-und-korrekturen.md`).
+
+### Tabelle: `Zaehlerstand_Korrekturen` (Protokoll, ab Backend 4.8.4)
+Wird beim ersten Überschreiben eines Zählerstands automatisch angelegt. Nur Historie, wird nicht ausgewertet.
+
+| Feldname | Datentyp | Beschreibung |
+| :--- | :--- | :--- |
+| `korrigiert_am` | Text | `YYYY-MM-DD HH:mm:ss`, Europe/Berlin |
+| `stand_id` | String | überschriebener Zählerstand (FK -> Zaehlerstaende.stand_id) |
+| `zaehler_id` | String | betroffener Zähler |
+| `alter_wert` / `neuer_wert` | Zahl | Wert vor und nach der Korrektur |
+| `grund` | String | Pflichtangabe des Nutzers (mind. 3 Zeichen) |
+| `quelle` | String | Quelle des neuen Eintrags |
+| `art` | String | `GLEICHE_MINUTE` (gleiche `stand_id`) oder `NAHE_ABLESUNG` (Wert bis 15 Minuten davor) |
+
 ### Tabelle: `Zahlungen`
 Speichert jede Zahlung auf einen Vertrag.
 
@@ -303,6 +318,7 @@ Grundregeln:
 5. **Warnung statt harter Blockade:** Bei unklaren Fällen soll die UI zunächst warnen und eine bewusste Bestätigung ermöglichen, statt Eingaben pauschal zu verhindern.
 6. **Extremverbrauch:** Wenn `max_plausibler_verbrauch` gesetzt ist und der berechnete Verbrauch diesen Wert überschreitet, soll eine Warnung angezeigt werden.
 7. **Rückläufige Füllstandszähler:** Bei `oel_stand_cm` ist ein niedrigerer Folgewert normaler Verbrauch. Ein höherer Folgewert bedeutet Betankung, Korrektur oder Messfehler und muss mit eigener Logik geprüft werden. Ein Überlauf ist hier fachlich nicht plausibel.
+8. **Korrekturen und Mehrfachwerte (noch nicht umgesetzt):** Die geplante Sprung-/Verbrauchsprüfung darf mehrere Werte desselben Zählers am selben Tag nicht allein deshalb beanstanden, weil ein Zahlendreher korrigiert wurde. Korrekturen innerhalb von 15 Minuten überschreiben den Wert (Protokoll in `Zaehlerstand_Korrekturen`). Später bemerkte Fehler und bewusst zusätzliche Ablesungen erzeugen einen zweiten Wert am Tag; die Prüfung muss dann den jeweils letzten Wert je Zähler und Tag bewerten.
 
 Beispiel Überlauf bei 4-stelligem Zähler:
 

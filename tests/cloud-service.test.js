@@ -1,26 +1,40 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 const reply = body => ({ ok: true, text: async () => JSON.stringify(body) });
 const unauthorized = () => reply({ status: 'error', code: 'UNAUTHORIZED', message: 'Zugangsschlüssel fehlt oder ist falsch.' });
 const bodyOf = (fetch, index) => JSON.parse(fetch.mock.calls[index][1].body);
 
-function loadCloud({ key = '', online = true, accessUi } = {}) {
+function loadCloud({ key = '', online = true, accessUi, failSet = false, dropWrites = false, withDocument = false, failSetWhen = null, failRemoveWhen = null } = {}) {
   const source = readFileSync(new URL('../cloud-service.js', import.meta.url), 'utf8');
   const store = key ? { hv_access_key: key } : {};
   const localStorage = {
     getItem: name => store[name] ?? null,
-    setItem: (name, value) => { store[name] = String(value); },
-    removeItem: name => { delete store[name]; }
+    setItem: (name, value) => {
+      if (failSet || (failSetWhen && failSetWhen(name))) throw new Error('QuotaExceededError');
+      if (dropWrites) return; // speichert stillschweigend nichts
+      store[name] = String(value);
+    },
+    removeItem: name => {
+      if (failRemoveWhen && failRemoveWhen(name)) throw new Error('SecurityError');
+      delete store[name];
+    }
   };
   const fetch = vi.fn();
   const navigator = { onLine: online };
   const console = { warn: vi.fn() };
-  const cloud = new Function('CONFIG', 'fetch', 'localStorage', 'navigator', 'accessUi', 'console', `${source};return cloudService;`)(
-    { API_URL: 'https://example.test/api' }, fetch, localStorage, navigator, accessUi, console);
+  const events = [];
+  const document = withDocument ? { dispatchEvent: event => events.push(event.type) } : undefined;
+  const CustomEvent = withDocument ? class { constructor(type) { this.type = type; } } : undefined;
+  const cloud = new Function('CONFIG', 'fetch', 'localStorage', 'navigator', 'accessUi', 'console', 'document', 'CustomEvent', `${source};return cloudService;`)(
+    { API_URL: 'https://example.test/api' }, fetch, localStorage, navigator, accessUi, console, document, CustomEvent);
   const queue = name => JSON.parse(store[name] || '[]');
-  return { cloud, fetch, store, navigator, queue };
+  // Nutzdaten der Queue-Einträge (ohne id/status), in Reihenfolge.
+  const payloads = () => queue('offline_queue').map(entry => entry.payload);
+  return { cloud, fetch, store, navigator, queue, payloads, events };
 }
+
+afterEach(() => vi.useRealTimers());
 
 const transaction = { typ: 'ZAEHLERSTAND_NEU', data: [{ zaehler_id: 'Z1', wert: 5 }] };
 
@@ -122,6 +136,30 @@ describe('Lesen per POST mit Zugangsschlüssel', () => {
   });
 });
 
+describe('Zählerstände speichern: Konflikt und Backend-Fehler', () => {
+  it('reicht CONFLICT samt Konfliktdaten an die UI weiter, ohne zu queuen', async () => {
+    const { cloud, fetch, queue } = loadCloud({ key: 'k1' });
+    const conflicts = [{ stand_id: 'ST_Z1', zaehler_id: 'Z1', alter_wert: 1950, neuer_wert: 1590 }];
+    fetch.mockResolvedValue(reply({ status: 'error', code: 'CONFLICT', message: 'Konflikt', conflicts }));
+    expect(await cloud.saveTransaction(transaction)).toEqual({ status: 'error', code: 'CONFLICT', conflicts, message: 'Konflikt' });
+    expect(queue('offline_queue')).toEqual([]);
+  });
+
+  it('queued LOCK_TIMEOUT als vorübergehenden Fehler', async () => {
+    const { cloud, fetch, payloads } = loadCloud({ key: 'k1' });
+    fetch.mockResolvedValue(reply({ status: 'error', code: 'LOCK_TIMEOUT', transient: true, message: 'ausgelastet' }));
+    expect(await cloud.saveTransaction(transaction)).toMatchObject({ status: 'success', queued: true });
+    expect(payloads()).toEqual([transaction]);
+  });
+
+  it('sendet den Überschreib-Grund mit', async () => {
+    const { cloud, fetch } = loadCloud({ key: 'k1' });
+    fetch.mockResolvedValue(reply({ status: 'success', message: 'ok' }));
+    await cloud.saveTransaction({ ...transaction, ueberschreiben: { grund: 'Tippfehler' } });
+    expect(bodyOf(fetch, 0)).toMatchObject({ ueberschreiben: { grund: 'Tippfehler' } });
+  });
+});
+
 describe('Zählerstände speichern', () => {
   it('sendet den Schlüssel mit und meldet Erfolg', async () => {
     const { cloud, fetch, queue } = loadCloud({ key: 'k1' });
@@ -133,14 +171,15 @@ describe('Zählerstände speichern', () => {
 
   it('legt Einträge offline und bei Netzwerkfehlern in die Queue', async () => {
     const offline = loadCloud({ key: 'k1', online: false });
-    expect((await offline.cloud.saveTransaction(transaction)).message).toBe('Offline gespeichert');
-    expect(offline.queue('offline_queue')).toEqual([transaction]);
+    expect(await offline.cloud.saveTransaction(transaction)).toMatchObject({ queued: true, message: 'Offline gespeichert' });
+    expect(offline.payloads()).toEqual([transaction]);
+    expect(offline.queue('offline_queue')[0]).toMatchObject({ status: 'pending' });
     expect(offline.fetch).not.toHaveBeenCalled();
 
     const network = loadCloud({ key: 'k1' });
     network.fetch.mockRejectedValue(new TypeError('Failed to fetch'));
-    expect((await network.cloud.saveTransaction(transaction)).message).toBe('In Queue verschoben');
-    expect(network.queue('offline_queue')).toEqual([transaction]);
+    expect(await network.cloud.saveTransaction(transaction)).toMatchObject({ status: 'success', queued: true, message: 'In Queue verschoben' });
+    expect(network.payloads()).toEqual([transaction]);
   });
 
   it('queued vorübergehende Serverfehler, aber keine Ablehnungen', async () => {
@@ -183,15 +222,16 @@ describe('Zählerstände speichern', () => {
 });
 
 describe('Offline-Queue', () => {
-  const item = n => ({ typ: 'ZAEHLERSTAND_NEU', data: [{ zaehler_id: 'Z' + n }] });
-  const withQueue = (items, options) => {
+  const item = n => ({ typ: 'ZAEHLERSTAND_NEU', data: [{ zaehler_id: 'Z' + n, wert: n }] });
+  const entry = (n, extra = {}) => ({ id: 'e' + n, payload: item(n), status: 'pending', queued_at: null, ...extra });
+  const withQueue = (entries, options) => {
     const setup = loadCloud({ key: 'k1', ...options });
-    setup.store.offline_queue = JSON.stringify(items);
+    setup.store.offline_queue = JSON.stringify(entries);
     return setup;
   };
 
   it('entfernt nur vom Backend bestätigte Einträge', async () => {
-    const { cloud, fetch, queue } = withQueue([item(1), item(2)]);
+    const { cloud, fetch, queue } = withQueue([entry(1), entry(2)]);
     fetch.mockResolvedValue(reply({ status: 'success' }));
     await cloud.processOfflineQueue();
     expect(fetch).toHaveBeenCalledTimes(2);
@@ -199,42 +239,107 @@ describe('Offline-Queue', () => {
     expect(bodyOf(fetch, 0).key).toBe('k1');
   });
 
-  it('verliert Einträge nicht, wenn das Backend mit HTTP 200 einen Fehler meldet', async () => {
-    const { cloud, fetch, queue } = withQueue([item(1), item(2), item(3)]);
+  it('markiert Ablehnungen mit Grund, behält sie sichtbar und blockiert den Rest nicht', async () => {
+    const { cloud, fetch, queue } = withQueue([entry(1), entry(2), entry(3)]);
+    const conflicts = [{ stand_id: 'ST_Z2', zaehler_id: 'Z2', alter_wert: 1, neuer_wert: 2 }];
     fetch.mockResolvedValueOnce(reply({ status: 'success' }))
-      .mockResolvedValueOnce(reply({ status: 'error', message: 'Abgelehnt' }))
+      .mockResolvedValueOnce(reply({ status: 'error', code: 'CONFLICT', message: 'Konflikt', conflicts }))
       .mockResolvedValueOnce(reply({ status: 'success' }));
+    const summary = await cloud.processOfflineQueue();
+    expect(queue('offline_queue')).toHaveLength(1);
+    expect(queue('offline_queue')[0]).toMatchObject({ id: 'e2', status: 'rejected', code: 'CONFLICT', message: 'Konflikt', conflicts });
+    expect(summary).toMatchObject({ pending: 0, rejected: 1, values: 1 });
+  });
+
+  it('behält bei LOCK_TIMEOUT den Rest als pending und stoppt den Durchlauf', async () => {
+    const { cloud, fetch, queue } = withQueue([entry(1), entry(2), entry(3)]);
+    fetch.mockResolvedValueOnce(reply({ status: 'success' }))
+      .mockResolvedValueOnce(reply({ status: 'error', code: 'LOCK_TIMEOUT', transient: true, message: 'ausgelastet' }));
     await cloud.processOfflineQueue();
-    expect(queue('offline_queue')).toEqual([]);
-    expect(queue('offline_queue_failed')).toEqual([item(2)]);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(queue('offline_queue').map(e => [e.id, e.status])).toEqual([['e2', 'pending'], ['e3', 'pending']]);
   });
 
   it('behält den Rest bei Netzwerkproblemen', async () => {
-    const { cloud, fetch, queue } = withQueue([item(1), item(2), item(3)]);
+    const { cloud, fetch, queue } = withQueue([entry(1), entry(2), entry(3)]);
     fetch.mockResolvedValueOnce(reply({ status: 'success' })).mockRejectedValueOnce(new TypeError('offline'));
     await cloud.processOfflineQueue();
-    expect(queue('offline_queue')).toEqual([item(2), item(3)]);
-    expect(queue('offline_queue_failed')).toEqual([]);
+    expect(queue('offline_queue').map(e => [e.id, e.status])).toEqual([['e2', 'pending'], ['e3', 'pending']]);
   });
 
   it('behält die Queue bei abgelehntem Schlüssel und öffnet dabei keinen Dialog', async () => {
     const accessUi = { prompt: vi.fn() };
-    const { cloud, fetch, queue } = withQueue([item(1), item(2)], { accessUi });
+    const { cloud, fetch, queue } = withQueue([entry(1), entry(2)], { accessUi });
     fetch.mockResolvedValue(unauthorized());
     await cloud.processOfflineQueue();
     expect(accessUi.prompt).not.toHaveBeenCalled();
-    expect(queue('offline_queue')).toEqual([item(1), item(2)]);
-    expect(queue('offline_queue_failed')).toEqual([]);
+    expect(queue('offline_queue').map(e => e.status)).toEqual(['pending', 'pending']);
+  });
+
+  it('fragt beim manuellen Senden nach dem Schlüssel, wenn allowPrompt gesetzt ist', async () => {
+    const accessUi = { prompt: vi.fn().mockResolvedValue('richtig') };
+    const { cloud, fetch, queue } = withQueue([entry(1)], { accessUi });
+    fetch.mockResolvedValueOnce(unauthorized()).mockResolvedValueOnce(reply({ status: 'success' }));
+    await cloud.processOfflineQueue({ allowPrompt: true });
+    expect(accessUi.prompt).toHaveBeenCalledTimes(1);
+    expect(queue('offline_queue')).toEqual([]);
   });
 
   it('behält Einträge, die während des Durchlaufs neu dazukommen', async () => {
-    const { cloud, fetch, store, queue } = withQueue([item(1)]);
+    const { cloud, fetch, store, queue } = withQueue([entry(1)]);
     fetch.mockImplementation(async () => {
-      store.offline_queue = JSON.stringify([item(1), item(9)]);
+      store.offline_queue = JSON.stringify([entry(1), entry(9)]);
       return reply({ status: 'success' });
     });
     await cloud.processOfflineQueue();
-    expect(queue('offline_queue')).toEqual([item(9)]);
+    expect(queue('offline_queue').map(e => e.id)).toEqual(['e9']);
+  });
+
+  it('sendet abgelehnte Einträge nie von selbst, auch nicht mit force', async () => {
+    const rejected = entry(1, { status: 'rejected', code: 'CONFLICT', message: 'Konflikt' });
+    const { cloud, fetch } = withQueue([rejected]);
+    await cloud.processOfflineQueue();
+    await cloud.processOfflineQueue({ force: true, allowPrompt: true });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('versucht einen abgelehnten Eintrag erst nach ausdrücklichem retryEntry erneut', async () => {
+    const rejected = entry(1, { status: 'rejected', code: 'VALIDIERUNG', message: 'Fehler' });
+    const { cloud, fetch, queue } = withQueue([rejected]);
+    fetch.mockResolvedValue(reply({ status: 'success' }));
+    cloud.retryEntry('e1');
+    expect(queue('offline_queue')[0]).toMatchObject({ status: 'pending' });
+    await cloud.processOfflineQueue();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(queue('offline_queue')).toEqual([]);
+  });
+
+  it('übernimmt ältere Formate: rohe Payloads und die frühere Liste offline_queue_failed', () => {
+    const { cloud, store, queue } = withQueue([item(1)]);
+    store.offline_queue_failed = JSON.stringify([item(2)]);
+    const summary = cloud.getQueueSummary();
+    expect(summary).toMatchObject({ pending: 1, rejected: 1, values: 2 });
+    expect(summary.entries.map(e => e.payload)).toEqual([item(1), item(2)]);
+    expect(queue('offline_queue')).toHaveLength(2);
+    expect(store.offline_queue_failed).toBeUndefined();
+    expect(new Set(queue('offline_queue').map(e => e.id)).size).toBe(2);
+  });
+
+  it('verwirft einen Eintrag nur auf ausdrückliche Anforderung', () => {
+    const { cloud, queue } = withQueue([entry(1), entry(2)]);
+    cloud.discardQueueEntry('e1');
+    expect(queue('offline_queue').map(e => e.id)).toEqual(['e2']);
+  });
+
+  it('sendet nach prepareOverwrite den Grund mit und entfernt den Eintrag nach Erfolg', async () => {
+    const rejected = entry(1, { status: 'rejected', code: 'CONFLICT', message: 'Konflikt' });
+    const { cloud, fetch, queue } = withQueue([rejected]);
+    fetch.mockResolvedValue(reply({ status: 'success' }));
+    cloud.prepareOverwrite('e1', 'Tippfehler');
+    expect(queue('offline_queue')[0]).toMatchObject({ status: 'pending' });
+    await cloud.processOfflineQueue();
+    expect(bodyOf(fetch, 0)).toMatchObject({ ...item(1), ueberschreiben: { grund: 'Tippfehler' }, key: 'k1' });
+    expect(queue('offline_queue')).toEqual([]);
   });
 
   it('sendet bei gleichzeitigen Aufrufen nichts doppelt', async () => {
@@ -253,13 +358,401 @@ describe('Offline-Queue', () => {
     expect(empty.fetch).not.toHaveBeenCalled();
   });
 
-  it('lädt Hintergrunddaten zuerst und verarbeitet danach die Queue', async () => {
-    const { cloud, fetch, queue } = withQueue([item(1)]);
-    fetch.mockResolvedValueOnce(reply({ Mieter: [] })).mockResolvedValueOnce(reply({ status: 'success' }));
+  it('sendet zuerst die Queue und liest danach, damit die Daten den synchronisierten Stand zeigen', async () => {
+    const { cloud, fetch, queue } = withQueue([entry(1)]);
+    fetch.mockResolvedValueOnce(reply({ status: 'success' })).mockResolvedValueOnce(reply({ Mieter: [] }));
     expect(await cloud.loadBackgroundData()).toEqual({ Mieter: [] });
-    expect(bodyOf(fetch, 0)).toMatchObject({ typ: 'LESEN', view: 'alle' });
-    expect(bodyOf(fetch, 1)).toMatchObject(item(1));
+    expect(bodyOf(fetch, 0)).toMatchObject(item(1));
+    expect(bodyOf(fetch, 1)).toMatchObject({ typ: 'LESEN', view: 'alle' });
     expect(queue('offline_queue')).toEqual([]);
+  });
+
+  it('liest auch dann, wenn die Queue nicht gesendet werden konnte', async () => {
+    const { cloud, fetch, queue } = withQueue([entry(1)]);
+    fetch.mockRejectedValueOnce(new TypeError('offline')).mockResolvedValueOnce(reply({ Mieter: [] }));
+    expect(await cloud.loadBackgroundData()).toEqual({ Mieter: [] });
+    expect(queue('offline_queue')).toHaveLength(1);
+  });
+});
+
+describe('Verlustfreie lokale Speicherung', () => {
+  it('meldet einen Fehler statt „offline gespeichert“, wenn localStorage nicht schreibbar ist', async () => {
+    const { cloud, fetch } = loadCloud({ key: 'k1', online: false, failSet: true });
+    const result = await cloud.saveTransaction(transaction);
+    expect(result).toMatchObject({ status: 'error', code: 'QUEUE_WRITE_FAILED' });
+    expect(result.queued).toBeUndefined();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('erkennt, dass nichts gespeichert wurde, auch wenn setItem keinen Fehler wirft', async () => {
+    const { cloud } = loadCloud({ key: 'k1', online: false, dropWrites: true });
+    expect(await cloud.saveTransaction(transaction)).toMatchObject({ status: 'error', code: 'QUEUE_WRITE_FAILED' });
+  });
+
+  it('meldet bei Verbindungsabbruch und nicht schreibbarem Speicher einen Fehler', async () => {
+    const { cloud, fetch } = loadCloud({ key: 'k1', failSet: true });
+    fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+    expect(await cloud.saveTransaction(transaction)).toMatchObject({ status: 'error', code: 'QUEUE_WRITE_FAILED' });
+  });
+
+  it('behält die alte Liste offline_queue_failed, wenn die Übernahme nicht gespeichert werden konnte', () => {
+    const { cloud, store } = loadCloud({ key: 'k1', failSet: true });
+    store.offline_queue_failed = JSON.stringify([item0(2)]);
+    store.offline_queue = JSON.stringify([item0(1)]);
+    const first = cloud.getQueueSummary();
+    expect(first.entries.map(e => e.payload)).toEqual([item0(1), item0(2)]);
+    expect(store.offline_queue_failed).toBeDefined();
+    expect(JSON.parse(store.offline_queue)).toEqual([item0(1)]);
+    // Stabile IDs, damit Aktionen auf noch nicht persistierte Einträge funktionieren.
+    expect(cloud.getQueueSummary().entries.map(e => e.id)).toEqual(first.entries.map(e => e.id));
+  });
+
+  it('entfernt die alte Liste erst nach nachweislich gespeicherter Übernahme', () => {
+    const { cloud, store, queue } = loadCloud({ key: 'k1' });
+    store.offline_queue_failed = JSON.stringify([item0(2)]);
+    cloud.getQueueSummary();
+    expect(store.offline_queue_failed).toBeUndefined();
+    expect(queue('offline_queue')).toHaveLength(1);
+    expect(cloud.getQueueSummary().entries).toHaveLength(1);
+  });
+});
+
+describe('Beschädigte Offline-Queue', () => {
+  const corrupt = (extra = {}) => {
+    const setup = loadCloud({ key: 'k1', ...extra });
+    setup.store.offline_queue = '{kaputt';
+    return setup;
+  };
+
+  it('behandelt sie nicht als leere Queue, sondern meldet den Fehler und lässt die Daten unverändert', () => {
+    const { cloud, store } = corrupt();
+    const summary = cloud.getQueueSummary();
+    expect(summary.entries).toEqual([]);
+    expect(summary.problems).toEqual([{ key: 'offline_queue', unreadable: false }]);
+    expect(store.offline_queue).toBe('{kaputt');
+  });
+
+  it('erkennt auch gültiges JSON, das keine Liste ist', () => {
+    const { cloud, store } = loadCloud({ key: 'k1' });
+    store.offline_queue = '{"a":1}';
+    expect(cloud.getQueueSummary().problems).toHaveLength(1);
+  });
+
+  it('überschreibt die beschädigten Daten nicht und meldet beim Speichern einen eindeutigen Fehler', async () => {
+    const { cloud, store, fetch } = corrupt({ online: false });
+    const result = await cloud.saveTransaction(transaction);
+    expect(result).toMatchObject({ status: 'error', code: 'QUEUE_CORRUPT' });
+    expect(result.queued).toBeUndefined();
+    expect(store.offline_queue).toBe('{kaputt');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('meldet den Fehler auch bei einem Verbindungsabbruch während des Speicherns', async () => {
+    const { cloud, store, fetch } = corrupt();
+    fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+    expect(await cloud.saveTransaction(transaction)).toMatchObject({ status: 'error', code: 'QUEUE_CORRUPT' });
+    expect(store.offline_queue).toBe('{kaputt');
+  });
+
+  it('sichert die Rohdaten geprüft, entfernt danach das Original und macht die Queue wieder nutzbar', async () => {
+    const { cloud, store, queue } = corrupt({ online: false });
+    const result = cloud.resolveCorruptQueue();
+    expect(result.ok).toBe(true);
+    expect(result.backups).toHaveLength(1);
+    expect(store[result.backups[0]]).toBe('{kaputt');
+    expect(store.offline_queue).toBeUndefined();
+    expect(cloud.getQueueSummary().problems).toEqual([]);
+    expect(await cloud.saveTransaction(transaction)).toMatchObject({ status: 'success', queued: true });
+    expect(queue('offline_queue')).toHaveLength(1);
+    expect(store[result.backups[0]]).toBe('{kaputt');
+  });
+
+  it('lässt alles unverändert, wenn die Sicherung nicht gespeichert werden kann', () => {
+    const { cloud, store } = corrupt({ failSet: true });
+    cloud.getQueueSummary();
+    expect(cloud.resolveCorruptQueue()).toMatchObject({ ok: false });
+    expect(store.offline_queue).toBe('{kaputt');
+    expect(cloud.getQueueSummary().problems).toHaveLength(1);
+  });
+
+  it('lässt alles unverändert, wenn die Sicherung nicht zurückgelesen werden kann', () => {
+    const { cloud, store } = corrupt({ dropWrites: true });
+    cloud.getQueueSummary();
+    expect(cloud.resolveCorruptQueue()).toMatchObject({ ok: false });
+    expect(store.offline_queue).toBe('{kaputt');
+  });
+
+  it('behandelt eine beschädigte alte Liste offline_queue_failed genauso und überschreibt sie nicht', () => {
+    const { cloud, store } = loadCloud({ key: 'k1' });
+    store.offline_queue_failed = 'kaputt';
+    store.offline_queue = JSON.stringify([item0(1)]);
+    const summary = cloud.getQueueSummary();
+    expect(summary.problems).toEqual([{ key: 'offline_queue_failed', unreadable: false }]);
+    expect(store.offline_queue_failed).toBe('kaputt');
+    expect(summary.entries).toHaveLength(1);
+  });
+
+  it('versendet intakte Einträge nicht, solange die Queue beschädigt ist (kein Teilzustand)', async () => {
+    const { cloud, fetch } = corrupt();
+    await cloud.processOfflineQueue({ force: true });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('Wiederherstellung, wenn beide Queues beschädigt sind', () => {
+  const bothCorrupt = (options = {}) => {
+    const setup = loadCloud({ key: 'k1', ...options });
+    setup.store.offline_queue = '{kaputt-1';
+    setup.store.offline_queue_failed = '[kaputt-2';
+    return setup;
+  };
+
+  it('zeigt beide Schäden an', () => {
+    const { cloud } = bothCorrupt();
+    expect(cloud.getQueueSummary().problems.map(p => p.key).sort()).toEqual(['offline_queue', 'offline_queue_failed']);
+  });
+
+  it('sichert beide Queues geprüft, entfernt beide Originale und macht die Queue nutzbar', async () => {
+    const { cloud, store, queue } = bothCorrupt({ online: false });
+    const result = cloud.resolveCorruptQueue();
+    expect(result).toMatchObject({ ok: true });
+    expect(result.backups).toHaveLength(2);
+    expect(result.reset.sort()).toEqual(['offline_queue', 'offline_queue_failed']);
+    expect(result.backups.map(key => store[key]).sort()).toEqual(['[kaputt-2', '{kaputt-1']);
+    expect(store.offline_queue).toBeUndefined();
+    expect(store.offline_queue_failed).toBeUndefined();
+    expect(cloud.getQueueSummary().problems).toEqual([]);
+    expect(await cloud.saveTransaction(transaction)).toMatchObject({ queued: true });
+    expect(queue('offline_queue')).toHaveLength(1);
+  });
+
+  it('lässt beide Originale unverändert, wenn die zweite Sicherung scheitert, und sagt das genau', () => {
+    const { cloud, store } = bothCorrupt({ failSetWhen: name => name.startsWith('offline_queue_failed_defekt') });
+    const result = cloud.resolveCorruptQueue();
+    expect(result).toMatchObject({ ok: false });
+    expect(result.partial).toBeUndefined();
+    expect(result.message).toContain('Die Sicherung von „offline_queue_failed“ konnte nicht gespeichert werden');
+    expect(result.message).toContain('Originale wurden nicht verändert');
+    expect(result.message).toContain('Bereits angelegte Sicherungskopien: offline_queue_defekt_');
+    expect(store.offline_queue).toBe('{kaputt-1');
+    expect(store.offline_queue_failed).toBe('[kaputt-2');
+    expect(cloud.getQueueSummary().problems).toHaveLength(2);
+  });
+
+  it('meldet einen Teilfehler korrekt, wenn nur ein Original nicht entfernt werden kann', () => {
+    const fail = { on: true };
+    const { cloud, store } = bothCorrupt({ failRemoveWhen: name => fail.on && name === 'offline_queue_failed' });
+    const result = cloud.resolveCorruptQueue();
+    expect(result).toMatchObject({ ok: false, partial: true });
+    expect(result.reset).toEqual(['offline_queue']);
+    expect(result.remaining).toEqual(['offline_queue_failed']);
+    expect(result.message).toContain('Teilweise abgeschlossen');
+    expect(result.message).toContain('Zurückgesetzt: offline_queue.');
+    expect(result.message).toContain('Noch beschädigt und nicht zurückgesetzt: offline_queue_failed');
+    expect(result.message).not.toContain('nichts verändert');
+    expect(result.backups).toHaveLength(2);
+    expect(store.offline_queue).toBeUndefined();
+    expect(store.offline_queue_failed).toBe('[kaputt-2');
+    expect(cloud.getQueueSummary().problems.map(p => p.key)).toEqual(['offline_queue_failed']);
+
+    // Zweiter Versuch schließt den Rest ab (Sicherung ist idempotent).
+    fail.on = false;
+    const retry = cloud.resolveCorruptQueue();
+    expect(retry).toMatchObject({ ok: true });
+    expect(store.offline_queue_failed).toBeUndefined();
+    expect(cloud.getQueueSummary().problems).toEqual([]);
+    expect(Object.keys(store).filter(key => key.includes('_defekt_'))).toHaveLength(2);
+  });
+});
+
+describe('Zeitgesteuerte Wiederholung unabhängig von navigator.onLine', () => {
+  it('sendet den geplanten Versuch auch, wenn der Browser fälschlich „offline“ meldet', async () => {
+    vi.useFakeTimers();
+    const { cloud, fetch, queue } = loadCloud({ key: 'k1', online: false });
+    fetch.mockResolvedValue(reply({ status: 'success' }));
+    expect(await cloud.saveTransaction(transaction)).toMatchObject({ queued: true });
+    expect(fetch).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(queue('offline_queue')).toEqual([]);
+  });
+
+  it('bleibt auch bei gemeldetem „offline“ begrenzt: höchstens so viele Versuche wie Verzögerungen', async () => {
+    vi.useFakeTimers();
+    const { cloud, fetch, queue } = loadCloud({ key: 'k1', online: false });
+    fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+    await cloud.saveTransaction(transaction);
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+    expect(fetch).toHaveBeenCalledTimes(cloud.RETRY_DELAYS_MS.length);
+    expect(queue('offline_queue')).toHaveLength(1);
+  });
+
+  it('löst bei der Rückkehr zur App (force) einen begrenzten Versuch aus, auch wenn „offline“ gemeldet wird', async () => {
+    vi.useFakeTimers();
+    const { cloud, fetch } = loadCloud({ key: 'k1', online: false });
+    cloud.saveToOfflineQueue(transaction);
+    fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+    await cloud.processOfflineQueue({ force: true });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+    expect(fetch).toHaveBeenCalledTimes(1 + cloud.RETRY_DELAYS_MS.length);
+  });
+
+  it('sendet nichts, wenn die Queue leer ist (kein Polling ohne offene Einträge)', async () => {
+    vi.useFakeTimers();
+    const { cloud, fetch } = loadCloud({ key: 'k1', online: false });
+    await cloud.processOfflineQueue({ force: true });
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('Eindeutige Backend-Bestätigung', () => {
+  const unclearResponses = {
+    'leere Antwort': { ok: true, text: async () => '' },
+    'ungültiges JSON': { ok: true, text: async () => '<html>Anmeldung</html>' },
+    'unbekannter Status': reply({ status: 'vielleicht' }),
+    'Antwort ohne Status': reply({ foo: 'bar' }),
+  };
+
+  Object.entries(unclearResponses).forEach(([name, response]) => {
+    it(`wertet ${name} nicht als gespeichert, sondern sendet den Zählerstand später erneut`, async () => {
+      const { cloud, fetch, payloads } = loadCloud({ key: 'k1' });
+      fetch.mockResolvedValue(response);
+      const result = await cloud.saveTransaction(transaction);
+      expect(result).toMatchObject({ status: 'success', queued: true, message: 'Antwort unklar, wird erneut gesendet' });
+      expect(payloads()).toEqual([transaction]);
+    });
+  });
+
+  it('meldet bei unklarer Antwort auf andere Typen einen Fehler und queued nichts', async () => {
+    const { cloud, fetch, queue } = loadCloud({ key: 'k1' });
+    fetch.mockResolvedValue({ ok: true, text: async () => '' });
+    const result = await cloud.saveTransaction({ typ: 'ZAHLUNG', data: [{ betrag: 1 }] });
+    expect(result).toMatchObject({ status: 'error' });
+    expect(queue('offline_queue')).toEqual([]);
+  });
+
+  it('gibt die Zähler der Bestätigung weiter', async () => {
+    const { cloud, fetch } = loadCloud({ key: 'k1' });
+    fetch.mockResolvedValue(reply({ status: 'success', message: 'ok', angelegt: 0, bereits_vorhanden: 1, ueberschrieben: 0 }));
+    expect(await cloud.saveTransaction(transaction)).toEqual({
+      status: 'success', message: 'ok', angelegt: 0, bereits_vorhanden: 1, ueberschrieben: 0
+    });
+  });
+
+  ['', '<html>', JSON.stringify({ status: 'vielleicht' })].forEach(body => {
+    it(`lässt in der Queue einen Eintrag bei unklarer Antwort (${body || 'leer'}) pending und stoppt`, async () => {
+      const { cloud, fetch, queue } = loadCloud({ key: 'k1' });
+      cloud.saveToOfflineQueue(item0(1));
+      cloud.saveToOfflineQueue(item0(2));
+      fetch.mockResolvedValue({ ok: true, text: async () => body });
+      await cloud.processOfflineQueue();
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(queue('offline_queue').map(e => e.status)).toEqual(['pending', 'pending']);
+    });
+  });
+});
+
+const item0 = n => ({ typ: 'ZAEHLERSTAND_NEU', data: [{ zaehler_id: 'Z' + n, wert: n }] });
+
+describe('Wiederholung bei instabiler Verbindung', () => {
+  const hangingFetch = (url, options) => new Promise((resolve, reject) => {
+    options.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+  });
+
+  it('bricht einen hängenden Abruf nach dem Zeitlimit ab und queued den Wert', async () => {
+    vi.useFakeTimers();
+    const { cloud, fetch, payloads } = loadCloud({ key: 'k1' });
+    fetch.mockImplementation(hangingFetch);
+    const pending = cloud.saveTransaction(transaction);
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(await pending).toMatchObject({ status: 'success', queued: true });
+    expect(payloads()).toEqual([transaction]);
+  });
+
+  it('blockiert die Queue nicht dauerhaft, wenn ein Abruf hängt', async () => {
+    vi.useFakeTimers();
+    const { cloud, fetch, queue } = loadCloud({ key: 'k1' });
+    cloud.saveToOfflineQueue(transaction);
+    fetch.mockImplementation(hangingFetch);
+    const run = cloud.processOfflineQueue();
+    await vi.advanceTimersByTimeAsync(20000);
+    await run;
+    expect(cloud.processingQueue).toBe(false);
+    expect(queue('offline_queue')).toHaveLength(1);
+  });
+
+  it('sendet später erneut, auch ohne online-Ereignis', async () => {
+    vi.useFakeTimers();
+    const { cloud, fetch, queue } = loadCloud({ key: 'k1' });
+    fetch.mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValue(reply({ status: 'success' }));
+    expect(await cloud.saveTransaction(transaction)).toMatchObject({ queued: true });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(queue('offline_queue')).toEqual([]);
+  });
+
+  it('wiederholt nur begrenzt oft und pollt danach nicht weiter', async () => {
+    vi.useFakeTimers();
+    const { cloud, fetch, queue } = loadCloud({ key: 'k1' });
+    fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+    await cloud.saveTransaction(transaction);
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+    expect(fetch).toHaveBeenCalledTimes(1 + cloud.RETRY_DELAYS_MS.length);
+    expect(queue('offline_queue')).toHaveLength(1);
+  });
+
+  it('setzt die Wiederholungen bei einem neuen Auslöser zurück', async () => {
+    vi.useFakeTimers();
+    const { cloud, fetch } = loadCloud({ key: 'k1' });
+    fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+    await cloud.saveTransaction(transaction);
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+    const before = fetch.mock.calls.length;
+    await cloud.processOfflineQueue({ force: true });
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+    expect(fetch.mock.calls.length).toBe(before + 1 + cloud.RETRY_DELAYS_MS.length);
+  });
+
+  it('startet keinen Abruf bei gemeldetem Offline-Zustand, außer ausdrücklich erzwungen', async () => {
+    const { cloud, fetch, queue } = loadCloud({ key: 'k1', online: true });
+    cloud.saveToOfflineQueue(transaction);
+    cloud.cancelRetry();
+    // navigator.onLine meldet fälschlich false, obwohl Verbindung besteht
+    const setup = loadCloud({ key: 'k1', online: false });
+    setup.cloud.saveToOfflineQueue(transaction);
+    setup.fetch.mockResolvedValue(reply({ status: 'success' }));
+    await setup.cloud.processOfflineQueue();
+    expect(setup.fetch).not.toHaveBeenCalled();
+    await setup.cloud.processOfflineQueue({ force: true });
+    expect(setup.fetch).toHaveBeenCalledTimes(1);
+    expect(setup.queue('offline_queue')).toEqual([]);
+    expect(queue('offline_queue')).toHaveLength(1);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('meldet nach bestätigten Einträgen die Synchronisation, sonst nicht', async () => {
+    const synced = loadCloud({ key: 'k1', withDocument: true });
+    synced.cloud.saveToOfflineQueue(transaction);
+    synced.fetch.mockResolvedValue(reply({ status: 'success' }));
+    await synced.cloud.processOfflineQueue();
+    expect(synced.events).toContain('hv-queue-synced');
+
+    const failed = loadCloud({ key: 'k1', withDocument: true });
+    failed.cloud.saveToOfflineQueue(transaction);
+    failed.fetch.mockRejectedValue(new TypeError('offline'));
+    await failed.cloud.processOfflineQueue();
+    expect(failed.events).not.toContain('hv-queue-synced');
+    failed.cloud.cancelRetry();
+  });
+
+  it('lädt die Zählerstände gezielt nach', async () => {
+    const { cloud, fetch } = loadCloud({ key: 'k1' });
+    fetch.mockResolvedValue(reply({ Zaehlerstaende: [{ stand_id: 'a' }] }));
+    expect(await cloud.loadZaehlerstaende()).toEqual({ Zaehlerstaende: [{ stand_id: 'a' }] });
+    expect(bodyOf(fetch, 0)).toMatchObject({ typ: 'LESEN', view: 'zaehlerstaende' });
   });
 });
 

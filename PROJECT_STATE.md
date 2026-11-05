@@ -6,6 +6,15 @@
 
 Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die nächsten sinnvollen Arbeitspakete.
 
+### Offline-Queue und Korrekturen 2026-10-30 (Backend 4.8.4, Status siehe `CHANGELOG.md`)
+
+- Offline oder bei Störungen erfasste Zählerstände bleiben in der Queue, bis das Backend sie bestätigt; die Speicherung in der Queue wird geprüft und eine Erfolgsmeldung gibt es nur bei ausdrücklicher Bestätigung. Grenze: Neuladen der App ohne Internet wird nicht unterstützt (kein Service Worker). Oben auf der Seite steht, wie viele Werte noch nicht in der Datenbank sind; ein Button sendet sie erneut, Details erlauben Verwerfen und Überschreiben.
+- `stand_id` entsteht beim Erfassen auf dem Gerät. Wiederholungen sind idempotent, ein abweichender Wert in derselben Minute ergibt einen Konflikt.
+- Tippfehler lassen sich bis 15 Minuten nach dem letzten Wert des Zählers überschreiben (auch nach einem Minutenwechsel): Warnung mit altem und neuem Wert, Grund ist Pflicht, Protokoll im Blatt `Zaehlerstand_Korrekturen`. Alternativ lässt sich der Wert bewusst als zusätzliche Ablesung speichern.
+- Es arbeitet derzeit nur eine Person mit dem System, mehrere Endgeräte sind aber möglich. Deshalb gibt es bewusst keinen Cooldown für den Verbrauchs-Button.
+- **Offen / Anforderung:** Die spätere Plausibilitätsprüfung auf sprunghaft gestiegenen Verbrauch darf nicht durch zwei Werte am selben Tag (korrigierter Zahlendreher) anspringen. Siehe `DATA_MODEL.md`, Plausibilitätsregel 8, und `docs/offline-sync-und-korrekturen.md`.
+- Einzelheiten, Einspielen und Rollback: `docs/offline-sync-und-korrekturen.md`.
+
 ### Vertragsausbau 2026-10-21/22: Mietverträge / Indexmieten (produktiv)
 
 - Umgesetzt in PR #16 und #17; Backend-Version und Status siehe `CHANGELOG.md`.
@@ -250,8 +259,8 @@ Wichtige Regeln:
 3. **Verbrauch je Mieter/Vertrag:** Mieterwechsel erzeugen noch keine eigenen Verbrauchszeilen je Vertrag. Grundlage für eine spätere Nebenkostenabrechnung.
 4. **Verbrauchsviews aktualisieren:** Die Web-App bietet jetzt eine geschützte Nutzeraktion
    `Verbrauchsdaten aktualisieren`. Sie stößt `updateVerbrauchViews()` im Backend an und lädt
-   anschließend die vier materialisierten Views neu. Bis Backend 4.8.3 deployt ist, bleibt
-   die manuelle Apps-Script-Funktion als Fallback erforderlich.
+   anschließend die vier materialisierten Views neu. Backend 4.8.3 ist deployt; die manuelle
+   Apps-Script-Funktion bleibt als Fallback bestehen.
 5. **Weitere Indexreihen:** erst nötig, wenn das Statistische Bundesamt auf ein neues VPI-Basisjahr umstellt und ein passender Vertrag existiert.
 
 ---
@@ -327,8 +336,8 @@ Umgesetzt mit Backend-Version `4.6.1`:
 - Die Funktion `updateVerbrauchViews()` ist in `apps-script/Code.gs` ab Backend-Version `4.6.0` enthalten; sie bleibt im Vertragsausbau erhalten.
 - Neue Zählerstände werden in `Zaehlerstaende` gespeichert. Die materialisierten Verbrauchsviews
   werden bewusst nicht bei jedem einzelnen Eintrag neu berechnet. Nach mehreren Ablesungen wird
-  die Aktualisierung gesammelt über den Button im Verbrauchs-Tab ausgelöst; bis zum Deploy von
-  Backend 4.8.3 bleibt `updateVerbrauchViews()` im Apps-Script-Editor der Fallback.
+  die Aktualisierung gesammelt über den Button im Verbrauchs-Tab ausgelöst; seit dem Deploy von
+  Backend 4.8.3 ist `updateVerbrauchViews()` im Apps-Script-Editor nur noch der Fallback.
 - Wenn `updateVerbrauchViews()` im Apps-Script-Editor nicht auffindbar ist, läuft dort nicht der aktuelle Stand aus `apps-script/Code.gs` und das Script muss zuerst aktualisiert bzw. neu bereitgestellt werden.
 
 Lokale Gegenprüfung mit den Live-Daten vom 2026-06-29:
