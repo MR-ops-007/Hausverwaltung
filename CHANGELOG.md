@@ -23,7 +23,7 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - Datumsangaben bis 4.6.4 stammen aus der Git-Historie (Commit, der die Version
   eingeführt hat), nicht aus dem Deployment.
 
-## 4.8.4 · 2026-10-30 · lokal
+## 4.8.4 · 2026-10-30 · produktiv
 
 Offline-Queue verlustfrei, Konflikte sichtbar, Korrekturen protokolliert. Details: `docs/offline-sync-und-korrekturen.md`.
 
@@ -42,7 +42,7 @@ Offline-Queue verlustfrei, Konflikte sichtbar, Korrekturen protokolliert. Detail
 - Frontend: Eine beschädigte Offline-Queue wird nicht als leer behandelt und nicht überschrieben. Sie wird dauerhaft angezeigt; „Sichern und zurücksetzen“ legt eine geprüfte Sicherung an (zuerst alle sichern, dann alle Originale entfernen; Teilfehler werden genau gemeldet). Speichern meldet `QUEUE_CORRUPT`.
 - Reihenfolge beim Einspielen: zuerst Backend 4.8.4, dann das Frontend. Ein älteres Frontend läuft mit 4.8.4 weiter (Konflikte erscheinen dort als Fehlermeldung).
 
-## 4.8.3 · 2026-10-29 · produktiv
+## 4.8.3 · 2026-10-29 · ersetzt
 
 Zeitzone der Verbrauchszeitpunkte korrigiert.
 

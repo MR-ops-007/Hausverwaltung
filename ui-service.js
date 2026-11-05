@@ -504,11 +504,18 @@ const uiService = {
       return null;
     }
 
+    const readings = Array.isArray(dataService.state.zaehlerstaende) ? dataService.state.zaehlerstaende : [];
+    const meters = Array.isArray(dataService.state.zaehler) ? dataService.state.zaehler : [];
+    const fillReadings = typeof service.fillReadingsFor === 'function'
+      ? service.fillReadingsFor(readings, meters, zaehler)
+      : [];
+
     return service.calculate(
-      Array.isArray(dataService.state.zaehlerstaende) ? dataService.state.zaehlerstaende : [],
+      readings,
       zaehler,
       Array.isArray(dataService.state.haustechnik) ? dataService.state.haustechnik : [],
-      Number(year)
+      Number(year),
+      { fillReadings }
     );
   },
 

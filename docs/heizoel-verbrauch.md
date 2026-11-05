@@ -3,12 +3,16 @@
 ## Fachliche Regeln
 
 - `oel_stand_cm` ist ein Füllstand und kein aufwärts zählender Verbrauchszähler.
-- Nur ein sinkender Stand erzeugt Verbrauch: `Stand_alt - Stand_neu`.
+- Ohne Tankfüllungsdaten erzeugt nur ein sinkender Stand Verbrauch:
+  `Stand_alt - Stand_neu`.
 - Der Verbrauch in Litern ist `sinkende cm × Liter pro cm`.
-- Ein steigender Stand ist eine Tankfüllung, Korrektur oder ein Messfehler. Er wird
-  als Ereignis mit Prüfhinweis geführt und nicht vom Verbrauch abgezogen.
+- Ein steigender Stand ist ohne passende Tankfüllungsdaten eine Tankfüllung,
+  Korrektur oder ein Messfehler und wird als Ereignis mit Prüfhinweis geführt.
+  Liegen passende `oel_stand_l`-Daten vor, wird das Intervall stattdessen über
+  die Tankbilanz rekonstruiert.
 - Der Zähler `oel_stand_l` dokumentiert die kumulierte Tankmenge separat. Er dient
-  zur Erkennung einer Tankfüllung, nicht zur direkten Berechnung des Ölverbrauchs.
+  zur Erkennung von Tankfüllungen und wird bei vorhandener Füllstandsablesung für
+  die Verbrauchsbilanz des betroffenen Intervalls verwendet.
 
 ## Tankkonfiguration
 
@@ -40,9 +44,27 @@ werden, ohne die Rohdaten zu ändern.
 
 Die Literberechnung verteilt ein Verbrauchsintervall zeitanteilig auf die betroffenen
 Kalendermonate. Sie ist damit eine Heuristik für Bestellzyklen und Effizienzvergleiche,
-keine geeichte Brennstoffabrechnung. Nachfüllungen zwischen zwei Ablesungen können
-nicht rückwirkend monatsgenau rekonstruiert werden; sie werden deshalb als Ereignis
-markiert und verlangen bei fehlendem Füllstand eine Prüfung.
+keine geeichte Brennstoffabrechnung. Nachfüllungen zwischen zwei Ablesungen werden
+als Ereignis markiert. Liegen Betankungen aus `oel_stand_l` vor, wird der Verbrauch
+im Füllintervall bilanziert:
+`Verbrauch = getankte Liter − (Stand_neu − Stand_alt) × l/cm`. Ergibt die Bilanz einen
+deutlich negativen Wert (gemessener Anstieg größer als die getankte Menge), gilt das
+Intervall als unplausibel und wird nicht verbucht. Ohne Betankungsdaten bleibt das
+Intervall eine Lücke, die Jahressumme ist dann eine Untergrenze und wird so gewarnt.
+
+Anstiege bis `rauschen_cm` (Standard 1 cm, über `Haustechnik` konfigurierbar) gelten
+als Peilstab-Rauschen: kein Verbrauch, keine Tankfüllung, kein Ereignis.
+
+Die Funktion `totalLiters` zur Tankaggregation berücksichtigt nur Tanks mit
+`in_verbrauch_auswertung = true`. Das Dashboard zeigt weiterhin die einzelnen Tankwerte;
+eine gemeinsame Haus-Gesamtsumme ist vorbereitet, aber noch nicht in die Darstellung
+integriert. Der Zusatztank fließt erst nach Freigabe in diese Summe ein.
+
+Die Tankbilanz gilt für jedes Intervall mit Betankung, auch wenn der Füllstand trotz
+Lieferung fällt. Diagramm und Tabelle beziehen die Betankungsdaten über
+`heatingOilService.fillReadingsFor` und rechnen damit identisch. Ein als Rauschen
+verworfener Anstieg verschiebt den Referenzstand nicht: Nach `100 → 100,5 → 90 cm` beträgt
+der Verbrauch 10 cm.
 
 Die Umsetzung dieses Pakets liegt im Frontend und in einer testbaren JavaScript-
 Fachlogik. `apps-script/Code.gs` und die materialisierten Backend-Views werden

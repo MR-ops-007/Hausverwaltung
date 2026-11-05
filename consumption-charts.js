@@ -143,6 +143,22 @@ const consumptionChartService = (() => {
     return months;
   }
 
+  function reverseReadingDetails(rows, meter, years) {
+    const selectedYears = new Set((years || []).map(Number));
+    const readings = readingSeries(rows, meter);
+    const details = [];
+    for (let index = 1; index < readings.length; index++) {
+      const start = readings[index - 1];
+      const end = readings[index];
+      if (end.date <= start.date || end.value >= start.value) continue;
+      const affectsSelectedYear = monthSegments(start.date, end.date)
+        .some(segment => selectedYears.has(Number(segment.year)));
+      if (!affectsSelectedYear) continue;
+      details.push({ start, end });
+    }
+    return details;
+  }
+
   function parseDate(value) {
     if (value instanceof Date) return value;
     const text = String(value || '').trim();
@@ -169,13 +185,17 @@ const consumptionChartService = (() => {
       return `<line x1="${left}" x2="${W-right}" y1="${gy}" y2="${gy}" stroke="#e2e8f0"/><text x="${left-8}" y="${gy+4}" font-size="11" text-anchor="end" fill="#64748b">${esc(fmt(value))}</text>`;
     }).join('');
     const formatDateLabel = date => `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}.${date.getFullYear()}`;
-    const xLabels = [...new Set([0, Math.floor((series.length - 1) / 2), series.length - 1])]
-      .map(index => `<text x="${x(series[index]).toFixed(1)}" y="${H-15}" text-anchor="middle" font-size="11" fill="#475569">${esc(formatDateLabel(series[index].date))}</text>`)
+    const labelIndexes = [...new Set([0, Math.floor((series.length - 1) / 2), series.length - 1])];
+    const xLabels = labelIndexes
+      .map((index, labelIndex) => {
+        const anchor = labelIndex === 0 ? 'start' : labelIndex === labelIndexes.length - 1 ? 'end' : 'middle';
+        return `<text x="${x(series[index]).toFixed(1)}" y="${H-15}" text-anchor="${anchor}" font-size="11" fill="#475569">${esc(formatDateLabel(series[index].date))}</text>`;
+      })
       .join('');
     return `<svg class="consumption-chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(alt)}" xmlns="http://www.w3.org/2000/svg">${grid}<line x1="${left}" x2="${W-right}" y1="${H-bottom}" y2="${H-bottom}" stroke="#cbd5e1"/><polyline points="${points}" fill="none" stroke="#2563eb" stroke-width="3"/>${dots}${xLabels}</svg>`;
   }
 
-  function trendChart({ labels, current, previous = [], currentLabel, previousLabel, unit, alt, mode = 'line', showWarning = false, showValues = false, valuesLabel = 'Verbrauchswerte' }) {
+  function trendChart({ labels, current, previous = [], currentLabel, previousLabel, unit, alt, mode = 'line', showWarning = false, showValues = false, valuesLabel = 'Verbrauchswerte', warningHelp = '' }) {
     const rows = [...current, ...previous].filter(item => item && item.value !== null);
     if (!rows.length) return '<p class="consumption-chart-empty">Keine berechenbaren Verbrauchswerte vorhanden.</p>';
     const W = 760, H = 276, left = 60, right = 12, top = 14, bottom = 38;
@@ -205,15 +225,37 @@ const consumptionChartService = (() => {
         .map(points => `<polyline points="${points.join(' ')}" fill="none" stroke="${color}" stroke-width="3"${dash ? ' stroke-dasharray="7 5"' : ''}/>`)
         .join('');
       const markers = items.map((item, index) => item && item.value !== null
-        ? `<circle cx="${x(index).toFixed(1)}" cy="${y(item.value).toFixed(1)}" r="4" fill="${item.derived ? '#f59e0b' : item.fromAnnual ? '#ea580c' : item.reconciled ? '#0f766e' : item.fromReadings ? '#0284c7' : color}"><title>${esc(labels[index])} ${esc(label)}: ${fmt(item.value)} ${esc(unit)}${item.invalidReading ? ' (rückläufiger Zählerstand prüfen)' : ''}${item.derived ? ' (linear fortgeschrieben)' : ''}${item.fromReadings ? ' (aus Rohintervall ergänzt)' : ''}${item.fromAnnual ? ' (aus Jahresrest ergänzt)' : ''}${item.reconciled ? ' (mit Jahreswert abgeglichen)' : ''}${item.oilRefill ? ' (Tankfüllung oder Korrektur erkannt)' : ''}${item.flagged ? ' (Prüfhinweis)' : ''}</title></circle>`
+        ? `<circle cx="${x(index).toFixed(1)}" cy="${y(item.value).toFixed(1)}" r="4" fill="${item.invalidReading ? '#dc2626' : item.flagged ? '#f59e0b' : item.derived ? '#f59e0b' : item.fromAnnual ? '#ea580c' : item.reconciled ? '#0f766e' : item.fromReadings ? '#0284c7' : color}"><title>${esc(labels[index])} ${esc(label)}: ${fmt(item.value)} ${esc(unit)}${item.invalidReading ? ' (rückläufiger Zählerstand prüfen)' : ''}${item.derived ? ' (linear fortgeschrieben)' : ''}${item.fromReadings ? ' (aus Rohintervall ergänzt)' : ''}${item.fromAnnual ? ' (aus Jahresrest ergänzt)' : ''}${item.reconciled ? ' (mit Jahreswert abgeglichen)' : ''}${item.oilRefill ? ' (Tankfüllung oder Korrektur erkannt)' : ''}${item.flagged ? ' (Prüfhinweis)' : ''}</title></circle>`
         : '').join('');
       return `${line}${markers}`;
     };
     const currentColor = '#2563eb', previousColor = '#94a3b8';
     const currentSvg = renderSeries(current, currentColor, currentLabel, false);
     const previousSvg = previous.length ? renderSeries(previous, previousColor, previousLabel, true) : '';
-    const area = mode === 'area' && current.length && current.every(item => item && item.value !== null)
-      ? `<polygon points="${left},${top+ih} ${current.map((item,index) => item && item.value !== null ? `${x(index).toFixed(1)},${y(item.value).toFixed(1)}` : '').filter(Boolean).join(' ')} ${W-right},${top+ih}" fill="#2563eb" opacity="0.12"/>`
+    const area = mode === 'area'
+      ? (() => {
+        const segments = [];
+        let segment = [];
+        current.forEach((item, index) => {
+          if (item && item.value !== null) {
+            segment.push({ item, index });
+          } else if (segment.length) {
+            segments.push(segment);
+            segment = [];
+          }
+        });
+        if (segment.length) segments.push(segment);
+        return segments
+          .filter(points => points.length > 1)
+          .map(points => {
+            const baseline = top + ih;
+            const first = points[0];
+            const last = points[points.length - 1];
+            const coordinates = points.map(point => `${x(point.index).toFixed(1)},${y(point.item.value).toFixed(1)}`).join(' ');
+            return `<polygon points="${x(first.index).toFixed(1)},${baseline} ${coordinates} ${x(last.index).toFixed(1)},${baseline}" fill="#2563eb" opacity="0.12"/>`;
+          })
+          .join('');
+      })()
       : '';
     const barWidth = previous.length ? 16 : 24;
     const bars = mode === 'bar' ? labels.map((label, index) => {
@@ -224,7 +266,7 @@ const consumptionChartService = (() => {
         const height = Math.max(column.row.value === 0 ? 2 : 3, column.row.value / maximum * ih);
         const yPosition = top + ih - height;
         const title = `${label} ${column.year}: ${fmt(column.row.value)} ${unit}${column.row.flagged ? ' (Prüfhinweis)' : ''}`;
-        return `<rect x="${column.x.toFixed(1)}" y="${yPosition.toFixed(1)}" width="${barWidth}" height="${height.toFixed(1)}" fill="${column.row.flagged ? '#f59e0b' : column.color}" opacity="0.85"><title>${esc(title)}</title></rect>`;
+        return `<rect x="${column.x.toFixed(1)}" y="${yPosition.toFixed(1)}" width="${barWidth}" height="${height.toFixed(1)}" fill="${column.row.invalidReading ? '#dc2626' : column.row.flagged ? '#f59e0b' : column.color}" opacity="0.85"><title>${esc(title)}</title></rect>`;
       }).join('');
     }).join('') : '';
     const hasDerived = [...current, ...previous].some(item => item && item.derived);
@@ -232,7 +274,7 @@ const consumptionChartService = (() => {
     const hasFromAnnual = [...current, ...previous].some(item => item && item.fromAnnual);
     const hasReconciled = [...current, ...previous].some(item => item && item.reconciled);
     const hasInvalidReading = [...current, ...previous].some(item => item && item.invalidReading);
-    const legend = `<div class="consumption-chart-key"><span class="consumption-chart-year-current">${esc(currentLabel)}</span>${previous.length ? `<span class="consumption-chart-year-prior">${esc(previousLabel)}</span>` : ''}${hasDerived ? '<span class="consumption-chart-year-derived">linear fortgeschrieben</span>' : ''}${hasFromReadings ? '<span class="consumption-chart-year-from-readings">aus Rohintervall ergänzt</span>' : ''}${hasFromAnnual ? '<span class="consumption-chart-year-from-annual">aus Jahresrest ergänzt</span>' : ''}${hasReconciled ? '<span class="consumption-chart-year-reconciled">Jahreswert abgeglichen</span>' : ''}${hasInvalidReading ? '<span class="consumption-chart-year-warning">Zählerstand prüfen</span>' : ''}${showWarning ? '<span class="consumption-chart-year-warning">Prüfhinweis</span>' : ''}</div>`;
+    const legend = `<div class="consumption-chart-key"><span class="consumption-chart-year-current">${esc(currentLabel)}</span>${previous.length ? `<span class="consumption-chart-year-prior">${esc(previousLabel)}</span>` : ''}${hasDerived ? '<span class="consumption-chart-year-derived">linear fortgeschrieben</span>' : ''}${hasFromReadings ? '<span class="consumption-chart-year-from-readings">aus Rohintervall ergänzt</span>' : ''}${hasFromAnnual ? '<span class="consumption-chart-year-from-annual">aus Jahresrest ergänzt</span>' : ''}${hasReconciled ? '<span class="consumption-chart-year-reconciled">Jahreswert abgeglichen</span>' : ''}${hasInvalidReading ? '<span class="consumption-chart-year-invalid">Zählerstand prüfen</span>' : ''}${showWarning ? '<span class="consumption-chart-year-warning">Prüfhinweis</span>' : ''}</div>`;
     const values = showValues ? `<div class="consumption-chart-values" aria-label="${esc(valuesLabel)}">${labels.map((label, index) => {
       const formatValue = item => item && item.value !== null
         ? `${fmt(item.value)} ${unit}${item.invalidReading ? ' · Zählerstand prüfen' : ''}${item.derived ? ' · fortgeschrieben' : ''}${item.fromReadings ? ' · aus Rohintervall' : ''}${item.fromAnnual ? ' · aus Jahresrest' : ''}${item.reconciled ? ' · abgeglichen' : ''}${item.flagged ? ' · Prüfhinweis' : ''}`
@@ -241,7 +283,7 @@ const consumptionChartService = (() => {
       const previousValue = previous.length ? formatValue(previous[index]) : 'Keine Werte';
       return `<div class="consumption-chart-value"><strong>${esc(label)}</strong><span>${esc(currentLabel)}: ${esc(currentValue)}</span>${previous.length ? `<span>${esc(previousLabel)}: ${esc(previousValue)}</span>` : ''}</div>`;
     }).join('')}</div>` : '';
-    return `${legend}<svg class="consumption-chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(alt)}" xmlns="http://www.w3.org/2000/svg">${grid}${area}${bars}${mode === 'bar' ? '' : previousSvg}${mode === 'bar' ? '' : currentSvg}${labels.map((label,index) => `<text x="${x(index).toFixed(1)}" y="${H-15}" text-anchor="middle" font-size="11" fill="#475569">${esc(label)}</text>`).join('')}</svg>${values}`;
+    return `${legend}${warningHelp}<svg class="consumption-chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(alt)}" xmlns="http://www.w3.org/2000/svg">${grid}${area}${bars}${mode === 'bar' ? '' : previousSvg}${mode === 'bar' ? '' : currentSvg}${labels.map((label,index) => `<text x="${x(index).toFixed(1)}" y="${H-15}" text-anchor="middle" font-size="11" fill="#475569">${esc(label)}</text>`).join('')}</svg>${values}`;
   }
 
   function monthlySeries(rows, meter, year, { readingRows = [], annualRow = null, now = new Date() } = {}) {
@@ -409,6 +451,28 @@ const consumptionChartService = (() => {
     return (rows || []).find(row => sameMeter(row, meter) && Number(row.jahr) === Number(year)) || null;
   }
 
+  function buildWarningHelp(readings, meter, years, unit, hasInvalidReading, hasWarning) {
+    if (!hasInvalidReading && !hasWarning) return '';
+
+    const items = [];
+    if (hasInvalidReading) {
+      const details = reverseReadingDetails(readings, meter, years)
+        .slice(0, 3)
+        .map(({ start, end }) => `Am ${end.date.toLocaleDateString('de-DE')} ist der Rohwert von ${fmt(start.value)} ${unit} auf ${fmt(end.value)} ${unit} gefallen.`)
+        .join(' ');
+      const explanation = details || 'Mindestens ein Rohintervall enthält einen fallenden Wert.';
+      items.push(`<li><strong>Zählerstand prüfen:</strong> ${esc(explanation)} Für einen normalen kumulierenden Zähler ist das kein automatisch verwertbarer Verbrauch. Bitte Zählerwechsel, Reset, Übertragungs- oder Eingabefehler prüfen.</li>`);
+    }
+    if (hasWarning) {
+      const explanation = hasInvalidReading
+        ? 'Zusätzlich ist mindestens ein Monatswert als Plausibilitätswarnung markiert.'
+        : 'Mindestens ein Monatswert weicht fachlich oder rechnerisch ab. Bitte Rohwerte, Status und Herleitung in Tabelle und Datenqualität prüfen.';
+      items.push(`<li><strong>Prüfhinweis:</strong> ${esc(explanation)}</li>`);
+    }
+
+    return `<details class="consumption-chart-help"><summary>Hinweise erklären</summary><div><p>Die Hinweise sind keine automatische Korrektur. Sie zeigen, wo eine fachliche Prüfung erforderlich ist.</p><ul>${items.join('')}</ul></div></details>`;
+  }
+
   function render({ meters = [], selectedKey = '', selectedYear, monthlyRows = [], annualRows = [], readingRows = [], haustechnikRows = [], mode = '', now = new Date() }) {
     const unique = [...new Map(meters.filter(row => row && row.zaehler_id).map(row => [id(row), row])).values()];
     if (!unique.length) return '';
@@ -423,9 +487,12 @@ const consumptionChartService = (() => {
     const chartMode = mode || (typeof uiService !== 'undefined' ? (uiService.consumptionChartMode || 'area') : 'area');
     const oilService = typeof heatingOilService !== 'undefined' ? heatingOilService : null;
     const isOil = Boolean(oilService && oilService.isOilLevelMeter(meter));
+    // Betankungen (oel_stand_l) bilanzieren Füllintervalle, statt sie als Lücke zu führen.
+    const oilFillReadings = isOil ? oilService.fillReadingsFor(readingRows, unique, meter) : [];
+    const oilOptions = { fillReadings: oilFillReadings };
     const oilSeries = selected => {
       if (!isOil) return null;
-      const result = oilService.calculate(readingRows, meter, haustechnikRows, selected);
+      const result = oilService.calculate(readingRows, meter, haustechnikRows, selected, oilOptions);
       return result.monthly.map((item, month) => ({
         value: item.hasValue ? item.liter : null,
         flagged: result.refillMonths && result.refillMonths.has(month),
@@ -444,7 +511,7 @@ const consumptionChartService = (() => {
       now
     });
     const history = isOil
-      ? oilService.annualSeries(readingRows, meter, haustechnikRows, year)
+      ? oilService.annualSeries(readingRows, meter, haustechnikRows, year, oilOptions)
       : annualSeries(annualRows, meter, year);
     const yearLabels = history.map(row => String(row.year));
     const hasCurrent = curr.some(row => row.value !== null);
@@ -475,10 +542,11 @@ const consumptionChartService = (() => {
       const label = `${row.einheit_name || row.einheit_id || ''} · ${row.bezeichnung || row.zaehler_id}`;
       return `<option value="${esc(id(row))}"${id(row) === id(meter) ? ' selected' : ''}>${esc(label)}</option>`;
     }).join('');
+    const warningHelp = buildWarningHelp(readingRows, meter, [year, priorYear], unit, hasInvalidReading, flagged);
     const monthChart = hasCurrent || hasPrior
       ? trendChart({ labels: MONTHS, current: curr, previous: prior, currentLabel: String(year), previousLabel: String(priorYear), unit, mode: chartMode, showWarning: flagged, showValues: true, valuesLabel: 'Monatliche Verbrauchswerte',
-        alt: `Monatlicher Verbrauch ${year} und ${priorYear} in ${unit}. Fehlende Monate sind nicht als Null dargestellt.` })
-      : `<p class="consumption-chart-empty">${hasInvalidReading ? 'Rückläufiger Zählerstand erkannt; Verbrauchsberechnung für dieses Intervall bitte prüfen.' : 'Für diesen Zähler liegen im gewählten Jahr und Vorjahr keine berechenbaren Monatswerte vor.'}</p>`;
+        alt: `Monatlicher Verbrauch ${year} und ${priorYear} in ${unit}. Fehlende Monate sind nicht als Null dargestellt.`, warningHelp })
+      : `${warningHelp}<p class="consumption-chart-empty">${hasInvalidReading ? 'Rückläufiger Zählerstand erkannt; Verbrauchsberechnung für dieses Intervall bitte prüfen.' : 'Für diesen Zähler liegen im gewählten Jahr und Vorjahr keine berechenbaren Monatswerte vor.'}</p>`;
     const annualChart = history.some(row => row.value !== null)
       ? trendChart({ labels: yearLabels, current: history, currentLabel: 'Jahresverbrauch', unit, mode: chartMode,
         alt: `Jahresverbrauch der letzten bis zu sechs Jahre in ${unit}. Fehlende Jahre sind nicht als Null dargestellt.` })

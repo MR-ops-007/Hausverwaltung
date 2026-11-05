@@ -1101,6 +1101,30 @@ describe('uiService.showZaehlerMaske', () => {
     expect(modalBodyElement.innerHTML).toContain('background:#fffbeb');
   });
 
+  it('rechnet die Heizöl-Tabelle mit denselben Betankungsdaten wie das Diagramm', () => {
+    const level = {
+      objekt_id: 'Ra-HS-29', einheit_id: 'Ra-HS-29_Allgemein',
+      zaehler_id: 'Z_OEL_STAND_IN_CM', medium: 'oel_stand_cm',
+    };
+    const fill = { ...level, zaehler_id: 'Z_OEL_STAND_L', medium: 'oel_stand_l' };
+    const reading = (meter, zeitstempel, wert) => ({ ...meter, zeitstempel, wert });
+    const { uiService } = loadUiService({
+      currentMeters: [level, fill],
+      zaehlerstaende: [
+        reading(level, '01.01.2026 08:00', 100),
+        reading(level, '10.01.2026 14:00', 90),
+        reading(fill, '01.01.2026 08:00', 1000),
+        reading(fill, '10.01.2026 12:00', 4000),
+      ],
+    });
+
+    const report = uiService.getOilConsumptionReport(level, 2026);
+
+    // 3.000 l getankt, 10 cm gefallen: 3.000 l + 10 cm x (10.000 l / 140 cm).
+    expect(report.totalLiters).toBeCloseTo(3000 + 10 * (10000 / 140), 0);
+    expect(report.refills[0].status).toBe('FUELLUNG_REKONSTRUIERT');
+  });
+
   it('renders a helpful message if no manually enterable meters exist', () => {
     const { uiService, modalBodyElement, modalElement } = loadUiService({
       currentMeters: [
