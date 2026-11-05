@@ -252,6 +252,17 @@ describe('uiService helper methods', () => {
     expect(result).toBe('20.06.2026 09:05');
   });
 
+  it('trennt historische gleiche Werte von identischen Wiederholungen', () => {
+    const { uiService } = loadUiService();
+
+    expect(uiService.formatZaehlerSaveSuccess({ angelegt: 1, bereits_vorhanden: 0, ueberschrieben: 0 }))
+      .toContain('1 neuer Zählerstand');
+    expect(uiService.formatZaehlerSaveSuccess({ angelegt: 0, bereits_vorhanden: 1, ueberschrieben: 0 }))
+      .toContain('identische Eingabe');
+    expect(uiService.formatZaehlerSaveSuccess({ angelegt: 0, bereits_vorhanden: 1, ueberschrieben: 0 }))
+      .toContain('kein neuer Zeitstempel');
+  });
+
   it('builds meter labels from bezeichnung, medium, typ, zaehler_id or fallback', () => {
     const { uiService } = loadUiService();
 
@@ -1747,7 +1758,8 @@ describe('uiService: Zustände lokal erfasst / übertragen / abgelehnt', () => {
   it('erzeugt bei „bereits vorhanden“ ohne Nachladen keinen Phantomwert', async () => {
     const { uiService, dataService, alerts } = setup({ saveResponse: { status: 'success', angelegt: 0, bereits_vorhanden: 1 } });
     await uiService.saveZaehler();
-    expect(alerts).toContain('Erfolgreich gespeichert!');
+    expect(alerts[0]).toContain('identische Eingabe');
+    expect(alerts[0]).toContain('kein neuer Zeitstempel');
     expect(dataService.state.zaehlerstaende).toEqual([earlier]);
   });
 
