@@ -148,7 +148,10 @@ function loadUiService({
     'sync-queue-status': { style: { display: 'none' }, innerHTML: '' },
     'save-meter-values': { style: {}, disabled: false, textContent: 'Speichern', setAttribute() {} },
     'cancel-meter-values': { style: {}, disabled: false, textContent: 'Abbrechen' },
-    'meter-save-progress': { style: { display: 'none' }, hidden: true },
+    'meter-save-progress': { style: { display: 'none' }, hidden: true, dataset: {} },
+    'meter-save-animation': { src: '', alt: '', style: {} },
+    'meter-save-title': { textContent: '' },
+    'meter-save-detail': { textContent: '' },
   };
 
   const document = {
@@ -217,6 +220,9 @@ function loadUiService({
     consumptionChartService
   );
 
+  // Die Produktion zeigt den Erfolgsstempel kurz sichtbar. Tests prüfen den Zustand
+  // synchron, ohne auf die reine UI-Nachlaufzeit zu warten.
+  uiService.saveSuccessDisplayMs = 0;
   uiService.currentActiveMetersObjects = currentMeters;
 
   return {
@@ -1082,7 +1088,8 @@ describe('uiService.showZaehlerMaske', () => {
     uiService.showZaehlerMaske('WE001');
 
     expect(modalBodyElement.innerHTML).toContain('id="meter-save-progress"');
-    expect(modalBodyElement.innerHTML).toContain('Werte werden gespeichert');
+    expect(modalBodyElement.innerHTML).toContain('hausmeister-stempel-loading.svg');
+    expect(modalBodyElement.innerHTML).toContain('Der Hausmeister sucht noch den richtigen Stempel');
     expect(modalBodyElement.innerHTML).toContain('id="save-meter-values"');
     expect(modalBodyElement.innerHTML).toContain('id="cancel-meter-values"');
   });
@@ -1197,6 +1204,25 @@ describe('uiService.saveZaehler', () => {
     await savePromise;
     expect(elementsById['save-meter-values'].disabled).toBe(false);
     expect(elementsById['meter-save-progress'].hidden).toBe(true);
+  });
+
+  it('zeigt nach bestätigtem Speichern den Erfolgsstempel vor dem Zurücksetzen', async () => {
+    let resolveSave;
+    const pendingSave = new Promise(resolve => { resolveSave = resolve; });
+    const meter = { zaehler_id: 'Z002', objekt_id: 'OBJ001', einheit_id: 'WE001', bezeichnung: 'Strom NT' };
+    const { uiService, elementsById } = loadUiService({
+      currentMeters: [meter],
+      inputValuesByZaehlerId: { Z002: '1250' },
+      saveResponse: pendingSave,
+    });
+
+    const savePromise = uiService.saveZaehler();
+    await Promise.resolve();
+    resolveSave({ status: 'success' });
+    await savePromise;
+
+    expect(elementsById['meter-save-animation'].src).toBe('assets/hausmeister-stempel-erfolg.svg');
+    expect(elementsById['meter-save-title'].textContent).toBe('Amtlich gespeichert!');
   });
 
   it('saves a normal increasing meter value', async () => {

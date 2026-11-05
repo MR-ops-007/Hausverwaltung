@@ -4,6 +4,7 @@
 const uiService = {
   currentSelection: null,
   currentActiveMetersObjects: [],
+  saveSuccessDisplayMs: 900,
 
   applyStyles(el, styles) {
     Object.assign(el.style, styles);
@@ -2064,8 +2065,13 @@ const uiService = {
       ${inputsHtml}
 
       <div id="meter-save-progress" class="meter-save-progress" role="status" aria-live="polite" hidden>
-        <span class="meter-save-progress-animation" aria-hidden="true"><span>⌂</span><i></i><i></i><i></i></span>
-        <span><strong>Werte werden gespeichert …</strong><small>Die Zähler ziehen gerade ins Haus ein.</small></span>
+        <div class="meter-save-progress-visual">
+          <img id="meter-save-animation" src="assets/hausmeister-stempel-loading.svg" alt="Der Hausmeister sucht den richtigen Stempel">
+        </div>
+        <span class="meter-save-progress-copy">
+          <strong id="meter-save-title">Der Hausmeister sucht noch den richtigen Stempel …</strong>
+          <small id="meter-save-detail">Die Ablesung wird gerade eingetragen.</small>
+        </span>
       </div>
 
       <div style="margin-top:20px;">
@@ -2342,6 +2348,45 @@ const uiService = {
     if (progress) {
       progress.hidden = !isBusy;
       progress.style.display = isBusy ? 'flex' : 'none';
+      if (isBusy) this.setZaehlerSaveLoading();
+    }
+  },
+
+  setZaehlerSaveLoading() {
+    const animation = document.getElementById('meter-save-animation');
+    const title = document.getElementById('meter-save-title');
+    const detail = document.getElementById('meter-save-detail');
+    const progress = document.getElementById('meter-save-progress');
+
+    if (animation) {
+      animation.src = 'assets/hausmeister-stempel-loading.svg';
+      animation.alt = 'Der Hausmeister sucht den richtigen Stempel';
+    }
+    if (title) title.textContent = 'Der Hausmeister sucht noch den richtigen Stempel …';
+    if (detail) detail.textContent = 'Die Ablesung wird gerade eingetragen.';
+    if (progress && progress.dataset) progress.dataset.state = 'loading';
+  },
+
+  setZaehlerSaveSuccess(message) {
+    const animation = document.getElementById('meter-save-animation');
+    const title = document.getElementById('meter-save-title');
+    const detail = document.getElementById('meter-save-detail');
+    const progress = document.getElementById('meter-save-progress');
+
+    if (animation) {
+      animation.src = 'assets/hausmeister-stempel-erfolg.svg';
+      animation.alt = 'Die Ablesung wurde erfolgreich gespeichert';
+    }
+    if (title) title.textContent = 'Amtlich gespeichert!';
+    if (detail) detail.textContent = message;
+    if (progress && progress.dataset) progress.dataset.state = 'success';
+  },
+
+  async finishZaehlerSaveSuccess(message) {
+    this.setZaehlerSaveSuccess(message);
+    const duration = Number(this.saveSuccessDisplayMs);
+    if (Number.isFinite(duration) && duration > 0) {
+      await new Promise(resolve => setTimeout(resolve, duration));
     }
   },
 
@@ -2508,11 +2553,7 @@ const uiService = {
     const payload = { typ: 'ZAEHLERSTAND_NEU', data: transactions };
     const requestSave = async requestPayload => {
       this.setZaehlerSaveBusy(true);
-      try {
-        return await cloudService.saveTransaction(requestPayload);
-      } finally {
-        this.setZaehlerSaveBusy(false);
-      }
+      return cloudService.saveTransaction(requestPayload);
     };
     let res;
     const overwrittenByZaehler = {};
@@ -2521,6 +2562,9 @@ const uiService = {
       res = await requestSave(payload);
 
       if (res && res.status === 'error' && res.code === 'CONFLICT') {
+        // Für die Rückfrage muss der Dialog wieder bedienbar sein. Nach der Entscheidung
+        // startet requestSave den Ladezustand erneut und hält ihn bis zur Rückmeldung.
+        this.setZaehlerSaveBusy(false);
         const decision = this.resolveConflict(res.conflicts, transactions.length);
 
         if (!decision) {
@@ -2536,31 +2580,32 @@ const uiService = {
           res = await requestSave({ ...payload, ueberschreiben: { grund: decision.grund } });
         }
       }
-    } catch (error) {
-      alert('Fehler beim Speichern: ' + (error && error.message ? error.message : error));
-      return;
-    }
 
     if (res && res.status === 'success') {
       if (res.queued) {
         // Nur lokal in der Queue gesichert: nicht in den Datenbestand eintragen. Die Anzeige
         // „nicht gespeichert“ zeigt den Eintrag, bis das Backend ihn bestätigt hat.
+        this.setZaehlerSaveBusy(false);
         alert('Offline gespeichert. Die Werte sind noch NICHT in der Datenbank und werden gesendet, sobald eine Verbindung besteht. Den Status siehst du oben auf der Seite.');
+        this.closeModal();
       } else {
         // Auch das Nachladen gehört zum Speichervorgang: Erst danach entspricht die Anzeige
-        // sicher dem Backend und es gibt keinen kurzen Zwischenzustand im Modal.
-        this.setZaehlerSaveBusy(true);
-        try {
-          await this.refreshZaehlerstaendeAfterSave(res, transactions, overwrittenByZaehler);
-        } finally {
-          this.setZaehlerSaveBusy(false);
-        }
+        // sicher dem Backend. Der Ladezustand bleibt bis zur Erfolgsmeldung aktiv.
+        await this.refreshZaehlerstaendeAfterSave(res, transactions, overwrittenByZaehler);
+        await this.finishZaehlerSaveSuccess(this.formatZaehlerSaveSuccess(res));
+        // Der Erfolgshinweis wird noch angezeigt, bevor der Dialog in den Normalzustand
+        // zurückkehrt. Dadurch verschwindet die Ladeanimation nicht vor der Rückmeldung.
         alert(this.formatZaehlerSaveSuccess(res));
+        this.setZaehlerSaveBusy(false);
+        this.closeModal();
       }
-
-      this.closeModal();
     } else {
+      this.setZaehlerSaveBusy(false);
       alert('Fehler: ' + (res ? res.message : 'Unbekannter Fehler'));
+    }
+    } catch (error) {
+    this.setZaehlerSaveBusy(false);
+    alert('Fehler beim Speichern: ' + (error && error.message ? error.message : error));
     }
   },
 

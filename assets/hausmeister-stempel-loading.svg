@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 152" width="192" height="152" role="img" aria-label="Ein Hausmeister-Stempel sucht die richtige Stelle auf dem Formular">
+  <style>
+    .paper { fill: #ffffff; stroke: #9cabc0; stroke-width: 2; }
+    .line { fill: none; stroke: #b5c8dc; stroke-width: 2.6; stroke-linecap: round; }
+    .mark { fill: #e9f2fa; }
+    .handle { fill: #d49a54; stroke: #a96b31; stroke-width: 2; }
+    .stem { fill: #c78e4e; stroke: #a96b31; stroke-width: 2; }
+    .rubber { fill: #547a9c; stroke: #395b7b; stroke-width: 2; }
+    .base { fill: #375b7a; }
+    .stamp { transform-box: fill-box; transform-origin: 50% 80%; animation: hunt 2600ms ease-in-out infinite; }
+    .shadow { transform-box: fill-box; transform-origin: center; animation: pulse 2600ms ease-in-out infinite; }
+    .question { animation: ask 2600ms ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+    .sheet { transform-box: fill-box; transform-origin: center; animation: nudge 2600ms ease-in-out infinite; }
+    @keyframes hunt {
+      0%, 100% { transform: translate(-17px, -16px) rotate(-10deg); }
+      22% { transform: translate(-1px, -25px) rotate(7deg); }
+      43% { transform: translate(15px, -15px) rotate(-5deg); }
+      60% { transform: translate(11px, -8px) rotate(0deg); }
+      72% { transform: translate(11px, -14px) rotate(-5deg); }
+      84% { transform: translate(-4px, -20px) rotate(6deg); }
+    }
+    @keyframes pulse {
+      0%,100% { opacity: .10; transform: scale(.66); }
+      60% { opacity: .32; transform: scale(.93); }
+    }
+    @keyframes ask {
+      0%,15%,85%,100% { opacity: 0; transform: translateY(4px); }
+      25%,70% { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes nudge {
+      0%,53%,100% { transform: rotate(0deg); }
+      65% { transform: rotate(-1.5deg); }
+      77% { transform: rotate(0deg); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .stamp,.shadow,.question,.sheet { animation: none !important; }
+      .stamp { transform: translate(0, -8px); }
+      .question { opacity: 1; }
+    }
+  </style>
+  <!-- Dokument und Schreibtisch -->
+  <ellipse cx="96" cy="137" rx="74" ry="6" fill="#6b8bad" opacity=".13" />
+  <g class="sheet">
+    <rect x="45" y="20" width="104" height="115" rx="7" fill="#d7e4ef" transform="rotate(4 97 77)"/>
+    <rect class="paper" x="40" y="17" width="104" height="115" rx="7"/>
+    <rect x="54" y="31" width="34" height="7" rx="3.5" fill="#c4d8e9"/>
+    <path class="line" d="M54 50H130 M54 60H113 M54 70H124 M54 80H101" />
+    <rect x="58" y="95" width="70" height="24" rx="4" fill="none" stroke="#c5d8e6" stroke-width="2" stroke-dasharray="4 4" />
+  </g>
+  <ellipse class="shadow" cx="105" cy="117" rx="28" ry="5" fill="#355777" opacity=".20"/>
+  <!-- Suchender Gummistempel -->
+  <g class="stamp">
+    <path class="handle" d="M102 30C92 30 88 35 88 41c0 7 6 12 10 13v11h17V54c4-1 10-6 10-13 0-6-5-11-15-11z"/>
+    <rect class="stem" x="97" y="61" width="18" height="30" rx="4"/>
+    <rect class="rubber" x="79" y="88" width="54" height="12" rx="4"/>
+    <rect class="base" x="75" y="98" width="62" height="8" rx="3"/>
+    <path d="M92 41c5-4 13-4 18 0" fill="none" stroke="#f7d19a" stroke-width="3" stroke-linecap="round" opacity=".8" />
+  </g>
+  <g class="question" fill="#c48742" font-family="Arial, sans-serif" font-weight="bold" font-size="19">
+    <text x="153" y="39">?</text>
+    <text x="167" y="52" font-size="12" opacity=".8">?</text>
+  </g>
+</svg>

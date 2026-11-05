@@ -17,7 +17,8 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 
 ### Rückmeldung beim Speichern von Zählerständen 2026-11-05
 
-- Während des Speicherns zeigt die Zählererfassung einen sichtbaren Ladezustand mit deaktivierten Eingabefeldern und Aktionen. Die kleine Haus-/Zähleranimation berücksichtigt `prefers-reduced-motion`.
+- Während des Speicherns zeigt die Zählererfassung einen sichtbaren Ladezustand mit deaktivierten Eingabefeldern und Aktionen. Der Hausmeister-Stempel aus `assets/hausmeister-stempel-loading.svg` sucht den richtigen Platz; nach bestätigtem Erfolg wechselt die Anzeige auf `assets/hausmeister-stempel-erfolg.svg` und `Amtlich gespeichert!`. Beide SVGs berücksichtigen `prefers-reduced-motion`.
+- Der Ladezustand bleibt bis zur bestätigten Erfolgsmeldung aktiv. Die kurze Nachlaufzeit zeigt ausschließlich den bestätigten Erfolgszustand und verzögert den Backend-Speichervorgang nicht.
 - Eine identische Wiederholung wird als bereits gespeicherter Wert erklärt. Das Backend bleibt idempotent: Es wird keine zweite Zeile und kein neuer Zeitstempel angelegt.
 - Bei einer Korrektur wird ausdrücklich darauf hingewiesen, dass der bestehende Zeitstempel unverändert bleibt. Neue Ablesungen und bewusste Überschreibungen bleiben fachlich getrennt.
 - Das Verhalten ist durch UI-Regressionstests für Busy-Zustand, Duplikatmeldung, Korrekturmeldung, Modal-Markup und Fehlerpfad abgesichert. Der Branch läuft lokal mit 348 Tests grün; Apps Script und Datenmodell wurden nicht geändert.
