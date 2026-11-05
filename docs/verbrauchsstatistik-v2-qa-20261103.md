@@ -84,6 +84,13 @@ kein fachlicher Testfehler.
 Eine kompakte `--explain`-Ausgabe für die Matrixprüfung bleibt als Folgeaufgabe in
 `ROADMAP.md` vermerkt.
 
+Die View-Monatszeilen sind damit gegen ISO-/UTC-Datumswerte abgesichert. Die
+Aufteilung physischer Rohintervalle verwendet weiterhin die lokale Browser-Zeitzone;
+für den aktuellen Berliner Einzelbetrieb ist das konsistent. Eine feste globale
+Zeitbasis für alle Nutzer ist ein separates Architekturthema. Ebenfalls offen bleibt
+die Prüfung, ob die Sheets-Spalte `monat` als Datum oder als Text gespeichert wird und
+ob die Backend-Ausgabe dauerhaft als `YYYY-MM` stabilisiert werden sollte.
+
 ## Live-Snapshot-Prüfung vom 2026-11-04
 
 Der geschützte Snapshot wurde am 2026-11-04 erfolgreich über den POST-Endpunkt abgerufen. Die Antwort enthielt:

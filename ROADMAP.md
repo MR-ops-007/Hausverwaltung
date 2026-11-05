@@ -52,6 +52,10 @@ Diese Datei beschreibt offene und geplante Arbeit.
 - Datenqualität: Alias-Konflikte gezielt prüfen und LOK-/TEST-Smoke-Tests ergänzen.
 - Diagnose: optionalen Matrix-Schalter `--explain` ergänzen, damit Monatswerte,
   Jahreswert und Abweichungsgrund je auffälliger Kombination kompakt ausgegeben werden.
+- Datenquelle: prüfen, ob die Sheets-Spalte `monat` als Datum oder Text geführt wird;
+  bei Bedarf die Backend-Ausgabe dauerhaft als `YYYY-MM` stabilisieren.
+- Zeitbasis: entscheiden, ob die Rohintervall-Aufteilung (`monthSegments`) dauerhaft
+  fest mit `Europe/Berlin` oder bewusst mit der Browser-Zeitzone arbeiten soll.
 - Betrieb: manuelles Cache-Busting durch eine zentrale, nachvollziehbare
   Asset-Version oder später einen Build-Hash ersetzen.
 
