@@ -2,6 +2,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { validateZaehlerstand, VALIDATION_STATUS } from '../validation-service.js';
 
+const consumptionChartService = new Function(
+  readFileSync(new URL('../consumption-charts.js', import.meta.url), 'utf8') +
+  '; return consumptionChartService;'
+)();
+
 function loadUiService({
   zaehlerstaende = [],
   inputValuesByZaehlerId = {},
@@ -149,6 +154,7 @@ function loadUiService({
     'alert',
     'confirm',
     'calcService',
+    'consumptionChartService',
     `${uiServiceCode}; return uiService;`
   );
 
@@ -159,7 +165,8 @@ function loadUiService({
     document,
     alert,
     confirm,
-    calcService
+    calcService,
+    consumptionChartService
   );
 
   uiService.currentActiveMetersObjects = currentMeters;
@@ -178,6 +185,15 @@ function loadUiService({
 }
 
 describe('uiService helper methods', () => {
+  it('ordnet ISO-UTC-Monatsgrenzen nach deutscher Zeit ein', () => {
+    const { uiService } = loadUiService();
+
+    expect(uiService.parseConsumptionMonth('2025-12-31T23:00:00.000Z')).toEqual({
+      year: 2026,
+      month: 1,
+    });
+  });
+
   it('formats timestamps as DD.MM.YYYY HH:mm', () => {
     const { uiService } = loadUiService();
 

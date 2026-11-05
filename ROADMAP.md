@@ -19,14 +19,20 @@ Diese Datei beschreibt offene und geplante Arbeit.
 ### P0 Verbrauchsstatistik V2 abschließen
 
 - Branch: `feature/verbrauchsstatistik-v2`
-- Status: Technisch bestätigt, fachliche Abnahme offen
+- Status: Folgefix in Arbeit, technische Prüfung grün
 - Scope: Prüfhinweise im laufenden Jahr, keine künstlichen Nullmonate, Matrixklassifikation
   und QA-Dokumentation.
 - Review bestätigt in Commit `8ecdf73`: 229 Tests grün; beide Berechnungsfixes und die
   Klassifikation wurden geprüft.
-- Vor Merge: fachliche Bewertung der drei als `unexpected_with_marker` ausgewiesenen
-  Fälle. Technisch sind sie sichtbar markiert; sie gelten dadurch nicht als fachlich
-  freigegeben.
+- Folgefix-Branch: `fix/consumption-timestamp-normalization`.
+- Der Folgefix normalisiert UTC-Monatsgrenzen nach `Europe/Berlin`. Der Rohdatenlauf
+  weist danach 356/356 angezeigte Treffer und keine unerklärten Abweichungen aus.
+- `ui-service.js` verwendet für Datumsbereiche dieselbe gemeinsame Normalisierung wie
+  `consumption-charts.js`; damit zeigen Tabelle und Diagramm denselben Zeitraum.
+- Der reguläre Testlauf setzt `TZ=Europe/Berlin`. Zusatzläufe unter UTC und Tokio
+  bleiben möglich; unter Node 24 benötigt Tokio den stabilen Vitest-Pool
+  (`--pool=forks` oder `--no-file-parallelism`).
+- Vor Merge: `npm test`, `git diff --check` und fachliche Sichtung des Ölfüllstands.
 
 ### P1 Apps Script 4.8.4
 
@@ -46,6 +52,10 @@ Diese Datei beschreibt offene und geplante Arbeit.
 - Datenqualität: Alias-Konflikte gezielt prüfen und LOK-/TEST-Smoke-Tests ergänzen.
 - Diagnose: optionalen Matrix-Schalter `--explain` ergänzen, damit Monatswerte,
   Jahreswert und Abweichungsgrund je auffälliger Kombination kompakt ausgegeben werden.
+- Datenquelle: prüfen, ob die Sheets-Spalte `monat` als Datum oder Text geführt wird;
+  bei Bedarf die Backend-Ausgabe dauerhaft als `YYYY-MM` stabilisieren.
+- Zeitbasis: entscheiden, ob die Rohintervall-Aufteilung (`monthSegments`) dauerhaft
+  fest mit `Europe/Berlin` oder bewusst mit der Browser-Zeitzone arbeiten soll.
 - Betrieb: manuelles Cache-Busting durch eine zentrale, nachvollziehbare
   Asset-Version oder später einen Build-Hash ersetzen.
 

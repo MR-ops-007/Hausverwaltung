@@ -1,7 +1,7 @@
 # QA-Bericht Verbrauchsstatistik V2
 
 Stand: 2026-11-05
-Branch: `feature/verbrauchsstatistik-v2`
+Branch: `fix/consumption-timestamp-normalization`
 Objekt: `Ra-HS-29` / Hauptstraße 29
 Testserver: lokaler Vite-Server auf Port 5182; bei belegtem Port alternativ 5183
 Diagramm-Asset: `consumption-charts.js?v=20261104-verbrauchsstatistik-v29`
@@ -42,31 +42,54 @@ Die 18 leeren Zählerstandsverläufe trotz Monatswerten gehören zu berechneten 
 Commit `8ecdf73` wurde technisch geprüft. Die beiden Regressionen für das laufende
 Jahr sind bestätigt: ausgeschöpfte Jahresreste erzeugen keine künstlichen Nullmonate,
 und große Abweichungen werden auch ohne `anzahl_monate_mit_verbrauch` als Prüfhinweis
-markiert. Die Klassifikation `explained_by_readings`, `unexpected_with_marker` und
-`unexplained` wurde ebenfalls bestätigt. Die Testsuite umfasst 229 grüne Tests.
+markiert. Der Folgefix dieses Branches ergänzt die UTC-/Europe-Berlin-Normalisierung.
 
-Vor dem Merge bleiben ausschließlich fachliche Prüfungen offen:
+### Folgefix: UTC-Monatsgrenzen
 
-1. `Z_WARMWASSER_WW_ZULAUF_MINUS_ALLER_WW_LOKAL` / `Ra-HS-29_GE_02` für 2026
-2. `Z_WARMWASSER_WW_GESAMT_BERECHNET` / `Ra-HS-29_Allgemein_Heizung` für 2026
-3. `Z_OEL_STAND_IN_CM` / `Ra-HS-29_Allgemein` für 2026
+View-Zeilen tragen teilweise `jahr = 2026`, aber als Monatswert einen UTC-Zeitstempel
+wie `2025-12-31T23:00:00.000Z`. Dieser Zeitpunkt ist in `Europe/Berlin` bereits der
+01.01.2026. Die UI hatte zuvor das Jahr und den Monat aus dem rohen UTC-Text gelesen
+und die Zeile dadurch aus dem Verbrauchsjahr entfernt.
 
-Bei den beiden Warmwasserzählern handelt es sich um berechnete Werte ohne physische
-Rohablesungen. Bei `Z_OEL_STAND_IN_CM` handelt es sich um einen Füllstand in cm und
-nicht um einen monoton steigenden Verbrauchszähler. Nachfüllungen und Tankwechsel
-erfordern deshalb eine eigene fachliche Behandlung. Die UI markiert alle drei Fälle;
-keiner wird als fachlich freigegeben oder still als korrekt behandelt.
+Der Folgefix ordnet ISO-Zeitstempel über das Berliner Lokaldatum zu und verwendet
+dieselbe Normalisierung für die Teilmonatsprüfung. Dadurch werden auch mehrere
+Segmente am lokalen Jahresanfang nicht verworfen.
 
-Zusätzlich bleiben 31 `explained_by_readings`-Fälle sichtbar. Ihre Herkunft aus
-Rohintervallen ist bekannt, aber alle liegen außerhalb der relativen 2%-Schwelle.
-Dadurch ist die technische Herleitung nachvollziehbar, die fachliche Gleichheit mit
-dem Jahreswert aber nicht bewiesen. Die Entscheidung, ob die Backend-View diese
-Rohintervallwerte künftig selbst in die Jahresdarstellung übernimmt oder die UI den
-Unterschied nur explizit erklärt, ist als Folgeaufgabe dokumentiert.
+Auch `ui-service.js` verwendet jetzt dieselbe gemeinsame Normalisierung. Der
+Fallback für Zeitraumdarstellungen behandelt ISO-UTC-Monatswerte dadurch nicht mehr
+als unbekannte Jahreszeiträume. Der reguläre Testlauf setzt `TZ=Europe/Berlin`, damit
+lokale Datumsberechnungen reproduzierbar sind.
 
-Eine kompakte `--explain`-Ausgabe für die Matrixprüfung ist ebenfalls als Folgeaufgabe
-in `ROADMAP.md` vermerkt. Sie ist für die fachliche Abnahme hilfreich, aber keine
-Voraussetzung für die technische Merge-Freigabe.
+Der erneute Lauf auf demselben Rohdaten-Snapshot ergibt:
+
+| Kennzahl | Ergebnis |
+| :--- | ---: |
+| Vergleichbare Kombinationen | 356 |
+| Angezeigte Summen im direkten Treffer | 356 |
+| `explained_by_readings` | 0 |
+| `unexpected_with_marker` | 0 |
+| `unexplained` | 0 |
+| Maximale Restabweichung | Rundungsrauschen (`1,8e-12`) |
+
+Die Öl-Fachlogik ist damit nicht abschließend gelöst. Der numerische Monats-/Jahres-
+Abgleich ist korrigiert; die Interpretation von `oel_stand_cm` als Füllstand mit
+Nachfüllungen bleibt Bestandteil des separaten Heizöl-Pakets.
+
+Zusatzläufe unter `TZ=UTC` und `TZ=Asia/Tokyo` liefen mit 232 grünen Tests. Unter
+Node 24 beendet der standardmäßige Vitest-Thread-Pool den Tokio-Lauf anschließend
+mit einem nativen V8-Fehler (Exit 134); mit `--pool=forks` beziehungsweise
+`--no-file-parallelism` endet derselbe Lauf sauber. Das ist ein Test-Runner-Thema,
+kein fachlicher Testfehler.
+
+Eine kompakte `--explain`-Ausgabe für die Matrixprüfung bleibt als Folgeaufgabe in
+`ROADMAP.md` vermerkt.
+
+Die View-Monatszeilen sind damit gegen ISO-/UTC-Datumswerte abgesichert. Die
+Aufteilung physischer Rohintervalle verwendet weiterhin die lokale Browser-Zeitzone;
+für den aktuellen Berliner Einzelbetrieb ist das konsistent. Eine feste globale
+Zeitbasis für alle Nutzer ist ein separates Architekturthema. Ebenfalls offen bleibt
+die Prüfung, ob die Sheets-Spalte `monat` als Datum oder als Text gespeichert wird und
+ob die Backend-Ausgabe dauerhaft als `YYYY-MM` stabilisiert werden sollte.
 
 ## Live-Snapshot-Prüfung vom 2026-11-04
 
@@ -125,12 +148,12 @@ Der Rohdaten-Snapshot enthielt 49 Zählerstammdaten und 1.910 historische Zähle
 | Mit Monats- und Jahreswert verglichen | 356 |
 | Treffer ohne Anpassung | 356 |
 | Angezeigte Monatssumme gegen Jahreswert vergleichbar | 356 |
-| Angezeigte Summe trifft den Jahreswert | 322 |
-| Angezeigte Abweichung aus Rohintervall (`explained_by_readings`) | 31 |
+| Angezeigte Summe trifft den Jahreswert | 356 |
+| Angezeigte Abweichung aus Rohintervall (`explained_by_readings`) | 0 |
 | Rohintervall-Abweichungen innerhalb der relativen 2%-Schwelle | 0 |
-| Unerwartete Abweichung mit Prüfmarker (`unexpected_with_marker`) | 3 |
+| Unerwartete Abweichung mit Prüfmarker (`unexpected_with_marker`) | 0 |
 | Ungeklärte Abweichung ohne Marker | 0 |
-| Maximale angezeigte Abweichung | 660,86 |
+| Maximale angezeigte Abweichung | Rundungsrauschen (`1,8e-12`) |
 | Kleiner Abgleich | 0 |
 | Große Abweichung | 0 |
 | Jahreszeile ohne nutzbaren Monatsverbrauch | 1 |
@@ -253,8 +276,8 @@ Die Regressionstests decken unter anderem ab:
 Die UI-Berechnung ist für die Fälle ohne große Monats-/Jahresabweichung konsistent. Offen bleiben Datenbasisfälle, die fachlich in den Views beziehungsweise im Audit sichtbar bleiben müssen:
 
 - Für berechnete Zähler ohne manuelle Rohablesungen gibt es keinen Zählerstandsverlauf. Das betrifft im aktuellen Rohdatenlauf ausschließlich die beiden oben genannten berechneten Warmwasserzähler und ist erwartbar.
-- Der aktuelle Rohdatenlauf zeigt drei Kombinationen, in denen die angezeigte Monatssumme vom Jahreswert abweicht und die UI nun ausdrücklich einen Prüfmarker setzt: `Z_WARMWASSER_WW_ZULAUF_MINUS_ALLER_WW_LOKAL` / `Ra-HS-29_GE_02` (2026), `Z_WARMWASSER_WW_GESAMT_BERECHNET` / `Ra-HS-29_Allgemein_Heizung` (2026) und `Z_OEL_STAND_IN_CM` / `Ra-HS-29_Allgemein` (2026). Die Roh-Monatssummen und Jahreswerte stimmen in diesen Fällen; die Abweichung entsteht in der UI-Zuordnung bzw. Aufbereitung und ist fachlich weiter zu prüfen. Sie wird nicht als gelöst ausgegeben.
-- Weitere 31 angezeigte Abweichungen stammen aus Rohintervallen (`explained_by_readings`). Die Herleitung ist damit bekannt, aber keine fachliche Freigabe: Alle 31 liegen außerhalb der relativen 2%-Schwelle und bleiben als Prüfhinweis relevant. Abweichungen aus `derived`, `fromAnnual` oder `reconciled` würden bei einer Restabweichung nicht als erklärt, sondern als unerwartet mit Marker klassifiziert.
+- Die drei zuvor markierten Abweichungen waren auf die UTC-/Europe-Berlin-Monatszuordnung zurückzuführen. Der Folgefix nimmt alle drei Fälle in die Anzeige auf; im erneuten Rohdatenlauf gibt es keine unerklärte oder unerwartet markierte Abweichung mehr.
+- Die zuvor 31 `explained_by_readings`-Fälle entstehen nach der korrigierten Monatszuordnung nicht mehr als Summenabweichung. Rohintervall-Ergänzungen bleiben technisch möglich, werden aber nicht mehr als Abweichung vom Jahreswert gezählt.
 - 84 Zähler-/Jahr-Kombinationen haben im Rohdatenlauf weder nutzbaren Monats- noch Jahresverbrauch. Das sind Datenlücken in der festen Stammdatenmatrix, nicht automatisch Join- oder Aliasfehler.
 - Für `Z_OEL_GETANKT_LITER` existiert 2023 eine Jahreszeile mit 0 Verbrauch und 14 nicht berechenbaren Monatssegmenten wegen rückläufiger Rohwerte. Dieser Fall bleibt ein fachlicher Öl-Datenbefund.
 - Die Darstellung verwendet bei fortgeschriebenen oder abgeglichenen Werten bewusst eine Kennzeichnung. Diese Werte sind keine zusätzlichen Rohablesungen.

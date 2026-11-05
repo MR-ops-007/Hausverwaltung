@@ -8,7 +8,7 @@
     "clasp:status": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && clasp --auth .clasprc.json status'",
     "clasp:pull": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && clasp --auth .clasprc.json pull'",
     "clasp:push": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && clasp --auth .clasprc.json push'",
-    "test": "vitest run",
+    "test": "TZ=Europe/Berlin vitest run",
     "qa:consumption-matrix": "node tools/qa-consumption-matrix.mjs",
     "qa:consumption-snapshot": "node tools/fetch-verbrauch-snapshot.mjs"
   },

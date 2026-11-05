@@ -816,6 +816,11 @@ const uiService = {
   },
 
   parseConsumptionMonth(value) {
+    if (typeof consumptionChartService !== 'undefined' &&
+      typeof consumptionChartService.consumptionMonth === 'function') {
+      return consumptionChartService.consumptionMonth({ monat: value });
+    }
+
     const match = String(value || '').trim().match(/^(\d{4})-(\d{1,2})$/);
     if (!match) return null;
 
