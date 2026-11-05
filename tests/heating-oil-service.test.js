@@ -75,6 +75,26 @@ describe('Heizöl-Fachlogik', () => {
     expect(config.liter_pro_cm).toBeCloseTo(2000 / 140);
   });
 
+  it('übernimmt objektbezogene Tankparameter aus der Haustechnik', () => {
+    const technicalRows = [{
+      objekt_id: 'Ra-HS-29',
+      tank_id: 'HAUPTTANK',
+      volumen_l: 9000,
+      max_fuellstand_cm: 120,
+      aktiv: 'TRUE',
+      in_verbrauch_auswertung: 'ja',
+    }];
+    const config = service.getTankConfig(mainMeter, technicalRows);
+    const result = service.calculate([
+      reading(mainMeter, '01.01.2026 00:00', 100),
+      reading(mainMeter, '01.02.2026 00:00', 90),
+    ], mainMeter, technicalRows, 2026);
+
+    expect(config).toMatchObject({ volumen_l: 9000, max_fuellstand_cm: 120 });
+    expect(config.liter_pro_cm).toBeCloseTo(75);
+    expect(result.totalLiters).toBeCloseTo(750);
+  });
+
   it('erkennt eine Tankfüllung ohne gleichzeitigen neuen Füllstand', () => {
     const events = service.findMissingLevelAfterFill(
       [reading(mainMeter, '01.01.2026 00:00', 60)],

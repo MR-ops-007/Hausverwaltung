@@ -1,6 +1,6 @@
 # PROJECT_STATE - Hausverwaltung
 
-## Stand: 2026-10-23
+## Stand: 2026-11-05
 
 `main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz 4.8.0 ist produktiv aktiviert.
 
@@ -448,7 +448,7 @@ Umgesetzt:
 4. Steigender Ölstand erzeugt eine Warnung für Betankung, Korrektur oder Messfehler.
 5. Überlauf wird für Ölstand in cm nicht angewendet.
 
-### Heizöl-Verbrauch (in Arbeit auf `feature/heizoel-verbrauch`)
+### Heizöl-Verbrauch (bereit für PR auf `feature/heizoel-verbrauch`)
 
 Die Verbrauchsstatistik unterscheidet jetzt zwischen dem rückläufigen Füllstand
 des Haupttanks und dem daraus abgeleiteten Verbrauch in Litern. Für Hauptstraße 29
@@ -465,8 +465,9 @@ Tabelle `Haustechnik` objekt- und tankspezifisch anpassbar.
   Hausverbrauchsauswertung.
 - Eine kWh-Umrechnung ist bis zur Klärung von Heizmedium, Heizwert und beheizter
   Fläche ausdrücklich nicht enthalten.
-- `npm test` läuft auf diesem Branch mit 240 Tests in 12 Testdateien grün; zusätzlich
+- `npm test` läuft auf diesem Branch mit 354 Tests in 13 Testdateien grün; zusätzlich
   sind `node --check` für die geänderten JavaScript-Dateien und `git diff --check`
-  sauber. Das Paket ändert keine Apps-Script-Datei und benötigt für die lokale
-  Prüfung keinen Live-Zugriffsschlüssel.
+  sauber. Die Tankfüllungs-Automatik ist für Haupt- und Zusatztank separat regressionsgetestet.
+  Das Paket ändert keine Apps-Script-Datei und benötigt für die lokale Prüfung keinen
+  Live-Zugriffsschlüssel.
 - Details und Grenzen stehen in `docs/heizoel-verbrauch.md`.

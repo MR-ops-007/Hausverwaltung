@@ -2104,7 +2104,15 @@ const uiService = {
       const meter = meters.find(row => String(row.zaehler_id) === String(transaction.zaehler_id));
       return meter && service.isOilFillMeter(meter);
     });
-    const levelMeter = meters.find(meter => service.isOilLevelMeter(meter));
+    const fillMeter = fillTransaction
+      ? meters.find(row => String(row.zaehler_id) === String(fillTransaction.zaehler_id))
+      : null;
+    const fillTankId = fillMeter && typeof service.tankIdForMeter === 'function'
+      ? service.tankIdForMeter(fillMeter)
+      : null;
+    const levelMeter = meters.find(meter => service.isOilLevelMeter(meter) && (
+      !fillTankId || typeof service.tankIdForMeter !== 'function' || service.tankIdForMeter(meter) === fillTankId
+    ));
     if (!fillTransaction || !levelMeter || transactions.some(transaction =>
       String(transaction.zaehler_id) === String(levelMeter.zaehler_id)
     )) {
@@ -2117,7 +2125,7 @@ const uiService = {
     );
     if (!config || config.max_fuellstand_cm === null) return null;
 
-    return { fillTransaction, levelMeter, config };
+    return { fillTransaction, levelMeter, config, fillTankId };
   },
 
   getRowStandId(row) {

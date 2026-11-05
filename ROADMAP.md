@@ -72,7 +72,7 @@ Diese Datei beschreibt offene und geplante Arbeit.
 ### P3 Heizöl-Verbrauch
 
 - Branch: `feature/heizoel-verbrauch`
-- Status: In Arbeit, lokales Paket vorbereitet; PR/Deployment offen
+- Status: Implementiert und lokal verifiziert; PR/Deployment offen
 - Haupttank: 10.000 Liter; Zusatztank: 2.000 Liter, zunächst separat.
 - Verbrauch zunächst in cm und Litern darstellen; die Arbeitshypothese für den
   Haupttank ist 10.000 Liter bei 140 cm, der Zusatztank 2.000 Liter bei 140 cm.
@@ -85,7 +85,8 @@ Diese Datei beschreibt offene und geplante Arbeit.
   Monats-/Jahresreihen und die Erkennung fehlender Füllstände. Die UI zeigt den
   Füllstandsverlauf weiterhin in cm und den berechneten Verbrauch zusätzlich in l.
 - Tests: Haupttank, Zusatztank, steigende Füllstände, fremde Zähleridentitäten,
-  fehlender Füllstand nach Tankfüllung und Jahresentwicklung.
+  fehlender Füllstand nach Tankfüllung, objektbezogene Tankparameter und
+  Jahresentwicklung. Der lokale Testlauf ist mit 354 Tests in 13 Testdateien grün.
 
 ### P4 Spätere technische Themen
 

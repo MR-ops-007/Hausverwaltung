@@ -491,7 +491,7 @@ const consumptionChartService = (() => {
         <select id="consumption-chart-meter-select" onchange="uiService.consumptionChartSelection=this.value;uiService.renderConsumptionDashboard()">${options}</select>
       </label><label>Darstellung<select onchange="uiService.consumptionChartMode=this.value;uiService.renderConsumptionDashboard()"><option value="line"${chartMode === 'line' ? ' selected' : ''}>Linie</option><option value="bar"${chartMode === 'bar' ? ' selected' : ''}>Balken</option><option value="area"${chartMode === 'area' ? ' selected' : ''}>Fläche</option></select></label></div>
       <div class="consumption-charts-grid">
-        <div class="consumption-chart-panel"><h4>Zählerstandsverlauf</h4>${lineChart(readingSeries(readingRows, meter), levelUnit, `Zählerstandsverlauf für ${meter.bezeichnung || meter.zaehler_id} in ${levelUnit}`)}</div>
+        <div class="consumption-chart-panel"><h4>Zählerstandsverlauf</h4>${lineChart(readingSeries(readingRows, meter), isOil ? levelUnit : unit, `Zählerstandsverlauf für ${meter.bezeichnung || meter.zaehler_id} in ${isOil ? levelUnit : unit}`)}</div>
         <div class="consumption-chart-panel"><h4>Monatsverbrauch ${esc(year)} / ${esc(priorYear)}</h4>${monthChart}</div>
         <div class="consumption-chart-panel"><h4>Jahresentwicklung</h4>${annualChart}</div>
       </div>

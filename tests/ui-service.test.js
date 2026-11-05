@@ -1225,6 +1225,44 @@ describe('uiService.saveZaehler', () => {
     expect(alerts).toContain('Erfolgreich gespeichert!');
   });
 
+  it('ordnet eine Zusatztank-Füllung dem Zusatztank statt dem Haupttank zu', async () => {
+    const mainLevelMeter = {
+      objekt_id: 'Ra-HS-29',
+      einheit_id: 'Ra-HS-29_Allgemein',
+      zaehler_id: 'Z_OEL_STAND_IN_CM',
+      medium: 'oel_stand_cm',
+      bezeichnung: 'Heizung Ölstand (cm)',
+    };
+    const auxiliaryFillMeter = {
+      objekt_id: 'Ra-HS-29',
+      einheit_id: 'Ra-HS-29_Allgemein',
+      zaehler_id: 'Z_OEL_GETANKT_LITER_ZUSATZTANK',
+      medium: 'oel_stand_l',
+      bezeichnung: 'Heizung Zusatztank Öl getankt (Liter)',
+    };
+    const auxiliaryLevelMeter = {
+      objekt_id: 'Ra-HS-29',
+      einheit_id: 'Ra-HS-29_Allgemein',
+      zaehler_id: 'Z_OEL_STAND_IN_CM_ZUSATZTANK',
+      medium: 'oel_stand_cm',
+      bezeichnung: 'Heizung Ölstand Zusatztank',
+    };
+    const { uiService, saveCalls } = loadUiService({
+      currentMeters: [mainLevelMeter, auxiliaryFillMeter, auxiliaryLevelMeter],
+      inputValuesByZaehlerId: { Z_OEL_GETANKT_LITER_ZUSATZTANK: '1000' },
+    });
+
+    await uiService.saveZaehler();
+
+    expect(saveCalls[0].data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ zaehler_id: 'Z_OEL_GETANKT_LITER_ZUSATZTANK', wert: 1000 }),
+      expect.objectContaining({ zaehler_id: 'Z_OEL_STAND_IN_CM_ZUSATZTANK', wert: 140 }),
+    ]));
+    expect(saveCalls[0].data).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ zaehler_id: 'Z_OEL_STAND_IN_CM', wert: 140 }),
+    ]));
+  });
+
   it('blocks negative values and does not save', async () => {
     const meter = {
       zaehler_id: 'Z001',
