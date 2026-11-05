@@ -96,6 +96,50 @@ button:active {
 .btn-primary:disabled { opacity: 0.6; cursor: wait; }
 .consumption-refresh-status { color: #475569; font-size: 0.95rem; font-weight: 600; }
 
+.meter-save-progress {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    padding: 10px 12px;
+    border: 1px solid #bfdbfe;
+    border-radius: 12px;
+    background: #eff6ff;
+    color: #1e3a8a;
+}
+.meter-save-progress[hidden] { display: none; }
+.meter-save-progress strong,
+.meter-save-progress small { display: block; }
+.meter-save-progress small { margin-top: 2px; color: #475569; font-size: 0.8rem; }
+.meter-save-progress-animation {
+    position: relative;
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    min-width: 42px;
+    height: 30px;
+    color: #2563eb;
+    font-size: 1.6rem;
+    line-height: 1;
+}
+.meter-save-progress-animation > span { animation: meter-house-bob 1.2s ease-in-out infinite; }
+.meter-save-progress-animation i {
+    display: block;
+    width: 4px;
+    height: 8px;
+    border-radius: 3px 3px 0 0;
+    background: #16a34a;
+    animation: meter-bar-pulse 0.9s ease-in-out infinite alternate;
+}
+.meter-save-progress-animation i:nth-of-type(2) { height: 14px; animation-delay: 0.15s; }
+.meter-save-progress-animation i:nth-of-type(3) { height: 20px; animation-delay: 0.3s; }
+@keyframes meter-house-bob { 50% { transform: translateY(-2px); } }
+@keyframes meter-bar-pulse { to { opacity: 0.35; transform: scaleY(0.55); } }
+@media (prefers-reduced-motion: reduce) {
+    .meter-save-progress-animation > span,
+    .meter-save-progress-animation i { animation: none; }
+}
+
 .tab-btn-active {
     background-color: #2563eb !important;
     color: white !important;

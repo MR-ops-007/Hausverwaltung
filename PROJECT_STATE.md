@@ -1,6 +1,6 @@
 # PROJECT_STATE - Hausverwaltung
 
-## Stand: 2026-10-23
+## Stand: 2026-11-05
 
 `main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz 4.8.0 ist produktiv aktiviert.
 
@@ -14,6 +14,13 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 - Es arbeitet derzeit nur eine Person mit dem System, mehrere Endgeräte sind aber möglich. Deshalb gibt es bewusst keinen Cooldown für den Verbrauchs-Button.
 - **Offen / Anforderung:** Die spätere Plausibilitätsprüfung auf sprunghaft gestiegenen Verbrauch darf nicht durch zwei Werte am selben Tag (korrigierter Zahlendreher) anspringen. Siehe `DATA_MODEL.md`, Plausibilitätsregel 8, und `docs/offline-sync-und-korrekturen.md`.
 - Einzelheiten, Einspielen und Rollback: `docs/offline-sync-und-korrekturen.md`.
+
+### Rückmeldung beim Speichern von Zählerständen 2026-11-05
+
+- Während des Speicherns zeigt die Zählererfassung einen sichtbaren Ladezustand mit deaktivierten Eingabefeldern und Aktionen. Die kleine Haus-/Zähleranimation berücksichtigt `prefers-reduced-motion`.
+- Eine identische Wiederholung wird als bereits gespeicherter Wert erklärt. Das Backend bleibt idempotent: Es wird keine zweite Zeile und kein neuer Zeitstempel angelegt.
+- Bei einer Korrektur wird ausdrücklich darauf hingewiesen, dass der bestehende Zeitstempel unverändert bleibt. Neue Ablesungen und bewusste Überschreibungen bleiben fachlich getrennt.
+- Das Verhalten ist durch UI-Regressionstests für Busy-Zustand, Duplikatmeldung, Korrekturmeldung, Modal-Markup und Fehlerpfad abgesichert. Der Branch läuft lokal mit 348 Tests grün; Apps Script und Datenmodell wurden nicht geändert.
 
 ### Vertragsausbau 2026-10-21/22: Mietverträge / Indexmieten (produktiv)
 

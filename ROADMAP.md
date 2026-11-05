@@ -89,3 +89,11 @@ Diese Datei beschreibt offene und geplante Arbeit.
 - Node-/Toolchain-Aktualisierung prüfen.
 - Weitere Indexreihen ergänzen.
 - Weitere Objekte außerhalb von Ra-HS-29, LOK und TEST als Smoke-Test-Basis aufnehmen.
+
+### UI-Paket: Speicherrückmeldung Zählerstände
+
+- Branch: `feature/zaehler-speichern-feedback`
+- Status: Implementiert, lokal geprüft; PR/CI offen
+- Der Speichervorgang zeigt einen Ladezustand mit deaktivierten Aktionen und einer kleinen, reduzierten Haus-/Zähleranimation.
+- Idempotente Wiederholungen werden als „bereits gespeichert“ erklärt; bei Korrekturen wird der unveränderte ursprüngliche Zeitstempel transparent ausgewiesen.
+- Validierung: 348 Tests, `node --check ui-service.js` und `git diff --check` grün. Kein Apps-Script- oder Backend-Change.

@@ -2063,9 +2063,14 @@ const uiService = {
 
       ${inputsHtml}
 
+      <div id="meter-save-progress" class="meter-save-progress" role="status" aria-live="polite" hidden>
+        <span class="meter-save-progress-animation" aria-hidden="true"><span>⌂</span><i></i><i></i><i></i></span>
+        <span><strong>Werte werden gespeichert …</strong><small>Die Zähler ziehen gerade ins Haus ein.</small></span>
+      </div>
+
       <div style="margin-top:20px;">
-        ${activeMeters.length > 0 ? '<button onclick="uiService.saveZaehler()" style="background:#28a745; color:white; padding:10px; border:none; border-radius:5px; cursor:pointer;">Speichern</button>' : ''}
-        <button onclick="uiService.closeModal()" style="background:#6c757d; color:white; padding:10px; border:none; border-radius:5px; cursor:pointer; margin-left:10px;">Abbrechen</button>
+        ${activeMeters.length > 0 ? '<button id="save-meter-values" onclick="uiService.saveZaehler()" style="background:#28a745; color:white; padding:10px; border:none; border-radius:5px; cursor:pointer;">Speichern</button>' : ''}
+        <button id="cancel-meter-values" onclick="uiService.closeModal()" style="background:#6c757d; color:white; padding:10px; border:none; border-radius:5px; cursor:pointer; margin-left:10px;">Abbrechen</button>
       </div>
     `;
 
@@ -2314,6 +2319,64 @@ const uiService = {
     await this.retrySyncQueue();
   },
 
+  setZaehlerSaveBusy(isBusy) {
+    const saveButton = document.getElementById('save-meter-values');
+    const cancelButton = document.getElementById('cancel-meter-values');
+    const progress = document.getElementById('meter-save-progress');
+
+    if (saveButton) {
+      saveButton.disabled = isBusy;
+      saveButton.textContent = isBusy ? 'Speichern läuft …' : 'Speichern';
+      if (typeof saveButton.setAttribute === 'function') {
+        saveButton.setAttribute('aria-busy', String(isBusy));
+      }
+    }
+
+    if (cancelButton) cancelButton.disabled = isBusy;
+
+    (this.currentActiveMetersObjects || []).forEach(zaehler => {
+      const input = document.getElementById(`input-${zaehler.zaehler_id}`);
+      if (input) input.disabled = isBusy;
+    });
+
+    if (progress) {
+      progress.hidden = !isBusy;
+      progress.style.display = isBusy ? 'flex' : 'none';
+    }
+  },
+
+  formatZaehlerSaveSuccess(res) {
+    const rawCounts = [res && res.angelegt, res && res.bereits_vorhanden, res && res.ueberschrieben]
+      .map(Number);
+    const hasCounters = rawCounts.some(Number.isFinite);
+    const [angelegt, bereitsVorhanden, ueberschrieben] = rawCounts.map(value => Number.isFinite(value) ? value : 0);
+
+    if (!hasCounters) return 'Erfolgreich gespeichert!';
+
+    if (angelegt === 0 && bereitsVorhanden > 0 && ueberschrieben === 0) {
+      const existingText = bereitsVorhanden === 1 ? '1 Wert war bereits vorhanden' : `${bereitsVorhanden} Werte waren bereits vorhanden`;
+      return `Bereits gespeichert: ${existingText}. ` +
+        'Es wurde keine neue Zeile und kein neuer Zeitstempel angelegt.';
+    }
+
+    const details = [];
+    if (angelegt > 0) {
+      details.push(angelegt === 1 ? '1 neuer Zählerstand' : `${angelegt} neue Zählerstände`);
+    }
+    if (ueberschrieben > 0) {
+      details.push(ueberschrieben === 1
+        ? '1 Zählerstand korrigiert; der bestehende Zeitstempel bleibt unverändert'
+        : `${ueberschrieben} Zählerstände korrigiert; die bestehenden Zeitstempel bleiben unverändert`);
+    }
+    if (bereitsVorhanden > 0) {
+      details.push(bereitsVorhanden === 1 ? '1 Wert war bereits vorhanden' : `${bereitsVorhanden} Werte waren bereits vorhanden`);
+    }
+
+    return details.length > 0
+      ? `Erfolgreich gespeichert! ${details.join('; ')}.`
+      : 'Erfolgreich verarbeitet. Es wurde keine neue Zeile angelegt.';
+  },
+
   /**
    * Nach bestätigtem Speichern den Datenbestand aus der Datenbank neu lesen, damit die Anzeige dem
    * Sheet entspricht (kein Phantomwert bei „bereits vorhanden“, richtige Zeile bei Überschreiben).
@@ -2443,25 +2506,39 @@ const uiService = {
     }
 
     const payload = { typ: 'ZAEHLERSTAND_NEU', data: transactions };
-    let res = await cloudService.saveTransaction(payload);
-
+    const requestSave = async requestPayload => {
+      this.setZaehlerSaveBusy(true);
+      try {
+        return await cloudService.saveTransaction(requestPayload);
+      } finally {
+        this.setZaehlerSaveBusy(false);
+      }
+    };
+    let res;
     const overwrittenByZaehler = {};
 
-    if (res && res.status === 'error' && res.code === 'CONFLICT') {
-      const decision = this.resolveConflict(res.conflicts, transactions.length);
+    try {
+      res = await requestSave(payload);
 
-      if (!decision) {
-        return;
-      }
+      if (res && res.status === 'error' && res.code === 'CONFLICT') {
+        const decision = this.resolveConflict(res.conflicts, transactions.length);
 
-      if (decision.aktion === 'neue_ablesung') {
-        res = await cloudService.saveTransaction({ ...payload, neueAblesung: true });
-      } else {
-        (res.conflicts || []).forEach(conflict => {
-          overwrittenByZaehler[conflict.zaehler_id] = conflict;
-        });
-        res = await cloudService.saveTransaction({ ...payload, ueberschreiben: { grund: decision.grund } });
+        if (!decision) {
+          return;
+        }
+
+        if (decision.aktion === 'neue_ablesung') {
+          res = await requestSave({ ...payload, neueAblesung: true });
+        } else {
+          (res.conflicts || []).forEach(conflict => {
+            overwrittenByZaehler[conflict.zaehler_id] = conflict;
+          });
+          res = await requestSave({ ...payload, ueberschreiben: { grund: decision.grund } });
+        }
       }
+    } catch (error) {
+      alert('Fehler beim Speichern: ' + (error && error.message ? error.message : error));
+      return;
     }
 
     if (res && res.status === 'success') {
@@ -2470,8 +2547,15 @@ const uiService = {
         // „nicht gespeichert“ zeigt den Eintrag, bis das Backend ihn bestätigt hat.
         alert('Offline gespeichert. Die Werte sind noch NICHT in der Datenbank und werden gesendet, sobald eine Verbindung besteht. Den Status siehst du oben auf der Seite.');
       } else {
-        await this.refreshZaehlerstaendeAfterSave(res, transactions, overwrittenByZaehler);
-        alert('Erfolgreich gespeichert!');
+        // Auch das Nachladen gehört zum Speichervorgang: Erst danach entspricht die Anzeige
+        // sicher dem Backend und es gibt keinen kurzen Zwischenzustand im Modal.
+        this.setZaehlerSaveBusy(true);
+        try {
+          await this.refreshZaehlerstaendeAfterSave(res, transactions, overwrittenByZaehler);
+        } finally {
+          this.setZaehlerSaveBusy(false);
+        }
+        alert(this.formatZaehlerSaveSuccess(res));
       }
 
       this.closeModal();
