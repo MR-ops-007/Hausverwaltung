@@ -55,6 +55,11 @@ Der Folgefix ordnet ISO-Zeitstempel über das Berliner Lokaldatum zu und verwend
 dieselbe Normalisierung für die Teilmonatsprüfung. Dadurch werden auch mehrere
 Segmente am lokalen Jahresanfang nicht verworfen.
 
+Auch `ui-service.js` verwendet jetzt dieselbe gemeinsame Normalisierung. Der
+Fallback für Zeitraumdarstellungen behandelt ISO-UTC-Monatswerte dadurch nicht mehr
+als unbekannte Jahreszeiträume. Der reguläre Testlauf setzt `TZ=Europe/Berlin`, damit
+lokale Datumsberechnungen reproduzierbar sind.
+
 Der erneute Lauf auf demselben Rohdaten-Snapshot ergibt:
 
 | Kennzahl | Ergebnis |
@@ -69,6 +74,12 @@ Der erneute Lauf auf demselben Rohdaten-Snapshot ergibt:
 Die Öl-Fachlogik ist damit nicht abschließend gelöst. Der numerische Monats-/Jahres-
 Abgleich ist korrigiert; die Interpretation von `oel_stand_cm` als Füllstand mit
 Nachfüllungen bleibt Bestandteil des separaten Heizöl-Pakets.
+
+Zusatzläufe unter `TZ=UTC` und `TZ=Asia/Tokyo` liefen mit 232 grünen Tests. Unter
+Node 24 beendet der standardmäßige Vitest-Thread-Pool den Tokio-Lauf anschließend
+mit einem nativen V8-Fehler (Exit 134); mit `--pool=forks` beziehungsweise
+`--no-file-parallelism` endet derselbe Lauf sauber. Das ist ein Test-Runner-Thema,
+kein fachlicher Testfehler.
 
 Eine kompakte `--explain`-Ausgabe für die Matrixprüfung bleibt als Folgeaufgabe in
 `ROADMAP.md` vermerkt.

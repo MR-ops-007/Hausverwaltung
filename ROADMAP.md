@@ -27,6 +27,11 @@ Diese Datei beschreibt offene und geplante Arbeit.
 - Folgefix-Branch: `fix/consumption-timestamp-normalization`.
 - Der Folgefix normalisiert UTC-Monatsgrenzen nach `Europe/Berlin`. Der Rohdatenlauf
   weist danach 356/356 angezeigte Treffer und keine unerklärten Abweichungen aus.
+- `ui-service.js` verwendet für Datumsbereiche dieselbe gemeinsame Normalisierung wie
+  `consumption-charts.js`; damit zeigen Tabelle und Diagramm denselben Zeitraum.
+- Der reguläre Testlauf setzt `TZ=Europe/Berlin`. Zusatzläufe unter UTC und Tokio
+  bleiben möglich; unter Node 24 benötigt Tokio den stabilen Vitest-Pool
+  (`--pool=forks` oder `--no-file-parallelism`).
 - Vor Merge: `npm test`, `git diff --check` und fachliche Sichtung des Ölfüllstands.
 
 ### P1 Apps Script 4.8.4

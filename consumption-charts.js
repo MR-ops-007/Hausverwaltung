@@ -469,5 +469,5 @@ const consumptionChartService = (() => {
       <p class="consumption-chart-note">Die Monatswerte verteilen Ableseintervalle zeitanteilig. Monate ohne berechenbaren Wert bleiben leer, nicht null. Das laufende Jahr kann unvollständig sein.${derived ? ' Orange markierte Monatswerte wurden für ein abgeschlossenes historisches Jahr linear aus dem Jahresrest fortgeschrieben.' : ''}${fromReadings ? ' Blau markierte Monatswerte wurden aus vorhandenen Rohintervallen ergänzt.' : ''}${fromAnnual ? ' Dunkelorange markierte Monatswerte wurden innerhalb des bereits belegten Messzeitraums aus dem verbleibenden Jahreswert ergänzt; spätere Monate werden nicht prognostiziert.' : ''}${reconciled ? ' Türkis markierte Monatswerte wurden wegen einer kleinen Abweichung proportional mit dem Jahreswert aus der Jahresview abgeglichen.' : ''}${hasInvalidReading ? ' Rückläufige Zählerstände werden nicht automatisch als Verbrauch interpretiert und müssen als Zählerwechsel, Reset oder Eingabefehler geprüft werden.' : ''}${flagged ? ' Einzelne Monatssegmente besitzen Prüfhinweise; Details stehen in der Verbrauchstabelle und Datenqualität.' : ''}</p>
     </section>`;
   }
-  return { getMeterKey: id, sameMeter, toNumber: num, monthlySeries, annualSeries, render };
+  return { getMeterKey: id, sameMeter, toNumber: num, consumptionMonth, monthlySeries, annualSeries, render };
 })();
