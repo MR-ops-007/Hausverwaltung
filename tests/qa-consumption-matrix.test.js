@@ -101,6 +101,26 @@ describe('QA-Matrix Verbrauchsstatistik', () => {
     expect(report.monthlyWithoutAnnual).toBe(0);
     expect(report.annualMatchesExactKey).toBe(1);
   });
+  it('prüft mehrere Objekte wie LOK und TEST getrennt voneinander', () => {
+    const lok = { ...meter, objekt_id: 'LOK', einheit_id: 'LOK_WE_10_A', zaehler_id: 'Z_LOK_WE_10_A_strom_ht_kwh' };
+    const test = { ...meter, objekt_id: 'TEST', einheit_id: 'TEST_WE_01', zaehler_id: 'Z_TEST_WE_01_strom_ht_kwh' };
+    const report = buildMatrixReport({
+      Zaehler: [lok, test],
+      _view_verbrauch_monat: [
+        { ...lok, jahr: 2026, monat: '2026-01', verbrauch_monat: 11 },
+        { ...test, jahr: 2026, monat: '2026-01', verbrauch_monat: 7 }
+      ],
+      _view_verbrauch_jahr: [
+        { ...lok, jahr: 2026, verbrauch_jahr: 11 },
+        { ...test, jahr: 2026, verbrauch_jahr: 7 }
+      ]
+    }, { years: [2026], now: new Date(2026, 10, 4) });
+
+    expect(report.total).toBe(2);
+    expect(report.compared).toBe(2);
+    expect(report.combinations.map(item => item.objekt_id).sort()).toEqual(['LOK', 'TEST']);
+    expect(report.combinations.every(item => item.displayedDifference === 0)).toBe(true);
+  });
 
   it('weist große Rohabweichungen aus, ohne sie durch die UI-Abstimmung zu verstecken', () => {
     const report = buildMatrixReport({

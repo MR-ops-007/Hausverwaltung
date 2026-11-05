@@ -46,7 +46,7 @@ Diese Datei beschreibt offene und geplante Arbeit.
 ### P2 Verbrauchsstatistik-Follow-ups
 
 - Branch: `feature/verbrauchsstatistik-followups`
-- Status: Offen, nach P0
+- Status: In Arbeit
 - Darstellung: Balkenfarben vereinheitlichen und Teilmonat-Anzeige fachlich klarer
   gestalten oder aus der sichtbaren UI entfernen.
 - Datenqualität: Alias-Konflikte gezielt prüfen und LOK-/TEST-Smoke-Tests ergänzen.
@@ -58,6 +58,10 @@ Diese Datei beschreibt offene und geplante Arbeit.
   fest mit `Europe/Berlin` oder bewusst mit der Browser-Zeitzone arbeiten soll.
 - Betrieb: manuelles Cache-Busting durch eine zentrale, nachvollziehbare
   Asset-Version oder später einen Build-Hash ersetzen.
+- In diesem Paket werden die Jahresauswahl innerhalb der Statistik mit dem
+  Dashboard-Jahr verknüpft, `Fläche` als Standarddarstellung gesetzt, die
+  sichtbare Teilmonat-Kategorie entfernt und Alias-/LOK-/TEST-Regressionen
+  automatisiert abgesichert. Cache-Busting bleibt als separates Folgepaket.
 
 ### P3 Heizöl-Verbrauch
 
