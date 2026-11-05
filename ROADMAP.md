@@ -86,7 +86,7 @@ Diese Datei beschreibt offene und geplante Arbeit.
   Füllstandsverlauf weiterhin in cm und den berechneten Verbrauch zusätzlich in l.
 - Tests: Haupttank, Zusatztank, steigende Füllstände, fremde Zähleridentitäten,
   fehlender Füllstand nach Tankfüllung, objektbezogene Tankparameter und
-  Jahresentwicklung. Der lokale Testlauf ist mit 354 Tests in 13 Testdateien grün.
+  Jahresentwicklung. Der lokale Testlauf ist mit 355 Tests in 13 Testdateien grün.
 
 ### P4 Spätere technische Themen
 

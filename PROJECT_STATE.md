@@ -465,7 +465,7 @@ Tabelle `Haustechnik` objekt- und tankspezifisch anpassbar.
   Hausverbrauchsauswertung.
 - Eine kWh-Umrechnung ist bis zur Klärung von Heizmedium, Heizwert und beheizter
   Fläche ausdrücklich nicht enthalten.
-- `npm test` läuft auf diesem Branch mit 354 Tests in 13 Testdateien grün; zusätzlich
+- `npm test` läuft auf diesem Branch mit 355 Tests in 13 Testdateien grün; zusätzlich
   sind `node --check` für die geänderten JavaScript-Dateien und `git diff --check`
   sauber. Die Tankfüllungs-Automatik ist für Haupt- und Zusatztank separat regressionsgetestet.
   Das Paket ändert keine Apps-Script-Datei und benötigt für die lokale Prüfung keinen

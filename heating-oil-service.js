@@ -78,6 +78,9 @@ const heatingOilService = (() => {
       : 'HAUPTTANK';
   }
 
+  const sameTankLocation = (left, right) => sameLocation(left, right) &&
+    tankIdForMeter(left) === tankIdForMeter(right);
+
   function normalizeConfig(row) {
     if (!row) return null;
     if (['false', '0', 'nein', 'falsch'].includes(normalize(row.aktiv))) return null;
@@ -153,7 +156,7 @@ const heatingOilService = (() => {
 
   function sortedLocationReadings(readings = [], meter = null) {
     return readings
-      .filter(reading => !meter || sameLocation(reading, meter))
+      .filter(reading => !meter || sameTankLocation(reading, meter))
       .map(reading => ({ ...reading, date: parseDate(reading.zeitstempel), value: toNumber(reading.wert) }))
       .filter(reading => isValidDate(reading.date) && reading.value !== null)
       .sort((left, right) => left.date - right.date);

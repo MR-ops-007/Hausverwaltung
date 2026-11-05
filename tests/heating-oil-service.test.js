@@ -115,6 +115,20 @@ describe('Heizöl-Fachlogik', () => {
     });
   });
 
+  it('ordnet eine Zusatztank-Füllung nicht dem Haupttank zu', () => {
+    const events = service.findMissingLevelAfterFill(
+      [reading(mainMeter, '01.01.2026 00:00', 60)],
+      [
+        reading({ ...auxiliaryMeter, zaehler_id: 'Z_OEL_GETANKT_LITER_ZUSATZTANK', medium: 'oel_stand_l' }, '01.01.2026 00:00', 1000),
+        reading({ ...auxiliaryMeter, zaehler_id: 'Z_OEL_GETANKT_LITER_ZUSATZTANK', medium: 'oel_stand_l' }, '15.01.2026 00:00', 2500),
+      ],
+      mainMeter,
+      [],
+    );
+
+    expect(events).toEqual([]);
+  });
+
   it('liefert Literwerte für die Jahresentwicklung', () => {
     const series = service.annualSeries([
       reading(mainMeter, '01.01.2025 00:00', 120),
