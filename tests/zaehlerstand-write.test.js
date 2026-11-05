@@ -212,11 +212,15 @@ describe('Korrekturfenster (Minutenwechsel)', () => {
     expect(api.data.Zaehlerstaende[1][2]).toBe(1500);
   });
 
-  it('gilt bis einschließlich 15 Minuten, danach ist es eine normale neue Ablesung', () => {
-    const at15 = send(backend(), [reading('Z1', 1590, '09:15')]);
-    expect(at15).toMatchObject({ status: 'error', code: 'CONFLICT' });
+  it('grenzt das 15-Minuten-Korrekturfenster exakt ab', () => {
+    const conflictAt15 = send(backend(), [reading('Z1', 1590, '09:15')]);
+    expect(conflictAt15).toMatchObject({ status: 'error', code: 'CONFLICT' });
+
+    const duplicateAt15 = send(backend(), [reading('Z1', 1500, '09:15')]);
+    expect(duplicateAt15).toMatchObject({ status: 'success', angelegt: 0, bereits_vorhanden: 1 });
+
     const api = backend();
-    expect(send(api, [reading('Z1', 1590, '09:16')])).toMatchObject({ status: 'success', angelegt: 1 });
+    expect(send(api, [reading('Z1', 1500, '09:16')])).toMatchObject({ status: 'success', angelegt: 1, bereits_vorhanden: 0 });
   });
 
   it('wertet gleichen Wert im Fenster als Wiederholung und lässt andere Zähler unberührt', () => {
@@ -227,17 +231,23 @@ describe('Korrekturfenster (Minutenwechsel)', () => {
 
   it('legt einen historischen gleichen Nullstand als neue Ablesung an', () => {
     const api = backend();
+    const firstZero = {
+      ...reading('Z1', 0),
+      zeitstempel: '30.09.2026 09:00',
+      stand_id: 'ST_Z1_2026-09-30 09:00',
+    };
     const historicalZero = {
       ...reading('Z1', 0),
       zeitstempel: '01.10.2026 09:00',
       stand_id: 'ST_Z1_2026-10-01 09:00',
     };
 
+    expect(send(api, [firstZero])).toMatchObject({ status: 'success', angelegt: 1 });
     const result = send(api, [historicalZero]);
 
     expect(result).toMatchObject({ status: 'success', angelegt: 1, bereits_vorhanden: 0 });
-    expect(api.data.Zaehlerstaende).toHaveLength(3);
-    expect(api.data.Zaehlerstaende[2]).toEqual([
+    expect(api.data.Zaehlerstaende).toHaveLength(4);
+    expect(api.data.Zaehlerstaende[3]).toEqual([
       historicalZero.stand_id,
       'Z1',
       0,
@@ -246,7 +256,7 @@ describe('Korrekturfenster (Minutenwechsel)', () => {
     ]);
   });
 
-  it('ignoriert Einträge mit früherem Zeitpunkt als der vorhandene Wert', () => {
+  it('legt Einträge mit früherem Zeitpunkt als den vorhandenen Wert an', () => {
     const api = backend();
     expect(send(api, [reading('Z1', 1400, '08:55')])).toMatchObject({ status: 'success', angelegt: 1 });
   });
