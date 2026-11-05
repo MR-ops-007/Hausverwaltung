@@ -122,6 +122,25 @@ describe('Verbrauchsdiagramme', () => {
     expect(html).toContain('<polyline');
     expect(html).toContain('01.01.2026');
   });
+  it('verwendet source_keys auch direkt aus einer View-Zeile für historische Alias-IDs', () => {
+    const currentMeter = {
+      ...meter,
+      zaehler_id: 'Z_STROM_KWH_PRIVAT_HT',
+      source_keys: 'O1||W1||Z_STROM_HT_KWH_PRIVAT_HT'
+    };
+    const series = service.monthlySeries([
+      {
+        ...meter,
+        zaehler_id: 'Z_STROM_HT_KWH_PRIVAT_HT',
+        source_keys: 'O1||W1||Z_STROM_HT_KWH_PRIVAT_HT',
+        jahr: 2026,
+        monat: '2026-01',
+        verbrauch_monat: 10
+      }
+    ], currentMeter, 2026);
+
+    expect(series[0].value).toBe(10);
+  });
   it('führt einen historischen Alias nicht über eine andere Einheit zusammen', () => {
     const currentMeter = {
       ...meter,
@@ -214,7 +233,7 @@ describe('Verbrauchsdiagramme', () => {
 
     expect(html).toContain('2025: 10 kWh · Prüfhinweis');
   });
-  it('kennzeichnet angebrochene Monate als Teilmonat', () => {
+  it('behält die Teilmonatsinformation intern, zeigt sie aber nicht als eigene UI-Kategorie', () => {
     const series = service.monthlySeries([
       row('2026-06', 12, { tage_im_monat: 2 })
     ], meter, 2026);
@@ -227,8 +246,24 @@ describe('Verbrauchsdiagramme', () => {
     });
 
     expect(series[5]).toMatchObject({ value: 12, partial: true });
-    expect(html).toContain('2026: 12 kWh · Teilmonat');
-    expect(html).toContain('Teilmonat');
+    expect(html).toContain('2026: 12 kWh');
+    expect(html).not.toContain('Teilmonat');
+  });
+  it('verknüpft die Jahresauswahl der Statistik mit der Dashboard-Auswahl', () => {
+    const html = service.render({
+      meters: [meter],
+      selectedKey: service.getMeterKey(meter),
+      selectedYear: '2026',
+      monthlyRows: [row('2025-01', 30), row('2026-01', 42)],
+      annualRows: [
+        { ...meter, jahr: 2025, verbrauch_jahr: 30 },
+        { ...meter, jahr: 2026, verbrauch_jahr: 42 }
+      ]
+    });
+
+    expect(html).toContain('id="consumption-chart-year-select"');
+    expect(html).toContain('<option value="2026" selected>2026</option>');
+    expect(html).toContain("yearSelect.value=this.value");
   });
   it('verschweigt rückläufige Rohintervalle nicht im Diagramm', () => {
     const now = new Date(2026, 10, 4);

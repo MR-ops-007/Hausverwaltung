@@ -225,14 +225,15 @@ Bei vorhandenen Rohablesungen werden numerische Y-Achsenwerte, Datumsbeschriftun
 - Monatsparser korrigiert, insbesondere für Oktober bis Dezember.
 - Deutsche Tausender- und Dezimalformate werden korrekt verarbeitet.
 - Historische Alias-Zähler-IDs aus `source_keys` werden für die Diagrammzuordnung berücksichtigt.
-- Monatssegmente mit weniger Tagen als der jeweilige Kalendermonat werden als `Teilmonat` gekennzeichnet; das ist eine zeitanteilige View-Zeile, keine zusätzliche Ablesung.
+- Monatssegmente mit weniger Tagen als der jeweilige Kalendermonat werden intern weiter als zeitanteilige View-Zeile erkannt. Die wenig hilfreiche sichtbare Kategorie `Teilmonat` wurde aus der Diagrammoberfläche entfernt.
 - Rückläufige Rohintervalle werden im Diagramm als Prüfhinweis sichtbar und nicht still als Verbrauch interpretiert.
 - Monatsverbräuche werden aus Rohintervallen zeitanteilig verteilt, wenn die Materialized View dafür Daten liefert.
 - Historische Restwerte und laufende belegte Segmente werden sichtbar gekennzeichnet.
 - Aktuelle Jahre werden nicht in zukünftige Monate hochgerechnet.
 - Monatswertkarten, Legenden sowie X-/Y-Achsen machen die Herleitung sichtbar.
 - Render-Rennen beim Objektwechsel während des Nachladens werden verworfen; ein alter Datenstand kann dadurch nicht mehr den neu gewählten Objektstand überschreiben.
-- Asset-Version auf `v29` erhöht, damit Parser-, Teilmonats-, Rücklauf- und Diagrammkorrekturen nach dem Deployment geladen werden.
+- Die Diagrammoberfläche startet mit `Fläche`; die Jahresauswahl in der Statistik ist mit der Dashboard-Jahresauswahl verknüpft.
+- Asset-Version auf `v29` erhöht, damit Parser-, Rücklauf- und Diagrammkorrekturen nach dem Deployment geladen werden.
 - Große Abweichungen zwischen Monats- und Jahresview werden nicht mehr still skaliert. Monatswertkarten und Balken zeigen dafür `Prüfhinweis`; Linien werden an fehlenden Monaten unterbrochen, und der Balkenmodus zeigt beide Jahre.
 - Ein Fehler im Diagramm-Rendering blendet einen verständlichen Leerhinweis ein, ohne Tabelle und Datenqualitätsbereich zu verlieren.
 - Die Entscheidung „laufendes Jahr“ kann über einen festen Stichtag injiziert werden; die Regressionstests hängen dadurch nicht mehr von der Systemuhr ab.

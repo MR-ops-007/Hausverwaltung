@@ -26,7 +26,10 @@ const consumptionChartService = (() => {
     .map(value => String(value === null || value === undefined ? '' : value).trim()).join('||');
   const meterIds = row => {
     const ids = [row && row.zaehler_id];
-    const sourceKeys = String(row && row.audit && row.audit.source_keys || '').split(/[,;\s]+/).filter(Boolean);
+    const sourceKeys = [
+      row && row.audit && row.audit.source_keys,
+      row && row.source_keys
+    ].filter(Boolean).join(' ').split(/[,;\s]+/).filter(Boolean);
     sourceKeys.forEach(sourceKey => ids.push(sourceKey.split('||').pop()));
     return new Set(ids.map(value => String(value || '').trim()).filter(Boolean));
   };
@@ -202,7 +205,7 @@ const consumptionChartService = (() => {
         .map(points => `<polyline points="${points.join(' ')}" fill="none" stroke="${color}" stroke-width="3"${dash ? ' stroke-dasharray="7 5"' : ''}/>`)
         .join('');
       const markers = items.map((item, index) => item && item.value !== null
-        ? `<circle cx="${x(index).toFixed(1)}" cy="${y(item.value).toFixed(1)}" r="4" fill="${item.derived ? '#f59e0b' : item.fromAnnual ? '#ea580c' : item.reconciled ? '#0f766e' : item.fromReadings ? '#0284c7' : color}"${item.partial ? ' stroke="#f97316" stroke-width="2"' : ''}><title>${esc(labels[index])} ${esc(label)}: ${fmt(item.value)} ${esc(unit)}${item.partial ? ' (Teilmonat)' : ''}${item.invalidReading ? ' (rückläufiger Zählerstand prüfen)' : ''}${item.derived ? ' (linear fortgeschrieben)' : ''}${item.fromReadings ? ' (aus Rohintervall ergänzt)' : ''}${item.fromAnnual ? ' (aus Jahresrest ergänzt)' : ''}${item.reconciled ? ' (mit Jahreswert abgeglichen)' : ''}${item.flagged ? ' (Prüfhinweis)' : ''}</title></circle>`
+        ? `<circle cx="${x(index).toFixed(1)}" cy="${y(item.value).toFixed(1)}" r="4" fill="${item.derived ? '#f59e0b' : item.fromAnnual ? '#ea580c' : item.reconciled ? '#0f766e' : item.fromReadings ? '#0284c7' : color}"><title>${esc(labels[index])} ${esc(label)}: ${fmt(item.value)} ${esc(unit)}${item.invalidReading ? ' (rückläufiger Zählerstand prüfen)' : ''}${item.derived ? ' (linear fortgeschrieben)' : ''}${item.fromReadings ? ' (aus Rohintervall ergänzt)' : ''}${item.fromAnnual ? ' (aus Jahresrest ergänzt)' : ''}${item.reconciled ? ' (mit Jahreswert abgeglichen)' : ''}${item.flagged ? ' (Prüfhinweis)' : ''}</title></circle>`
         : '').join('');
       return `${line}${markers}`;
     };
@@ -228,12 +231,11 @@ const consumptionChartService = (() => {
     const hasFromReadings = [...current, ...previous].some(item => item && item.fromReadings);
     const hasFromAnnual = [...current, ...previous].some(item => item && item.fromAnnual);
     const hasReconciled = [...current, ...previous].some(item => item && item.reconciled);
-    const hasPartial = [...current, ...previous].some(item => item && item.partial);
     const hasInvalidReading = [...current, ...previous].some(item => item && item.invalidReading);
-    const legend = `<div class="consumption-chart-key"><span class="consumption-chart-year-current">${esc(currentLabel)}</span>${previous.length ? `<span class="consumption-chart-year-prior">${esc(previousLabel)}</span>` : ''}${hasDerived ? '<span class="consumption-chart-year-derived">linear fortgeschrieben</span>' : ''}${hasFromReadings ? '<span class="consumption-chart-year-from-readings">aus Rohintervall ergänzt</span>' : ''}${hasFromAnnual ? '<span class="consumption-chart-year-from-annual">aus Jahresrest ergänzt</span>' : ''}${hasReconciled ? '<span class="consumption-chart-year-reconciled">Jahreswert abgeglichen</span>' : ''}${hasPartial ? '<span class="consumption-chart-year-warning">Teilmonat</span>' : ''}${hasInvalidReading ? '<span class="consumption-chart-year-warning">Zählerstand prüfen</span>' : ''}${showWarning ? '<span class="consumption-chart-year-warning">Prüfhinweis</span>' : ''}</div>`;
+    const legend = `<div class="consumption-chart-key"><span class="consumption-chart-year-current">${esc(currentLabel)}</span>${previous.length ? `<span class="consumption-chart-year-prior">${esc(previousLabel)}</span>` : ''}${hasDerived ? '<span class="consumption-chart-year-derived">linear fortgeschrieben</span>' : ''}${hasFromReadings ? '<span class="consumption-chart-year-from-readings">aus Rohintervall ergänzt</span>' : ''}${hasFromAnnual ? '<span class="consumption-chart-year-from-annual">aus Jahresrest ergänzt</span>' : ''}${hasReconciled ? '<span class="consumption-chart-year-reconciled">Jahreswert abgeglichen</span>' : ''}${hasInvalidReading ? '<span class="consumption-chart-year-warning">Zählerstand prüfen</span>' : ''}${showWarning ? '<span class="consumption-chart-year-warning">Prüfhinweis</span>' : ''}</div>`;
     const values = showValues ? `<div class="consumption-chart-values" aria-label="${esc(valuesLabel)}">${labels.map((label, index) => {
       const formatValue = item => item && item.value !== null
-        ? `${fmt(item.value)} ${unit}${item.partial ? ' · Teilmonat' : ''}${item.invalidReading ? ' · Zählerstand prüfen' : ''}${item.derived ? ' · fortgeschrieben' : ''}${item.fromReadings ? ' · aus Rohintervall' : ''}${item.fromAnnual ? ' · aus Jahresrest' : ''}${item.reconciled ? ' · abgeglichen' : ''}${item.flagged ? ' · Prüfhinweis' : ''}`
+        ? `${fmt(item.value)} ${unit}${item.invalidReading ? ' · Zählerstand prüfen' : ''}${item.derived ? ' · fortgeschrieben' : ''}${item.fromReadings ? ' · aus Rohintervall' : ''}${item.fromAnnual ? ' · aus Jahresrest' : ''}${item.reconciled ? ' · abgeglichen' : ''}${item.flagged ? ' · Prüfhinweis' : ''}`
         : 'Keine Werte';
       const currentValue = formatValue(current[index]);
       const previousValue = previous.length ? formatValue(previous[index]) : 'Keine Werte';
@@ -418,7 +420,7 @@ const consumptionChartService = (() => {
     const year = Number(selectedYear);
     if (!Number.isInteger(year)) return '';
     const priorYear = year - 1;
-    const chartMode = mode || (typeof uiService !== 'undefined' ? (uiService.consumptionChartMode || 'line') : 'line');
+    const chartMode = mode || (typeof uiService !== 'undefined' ? (uiService.consumptionChartMode || 'area') : 'area');
     const curr = monthlySeries(monthlyRows, meter, year, {
       readingRows,
       annualRow: annualRowForYear(annualRows, meter, year),
@@ -443,6 +445,14 @@ const consumptionChartService = (() => {
     const unit = /kwh/i.test(String(meter.medium)) ? 'kWh' : /m3/i.test(String(meter.medium)) ? 'm³' : /cm/i.test(String(meter.medium)) ? 'cm' : /liter|_l$/i.test(String(meter.medium)) ? 'l' : (meter.einheit || '');
     const groups = [...new Set(unique.map(groupOf).filter(Boolean))].sort();
     const media = [...new Set(unique.map(mediumOf).filter(Boolean))].sort();
+    const chartYears = [...new Set([
+      year,
+      ...annualRows.map(row => Number(row.jahr)),
+      ...monthlyRows.map(row => Number(row.jahr))
+    ].filter(Number.isInteger))].sort((a, b) => b - a);
+    const yearOptions = chartYears
+      .map(chartYear => `<option value="${chartYear}"${chartYear === year ? ' selected' : ''}>${chartYear}</option>`)
+      .join('');
     const filterOptions = (values, selected, label) => `<label>${label}<select onchange="uiService.${label === 'Gruppe' ? 'consumptionChartGroup' : 'consumptionChartMedium'}=this.value;uiService.renderConsumptionDashboard()"><option value="ALL">Alle</option>${values.map(value => `<option value="${esc(value)}"${value === selected ? ' selected' : ''}>${esc(value)}</option>`).join('')}</select></label>`;
     const options = available.map(row => {
       const label = `${row.einheit_name || row.einheit_id || ''} · ${row.bezeichnung || row.zaehler_id}`;
@@ -458,7 +468,9 @@ const consumptionChartService = (() => {
       : '<p class="consumption-chart-empty">Keine Jahreswerte vorhanden.</p>';
     return `<section class="consumption-charts" aria-label="Verbrauchsdiagramme">
       <div class="consumption-charts-heading"><div><h3>Verbrauchsstatistik</h3><p>Zählerstand und Verbrauch werden getrennt dargestellt. Die Verbrauchswerte stammen aus den bestehenden Verbrauchsviews.</p></div>
-      ${filterOptions(groups, selectedGroup, 'Gruppe')}${filterOptions(media, selectedMedium, 'Medium')}<label>Einheit und Zähler
+      ${filterOptions(groups, selectedGroup, 'Gruppe')}${filterOptions(media, selectedMedium, 'Medium')}<label>Jahr
+        <select id="consumption-chart-year-select" onchange="const yearSelect=document.getElementById('consumption-year-select');if(yearSelect){yearSelect.value=this.value;yearSelect.dataset.userSelected='true';}uiService.renderConsumptionDashboard()">${yearOptions}</select>
+      </label><label>Einheit und Zähler
         <select id="consumption-chart-meter-select" onchange="uiService.consumptionChartSelection=this.value;uiService.renderConsumptionDashboard()">${options}</select>
       </label><label>Darstellung<select onchange="uiService.consumptionChartMode=this.value;uiService.renderConsumptionDashboard()"><option value="line"${chartMode === 'line' ? ' selected' : ''}>Linie</option><option value="bar"${chartMode === 'bar' ? ' selected' : ''}>Balken</option><option value="area"${chartMode === 'area' ? ' selected' : ''}>Fläche</option></select></label></div>
       <div class="consumption-charts-grid">
