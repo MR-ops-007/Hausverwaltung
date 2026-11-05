@@ -30,7 +30,14 @@ function loadUiService({
   },
   saveResponse = { status: 'success' },
   confirmResult = true,
+  confirmResults = null,
   validationServiceAvailable = true,
+  saveResponses = null,
+  serverZaehlerstaende = null,
+  processResult = null,
+  queueProblems = [],
+  promptResult = 'Tippfehler',
+  queueEntries = [],
 } = {}) {
   const uiServiceCode = readFileSync(
     new URL('../ui-service.js', import.meta.url),
@@ -39,7 +46,10 @@ function loadUiService({
 
   const alerts = [];
   const confirms = [];
+  const prompts = [];
   const saveCalls = [];
+  const processCalls = [];
+  const queueCalls = [];
 
   const dataService = {
     state: {
@@ -52,6 +62,10 @@ function loadUiService({
       view_verbrauch_monat: viewVerbrauchMonat,
       view_verbrauch_audit: viewVerbrauchAudit,
       view_verbrauch_bilanz_jahr: viewVerbrauchBilanzJahr,
+    },
+    setZaehlerstaende(data) {
+      if (!data || !Array.isArray(data.Zaehlerstaende)) throw new Error('keine Zählerstände');
+      this.state.zaehlerstaende = data.Zaehlerstaende;
     },
     setConsumptionData(data) {
       this.state.view_verbrauch_jahr = data['_view_verbrauch_jahr'] || [];
@@ -83,7 +97,30 @@ function loadUiService({
     },
     async saveTransaction(payload) {
       saveCalls.push(payload);
+      if (Array.isArray(saveResponses)) {
+        return saveResponses[Math.min(saveCalls.length, saveResponses.length) - 1];
+      }
       return saveResponse;
+    },
+    ...(serverZaehlerstaende ? { async loadZaehlerstaende() { return { Zaehlerstaende: serverZaehlerstaende }; } } : {}),
+    discardQueueEntry(id) { queueCalls.push(['discard', id]); },
+    prepareOverwrite(id, grund) { queueCalls.push(['overwrite', id, grund]); },
+    prepareNewReading(id) { queueCalls.push(['neu', id]); },
+    getQueueProblems() { return queueProblems; },
+    getCorruptRaw() { return '{kaputt'; },
+    resolveCorruptQueue() { queueCalls.push(['resolve']); return { ok: true, backups: ['offline_queue_defekt_x'], message: 'Gesichert unter: offline_queue_defekt_x' }; },
+    async processOfflineQueue(options) {
+      processCalls.push(options);
+      return processResult || this.getQueueSummary();
+    },
+    getQueueSummary() {
+      return {
+        entries: queueEntries,
+        pending: queueEntries.filter(entry => entry.status !== 'rejected').length,
+        rejected: queueEntries.filter(entry => entry.status === 'rejected').length,
+        values: queueEntries.reduce((sum, entry) => sum + entry.payload.data.length, 0),
+        problems: queueProblems,
+      };
     },
   };
 
@@ -108,6 +145,7 @@ function loadUiService({
     'consumption-include-calculated': { style: {}, checked: true, innerHTML: '', className: '' },
     'consumption-status-filter': { style: {}, innerHTML: '', value: 'all', className: '' },
     'consumption-dashboard-output': { style: {}, innerHTML: '', className: '' },
+    'sync-queue-status': { style: { display: 'none' }, innerHTML: '' },
   };
 
   const document = {
@@ -143,7 +181,12 @@ function loadUiService({
 
   const confirm = (message) => {
     confirms.push(String(message));
-    return confirmResult;
+    return Array.isArray(confirmResults) ? Boolean(confirmResults[confirms.length - 1]) : confirmResult;
+  };
+
+  const prompt = (message) => {
+    prompts.push(String(message));
+    return promptResult;
   };
 
   const factory = new Function(
@@ -154,6 +197,7 @@ function loadUiService({
     'alert',
     'confirm',
     'calcService',
+    'prompt',
     'consumptionChartService',
     `${uiServiceCode}; return uiService;`
   );
@@ -166,6 +210,7 @@ function loadUiService({
     alert,
     confirm,
     calcService,
+    prompt,
     consumptionChartService
   );
 
@@ -176,6 +221,9 @@ function loadUiService({
     dataService,
     alerts,
     confirms,
+    prompts,
+    processCalls,
+    queueCalls,
     saveCalls,
     modalElement,
     modalBodyElement,
@@ -1267,6 +1315,9 @@ describe('uiService.saveZaehler', () => {
       bezeichnung: 'Strom Wohnung 1 TEST',
     };
 
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 30, 10, 0));
+
     const firstRun = loadUiService({
       currentMeters: [meter],
       inputValuesByZaehlerId: {
@@ -1275,6 +1326,9 @@ describe('uiService.saveZaehler', () => {
     });
 
     await firstRun.uiService.saveZaehler();
+
+    // Erst eine spätere Minute ist eine neue Ablesung; dieselbe Minute wäre eine Korrektur.
+    vi.setSystemTime(new Date(2026, 9, 30, 10, 30));
 
     expect(firstRun.saveCalls).toHaveLength(1);
     expect(firstRun.dataService.state.zaehlerstaende).toEqual([
@@ -1343,6 +1397,7 @@ describe('uiService.saveZaehler', () => {
     expect(firstRun.confirms[0]).toContain('Alt: 100');
     expect(firstRun.confirms[0]).toContain('Neu: 90');
     expect(firstRun.saveCalls).toHaveLength(1);
+    vi.useRealTimers();
   });
 
   it('uses built-in validation fallback if the browser module did not initialize', async () => {
@@ -1400,5 +1455,479 @@ describe('uiService.saveZaehler', () => {
     expect(saveCalls).toHaveLength(0);
     expect(confirms).toHaveLength(0);
     expect(alerts).toContain('Keine Werte eingetragen.');
+  });
+});
+
+
+describe('uiService.saveZaehler: stand_id, Korrektur und Konflikt', () => {
+  const meter = {
+    zaehler_id: 'Z_WASSER_1',
+    objekt_id: 'TEST',
+    einheit_id: 'TEST_WE_01',
+    bezeichnung: 'Wasser Wohnung 1 TEST',
+  };
+  const standId = 'ST_Z_WASSER_1_2026-10-30 10:00';
+  const earlier = { objekt_id: 'TEST', einheit_id: 'TEST_WE_01', zaehler_id: 'Z_WASSER_1', wert: 1400, zeitstempel: '29.10.2026 08:00' };
+  const typo = { ...earlier, wert: 1950, zeitstempel: '30.10.2026 10:00', stand_id: standId };
+  const conflict = { status: 'error', code: 'CONFLICT', message: 'Konflikt', conflicts: [{ stand_id: standId, zaehler_id: 'Z_WASSER_1', alter_wert: 1950, neuer_wert: 1590 }] };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 30, 10, 0));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('bildet die stand_id aus Zähler und Minute des Zeitstempels', () => {
+    const { uiService } = loadUiService();
+    expect(uiService.buildStandId('Z1', '02.06.2026 09:05')).toBe('ST_Z1_2026-06-02 09:05');
+    expect(uiService.buildStandId('Z1', '2.6.2026 9:05')).toBe('ST_Z1_2026-06-02 09:05');
+    expect(uiService.buildStandId('Z1', 'kaputt')).toBe('');
+  });
+
+  it('sendet die stand_id mit, damit Wiederholungen von jedem Gerät dieselbe Identität haben', async () => {
+    const { uiService, saveCalls } = loadUiService({ currentMeters: [meter], inputValuesByZaehlerId: { Z_WASSER_1: '1450' }, zaehlerstaende: [earlier] });
+    await uiService.saveZaehler();
+    expect(saveCalls[0].data[0]).toMatchObject({ zaehler_id: 'Z_WASSER_1', zeitstempel: '30.10.2026 10:00', stand_id: standId });
+    expect(saveCalls[0].ueberschreiben).toBeUndefined();
+  });
+
+  it('nutzt bei einer Korrektur in derselben Minute den Wert davor als Vergleich, nicht den Tippfehler', async () => {
+    const { uiService, saveCalls, confirms, alerts } = loadUiService({
+      currentMeters: [meter],
+      inputValuesByZaehlerId: { Z_WASSER_1: '1450' },
+      zaehlerstaende: [{ ...earlier }, { ...typo }],
+    });
+    await uiService.saveZaehler();
+    expect(alerts.filter(message => message.includes('fehlerhaft'))).toEqual([]);
+    expect(confirms).toEqual([]);
+    expect(saveCalls).toHaveLength(1);
+  });
+
+  it('warnt bei Konflikt, verlangt einen Grund und sendet das Überschreiben mit Grund', async () => {
+    const { uiService, saveCalls, confirms, prompts, alerts, dataService } = loadUiService({
+      currentMeters: [meter],
+      inputValuesByZaehlerId: { Z_WASSER_1: '1450' },
+      zaehlerstaende: [{ ...earlier }, { ...typo }],
+      saveResponses: [conflict, { status: 'success' }],
+      promptResult: 'Zahlendreher',
+    });
+    await uiService.saveZaehler();
+
+    expect(confirms).toHaveLength(1);
+    expect(confirms[0]).toContain('Wasser Wohnung 1 TEST');
+    expect(confirms[0]).toContain('gespeichert 1950 → neu 1590');
+    expect(prompts).toHaveLength(1);
+    expect(saveCalls).toHaveLength(2);
+    expect(saveCalls[1]).toMatchObject({ typ: 'ZAEHLERSTAND_NEU', ueberschreiben: { grund: 'Zahlendreher' } });
+    expect(alerts).toContain('Erfolgreich gespeichert!');
+    // lokale Historie: Wert ersetzt, keine zweite Zeile für dieselbe Minute
+    const rows = dataService.state.zaehlerstaende.filter(row => row.stand_id === standId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].wert).toBe(1450);
+  });
+
+  it('überschreibt nicht, wenn die Warnung abgelehnt wird', async () => {
+    const { uiService, saveCalls, dataService, prompts } = loadUiService({
+      currentMeters: [meter],
+      inputValuesByZaehlerId: { Z_WASSER_1: '1450' },
+      zaehlerstaende: [{ ...earlier }, { ...typo }],
+      saveResponses: [conflict],
+      confirmResult: false,
+    });
+    await uiService.saveZaehler();
+    expect(saveCalls).toHaveLength(1);
+    expect(prompts).toEqual([]);
+    expect(dataService.state.zaehlerstaende.find(row => row.stand_id === standId).wert).toBe(1950);
+  });
+
+  it('überschreibt nicht ohne Grund', async () => {
+    const { uiService, saveCalls, alerts } = loadUiService({
+      currentMeters: [meter],
+      inputValuesByZaehlerId: { Z_WASSER_1: '1450' },
+      zaehlerstaende: [{ ...earlier }, { ...typo }],
+      saveResponses: [conflict],
+      promptResult: '  ',
+    });
+    await uiService.saveZaehler();
+    expect(saveCalls).toHaveLength(1);
+    expect(alerts.some(message => message.includes('Ohne Grund'))).toBe(true);
+  });
+
+  it('sagt deutlich, dass offline gespeicherte Werte noch nicht in der Datenbank sind', async () => {
+    const { uiService, alerts } = loadUiService({
+      currentMeters: [meter],
+      inputValuesByZaehlerId: { Z_WASSER_1: '1450' },
+      zaehlerstaende: [{ ...earlier }],
+      saveResponse: { status: 'success', queued: true, message: 'Offline gespeichert' },
+    });
+    await uiService.saveZaehler();
+    expect(alerts[0]).toContain('NICHT in der Datenbank');
+    expect(alerts).not.toContain('Erfolgreich gespeichert!');
+  });
+});
+
+describe('uiService.renderSyncQueueStatus', () => {
+  const meter = { zaehler_id: 'Z1', bezeichnung: 'Kaltwasser' };
+  const pending = { id: 'e1', status: 'pending', payload: { data: [{ zaehler_id: 'Z1', wert: 12, zeitstempel: '30.10.2026 10:00' }] } };
+  const rejected = {
+    id: 'e2', status: 'rejected', code: 'CONFLICT', message: 'Konflikt <b>',
+    conflicts: [{ alter_wert: 1950, neuer_wert: 1590 }],
+    payload: { data: [{ zaehler_id: 'Z1', wert: 1590, zeitstempel: '30.10.2026 10:00' }] },
+  };
+
+  it('blendet die Anzeige aus, wenn alles gespeichert ist', () => {
+    const { uiService, elementsById } = loadUiService({ queueEntries: [] });
+    elementsById['sync-queue-status'].style.display = 'block';
+    uiService.renderSyncQueueStatus();
+    expect(elementsById['sync-queue-status'].style.display).toBe('none');
+    expect(elementsById['sync-queue-status'].innerHTML).toBe('');
+  });
+
+  it('zeigt Anzahl, Hinweis auf Ablehnungen und den Button zum erneuten Senden', () => {
+    const { uiService, elementsById } = loadUiService({ queueEntries: [pending, rejected], currentMeters: [meter] });
+    uiService.renderSyncQueueStatus();
+    const el = elementsById['sync-queue-status'];
+    expect(el.style.display).toBe('block');
+    expect(el.innerHTML).toContain('2 Werte noch nicht in der Datenbank gespeichert');
+    expect(el.innerHTML).toContain('1 wurde abgelehnt');
+    expect(el.innerHTML).toContain('uiService.retrySyncQueue()');
+    expect(el.innerHTML).not.toContain('Kaltwasser'); // Details sind zugeklappt
+  });
+
+  it('listet in den Details Werte, Grund und Aktionen und maskiert Backend-Texte', () => {
+    const { uiService, elementsById } = loadUiService({ queueEntries: [pending, rejected], currentMeters: [meter] });
+    uiService.toggleSyncQueueDetails();
+    const html = elementsById['sync-queue-status'].innerHTML;
+    expect(html).toContain('Kaltwasser: 12 (30.10.2026 10:00)');
+    expect(html).toContain('Gespeichert ist 1950, erfasst wurde 1590');
+    expect(html).toContain("uiService.overwriteQueueEntry('e2')");
+    expect(html).toContain("uiService.discardQueueEntry('e1')");
+    expect(html).toContain('Konflikt &lt;b&gt;');
+    expect(html).not.toContain('Konflikt <b>');
+  });
+});
+
+
+describe('uiService.saveZaehler: Korrektur nach Minutenwechsel', () => {
+  const meter = { zaehler_id: 'Z_WASSER_1', objekt_id: 'TEST', einheit_id: 'TEST_WE_01', bezeichnung: 'Wasser Wohnung 1 TEST' };
+  const earlier = { objekt_id: 'TEST', einheit_id: 'TEST_WE_01', zaehler_id: 'Z_WASSER_1', wert: 1400, zeitstempel: '29.10.2026 08:00' };
+  const oldStandId = 'ST_Z_WASSER_1_2026-10-30 13:50';
+  const typo = { ...earlier, wert: 1950, zeitstempel: '30.10.2026 13:50', stand_id: oldStandId };
+  const nearConflict = {
+    status: 'error', code: 'CONFLICT', message: 'Konflikt',
+    conflicts: [{ art: 'NAHE_ABLESUNG', stand_id: oldStandId, zaehler_id: 'Z_WASSER_1', alter_wert: 1950, neuer_wert: 1590, alte_zeit: '30.10.2026 13:50', minuten_abstand: 1 }],
+  };
+  const setup = extra => loadUiService({
+    currentMeters: [meter],
+    inputValuesByZaehlerId: { Z_WASSER_1: '1590' },
+    zaehlerstaende: [{ ...earlier }, { ...typo }],
+    ...extra,
+  });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 30, 13, 51, 4)); // 13:50:55 getippt, 13:51:04 korrigiert
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('vergleicht die Korrektur nicht mit dem Tippfehler aus der Minute davor', async () => {
+    const { uiService, alerts } = setup({ saveResponses: [{ status: 'success' }] });
+    await uiService.saveZaehler();
+    expect(alerts.filter(message => message.includes('fehlerhaft'))).toEqual([]);
+  });
+
+  it('überschreibt die Zeile der Minute davor mit Grund, ohne zweite Zeile', async () => {
+    const { uiService, saveCalls, confirms, dataService } = setup({
+      saveResponses: [nearConflict, { status: 'success' }],
+      promptResult: 'Zahlendreher',
+    });
+    await uiService.saveZaehler();
+
+    expect(confirms[0]).toContain('vor 1 Min. (30.10.2026 13:50) gespeichert 1950 → neu 1590');
+    expect(saveCalls[0].data[0].stand_id).toBe('ST_Z_WASSER_1_2026-10-30 13:51');
+    expect(saveCalls[1]).toMatchObject({ ueberschreiben: { grund: 'Zahlendreher' } });
+    expect(saveCalls[1].neueAblesung).toBeUndefined();
+    const rows = dataService.state.zaehlerstaende.filter(row => row.zaehler_id === 'Z_WASSER_1');
+    expect(rows.map(row => row.wert)).toEqual([1400, 1590]);
+  });
+
+  it('bietet statt des Überschreibens an, den Wert als neue Ablesung zu speichern', async () => {
+    const { uiService, saveCalls, confirms, prompts, dataService } = setup({
+      saveResponses: [nearConflict, { status: 'success' }],
+      confirmResults: [false, true],
+    });
+    await uiService.saveZaehler();
+
+    expect(confirms).toHaveLength(2);
+    expect(confirms[1]).toContain('zusätzliche, neue Ablesung');
+    expect(prompts).toEqual([]);
+    expect(saveCalls[1]).toMatchObject({ neueAblesung: true });
+    expect(saveCalls[1].ueberschreiben).toBeUndefined();
+    const rows = dataService.state.zaehlerstaende.filter(row => row.zaehler_id === 'Z_WASSER_1');
+    expect(rows.map(row => row.wert)).toEqual([1400, 1950, 1590]);
+  });
+
+  it('speichert nichts, wenn beides abgelehnt wird', async () => {
+    const { uiService, saveCalls } = setup({ saveResponses: [nearConflict], confirmResults: [false, false] });
+    await uiService.saveZaehler();
+    expect(saveCalls).toHaveLength(1);
+  });
+
+  it('fragt nach fehlendem Grund nicht zusätzlich nach einer neuen Ablesung', async () => {
+    const { uiService, saveCalls, confirms } = setup({ saveResponses: [nearConflict], promptResult: '' });
+    await uiService.saveZaehler();
+    expect(confirms).toHaveLength(1);
+    expect(saveCalls).toHaveLength(1);
+  });
+
+  it('bietet die neue Ablesung bei gleicher Minute nicht an', async () => {
+    const sameMinute = { ...nearConflict, conflicts: [{ ...nearConflict.conflicts[0], art: 'GLEICHE_MINUTE' }] };
+    const { uiService, saveCalls, confirms } = setup({ saveResponses: [sameMinute], confirmResults: [false, true] });
+    await uiService.saveZaehler();
+    expect(confirms).toHaveLength(1);
+    expect(saveCalls).toHaveLength(1);
+  });
+
+  it('zeigt in der Queue-Anzeige „Als neue Ablesung speichern“ nur bei NAHE_ABLESUNG', () => {
+    const entry = art => ({
+      id: 'e1', status: 'rejected', code: 'CONFLICT', message: 'Konflikt',
+      conflicts: [{ art, alter_wert: 1950, neuer_wert: 1590, minuten_abstand: 1 }],
+      payload: { data: [{ zaehler_id: 'Z_WASSER_1', wert: 1590, zeitstempel: '30.10.2026 13:51' }] },
+    });
+    const near = loadUiService({ queueEntries: [entry('NAHE_ABLESUNG')] });
+    near.uiService.toggleSyncQueueDetails();
+    expect(near.elementsById['sync-queue-status'].innerHTML).toContain("uiService.saveQueueEntryAsNew('e1')");
+    expect(near.elementsById['sync-queue-status'].innerHTML).toContain('gespeichert vor 1 Min.');
+
+    const same = loadUiService({ queueEntries: [entry('GLEICHE_MINUTE')] });
+    same.uiService.toggleSyncQueueDetails();
+    expect(same.elementsById['sync-queue-status'].innerHTML).not.toContain('saveQueueEntryAsNew');
+  });
+});
+
+
+describe('uiService: Zustände lokal erfasst / übertragen / abgelehnt', () => {
+  const meter = { zaehler_id: 'Z_WASSER_1', objekt_id: 'TEST', einheit_id: 'TEST_WE_01', bezeichnung: 'Wasser Wohnung 1 TEST' };
+  const base = { objekt_id: 'TEST', einheit_id: 'TEST_WE_01', zaehler_id: 'Z_WASSER_1' };
+  const earlier = { ...base, wert: 1400, zeitstempel: '29.10.2026 08:00', stand_id: 'ST_Z_WASSER_1_2026-10-29 08:00' };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 30, 10, 0));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const setup = extra => loadUiService({
+    currentMeters: [meter],
+    inputValuesByZaehlerId: { Z_WASSER_1: '1450' },
+    zaehlerstaende: [{ ...earlier }],
+    ...extra,
+  });
+
+  it('trägt einen nur in die Queue geschriebenen Wert nicht in den Datenbestand ein', async () => {
+    const { uiService, dataService } = setup({ saveResponse: { status: 'success', queued: true, message: 'Offline gespeichert' } });
+    await uiService.saveZaehler();
+    expect(dataService.state.zaehlerstaende).toEqual([earlier]);
+  });
+
+  it('zeigt bei einem Speicherfehler der Queue keine Erfolgsmeldung und lässt die Eingabe offen', async () => {
+    const { uiService, alerts, modalElement } = setup({ saveResponse: { status: 'error', code: 'QUEUE_WRITE_FAILED', message: 'nicht zwischengespeichert' } });
+    await uiService.saveZaehler();
+    expect(alerts).toEqual(['Fehler: nicht zwischengespeichert']);
+    expect(modalElement.style.display).toBe('flex');
+  });
+
+  it('übernimmt nach bestätigtem Speichern den Stand der Datenbank statt einer lokalen Kopie', async () => {
+    const server = [{ ...earlier }, { ...base, wert: 1450, zeitstempel: '30.10.2026 10:00', stand_id: 'ST_Z_WASSER_1_2026-10-30 10:00' }];
+    const { uiService, dataService } = setup({ saveResponse: { status: 'success', angelegt: 1 }, serverZaehlerstaende: server });
+    await uiService.saveZaehler();
+    expect(dataService.state.zaehlerstaende).toBe(server);
+  });
+
+  it('erzeugt bei „bereits vorhanden“ ohne Nachladen keinen Phantomwert', async () => {
+    const { uiService, dataService, alerts } = setup({ saveResponse: { status: 'success', angelegt: 0, bereits_vorhanden: 1 } });
+    await uiService.saveZaehler();
+    expect(alerts).toContain('Erfolgreich gespeichert!');
+    expect(dataService.state.zaehlerstaende).toEqual([earlier]);
+  });
+
+  it('führt ohne Nachladen nur bei eindeutig angelegten Werten lokal nach', async () => {
+    const { uiService, dataService } = setup({ saveResponse: { status: 'success', angelegt: 1, bereits_vorhanden: 0 } });
+    await uiService.saveZaehler();
+    expect(dataService.state.zaehlerstaende).toHaveLength(2);
+    expect(dataService.state.zaehlerstaende[1]).toMatchObject({ wert: 1450, stand_id: 'ST_Z_WASSER_1_2026-10-30 10:00' });
+  });
+
+  it('prüft die Plausibilität auch gegen noch nicht übertragene Werte, zeigt als letzten Stand aber nur Bestätigtes', async () => {
+    const pendingEntry = { id: 'e1', status: 'pending', payload: { data: [{ ...base, wert: 2000, zeitstempel: '29.10.2026 12:00', stand_id: 'ST_Z_WASSER_1_2026-10-29 12:00' }] } };
+    const { uiService, saveCalls, alerts, confirms } = setup({ queueEntries: [pendingEntry] });
+    expect(uiService.getLatestZaehlerstand(meter).wert).toBe(1400);
+    expect(uiService.getLatestZaehlerstand(meter, { includePending: true }).wert).toBe(2000);
+    await uiService.saveZaehler();
+    // 1450 liegt unter dem noch nicht übertragenen Wert 2000: Warnung mit dem Vergleichswert 2000
+    expect(confirms).toHaveLength(1);
+    expect(confirms[0]).toContain('Alt: 2000 | Neu: 1450');
+    expect(saveCalls).toHaveLength(1);
+    expect(alerts).toEqual(['Erfolgreich gespeichert!']);
+  });
+
+  it('bietet „Jetzt erneut senden“ nur bei offenen Einträgen an, nicht bei reinen Ablehnungen', () => {
+    const pending = { id: 'p1', status: 'pending', payload: { data: [{ zaehler_id: 'Z_WASSER_1', wert: 1 }] } };
+    const rejected = { id: 'r1', status: 'rejected', code: 'CONFLICT', conflicts: [], payload: { data: [{ zaehler_id: 'Z_WASSER_1', wert: 1 }] } };
+    const withPending = loadUiService({ queueEntries: [pending] });
+    withPending.uiService.renderSyncQueueStatus();
+    expect(withPending.elementsById['sync-queue-status'].innerHTML).toContain('sync-queue-retry');
+
+    const onlyRejected = loadUiService({ queueEntries: [rejected] });
+    onlyRejected.uiService.renderSyncQueueStatus();
+    expect(onlyRejected.elementsById['sync-queue-status'].innerHTML).not.toContain('sync-queue-retry');
+  });
+
+  it('bietet „Erneut versuchen“ nur für abgelehnte Einträge ohne fachlichen Konflikt an', () => {
+    const entry = code => ({ id: 'r1', status: 'rejected', code, message: 'x', payload: { data: [{ zaehler_id: 'Z1', wert: 1 }] } });
+    const technical = loadUiService({ queueEntries: [entry('DOPPELTE_STAND_ID')] });
+    technical.uiService.toggleSyncQueueDetails();
+    expect(technical.elementsById['sync-queue-status'].innerHTML).toContain("uiService.retryQueueEntry('r1')");
+
+    const conflict = loadUiService({ queueEntries: [entry('CONFLICT')] });
+    conflict.uiService.toggleSyncQueueDetails();
+    expect(conflict.elementsById['sync-queue-status'].innerHTML).not.toContain('retryQueueEntry');
+  });
+
+  it('sendet beim Button auch dann, wenn der Browser „offline“ meldet (force)', async () => {
+    const pending = { id: 'p1', status: 'pending', payload: { data: [{ zaehler_id: 'Z1', wert: 1 }] } };
+    const { uiService, processCalls, alerts } = loadUiService({ queueEntries: [pending] });
+    await uiService.retrySyncQueue();
+    expect(processCalls).toEqual([{ force: true, allowPrompt: true }]);
+    expect(alerts[0]).toContain('Übertragung war nicht möglich');
+  });
+});
+
+
+describe('uiService: mehrere Zählerstände, Konflikte und beschädigte Queue', () => {
+  const m1 = { zaehler_id: 'Z_A', objekt_id: 'TEST', einheit_id: 'TEST_WE_01', bezeichnung: 'Kaltwasser TEST' };
+  const m2 = { zaehler_id: 'Z_B', objekt_id: 'TEST', einheit_id: 'TEST_WE_01', bezeichnung: 'Strom TEST' };
+  const multiEntry = (extra = {}) => ({
+    id: 'r1', status: 'rejected', code: 'CONFLICT', message: 'Konflikt',
+    conflicts: [{ art: 'GLEICHE_MINUTE', zaehler_id: 'Z_A', stand_id: 's', alter_wert: 1950, neuer_wert: 1590 }],
+    payload: { data: [
+      { zaehler_id: 'Z_A', wert: 1590, zeitstempel: '30.10.2026 10:00' },
+      { zaehler_id: 'Z_B', wert: 77, zeitstempel: '30.10.2026 10:00' },
+    ] },
+    ...extra,
+  });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 30, 10, 0));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('markiert in den Details, welche Zählerstände betroffen sind, und nennt die Anzahl', () => {
+    const { uiService, elementsById } = loadUiService({ queueEntries: [multiEntry()], currentMeters: [m1, m2] });
+    uiService.toggleSyncQueueDetails();
+    const html = elementsById['sync-queue-status'].innerHTML;
+    expect(html).toContain('⚠️ Konflikt: ');
+    expect(html.match(/Konflikt: /g)).toHaveLength(1);
+    expect(html).toContain('2 Zählerstände gehören zu dieser Eingabe, davon 1 mit Konflikt');
+    expect(html).toContain('die Entscheidung gilt für die ganze Eingabe');
+  });
+
+  it('listet beim Verwerfen alle Zählerstände auf und warnt vor Verlust der Werte ohne Konflikt', () => {
+    const { uiService, confirms, queueCalls } = loadUiService({ queueEntries: [multiEntry()], currentMeters: [m1, m2], confirmResult: false });
+    uiService.discardQueueEntry('r1');
+    expect(confirms).toHaveLength(1);
+    expect(confirms[0]).toContain('Eintrag mit 2 Zählerständen verwerfen?');
+    expect(confirms[0]).toContain('⚠️ Konflikt: ');
+    expect(confirms[0]).toContain('Achtung: 1 dieser Zählerstände haben keinen Konflikt und gehen ebenfalls verloren.');
+    expect(queueCalls).toEqual([]); // abgebrochen: nichts verworfen
+  });
+
+  it('verwirft erst nach ausdrücklicher Bestätigung', () => {
+    const { uiService, queueCalls } = loadUiService({ queueEntries: [multiEntry()], currentMeters: [m1, m2], confirmResult: true });
+    uiService.discardQueueEntry('r1');
+    expect(queueCalls).toEqual([['discard', 'r1']]);
+  });
+
+  it('verzichtet bei einem einzelnen Zählerstand auf die Zusatzwarnung', () => {
+    const single = multiEntry({ payload: { data: [{ zaehler_id: 'Z_A', wert: 1590, zeitstempel: '30.10.2026 10:00' }] } });
+    const { uiService, confirms } = loadUiService({ queueEntries: [single], currentMeters: [m1], confirmResult: false });
+    uiService.discardQueueEntry('r1');
+    expect(confirms[0]).toContain('Eintrag mit 1 Zählerstand verwerfen?');
+    expect(confirms[0]).not.toContain('Achtung');
+  });
+
+  it('nennt beim Überschreiben aus der Queue, dass weitere Zählerstände mitgespeichert werden', async () => {
+    const { uiService, confirms, queueCalls } = loadUiService({ queueEntries: [multiEntry()], currentMeters: [m1, m2], promptResult: 'Tippfehler' });
+    await uiService.overwriteQueueEntry('r1');
+    expect(confirms[0]).toContain('Zusätzlich wird 1 weiterer Zählerstand dieser Eingabe (ohne Konflikt) gespeichert.');
+    expect(queueCalls).toEqual([['overwrite', 'r1', 'Tippfehler']]);
+  });
+
+  it('nennt bei „als neue Ablesung“ aus der Queue die Anzahl aller betroffenen Zählerstände', async () => {
+    const near = multiEntry({ conflicts: [{ art: 'NAHE_ABLESUNG', zaehler_id: 'Z_A', alter_wert: 1950, neuer_wert: 1590, minuten_abstand: 1 }] });
+    const { uiService, confirms, queueCalls } = loadUiService({ queueEntries: [near], currentMeters: [m1, m2] });
+    await uiService.saveQueueEntryAsNew('r1');
+    expect(confirms[0]).toContain('Alle 2 Zählerstände dieser Eingabe als zusätzliche, neue Ablesung speichern?');
+    expect(queueCalls).toEqual([['neu', 'r1']]);
+  });
+
+  it('nennt beim Speichern mit Konflikt die Zahl der zusätzlich gespeicherten Zählerstände', async () => {
+    const conflict = {
+      status: 'error', code: 'CONFLICT', message: 'Konflikt',
+      conflicts: [{ art: 'GLEICHE_MINUTE', stand_id: 'ST_Z_A_2026-10-30 10:00', zaehler_id: 'Z_A', alter_wert: 1950, neuer_wert: 1590 }],
+    };
+    const { uiService, confirms, saveCalls } = loadUiService({
+      currentMeters: [m1, m2],
+      inputValuesByZaehlerId: { Z_A: '1590', Z_B: '77' },
+      zaehlerstaende: [
+        { objekt_id: 'TEST', einheit_id: 'TEST_WE_01', zaehler_id: 'Z_A', wert: 1400, zeitstempel: '29.10.2026 08:00' },
+        { objekt_id: 'TEST', einheit_id: 'TEST_WE_01', zaehler_id: 'Z_B', wert: 70, zeitstempel: '29.10.2026 08:00' },
+      ],
+      saveResponses: [conflict, { status: 'success' }],
+      promptResult: 'Tippfehler',
+    });
+    await uiService.saveZaehler();
+    expect(confirms[0]).toContain('Zusätzlich wird 1 weiterer Zählerstand dieser Eingabe (ohne Konflikt) gespeichert.');
+    expect(saveCalls[1].data).toHaveLength(2);
+  });
+
+  it('zeigt eine beschädigte Queue sichtbar an, auch ohne Einträge', () => {
+    const { uiService, elementsById } = loadUiService({ queueEntries: [], queueProblems: [{ key: 'offline_queue' }] });
+    uiService.renderSyncQueueStatus();
+    const el = elementsById['sync-queue-status'];
+    expect(el.style.display).toBe('block');
+    expect(el.innerHTML).toContain('beschädigt');
+    expect(el.innerHTML).toContain('uiService.resetCorruptQueue()');
+    expect(el.innerHTML).toContain('uiService.showCorruptQueue()');
+  });
+
+  it('zeigt die Warnung zusätzlich zu offenen Einträgen und blendet sie ohne Problem aus', () => {
+    const pending = { id: 'p1', status: 'pending', payload: { data: [{ zaehler_id: 'Z_A', wert: 1 }] } };
+    const withProblem = loadUiService({ queueEntries: [pending], queueProblems: [{ key: 'offline_queue_failed' }] });
+    withProblem.uiService.renderSyncQueueStatus();
+    expect(withProblem.elementsById['sync-queue-status'].innerHTML).toContain('beschädigt');
+    expect(withProblem.elementsById['sync-queue-status'].innerHTML).toContain('noch nicht in der Datenbank');
+
+    const healthy = loadUiService({ queueEntries: [pending] });
+    healthy.uiService.renderSyncQueueStatus();
+    expect(healthy.elementsById['sync-queue-status'].innerHTML).not.toContain('beschädigt');
+  });
+
+  it('sichert und setzt die beschädigte Queue nur nach Bestätigung zurück', () => {
+    const declined = loadUiService({ queueProblems: [{ key: 'offline_queue' }], confirmResult: false });
+    declined.uiService.resetCorruptQueue();
+    expect(declined.queueCalls).toEqual([]);
+
+    const accepted = loadUiService({ queueProblems: [{ key: 'offline_queue' }], confirmResult: true });
+    accepted.uiService.resetCorruptQueue();
+    expect(accepted.queueCalls).toEqual([['resolve']]);
+    expect(accepted.alerts[0]).toContain('offline_queue_defekt_x');
+  });
+
+  it('zeigt die Rohdaten zum Kopieren an', () => {
+    const { uiService, prompts } = loadUiService({ queueProblems: [{ key: 'offline_queue' }] });
+    uiService.showCorruptQueue();
+    expect(prompts[0]).toContain('Beschädigte Queue-Daten');
   });
 });

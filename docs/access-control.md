@@ -17,7 +17,8 @@ Sie ist deshalb nicht geheim. Geschützt wird der Zugriff durch einen Zugangssch
 - Fehlender oder falscher Schlüssel: Antwort `{ "status": "error", "code": "UNAUTHORIZED" }`
   (Apps Script kann keinen HTTP-401 senden, der Status ist 200).
 - Schreibtypen sind eine Erlaubnisliste: `ZAEHLERSTAND_NEU`, `ZAHLUNG`, `VERTRAG_AKTUALISIEREN`,
-  `INDEX_ANWENDEN`. Alles andere ergibt den Fehler „Unbekannter Typ.“ und schreibt nichts.
+  `INDEX_ANWENDEN`. Dazu kommt die Backend-Aktion `VERBRAUCH_VIEWS_AKTUALISIEREN` (ab 4.8.1).
+  Alles andere ergibt den Fehler „Unbekannter Typ.“ und schreibt nichts.
 - Die Prüfung läuft vor dem Skript-Lock. Der Vergleich erfolgt ohne frühen Abbruch.
 - **Übergangsmodus:** Ist `APP_ACCESS_KEY` nicht gesetzt (oder leer), verhält sich das Backend wie
   4.7.0. Das Frontend zeigt dann „⚠️ Backend ohne Zugangsschlüssel“. Der Schutz beginnt erst mit dem
@@ -55,11 +56,13 @@ Zeilen) und meldet „Version 4.8.0 erforderlich“, liefert aber keine Daten.
 
 ## Offline-Queue
 
-- Nur Netzwerkfehler und vorübergehende Serverfehler (HTTP 5xx, 429) werden in die Queue gelegt.
-  Ablehnungen (falscher Schlüssel, Validierung) werden im Dialog als Fehler gemeldet.
-- Einträge verlassen die Queue erst nach bestätigtem `success`. Vom Backend abgelehnte Einträge
-  wandern in `offline_queue_failed` im `localStorage`, statt gelöscht zu werden.
+Ausführlich in `docs/offline-sync-und-korrekturen.md`. Kurzfassung:
+
+- Einträge verlassen die Queue nur nach bestätigtem `success` oder durch Verwerfen durch den Nutzer. Leere oder unklare Antworten gelten nie als Erfolg.
+- Netzwerkfehler, Zeitlimit, HTTP 5xx/429, `LOCK_TIMEOUT`, unklare Antworten und abgelehnter Schlüssel lassen Einträge als `pending` liegen (Apps Script meldet Fehler meist mit HTTP 200, deshalb kennzeichnet das Backend vorübergehende Fehler mit `transient: true`).
+- Vom Backend abgelehnte Einträge (z. B. `CONFLICT`) bleiben mit Grund sichtbar (`rejected`) und werden nicht von selbst erneut gesendet. Die frühere Liste `offline_queue_failed` wird übernommen.
 - Der Schlüssel wird beim Senden angehängt und nicht in der Queue gespeichert.
+- Eine beschädigte Queue wird nie überschrieben, sondern angezeigt und erst nach geprüfter Sicherung zurückgesetzt.
 
 ## Grenzen
 

@@ -1,7 +1,7 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.3
- * Stand: 2026-10-29
+ * Version: 4.8.4
+ * Stand: 2026-10-30
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
  * Änderungen seit v4.1:
@@ -79,8 +79,19 @@
  *
  * Änderungen seit v4.8.2:
  * - Berechnungszeitpunkte werden explizit in Europe/Berlin formatiert
+ *
+ * Änderungen seit v4.8.3:
+ * - Zählerstände sind idempotent (gleiche stand_id + gleicher Wert = bereits gespeichert)
+ * - Gleiche stand_id mit anderem Wert ergibt CONFLICT; Überschreiben nur mit Grund und Protokoll
+ * - Protokollblatt Zaehlerstand_Korrekturen (wird beim ersten Überschreiben angelegt)
+ * - Lock-Timeout wird als vorübergehender Fehler (LOCK_TIMEOUT) gemeldet
+ * - Korrekturfenster: Ein abweichender Wert bis 15 Minuten nach dem letzten Wert desselben
+ *   Zählers ergibt ebenfalls CONFLICT (art NAHE_ABLESUNG); neueAblesung:true speichert ihn
+ *   ausdrücklich als zusätzliche Ablesung
+ * - Überschreiben protokolliert zuerst und ändert danach (keine Änderung ohne Protokoll)
+ * - Neue Leseansicht 'zaehlerstaende' für gezieltes Nachladen der Zählerstände
  */
-const BACKEND_VERSION = "4.8.3";
+const BACKEND_VERSION = "4.8.4";
 
 function sendJSON(obj) {
   return ContentService
@@ -139,6 +150,12 @@ function readView(ss, view) {
     return { '_view_aktive_mieter': sheetView ? getSheetData(sheetView) : [] };
   }
 
+  if (view === 'zaehlerstaende') {
+    // Gezieltes Nachladen nach dem Speichern oder Synchronisieren (statt aller Blätter)
+    const sheet = ss.getSheetByName('Zaehlerstaende');
+    return { 'Zaehlerstaende': sheet ? getSheetData(sheet) : [] };
+  }
+
   if (view === 'verbrauch') {
     const names = ['_view_verbrauch_monat', '_view_verbrauch_jahr', '_view_verbrauch_audit', '_view_verbrauch_bilanz_jahr'];
     const result = {};
@@ -157,6 +174,250 @@ function readView(ss, view) {
     }
   });
   return data;
+}
+
+const KORREKTUR_SHEET_NAME = 'Zaehlerstand_Korrekturen';
+const KORREKTUR_HEADERS = ['korrigiert_am', 'stand_id', 'zaehler_id', 'alter_wert', 'neuer_wert', 'grund', 'quelle', 'art'];
+const MIN_KORREKTUR_GRUND_LENGTH = 3;
+// Ein Wert, der höchstens so viele Minuten nach dem letzten Wert desselben Zählers erfasst wird,
+// gilt als mögliche Korrektur (Minutenwechsel beim Tippfehler). Muss zu KORREKTUR_FENSTER_MINUTEN
+// in ui-service.js passen.
+const KORREKTUR_FENSTER_MINUTEN = 15;
+
+function parseWertForCompare(value) {
+  if (typeof value === 'number') return value;
+  const text = String(value === undefined || value === null ? '' : value).trim().replace(',', '.');
+  return text === '' ? NaN : Number(text);
+}
+
+/** Gleicher Messwert? Zahlen werden numerisch verglichen, alles andere als Text. */
+function zaehlerWerteGleich(a, b) {
+  const x = parseWertForCompare(a);
+  const y = parseWertForCompare(b);
+  if (isNaN(x) || isNaN(y)) return String(a).trim() === String(b).trim();
+  return Math.abs(x - y) < 1e-9;
+}
+
+/** Zeitpunkt einer Tabellenzeile oder NaN, wenn er sich nicht lesen lässt. */
+function parseTimestampOrNaN(value) {
+  return parseTimestampForStandId(value, new Date(NaN)).getTime();
+}
+
+function formatAlteZeit(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, "Europe/Berlin", "dd.MM.yyyy HH:mm");
+  }
+  return String(value === undefined || value === null ? "" : value);
+}
+
+/**
+ * Plant das Schreiben neuer Zählerstände gegen den vorhandenen Bestand (ohne zu schreiben).
+ * Identität ist die stand_id (Zähler + Minute). Rückgabe:
+ * - append: neue Einträge
+ * - duplicates: Wert schon vorhanden (z. B. Wiederholung aus der Offline-Queue)
+ * - conflicts: anderer Wert zur selben stand_id (art GLEICHE_MINUTE) oder zum letzten Wert
+ *   desselben Zählers innerhalb von KORREKTUR_FENSTER_MINUTEN (art NAHE_ABLESUNG);
+ *   rowNumber = Zeile im Blatt
+ * - invalid: dieselbe stand_id mit verschiedenen Werten innerhalb einer Anfrage
+ * options.neueAblesung: Der Nutzer will ausdrücklich eine zusätzliche Ablesung; die
+ * Nähe-Prüfung entfällt (die Prüfung auf gleiche stand_id bleibt).
+ */
+function planZaehlerstandWrite(headers, dataRows, items, options) {
+  const opts = options || {};
+  let standIdIndex = headers.indexOf('stand_id');
+  if (standIdIndex === -1) standIdIndex = headers.indexOf('stand.id');
+  const wertIndex = headers.indexOf('wert');
+  const zaehlerIndex = headers.indexOf('zaehler_id');
+  const zeitIndex = headers.indexOf('zeitstempel');
+
+  const known = {};
+  const readingsByZaehler = {};
+  dataRows.forEach((row, i) => {
+    const id = standIdIndex === -1 ? '' : String(row[standIdIndex] === undefined ? '' : row[standIdIndex]).trim();
+    const wert = wertIndex === -1 ? '' : row[wertIndex];
+    if (id && !Object.prototype.hasOwnProperty.call(known, id)) {
+      known[id] = { rowNumber: i + 2, wert: wert };
+    }
+    if (zaehlerIndex !== -1 && zeitIndex !== -1) {
+      const zaehlerId = String(row[zaehlerIndex] === undefined ? '' : row[zaehlerIndex]).trim();
+      const time = parseTimestampOrNaN(row[zeitIndex]);
+      if (zaehlerId && !isNaN(time)) {
+        (readingsByZaehler[zaehlerId] = readingsByZaehler[zaehlerId] || []).push({
+          rowNumber: i + 2, time: time, wert: wert, standId: id, zeit: row[zeitIndex]
+        });
+      }
+    }
+  });
+
+  const plan = { append: [], duplicates: [], conflicts: [], invalid: [] };
+
+  items.forEach(item => {
+    const normalized = normalizeZaehlerstandItem(item);
+    const id = String(normalized.stand_id).trim();
+    const hit = Object.prototype.hasOwnProperty.call(known, id) ? known[id] : null;
+
+    if (hit) {
+      if (zaehlerWerteGleich(hit.wert, normalized.wert)) {
+        plan.duplicates.push({ stand_id: id });
+      } else if (hit.rowNumber === null) {
+        plan.invalid.push({ stand_id: id });
+      } else {
+        plan.conflicts.push({
+          art: 'GLEICHE_MINUTE',
+          stand_id: id,
+          zaehler_id: normalized.zaehler_id,
+          alter_wert: hit.wert,
+          neuer_wert: normalized.wert,
+          rowNumber: hit.rowNumber,
+          quelle: normalized.quelle
+        });
+      }
+      return;
+    }
+
+    if (!opts.neueAblesung) {
+      const newTime = parseTimestampOrNaN(normalized.zeitstempel);
+      const candidates = isNaN(newTime) ? [] : (readingsByZaehler[String(normalized.zaehler_id).trim()] || [])
+        .filter(r => newTime - r.time >= 0 && newTime - r.time <= KORREKTUR_FENSTER_MINUTEN * 60000);
+      const near = candidates.sort((a, b) => b.time - a.time)[0];
+      if (near) {
+        if (zaehlerWerteGleich(near.wert, normalized.wert)) {
+          plan.duplicates.push({ stand_id: id });
+        } else {
+          plan.conflicts.push({
+            art: 'NAHE_ABLESUNG',
+            stand_id: near.standId,
+            zaehler_id: normalized.zaehler_id,
+            alter_wert: near.wert,
+            neuer_wert: normalized.wert,
+            alte_zeit: formatAlteZeit(near.zeit),
+            minuten_abstand: Math.round((newTime - near.time) / 60000),
+            rowNumber: near.rowNumber,
+            quelle: normalized.quelle
+          });
+        }
+        return;
+      }
+    }
+
+    known[id] = { rowNumber: null, wert: normalized.wert };
+    plan.append.push(normalized);
+  });
+
+  return plan;
+}
+
+function ensureKorrekturSheet(ss) {
+  let sheet = ss.getSheetByName(KORREKTUR_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(KORREKTUR_SHEET_NAME);
+    sheet.appendRow(KORREKTUR_HEADERS);
+  }
+  return sheet;
+}
+
+function formatKorrekturTimestamp(date) {
+  return Utilities.formatDate(date, "Europe/Berlin", "yyyy-MM-dd HH:mm:ss");
+}
+
+/**
+ * Schreibt Zählerstände idempotent. Bei abweichendem Wert zur selben stand_id wird nichts
+ * geschrieben (CONFLICT), außer der Client übergibt ueberschreiben.grund. Überschreibungen
+ * werden mit altem Wert, neuem Wert und Grund im Blatt Zaehlerstand_Korrekturen protokolliert.
+ */
+function writeZaehlerstaende(ss, items, ueberschreiben, options) {
+  const sheet = ss.getSheetByName("Zaehlerstaende");
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0].map(h => String(h).trim().toLowerCase());
+  const plan = planZaehlerstandWrite(headers, values.slice(1), items, options);
+
+  if (plan.invalid.length > 0) {
+    return {
+      status: "error",
+      code: "DOPPELTE_STAND_ID",
+      message: "Dieselbe stand_id kommt mit verschiedenen Werten mehrfach in der Anfrage vor."
+    };
+  }
+
+  const publicConflicts = plan.conflicts.map(c => {
+    const publicConflict = {
+      art: c.art,
+      stand_id: c.stand_id,
+      zaehler_id: c.zaehler_id,
+      alter_wert: c.alter_wert,
+      neuer_wert: c.neuer_wert
+    };
+    if (c.art === 'NAHE_ABLESUNG') {
+      publicConflict.alte_zeit = c.alte_zeit;
+      publicConflict.minuten_abstand = c.minuten_abstand;
+    }
+    return publicConflict;
+  });
+
+  const grund = ueberschreiben && typeof ueberschreiben.grund === "string"
+    ? ueberschreiben.grund.trim()
+    : "";
+
+  if (plan.conflicts.length > 0 && !ueberschreiben) {
+    return {
+      status: "error",
+      code: "CONFLICT",
+      conflicts: publicConflicts,
+      message: "Für diesen Zähler ist bereits ein anderer Zählerstand (gleiche Minute oder kurz zuvor) gespeichert. Es wurde nichts geändert."
+    };
+  }
+
+  if (plan.conflicts.length > 0 && grund.length < MIN_KORREKTUR_GRUND_LENGTH) {
+    return {
+      status: "error",
+      code: "GRUND_FEHLT",
+      conflicts: publicConflicts,
+      message: "Zum Überschreiben ist ein Grund erforderlich. Es wurde nichts geändert."
+    };
+  }
+
+  const wertColumn = headers.indexOf('wert') + 1;
+  const now = new Date();
+
+  if (plan.conflicts.length > 0) {
+    // Zuerst protokollieren, dann ändern: Schlägt das Protokollieren fehl, bleibt der Zählerstand
+    // unverändert (kein Wert ohne Protokoll). Schlägt das Ändern danach fehl, steht im Protokoll
+    // eine Korrektur, die nicht angewendet wurde; der Wiederholungsversuch protokolliert erneut.
+    const logSheet = ensureKorrekturSheet(ss);
+    plan.conflicts.forEach(conflict => {
+      logSheet.appendRow([
+        formatKorrekturTimestamp(now),
+        conflict.stand_id,
+        conflict.zaehler_id,
+        conflict.alter_wert,
+        conflict.neuer_wert,
+        grund,
+        conflict.quelle || "",
+        conflict.art
+      ]);
+    });
+    SpreadsheetApp.flush();
+    plan.conflicts.forEach(conflict => {
+      sheet.getRange(conflict.rowNumber, wertColumn).setValue(conflict.neuer_wert);
+    });
+  }
+
+  plan.append.forEach(item => {
+    sheet.appendRow(headers.map(h => getItemValueForHeader(item, h)));
+  });
+
+  if (plan.append.length > 0 || plan.conflicts.length > 0) {
+    // WICHTIG: Cache-Update nach jeder Datenänderung
+    updateAktiveMieterView();
+  }
+
+  return {
+    status: "success",
+    message: "Daten verarbeitet und View aktualisiert",
+    angelegt: plan.append.length,
+    bereits_vorhanden: plan.duplicates.length,
+    ueberschrieben: plan.conflicts.length
+  };
 }
 
 function doPost(e) {
@@ -197,7 +458,17 @@ function doPost(e) {
 
   try {
     lock.waitLock(10000);
+  } catch (err) {
+    // Vorübergehend: Der Client darf den Eintrag später erneut senden.
+    return sendJSON({
+      status: "error",
+      code: "LOCK_TIMEOUT",
+      transient: true,
+      message: "Das Backend ist gerade ausgelastet. Bitte später erneut versuchen."
+    });
+  }
 
+  try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
     if (payload.typ === 'VERTRAG_AKTUALISIEREN' || payload.typ === 'INDEX_ANWENDEN') {
@@ -217,9 +488,16 @@ function doPost(e) {
       });
     }
 
-    const targetSheet = payload.typ === "ZAHLUNG"
-      ? "Zahlungen"
-      : "Zaehlerstaende";
+    if (payload.typ === 'ZAEHLERSTAND_NEU') {
+      return sendJSON(writeZaehlerstaende(
+        ss,
+        Array.isArray(payload.data) ? payload.data : [payload.data],
+        payload.ueberschreiben,
+        { neueAblesung: payload.neueAblesung === true }
+      ));
+    }
+
+    const targetSheet = "Zahlungen";
 
     const sheet = ss.getSheetByName(targetSheet);
 

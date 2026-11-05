@@ -37,11 +37,17 @@ Diese Datei beschreibt offene und geplante Arbeit.
 ### P1 Apps Script 4.8.4
 
 - Branch: `chore/apps-script-4.8.4`
-- Status: Offen
+- Status: Implementiert und lokal verifiziert; PR/Deployment offen
 - Scope: Backend-Änderung aus dem vorliegenden 4.8.4-Stand, Versionskopf,
   Changelog, Backend-Tests und Deployment-Dokumentation.
 - Abhängigkeit: genaue Änderung gegenüber 4.8.3 und manueller GAS-Deploy durch den
   Betreiber.
+- Der Senior-Developer-Patch ist integriert: Offline-Queue, idempotente
+  `stand_id`-Verarbeitung, Konflikt-/Korrekturpfad, gezieltes Nachladen und
+  beschädigungssichere Queue-Wiederherstellung.
+- Lokale Prüfung: 341 Tests in 12 Testdateien grün; `git diff --check` sauber.
+- Nächster Schritt: Branch pushen, CI abwarten, danach Backend 4.8.4 deployen und
+  die dokumentierten Testfälle gegen das echte Apps Script/Sheet durchführen.
 
 ### P2 Verbrauchsstatistik-Follow-ups
 

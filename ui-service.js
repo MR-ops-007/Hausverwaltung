@@ -415,10 +415,27 @@ const uiService = {
     return validator;
   },
 
-  getLatestZaehlerstand(zaehlerOrId) {
-    const readings = Array.isArray(dataService.state.zaehlerstaende)
+  // Muss zu KORREKTUR_FENSTER_MINUTEN in apps-script/Code.gs passen.
+  KORREKTUR_FENSTER_MINUTEN: 15,
+
+  /** Noch nicht übertragene Ablesungen aus der Offline-Queue (ohne abgelehnte). */
+  getPendingReadings() {
+    if (typeof cloudService === 'undefined' || typeof cloudService.getQueueSummary !== 'function') {
+      return [];
+    }
+
+    return cloudService.getQueueSummary().entries
+      .filter(entry => entry.status !== 'rejected' && entry.payload && Array.isArray(entry.payload.data))
+      .reduce((all, entry) => all.concat(entry.payload.data), []);
+  },
+
+  // includePending: nur für die Plausibilitätsprüfung beim Erfassen. Die Anzeige „Letzter Stand“
+  // zeigt ausschließlich, was in der Datenbank bestätigt ist.
+  getLatestZaehlerstand(zaehlerOrId, { excludeStandId = '', correctionTime = null, includePending = false } = {}) {
+    const confirmed = Array.isArray(dataService.state.zaehlerstaende)
       ? dataService.state.zaehlerstaende
       : [];
+    const readings = includePending ? confirmed.concat(this.getPendingReadings()) : confirmed;
     const zaehler = typeof zaehlerOrId === 'object' && zaehlerOrId !== null
       ? zaehlerOrId
       : { zaehler_id: zaehlerOrId };
@@ -435,6 +452,20 @@ const uiService = {
 
         if (zaehler.einheit_id && String(row.einheit_id) !== String(zaehler.einheit_id)) {
           return false;
+        }
+
+        // Mögliche Korrektur: Werte derselben Minute und der letzten Minuten davor sind keine
+        // Vergleichswerte (der Tippfehler soll nicht die Korrektur blockieren).
+        if (excludeStandId && this.getRowStandId(row) === excludeStandId) {
+          return false;
+        }
+
+        if (correctionTime) {
+          const age = correctionTime - this.parseGermanDate(row.zeitstempel);
+
+          if (age >= 0 && age <= this.KORREKTUR_FENSTER_MINUTEN * 60000) {
+            return false;
+          }
         }
 
         return true;
@@ -2042,6 +2073,287 @@ const uiService = {
     modal.style.display = 'flex';
   },
 
+  getRowStandId(row) {
+    const value = row && (row.stand_id !== undefined && row.stand_id !== '' ? row.stand_id : row['stand.id']);
+    return value === undefined || value === null ? '' : String(value).trim();
+  },
+
+  /** stand_id wie im Backend: ST_{zaehler_id}_{YYYY-MM-DD HH:mm}, aus dem deutschen Zeitstempel. */
+  buildStandId(zaehlerId, germanTimestamp) {
+    const match = String(germanTimestamp).match(/^(\d{1,2})\.(\d{1,2})\.(\d{4}) (\d{1,2}):(\d{2})$/);
+    if (!match) return '';
+    const pad = value => String(value).padStart(2, '0');
+    return `ST_${String(zaehlerId).trim()}_${match[3]}-${pad(match[2])}-${pad(match[1])} ${pad(match[4])}:${match[5]}`;
+  },
+
+  /**
+   * Warnung und Pflichtgrund, bevor ein bereits gespeicherter Zählerstand überschrieben wird.
+   * Liefert den Grund oder null, wenn abgebrochen wurde.
+   */
+  askOverwriteReason(conflicts, totalCount = 0) {
+    const meters = Array.isArray(this.currentActiveMetersObjects) ? this.currentActiveMetersObjects : [];
+    const lines = (Array.isArray(conflicts) ? conflicts : []).map(conflict => {
+      const meter = meters.find(m => String(m.zaehler_id) === String(conflict.zaehler_id)) ||
+        (Array.isArray(dataService.state.zaehler)
+          ? dataService.state.zaehler.find(m => String(m.zaehler_id) === String(conflict.zaehler_id))
+          : null);
+      const label = meter ? this.getZaehlerLabel(meter) : conflict.zaehler_id;
+      const when = conflict.art === 'NAHE_ABLESUNG'
+        ? `vor ${conflict.minuten_abstand} Min. (${conflict.alte_zeit}) `
+        : '';
+      return `• ${label}: ${when}gespeichert ${conflict.alter_wert} → neu ${conflict.neuer_wert}`;
+    });
+
+    const conflictCount = Array.isArray(conflicts) ? conflicts.length : 0;
+    const others = totalCount > conflictCount ? totalCount - conflictCount : 0;
+    const othersText = others > 0
+      ? (others === 1
+        ? '\n\nZusätzlich wird 1 weiterer Zählerstand dieser Eingabe (ohne Konflikt) gespeichert.'
+        : `\n\nZusätzlich werden ${others} weitere Zählerstände dieser Eingabe (ohne Konflikt) gespeichert.`)
+      : '';
+
+    const confirmed = confirm(
+      '⚠️ Für diesen Zähler ist gerade erst ein anderer Zählerstand gespeichert:\n\n' +
+      lines.join('\n') +
+      othersText +
+      '\n\nDer gespeicherte Wert würde überschrieben. Die Änderung wird mit Grund protokolliert.\n\nÜberschreiben?'
+    );
+    this.lastOverwriteAnswer = confirmed ? 'bestaetigt' : 'abgelehnt';
+    if (!confirmed) return null;
+
+    const reason = prompt('Grund für das Überschreiben (Pflichtfeld, z. B. Tippfehler):');
+    const trimmed = reason === null || reason === undefined ? '' : String(reason).trim();
+    if (trimmed.length < 3) {
+      this.lastOverwriteAnswer = 'ohne_grund';
+      alert('Ohne Grund wird nichts überschrieben. Es wurde nichts geändert.');
+      return null;
+    }
+    return trimmed;
+  },
+
+  /** Nur kurz zurückliegende Werte (nicht die gleiche Minute) dürfen auch als neue Ablesung gespeichert werden. */
+  canSaveAsNewReading(conflicts) {
+    return Array.isArray(conflicts) && conflicts.length > 0 &&
+      conflicts.every(conflict => conflict.art === 'NAHE_ABLESUNG');
+  },
+
+  /**
+   * Entscheidung bei Konflikt: { aktion: 'ueberschreiben', grund } | { aktion: 'neue_ablesung' } | null.
+   */
+  resolveConflict(conflicts, totalCount = 0) {
+    const grund = this.askOverwriteReason(conflicts, totalCount);
+
+    if (grund) {
+      return { aktion: 'ueberschreiben', grund };
+    }
+
+    if (this.canSaveAsNewReading(conflicts) && this.lastOverwriteAnswer !== 'ohne_grund' &&
+      confirm(`Stattdessen ${totalCount > 1 ? `alle ${totalCount} Zählerstände dieser Eingabe` : 'den Wert'} als zusätzliche, neue Ablesung speichern?\n\nDie bereits gespeicherten Werte bleiben unverändert.`)) {
+      return { aktion: 'neue_ablesung' };
+    }
+
+    return null;
+  },
+
+  // --- Anzeige nicht gespeicherter Einträge (Offline-Queue) ---------------
+  syncQueueDetailsOpen: false,
+
+  describeQueueItem(item) {
+    const meters = Array.isArray(dataService.state.zaehler) ? dataService.state.zaehler : [];
+    const meter = meters.find(m => String(m.zaehler_id) === String(item.zaehler_id));
+    const label = meter ? this.getZaehlerLabel(meter) : item.zaehler_id;
+    return `${label}: ${item.wert} (${item.zeitstempel || 'ohne Zeit'})`;
+  },
+
+  /** Alle Zählerstände eines Queue-Eintrags; Konflikte sind markiert (Zähler mit Konfliktmeldung). */
+  describeEntryItems(entry) {
+    const data = entry.payload && Array.isArray(entry.payload.data) ? entry.payload.data : [entry.payload && entry.payload.data];
+    const conflicts = Array.isArray(entry.conflicts) ? entry.conflicts : [];
+    return data.filter(Boolean).map(item => ({
+      text: this.describeQueueItem(item),
+      conflict: conflicts.some(conflict => String(conflict.zaehler_id) === String(item.zaehler_id))
+    }));
+  },
+
+  renderSyncQueueStatus() {
+    const el = document.getElementById('sync-queue-status');
+    if (!el || typeof cloudService === 'undefined' || !cloudService.getQueueSummary) return;
+
+    const summary = cloudService.getQueueSummary();
+    const problems = Array.isArray(summary.problems) ? summary.problems : [];
+    const problemHtml = problems.length > 0
+      ? `<div class="sync-queue-summary sync-queue-rejected">
+          ❌ Die gespeicherte Offline-Queue ist beschädigt und konnte nicht gelesen werden. Die Daten sind unverändert
+          erhalten, es können aber keine Werte offline zwischengespeichert werden, bis sie gesichert wurden.
+          <button type="button" onclick="uiService.showCorruptQueue()">Rohdaten anzeigen</button>
+          <button type="button" onclick="uiService.resetCorruptQueue()">Sichern und zurücksetzen</button>
+        </div>`
+      : '';
+
+    if (summary.entries.length === 0) {
+      el.style.display = problems.length > 0 ? 'block' : 'none';
+      el.innerHTML = problemHtml;
+      return;
+    }
+
+    const rejectedText = summary.rejected > 0
+      ? ` ${summary.rejected} wurde${summary.rejected === 1 ? '' : 'n'} abgelehnt und braucht eine Entscheidung.`
+      : '';
+    const detailsHtml = this.syncQueueDetailsOpen
+      ? `<ul class="sync-queue-list">${summary.entries.map(entry => {
+          const rejected = entry.status === 'rejected';
+          const id = this.escapeHtml(entry.id);
+          const items = this.describeEntryItems(entry);
+          const conflictCount = items.filter(item => item.conflict).length;
+          const countText = rejected && conflictCount > 0 && items.length > 1
+            ? `<div class="sync-queue-state">${items.length} Zählerstände gehören zu dieser Eingabe, davon ${conflictCount} mit Konflikt. ` +
+              'Nichts davon ist gespeichert; die Entscheidung gilt für die ganze Eingabe.</div>'
+            : '';
+          return `<li class="${rejected ? 'sync-queue-rejected' : ''}">
+            <div>${items.map(item => `${item.conflict ? '⚠️ Konflikt: ' : ''}${this.escapeHtml(item.text)}`).join('<br>')}</div>
+            ${countText}
+            <div class="sync-queue-state">${rejected
+              ? this.escapeHtml(entry.message || 'Vom Backend abgelehnt.')
+              : 'Wartet auf Übertragung.'}</div>
+            ${rejected && Array.isArray(entry.conflicts) ? entry.conflicts.map(conflict =>
+              `<div class="sync-queue-state">Gespeichert ist ${this.escapeHtml(conflict.alter_wert)}, erfasst wurde ${this.escapeHtml(conflict.neuer_wert)}${conflict.art === 'NAHE_ABLESUNG' ? ` (gespeichert vor ${this.escapeHtml(conflict.minuten_abstand)} Min.)` : ''}.</div>`).join('') : ''}
+            <div class="sync-queue-actions">
+              ${rejected && entry.code !== 'CONFLICT' ? `<button type="button" onclick="uiService.retryQueueEntry('${id}')">Erneut versuchen</button>` : ''}
+              ${rejected && entry.code === 'CONFLICT' ? `<button type="button" onclick="uiService.overwriteQueueEntry('${id}')">Überschreiben …</button>` : ''}
+              ${rejected && entry.code === 'CONFLICT' && this.canSaveAsNewReading(entry.conflicts) ? `<button type="button" onclick="uiService.saveQueueEntryAsNew('${id}')">Als neue Ablesung speichern</button>` : ''}
+              <button type="button" onclick="uiService.discardQueueEntry('${id}')">Verwerfen</button>
+            </div>
+          </li>`;
+        }).join('')}</ul>`
+      : '';
+
+    el.style.display = 'block';
+    el.innerHTML = `
+      ${problemHtml}
+      <div class="sync-queue-summary">
+        ⚠️ ${summary.values} Wert${summary.values === 1 ? '' : 'e'} noch nicht in der Datenbank gespeichert.${rejectedText}
+        ${summary.pending > 0 ? '<button type="button" id="sync-queue-retry" onclick="uiService.retrySyncQueue()">Jetzt erneut senden</button>' : ''}
+        <button type="button" onclick="uiService.toggleSyncQueueDetails()">${this.syncQueueDetailsOpen ? 'Details ausblenden' : 'Details anzeigen'}</button>
+      </div>
+      ${detailsHtml}`;
+  },
+
+  toggleSyncQueueDetails() {
+    this.syncQueueDetailsOpen = !this.syncQueueDetailsOpen;
+    this.renderSyncQueueStatus();
+  },
+
+  async retrySyncQueue() {
+    const button = document.getElementById('sync-queue-retry');
+    if (button) button.disabled = true;
+    try {
+      // force: navigator.onLine ist in schlechten Netzen unzuverlässig, der Versuch entscheidet.
+      const summary = await cloudService.processOfflineQueue({ force: true, allowPrompt: true });
+      if (summary.entries.length === 0) {
+        alert('Alle Werte wurden gespeichert.');
+      } else if (summary.pending > 0) {
+        alert('Die Übertragung war nicht möglich (keine oder zu schlechte Verbindung). Die Werte bleiben gespeichert, bitte später erneut versuchen.');
+      }
+    } finally {
+      this.renderSyncQueueStatus();
+    }
+  },
+
+  /** Abgelehnten Eintrag (kein fachlicher Konflikt) nach Behebung der Ursache erneut senden. */
+  async retryQueueEntry(id) {
+    cloudService.retryEntry(id);
+    await this.retrySyncQueue();
+  },
+
+  discardQueueEntry(id) {
+    const entry = cloudService.getQueueSummary().entries.find(candidate => candidate.id === id);
+    const items = entry ? this.describeEntryItems(entry) : [];
+    const conflictCount = items.filter(item => item.conflict).length;
+    const withoutConflict = items.length - conflictCount;
+    const list = items.map(item => `• ${item.conflict ? '⚠️ Konflikt: ' : ''}${item.text}`).join('\n');
+    const warning = items.length > 1 && withoutConflict > 0
+      ? `\n\nAchtung: ${withoutConflict} dieser Zählerstände haben keinen Konflikt und gehen ebenfalls verloren.`
+      : '';
+
+    const confirmed = confirm(
+      `Eintrag mit ${items.length} ${items.length === 1 ? 'Zählerstand' : 'Zählerständen'} verwerfen?\n\n${list}${warning}\n\n` +
+      'Keiner dieser Werte wird gespeichert. Das kann nicht rückgängig gemacht werden.'
+    );
+    if (!confirmed) return;
+    cloudService.discardQueueEntry(id);
+  },
+
+  showCorruptQueue() {
+    const problems = cloudService.getQueueProblems();
+    const raw = problems.map(problem => cloudService.getCorruptRaw(problem.key)).filter(Boolean).join('\n');
+    prompt('Beschädigte Queue-Daten (zum Kopieren und Aufbewahren):', raw);
+  },
+
+  resetCorruptQueue() {
+    if (!confirm('Die beschädigten Daten werden zuerst gesichert und dann entfernt. Danach ist die Queue wieder leer und nutzbar.\n\nFortfahren?')) return;
+    const result = cloudService.resolveCorruptQueue();
+    alert(result.message); // beschreibt den tatsächlichen Zustand, auch bei Teilfehlern
+    this.renderSyncQueueStatus();
+  },
+
+  async saveQueueEntryAsNew(id) {
+    const entry = cloudService.getQueueSummary().entries.find(candidate => candidate.id === id);
+    if (!entry) return;
+    const count = this.describeEntryItems(entry).length;
+    if (!confirm(`${count > 1 ? `Alle ${count} Zählerstände dieser Eingabe` : 'Den Wert'} als zusätzliche, neue Ablesung speichern? Die bereits gespeicherten Werte bleiben unverändert.`)) return;
+    cloudService.prepareNewReading(id);
+    await this.retrySyncQueue();
+  },
+
+  async overwriteQueueEntry(id) {
+    const entry = cloudService.getQueueSummary().entries.find(candidate => candidate.id === id);
+    if (!entry) return;
+    const grund = this.askOverwriteReason(entry.conflicts, this.describeEntryItems(entry).length);
+    if (!grund) return;
+    cloudService.prepareOverwrite(id, grund);
+    await this.retrySyncQueue();
+  },
+
+  /**
+   * Nach bestätigtem Speichern den Datenbestand aus der Datenbank neu lesen, damit die Anzeige dem
+   * Sheet entspricht (kein Phantomwert bei „bereits vorhanden“, richtige Zeile bei Überschreiben).
+   * Ist das Nachladen nicht möglich, wird nur lokal nachgeführt, wenn die Antwort belegt, dass das
+   * Backend genau das Gesendete angelegt oder überschrieben hat.
+   */
+  async refreshZaehlerstaendeAfterSave(res, transactions, overwrittenByZaehler) {
+    if (typeof cloudService.loadZaehlerstaende === 'function') {
+      try {
+        dataService.setZaehlerstaende(await cloudService.loadZaehlerstaende());
+        return;
+      } catch (error) {
+        console.warn('Zählerstände konnten nicht nachgeladen werden:', error && error.message);
+      }
+    }
+
+    if (res && res.bereits_vorhanden > 0) {
+      return; // lokal nicht eindeutig bestimmbar; beim nächsten Laden stimmt die Anzeige wieder
+    }
+
+    if (!Array.isArray(dataService.state.zaehlerstaende)) {
+      dataService.state.zaehlerstaende = [];
+    }
+
+    transactions.forEach(transaction => {
+      // Beim Überschreiben ist die Zielzeile die vorhandene (bei Minutenwechsel eine ältere) Zeile.
+      const overwritten = overwrittenByZaehler[transaction.zaehler_id];
+      const targetStandId = overwritten && overwritten.stand_id ? overwritten.stand_id : transaction.stand_id;
+      const existing = dataService.state.zaehlerstaende.find(
+        row => this.getRowStandId(row) === targetStandId
+      );
+
+      if (existing) {
+        existing.wert = transaction.wert;
+      } else {
+        dataService.state.zaehlerstaende.push({ ...transaction });
+      }
+    });
+  },
+
   async saveZaehler() {
     const transactions = [];
     const warnings = [];
@@ -2062,7 +2374,12 @@ const uiService = {
         return;
       }
 
-      const latestReading = this.getLatestZaehlerstand(zaehler);
+      const standId = this.buildStandId(zaehler.zaehler_id, zeitstempel);
+      const latestReading = this.getLatestZaehlerstand(zaehler, {
+        excludeStandId: standId,
+        correctionTime: this.parseGermanDate(zeitstempel),
+        includePending: true
+      });
 
       const validationResult = validator.validateZaehlerstand({
         letzterWert: latestReading ? latestReading.wert : null,
@@ -2095,6 +2412,7 @@ const uiService = {
         zaehler_id: zaehler.zaehler_id,
         wert: parseFloat(String(input.value).replace(',', '.')),
         zeitstempel: zeitstempel,
+        stand_id: standId,
         quelle: 'UI'
       });
     });
@@ -2124,21 +2442,38 @@ const uiService = {
       }
     }
 
-    const res = await cloudService.saveTransaction({
-      typ: 'ZAEHLERSTAND_NEU',
-      data: transactions
-    });
+    const payload = { typ: 'ZAEHLERSTAND_NEU', data: transactions };
+    let res = await cloudService.saveTransaction(payload);
 
-    if (res && res.status === 'success') {
-      if (!Array.isArray(dataService.state.zaehlerstaende)) {
-        dataService.state.zaehlerstaende = [];
+    const overwrittenByZaehler = {};
+
+    if (res && res.status === 'error' && res.code === 'CONFLICT') {
+      const decision = this.resolveConflict(res.conflicts, transactions.length);
+
+      if (!decision) {
+        return;
       }
 
-      transactions.forEach(transaction => {
-        dataService.state.zaehlerstaende.push({ ...transaction });
-      });
+      if (decision.aktion === 'neue_ablesung') {
+        res = await cloudService.saveTransaction({ ...payload, neueAblesung: true });
+      } else {
+        (res.conflicts || []).forEach(conflict => {
+          overwrittenByZaehler[conflict.zaehler_id] = conflict;
+        });
+        res = await cloudService.saveTransaction({ ...payload, ueberschreiben: { grund: decision.grund } });
+      }
+    }
 
-      alert('Erfolgreich gespeichert!');
+    if (res && res.status === 'success') {
+      if (res.queued) {
+        // Nur lokal in der Queue gesichert: nicht in den Datenbestand eintragen. Die Anzeige
+        // „nicht gespeichert“ zeigt den Eintrag, bis das Backend ihn bestätigt hat.
+        alert('Offline gespeichert. Die Werte sind noch NICHT in der Datenbank und werden gesendet, sobald eine Verbindung besteht. Den Status siehst du oben auf der Seite.');
+      } else {
+        await this.refreshZaehlerstaendeAfterSave(res, transactions, overwrittenByZaehler);
+        alert('Erfolgreich gespeichert!');
+      }
+
       this.closeModal();
     } else {
       alert('Fehler: ' + (res ? res.message : 'Unbekannter Fehler'));

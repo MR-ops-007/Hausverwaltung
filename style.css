@@ -312,6 +312,33 @@ input[type="text"] {
 .access-actions button { padding: 9px 16px; border-radius: 6px; border: 1px solid #cbd5e1; background: #f8fafc; cursor: pointer; font-size: 1rem; }
 .access-actions .access-save { background: #2563eb; border-color: #2563eb; color: #fff; }
 
+/* Offline-Queue: nicht gespeicherte Einträge */
+.sync-queue-status {
+    margin-top: 8px;
+    padding: 10px 12px;
+    border: 1px solid #f59e0b;
+    border-left: 6px solid #f59e0b;
+    border-radius: 8px;
+    background: #fffbeb;
+    color: #78350f;
+    font-size: 0.9em;
+}
+.sync-queue-summary button,
+.sync-queue-actions button {
+    margin: 4px 6px 0 0;
+    padding: 6px 10px;
+    border: 1px solid #b45309;
+    border-radius: 6px;
+    background: #fff;
+    color: #78350f;
+    cursor: pointer;
+}
+.sync-queue-summary button:disabled { opacity: 0.6; cursor: default; }
+.sync-queue-list { margin: 8px 0 0; padding-left: 18px; }
+.sync-queue-list li { margin-bottom: 8px; }
+.sync-queue-rejected { color: #991b1b; }
+.sync-queue-state { font-size: 0.85em; }
+
 /* Verbrauchsstatistik V2 */
 .consumption-charts { background: #fff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 16px; margin: 0 0 16px; }
 .consumption-charts-heading { display:flex; flex-wrap:wrap; align-items:end; gap:12px; margin-bottom:16px; }

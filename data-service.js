@@ -57,6 +57,15 @@ const dataService = {
         console.log("DataService: Stufe 1 (Dashboard) initialisiert.");
     },
 
+    /** Ersetzt nur die Zählerstände durch den Stand der Datenbank (gezieltes Nachladen). */
+    setZaehlerstaende(data) {
+        const rows = data && data.Zaehlerstaende;
+        if (!Array.isArray(rows)) {
+            throw new Error('Zählerstände konnten nicht gelesen werden.');
+        }
+        this.state.zaehlerstaende = rows;
+    },
+
     setConsumptionData(data) {
         if (!data || typeof data !== 'object') {
             console.warn("DataService: Ungültige Verbrauchsview-Daten empfangen.");

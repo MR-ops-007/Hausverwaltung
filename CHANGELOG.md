@@ -23,7 +23,26 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - Datumsangaben bis 4.6.4 stammen aus der Git-Historie (Commit, der die Version
   eingeführt hat), nicht aus dem Deployment.
 
-## 4.8.3 · 2026-10-29 · lokal
+## 4.8.4 · 2026-10-30 · lokal
+
+Offline-Queue verlustfrei, Konflikte sichtbar, Korrekturen protokolliert. Details: `docs/offline-sync-und-korrekturen.md`.
+
+- Zählerstände sind idempotent: gleiche `stand_id` mit gleichem Wert zählt als bereits gespeichert (Wiederholung aus der Offline-Queue erzeugt keine Dopplung).
+- Gleiche `stand_id` mit anderem Wert ergibt `CONFLICT` (alter und neuer Wert in der Antwort), es wird nichts geschrieben.
+- Korrekturfenster: Ein abweichender Wert bis 15 Minuten nach dem letzten Wert desselben Zählers ergibt ebenfalls `CONFLICT` (`art: NAHE_ABLESUNG`, mit Abstand in Minuten), damit ein Minutenwechsel beim Tippfehler die Korrektur nicht verhindert. `neueAblesung: true` speichert den Wert ausdrücklich als zusätzliche Ablesung.
+- Überschreiben nur mit `ueberschreiben.grund` (mind. 3 Zeichen). Jede Überschreibung steht mit altem Wert, neuem Wert, Grund, Art und Zeitpunkt im Blatt `Zaehlerstand_Korrekturen`; das Blatt wird beim ersten Überschreiben automatisch angelegt (keine Schema-Vorbereitung nötig).
+- Lock-Timeout wird als `LOCK_TIMEOUT` mit `transient: true` gemeldet, damit der Client den Eintrag erneut versucht statt ihn als abgelehnt zu markieren.
+- Überschreiben protokolliert zuerst und ändert danach (keine Änderung ohne Protokoll).
+- Neue Leseansicht `zaehlerstaende` für gezieltes Nachladen der Zählerstände.
+- Frontend: Offline-Speicherung gilt nur als erfolgreich, wenn der Eintrag nachweislich im `localStorage` liegt (sonst Fehler `QUEUE_WRITE_FAILED`). Nur `status: success` gilt als gespeichert; leere oder unklare Antworten führen zum sicheren Wiederholen statt zu einer Erfolgsmeldung.
+- Frontend: Zeitlimit für Abrufe, begrenzte automatische Wiederholung, zusätzliche Auslöser (Zurückkehren zur App, Button auch bei „offline“). Die Queue wird beim Laden vor dem Lesen gesendet.
+- Frontend: Nur bestätigte Werte stehen im Datenbestand; nach dem Speichern und Synchronisieren werden die Zählerstände aus der Datenbank nachgeladen. Abgelehnte Einträge werden nie von selbst erneut gesendet.
+- Frontend: Zeitgesteuerte Wiederholungen und die Rückkehr zur App senden unabhängig von `navigator.onLine` (weiterhin begrenzt, kein Dauer-Polling).
+- Frontend: Bei Eingaben mit mehreren Zählerständen markiert die Anzeige die Konflikte, und die Dialoge zum Überschreiben, Speichern als neue Ablesung und Verwerfen nennen die betroffenen Zählerstände und deren Anzahl.
+- Frontend: Eine beschädigte Offline-Queue wird nicht als leer behandelt und nicht überschrieben. Sie wird dauerhaft angezeigt; „Sichern und zurücksetzen“ legt eine geprüfte Sicherung an (zuerst alle sichern, dann alle Originale entfernen; Teilfehler werden genau gemeldet). Speichern meldet `QUEUE_CORRUPT`.
+- Reihenfolge beim Einspielen: zuerst Backend 4.8.4, dann das Frontend. Ein älteres Frontend läuft mit 4.8.4 weiter (Konflikte erscheinen dort als Fehlermeldung).
+
+## 4.8.3 · 2026-10-29 · produktiv
 
 Zeitzone der Verbrauchszeitpunkte korrigiert.
 
@@ -50,7 +69,7 @@ Geschützte Nutzeraktion zum Aktualisieren der materialisierten Verbrauchsviews 
   Button als „Verbrauchsviews zuletzt aktualisiert“ angezeigt.
 - Vor dem produktiven Apps-Script-Deploy bleibt 4.8.0 die produktive Version.
 
-## 4.8.0 · 2026-10-29 · produktiv
+## 4.8.0 · 2026-10-29 · ersetzt
 
 Zugriffsschutz produktiv bereitgestellt. Ablauf und Rollback: `docs/access-control.md`.
 
