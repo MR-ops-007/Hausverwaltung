@@ -119,6 +119,27 @@ describe('calcService consumption dashboard', () => {
     });
   });
 
+  it('classifies a four-digit overflow once with interval metadata', () => {
+    const calcService = loadCalcService();
+    const result = calcService.classifyReadingInterval(
+      { wert: 9780, zeitstempel: '01.11.2022 00:00' },
+      { wert: 128, zeitstempel: '06.02.2023 00:00' },
+      {
+        medium: 'strom_ht_kwh',
+        stellen: 4,
+        ueberlauf_erlaubt: true,
+      }
+    );
+
+    expect(result).toMatchObject({
+      verbrauch: 348,
+      status: 'UEBERLAUF',
+      ueberlauf: true,
+      ruecklaeufigUngeklaert: false,
+    });
+    expect(result.days).toBeGreaterThan(90);
+  });
+
   it('rejects implausibly high overflow intervals instead of adding utopian consumption', () => {
     const calcService = loadCalcService();
     const result = calcService.calculateReadingDelta(

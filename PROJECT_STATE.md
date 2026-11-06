@@ -1,10 +1,30 @@
 # PROJECT_STATE - Hausverwaltung
 
-## Stand: 2026-10-23
+## Stand: 2026-11-06
 
 `main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz 4.8.0 ist produktiv aktiviert.
 
 Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die nächsten sinnvollen Arbeitspakete.
+
+### Verbrauchsstatistik: zentrale Intervallklassifikation 2026-11-06
+
+- Das Folgepaket `codex/zaehler-ueberlauf-klassifikation` verwendet für Rohintervalle
+  ausschließlich `calc-service.classifyReadingInterval()`. Diagramme und
+  reproduzierbare QA-Matrix verwenden damit dieselbe fachliche Berechnung.
+- Ein niedrigerer Folgewert wird nur dann als Überlauf akzeptiert, wenn `stellen`
+  und `ueberlauf_erlaubt` den Überlauf zulassen und der berechnete Verbrauch die
+  Plausibilitätsgrenze einhält. Der Übergang wird als einmaliges violettes Ereignis
+  erklärt; die Monatsverteilung bleibt zeitanteilig.
+- Backend-Status `WARNUNG_UEBERLAUF` wird nur dann in diese Darstellung eingeordnet,
+  wenn ein passendes Rohintervall zentral als `UEBERLAUF` klassifiziert wurde.
+  Ungeklärte Rückläufe bleiben rot, echte zusätzliche Prüfhinweise orange.
+- Im aktuellen Rohdaten-Snapshot für `Ra-HS-29` wurden 1.708 normale Intervalle,
+  2 zulässige Überläufe, 33 ungeklärte Rückläufe, 14 unplausibel hohe Rückgänge
+  und 14 steigende Ölfüllstände klassifiziert. Die 4-stellige Flurfolge
+  `9.780 -> 128` wird als `10.000 - 9.780 + 128 = 348 kWh` behandelt.
+- Die Regel ist durch Regressionstests für Berechnung, Monats-/Jahresdarstellung,
+  echte Warnungen und Matrixstatus abgesichert. Die ausführliche Einordnung steht
+  in `docs/verbrauchsstatistik-v2-qa-20261103.md`.
 
 ### Offline-Queue und Korrekturen 2026-10-30 (Backend 4.8.4, Status siehe `CHANGELOG.md`)
 
