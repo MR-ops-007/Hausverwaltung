@@ -45,6 +45,11 @@ const cloudService = {
     // --- Anfragen ---------------------------------------------------------
     /** Eine Anfrage mit Zeitlimit. Ein hängender Abruf darf die Queue nicht dauerhaft blockieren. */
     async requestText(body, timeoutMs) {
+        if (!this.scriptUrl) {
+            const error = new Error('Keine Backend-URL konfiguriert. Bitte config.local.js für die gewünschte Umgebung anlegen.');
+            error.code = 'CONFIGURATION_ERROR';
+            throw error;
+        }
         const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
         const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
         try {

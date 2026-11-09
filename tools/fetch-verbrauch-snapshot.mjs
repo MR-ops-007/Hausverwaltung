@@ -11,11 +11,14 @@ function option(args, name, fallback = '') {
   return value ? value.slice(prefix.length) : fallback;
 }
 
-function configuredApiUrl() {
-  const config = fs.readFileSync(path.join(repoRoot, 'config.js'), 'utf8');
-  const match = config.match(/API_URL:\s*["']([^"']+)["']/);
-  if (!match) throw new Error('Keine API_URL in config.js gefunden.');
-  return match[1];
+function configuredApiUrl(args) {
+  const explicitUrl = option(args, 'url', '').trim();
+  const environmentUrl = String(process.env.HV_API_URL || '').trim();
+  const apiUrl = explicitUrl || environmentUrl;
+  if (!apiUrl) {
+    throw new Error('Keine API-URL gesetzt. Verwende HV_API_URL="https://.../exec" oder --url=https://.../exec. Die URL wird absichtlich nicht aus config.js gelesen.');
+  }
+  return apiUrl;
 }
 
 function excerpt(text) {
@@ -24,15 +27,15 @@ function excerpt(text) {
 
 const args = process.argv.slice(2);
 const output = option(args, 'output', '/private/tmp/verbrauch-snapshot.json');
-const apiUrl = option(args, 'url', configuredApiUrl());
 const includeRaw = args.includes('--include-raw');
 const accessKey = String(process.env.APP_ACCESS_KEY || '').trim();
 
 if (!accessKey) {
-  console.error('APP_ACCESS_KEY fehlt. Beispiel: APP_ACCESS_KEY="..." npm run qa:consumption-snapshot -- --output=/private/tmp/verbrauch-snapshot.json');
+  console.error('APP_ACCESS_KEY fehlt. Beispiel: APP_ACCESS_KEY="..." HV_API_URL="https://.../exec" npm run qa:consumption-snapshot -- --output=/private/tmp/verbrauch-snapshot.json');
   process.exitCode = 1;
 } else {
   try {
+    const apiUrl = configuredApiUrl(args);
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {

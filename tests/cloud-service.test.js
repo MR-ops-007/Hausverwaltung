@@ -5,7 +5,7 @@ const reply = body => ({ ok: true, text: async () => JSON.stringify(body) });
 const unauthorized = () => reply({ status: 'error', code: 'UNAUTHORIZED', message: 'Zugangsschlüssel fehlt oder ist falsch.' });
 const bodyOf = (fetch, index) => JSON.parse(fetch.mock.calls[index][1].body);
 
-function loadCloud({ key = '', online = true, accessUi, failSet = false, dropWrites = false, withDocument = false, failSetWhen = null, failRemoveWhen = null } = {}) {
+function loadCloud({ key = '', online = true, accessUi, failSet = false, dropWrites = false, withDocument = false, failSetWhen = null, failRemoveWhen = null, apiUrl = 'https://example.test/api' } = {}) {
   const source = readFileSync(new URL('../cloud-service.js', import.meta.url), 'utf8');
   const store = key ? { hv_access_key: key } : {};
   const localStorage = {
@@ -27,7 +27,7 @@ function loadCloud({ key = '', online = true, accessUi, failSet = false, dropWri
   const document = withDocument ? { dispatchEvent: event => events.push(event.type) } : undefined;
   const CustomEvent = withDocument ? class { constructor(type) { this.type = type; } } : undefined;
   const cloud = new Function('CONFIG', 'fetch', 'localStorage', 'navigator', 'accessUi', 'console', 'document', 'CustomEvent', `${source};return cloudService;`)(
-    { API_URL: 'https://example.test/api' }, fetch, localStorage, navigator, accessUi, console, document, CustomEvent);
+    { API_URL: apiUrl }, fetch, localStorage, navigator, accessUi, console, document, CustomEvent);
   const queue = name => JSON.parse(store[name] || '[]');
   // Nutzdaten der Queue-Einträge (ohne id/status), in Reihenfolge.
   const payloads = () => queue('offline_queue').map(entry => entry.payload);
@@ -39,6 +39,12 @@ afterEach(() => vi.useRealTimers());
 const transaction = { typ: 'ZAEHLERSTAND_NEU', data: [{ zaehler_id: 'Z1', wert: 5 }] };
 
 describe('Lesen per POST mit Zugangsschlüssel', () => {
+  it('meldet eine fehlende Laufzeitkonfiguration vor dem Netzwerkzugriff', async () => {
+    const { cloud, fetch } = loadCloud({ apiUrl: '' });
+    await expect(cloud.loadDashboardData()).rejects.toMatchObject({ code: 'CONFIGURATION_ERROR' });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('fordert die geschützte Aktualisierung der Verbrauchsviews an', async () => {
     const { cloud, fetch } = loadCloud({ key: 'k1' });
     fetch.mockResolvedValue(reply({ status: 'success', message: 'Verbrauchsviews aktualisiert' }));

@@ -16,15 +16,21 @@ function loadConfig(runtimeConfig) {
 }
 
 describe('Laufzeitkonfiguration', () => {
-  it('verwendet ohne lokale Überschreibung Produktion als Rückfall', () => {
+  it('bleibt ohne lokale Überschreibung im Produktionsmodus ohne Backend-URL', () => {
     const config = loadConfig();
     expect(config.ENVIRONMENT).toBe('production');
-    expect(config.API_URL).toMatch(/^https:\/\/script\.google\.com\/macros\/s\//);
+    expect(config.API_URL).toBe('');
+    expect(config.API_CONFIGURED).toBe(false);
   });
 
   it('kann eine lokale Test-API verwenden, ohne die Produktionskonfiguration zu ändern', () => {
     const config = loadConfig({ environment: 'test', apiUrl: 'https://test.example.invalid/exec' });
     expect(config.ENVIRONMENT).toBe('test');
     expect(config.API_URL).toBe('https://test.example.invalid/exec');
+    expect(config.API_CONFIGURED).toBe(true);
+  });
+
+  it('enthält keine fest verdrahtete Apps-Script-URL', () => {
+    expect(source).not.toMatch(/script\.google\.com\/macros\/s\//);
   });
 });

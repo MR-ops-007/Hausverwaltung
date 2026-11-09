@@ -20,7 +20,7 @@ Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklun
 
 ## Erledigt auf `main`
 
-Remote `origin/main` steht aktuell auf `7c79fca`.
+Remote `origin/main` steht aktuell auf `6205840`.
 
 | PR | Inhalt |
 | --- | --- |
@@ -33,6 +33,7 @@ Remote `origin/main` steht aktuell auf `7c79fca`.
 | #27 | Sichtbarer Fehlerzustand bei fehlender zentraler Verbrauchsberechnung; Cleanup von `intervalDetails` |
 | #28 | Heizölverbrauch mit Tankbilanz, Haupt-/Zusatztank und Literdarstellung |
 | #29 | Speicherrückmeldung mit Busy-Zustand, Hausmeister-Stempel und idempotenter Erfolgsmeldung |
+| #31 | Getrennte Laufzeitkonfiguration und dokumentierte TEST-Umgebung |
 
 Der lokale Branch `main` muss nach einem Merge weiterhin mit `origin/main` synchronisiert
 werden, bevor ein neues Feature darauf aufgebaut wird.
@@ -108,7 +109,9 @@ Ziel: reale Daten schützen und Wiederherstellung beherrschbar machen.
   kommt aus `.nvmrc`.
 - Abnahme in `docs/betrieb.md` mit Datum, Ergebnis und Rollback-Hinweis festhalten.
 
-### P1.1 Nächstes Paket: Zugriff, Backup und Release-Betrieb
+### P1.1 In Arbeit: Zugriff, Backup und Release-Betrieb
+
+**Branch:** `codex/p1-1-security-backup-release-20261109`
 
 Dieses Paket ist der nächste mehrstündige Arbeitsblock vor weiteren fachlichen Features.
 
@@ -137,6 +140,11 @@ keine Migration von Mietern oder Zählerständen.
 - alle verbleibenden Risiken sind in `PROJECT_STATE.md` festgehalten.
 - Test- und Produktionsumgebung lassen sich lokal über die ignorierte `config.local.js`
   eindeutig auswählen; die Vorlage liegt in `config.local.example.js`.
+
+**Aktueller Zwischenstand:** PR #31 hat die isolierte TEST-Umgebung und die lokale
+Laufzeitkonfiguration nach `main` gebracht. Der aktuelle TEST-Endpunkt ist öffentlich,
+weil er ausschließlich synthetische Daten enthält. Ein Backup-/Restore-Test der
+Produktivdatei ist noch ein manueller Schritt und wird nicht automatisch ausgeführt.
 
 ### P2 Datenqualität bei der Erfassung
 

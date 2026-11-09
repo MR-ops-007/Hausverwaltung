@@ -6,11 +6,16 @@
 const runtimeConfig = typeof globalThis !== 'undefined' && globalThis.HV_RUNTIME_CONFIG
     ? globalThis.HV_RUNTIME_CONFIG
     : {};
+const runtimeApiUrl = typeof runtimeConfig.apiUrl === 'string'
+    ? runtimeConfig.apiUrl.trim()
+    : '';
 
 const CONFIG = {
     ENVIRONMENT: runtimeConfig.environment || 'production',
-    // 1. Die zentrale URL (Single Source of Truth)
-    API_URL: runtimeConfig.apiUrl || "https://script.google.com/macros/s/AKfycbxP1AzOxbGQH3aFYEJzSwxbsQkaUQQ4EKXLpMJvdJYc0TD7sTEw6C_9h1SZshG7A9USog/exec",
+    // Die Backend-URL kommt ausschließlich aus der lokalen Laufzeitkonfiguration.
+    // Dadurch landet weder die produktive noch die Test-URL im öffentlichen Quellcode.
+    API_URL: runtimeApiUrl,
+    API_CONFIGURED: Boolean(runtimeApiUrl),
     
     // 2. Bestehende Objekt-Einstellungen (DÜRFEN NICHT GELÖSCHT WERDEN!)
     "LOK": {
