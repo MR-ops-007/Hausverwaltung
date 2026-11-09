@@ -1,10 +1,21 @@
 # PROJECT_STATE - Hausverwaltung
 
-## Stand: 2026-11-06
+## Stand: 2026-11-09
 
 `main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz 4.8.0 ist produktiv aktiviert.
 
 Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die nächsten sinnvollen Arbeitspakete.
+
+### Aktueller Stand nach PR #29
+
+- `main` steht auf `7c79fca` und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
+  Z1 Speicherrückmeldung und Z2 Heizöl-Verbrauch.
+- Die Überlaufklassifikation, die Diagramm-Fehlerbehandlung, die Heizöl-Tankbilanz und
+  der Speichervorgang sind gemeinsam regressionsgetestet.
+- Der vollständige Testlauf umfasst aktuell 384 Tests in 13 Testdateien; Apps Script 4.8.4
+  bleibt produktiv und wurde durch die letzten UI-/Domain-Pakete nicht verändert.
+- Der nächste fachliche Fokus ist P1.1 „Zugriff, Backup und Release-Betrieb“. Die verbindliche
+  Aufgabenbeschreibung und die Abnahmekriterien stehen in `ROADMAP.md`.
 
 ### Verbrauchsstatistik: zentrale Intervallklassifikation 2026-11-06
 
@@ -41,7 +52,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 - Der Ladezustand bleibt bis zur bestätigten Erfolgsmeldung aktiv. Die kurze Nachlaufzeit zeigt ausschließlich den bestätigten Erfolgszustand und verzögert den Backend-Speichervorgang nicht.
 - Eine identische Wiederholung wird als bereits gespeicherter Wert erklärt. Das Backend bleibt idempotent: Es wird keine zweite Zeile und kein neuer Zeitstempel angelegt.
 - Bei einer Korrektur wird ausdrücklich darauf hingewiesen, dass der bestehende Zeitstempel unverändert bleibt. Neue Ablesungen und bewusste Überschreibungen bleiben fachlich getrennt.
-- Das Verhalten ist durch UI-Regressionstests für Busy-Zustand, Duplikatmeldung, Korrekturmeldung, Modal-Markup und Fehlerpfad abgesichert. Der aktuelle Stand läuft lokal mit 379 Tests grün; Apps Script und Datenmodell wurden nicht geändert.
+- Das Verhalten ist durch UI-Regressionstests für Busy-Zustand, Duplikatmeldung, Korrekturmeldung, Modal-Markup und Fehlerpfad abgesichert. Der aktuelle Stand läuft mit 384 Tests grün; Apps Script und Datenmodell wurden nicht geändert.
 
 ### Vertragsausbau 2026-10-21/22: Mietverträge / Indexmieten (produktiv)
 
@@ -280,7 +291,10 @@ Wichtige Regeln:
 
 ---
 
-## Nächste Schritte (Stand 2026-10-23)
+## Historischer Planungsstand (Stand 2026-10-23)
+
+Die folgenden Abschnitte dokumentieren frühere Planung und technische Detailentscheidungen.
+Für aktuelle Prioritäten und Status ist ausschließlich `ROADMAP.md` maßgeblich.
 
 1. **Technisches Aufräumen** (Paket 1): tote Konfiguration entfernt, CI nutzt Node aus `.nvmrc` und `npm ci`, Doku an die Realität angepasst.
 2. **Backend-Zugriff absichern** (4.8.0, produktiv umgesetzt, Einspielen siehe `docs/access-control.md`): Lesen und Schreiben laufen mit `APP_ACCESS_KEY`; alte Bereitstellungen wurden archiviert. Der direkte GET-Test liefert `UNAUTHORIZED`.
@@ -293,7 +307,7 @@ Wichtige Regeln:
 
 ---
 
-## Offene Arbeitspakete
+## Historische Arbeitspakete und Detaildokumentation
 
 ### 1. `clasp` final verbinden
 
@@ -477,7 +491,7 @@ Umgesetzt:
 4. Steigender Ölstand erzeugt eine Warnung für Betankung, Korrektur oder Messfehler.
 5. Überlauf wird für Ölstand in cm nicht angewendet.
 
-### Heizöl-Verbrauch (bereit für PR auf `feature/heizoel-verbrauch`)
+### Heizöl-Verbrauch (in `main` abgeschlossen, PR #28)
 
 Die Verbrauchsstatistik unterscheidet jetzt zwischen dem rückläufigen Füllstand
 des Haupttanks und dem daraus abgeleiteten Verbrauch in Litern. Für Hauptstraße 29
@@ -495,9 +509,9 @@ Tabelle `Haustechnik` objekt- und tankspezifisch anpassbar.
   Hausverbrauchsauswertung.
 - Eine kWh-Umrechnung ist bis zur Klärung von Heizmedium, Heizwert und beheizter
   Fläche ausdrücklich nicht enthalten.
-- `npm test` läuft auf diesem Branch mit 371 Tests in 13 Testdateien grün; zusätzlich
+- `npm test` läuft im aktuellen `main` mit 384 Tests in 13 Testdateien grün; zusätzlich
   sind `node --check` für die geänderten JavaScript-Dateien und `git diff --check`
   sauber. Die Tankfüllungs-Automatik ist für Haupt- und Zusatztank separat regressionsgetestet.
-  Das Paket ändert keine Apps-Script-Datei und benötigt für die lokale Prüfung keinen
+  Das Paket änderte keine Apps-Script-Datei und benötigt für die lokale Prüfung keinen
   Live-Zugriffsschlüssel.
 - Details und Grenzen stehen in `docs/heizoel-verbrauch.md`.
