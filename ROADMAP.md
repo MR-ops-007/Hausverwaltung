@@ -97,6 +97,9 @@ Ziel: reale Daten schützen und Wiederherstellung beherrschbar machen.
   deaktivieren und die alte URL nach einer Rotation testen.
 - Backup des Google Sheets mit definierter Aufbewahrung und mindestens einen dokumentierten
   Restore-Test einrichten.
+- Eine bereinigte Testdatei oder Testvorlage mit separatem Apps-Script-Projekt,
+  Deployment und eigenen Script Properties einrichten; keine Vollkopie mit echten
+  Personendaten als tägliche Testbasis verwenden.
 - Apps-Script-Version, Deployment-Stand und manuellen Test gegen das echte Sheet in
   `CHANGELOG.md` dokumentieren.
 - Korrekturprotokoll um Benutzer/Rolle erweitern, sobald mehr als ein Bediener vorgesehen
@@ -132,6 +135,8 @@ keine Migration von Mietern oder Zählerständen.
 - produktive GAS-Version und Bereitstellung sind eindeutig nachvollziehbar,
 - `npm test`, CI und `git diff --check` bleiben grün,
 - alle verbleibenden Risiken sind in `PROJECT_STATE.md` festgehalten.
+- Test- und Produktionsumgebung lassen sich lokal über die ignorierte `config.local.js`
+  eindeutig auswählen; die Vorlage liegt in `config.local.example.js`.
 
 ### P2 Datenqualität bei der Erfassung
 

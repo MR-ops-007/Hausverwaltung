@@ -16,6 +16,10 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   bleibt produktiv und wurde durch die letzten UI-/Domain-Pakete nicht verändert.
 - Der nächste fachliche Fokus ist P1.1 „Zugriff, Backup und Release-Betrieb“. Die verbindliche
   Aufgabenbeschreibung und die Abnahmekriterien stehen in `ROADMAP.md`.
+- Die Vorbereitung für getrennte Test-/Produktionsumgebungen liegt in `docs/betrieb.md`.
+  Die lokale API-Auswahl erfolgt über die ignorierte `config.local.js`; eine echte
+  bereinigte Testdatei und ein separates Test-Deployment müssen noch administrativ
+  angelegt und mit eigenen Script Properties versehen werden.
 
 ### Verbrauchsstatistik: zentrale Intervallklassifikation 2026-11-06
 
