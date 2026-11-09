@@ -318,3 +318,67 @@ Zusätzlich wird je Kombination `annualMatchType` (`exact`, `alias` oder `none`)
 Die Zahlenformatregel der Google-Sheets-Views ist in `DATA_MODEL.md` dokumentiert: gespeicherte Werte sind numerisch, die sichtbare Darstellung verwendet bei deutscher Region `#,##0.00`.
 
 Dieser Bericht dokumentiert sowohl die durchgeführten Prüfungen als auch die verbleibenden Datenbasisgrenzen. Eine erfolgreiche Testausführung wird nicht als Beleg dafür interpretiert, dass jede Datenzeile fachlich vollständig ist.
+
+## Nachlauf: zentrale Überlaufklassifikation vom 2026-11-06
+
+Der Branch `codex/zaehler-ueberlauf-klassifikation` schließt die bisherige
+Doppelklassifikation in den Diagrammen. Die UI berechnet Rohintervalle nicht mehr
+mit einer eigenen Differenzlogik, sondern verwendet ausschließlich
+`calcService.classifyReadingInterval()`. Das gleiche Intervallmodell wird auch
+vom reproduzierbaren Matrixlauf verwendet. Monats- und Jahreswerte aus den Views
+bleiben die primäre Anzeigequelle; Rohintervalle ergänzen nur fehlende Segmente
+oder erklären Statusmarker.
+
+### Konkreter Flurfall
+
+Für `Ra-HS-29_Allgemein_Flur / Z_STROM_KWH_FLUR` steht in `Zaehler`:
+
+- `stellen = 4`
+- `ueberlauf_erlaubt = TRUE`
+- letzter Stand vor dem Übergang: `9.780 kWh` am `01.11.2022`
+- Folgestand: `128 kWh` am `06.02.2023`
+
+Die zentrale Formel lautet:
+
+```text
+10.000 - 9.780 + 128 = 348 kWh
+```
+
+Das Intervall wird deshalb als `UEBERLAUF` klassifiziert. Es erzeugt einen
+violetten, einmaligen Ereignismarker und einen erklärbaren Hinweis. Die mehrfachen
+Backend-Zeilen mit `WARNUNG_UEBERLAUF` werden nicht zusätzlich als orange
+allgemeine Prüfhinweise dargestellt, sofern kein weiterer Warnstatus vorliegt.
+Ein echter zusätzlicher Warnstatus bleibt orange. Ein Rücklauf ohne zulässige
+Überlaufklassifikation bleibt rot und wird nicht still als Verbrauch verwendet.
+
+### Rohintervall-Befund des Snapshot-Laufs
+
+Der Lauf über den lokalen Rohdaten-Snapshot `/private/tmp/verbrauch-snapshot-raw.json`
+für `Ra-HS-29` klassifizierte 1.912 Rohwerte in folgende Intervalle:
+
+| Status | Anzahl | Bedeutung |
+| :--- | ---: | :--- |
+| `OK` | 1.708 | normal steigender kumulierter Zählerstand |
+| `UEBERLAUF` | 2 | durch Stellenzahl und Stammdaten erlaubter Überlauf |
+| `RUECKLAEUFIG_UNGEKLAERT` | 33 | niedrigerer Folgewert ohne zulässige Überlaufherleitung |
+| `UNPLAUSIBEL_HOCH` | 14 | rechnerischer Rückgang überschreitet Plausibilitätsgrenze |
+| `FUELLSTAND_GESTIEGEN` | 14 | Ölfüllstand gestiegen, daher Betankung/Korrektur prüfen |
+
+Die Matrixprüfung umfasst weiterhin 441 Zähler-/Jahr-Kombinationen. 356 besitzen
+vergleichbare Monats- und Jahreswerte; alle 356 treffen ohne UI-Anpassung den
+Jahreswert. Es gibt in diesem Lauf keine `unexpected_with_marker`- oder
+`unexplained`-Abweichung. Die neuen Rohintervallstatus werden zusätzlich im
+Feld `rawIntervalStatusCounts` des Matrixberichts ausgegeben.
+
+Reproduzierbarer Lauf:
+
+```sh
+npm run qa:consumption-matrix -- /private/tmp/verbrauch-snapshot-raw.json --object=Ra-HS-29 --years=2018,2019,2020,2021,2022,2023,2024,2025,2026
+```
+
+Automatisiert abgesichert sind der 4-stellige Überlauf, die Zuordnung der
+Backend-Warnung zu einem bestätigten Überlauf, echte unabhängige Prüfhinweise,
+ungeklärte Rückläufe sowie die Matrix-Ausgabe der Intervallstatus. Eine visuelle
+Abnahme im Browser ist davon getrennt zu dokumentieren; der lokale Render-Smoke-Test
+prüft HTML, Achsen, Markerfarben und erklärende Hinweise, ersetzt aber keinen
+Browser-Screenshot.

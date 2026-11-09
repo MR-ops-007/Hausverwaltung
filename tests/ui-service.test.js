@@ -2,10 +2,15 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { validateZaehlerstand, VALIDATION_STATUS } from '../validation-service.js';
 
+const calcServiceForCharts = new Function(
+  readFileSync(new URL('../calc-service.js', import.meta.url), 'utf8') +
+  '; return calcService;'
+)();
 const consumptionChartService = new Function(
+  'calcService',
   readFileSync(new URL('../consumption-charts.js', import.meta.url), 'utf8') +
   '; return consumptionChartService;'
-)();
+)(calcServiceForCharts);
 
 function loadUiService({
   zaehlerstaende = [],

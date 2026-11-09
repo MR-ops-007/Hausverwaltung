@@ -185,4 +185,18 @@ describe('QA-Matrix Verbrauchsstatistik', () => {
     expect(report.lineEmptyWithMonthly).toBe(0);
     expect(report.lineCheckUnavailable).toBe(1);
   });
+  it('zählt zentrale Rohintervall-Klassifikationen getrennt aus', () => {
+    const report = buildMatrixReport({
+      Zaehler: [{ ...meter, stellen: 4, ueberlauf_erlaubt: true }],
+      _view_verbrauch_monat: [month('2023-02', 348, { plausibilitaet_status: 'WARNUNG_UEBERLAUF' })],
+      _view_verbrauch_jahr: [{ ...meter, jahr: 2023, verbrauch_jahr: 348, anzahl_warnungen: 1, plausibilitaet_status: 'WARNUNG_UEBERLAUF' }],
+      Zaehlerstaende: [
+        { ...meter, wert: 9780, zeitstempel: '01.11.2022 00:00' },
+        { ...meter, wert: 128, zeitstempel: '06.02.2023 00:00' }
+      ]
+    }, { years: [2023], now: new Date(2026, 10, 4) });
+
+    expect(report.rawIntervalStatusCounts).toEqual({ UEBERLAUF: 1 });
+    expect(report.combinations[0].flagged).toBe(false);
+  });
 });

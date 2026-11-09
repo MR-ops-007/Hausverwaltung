@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-const service = new Function(readFileSync(new URL('../consumption-charts.js', import.meta.url), 'utf8') + ';return consumptionChartService;')();
+const calcService = new Function(
+  readFileSync(new URL('../calc-service.js', import.meta.url), 'utf8') +
+  '; return calcService;'
+)();
+const service = new Function(
+  'calcService',
+  readFileSync(new URL('../consumption-charts.js', import.meta.url), 'utf8') +
+  ';return consumptionChartService;'
+)(calcService);
 const meter = {objekt_id:'O1',einheit_id:'W1',zaehler_id:'Z1',medium:'strom_kwh',einheit_name:'Wohnung 1',bezeichnung:'Strom'};
 const row = (monat, verbrauch_monat, extra={}) => ({...meter,jahr:Number(monat.slice(0,4)),monat,verbrauch_monat,...extra});
 
@@ -285,8 +293,75 @@ describe('Verbrauchsdiagramme', () => {
       now
     });
 
-    expect(series[0]).toMatchObject({ value: null, flagged: true, invalidReading: true });
+    expect(series[0].invalidReading).not.toBe(true);
+    expect(series[1]).toMatchObject({ value: null, flagged: true, invalidReading: true });
     expect(html).toContain('Rückläufiger Zählerstand erkannt');
+  });
+  it('klassifiziert einen plausiblen 4-stelligen Überlauf statt ihn rot zu markieren', () => {
+    const overflowMeter = { ...meter, stellen: 4, ueberlauf_erlaubt: true };
+    const readings = [
+      { ...overflowMeter, zeitstempel: '01.11.2022 00:00', wert: 9780 },
+      { ...overflowMeter, zeitstempel: '06.02.2023 00:00', wert: 128 }
+    ];
+    const html = service.render({
+      meters: [overflowMeter],
+      selectedKey: service.getMeterKey(overflowMeter),
+      selectedYear: '2023',
+      readingRows: readings,
+      now: new Date(2026, 10, 4)
+    });
+    const series = service.monthlySeries([], overflowMeter, 2023, {
+      now: new Date(2026, 10, 4),
+      readingRows: readings
+    });
+
+    expect(series[1].value).toBeGreaterThan(0);
+    expect(series[1].overflow).toBe(true);
+    expect(series[1].invalidReading).not.toBe(true);
+    expect(html).toContain('Überlauf berücksichtigt');
+    expect(html).toContain('Hinweise erklären');
+    expect(html).toContain('9.780 kWh');
+    expect(html).toContain('348 kWh');
+    expect(html).toContain('fill="#7c3aed"');
+    expect(html).not.toContain('Zählerstand prüfen');
+  });
+  it('ordnet Backend-Warnungen einem bestätigten Überlauf zu statt sie zusätzlich orange zu markieren', () => {
+    const overflowMeter = { ...meter, stellen: 4, ueberlauf_erlaubt: true };
+    const readings = [
+      { ...overflowMeter, zeitstempel: '01.11.2022 00:00', wert: 9780 },
+      { ...overflowMeter, zeitstempel: '06.02.2023 00:00', wert: 128 }
+    ];
+    const rows = [
+      row('2023-01', 119, { ...overflowMeter, plausibilitaet_status: 'WARNUNG_UEBERLAUF' }),
+      row('2023-02', 229, { ...overflowMeter, plausibilitaet_status: 'WARNUNG_UEBERLAUF' })
+    ];
+    const series = service.monthlySeries(rows, overflowMeter, 2023, { readingRows: readings });
+    const annual = service.annualSeries([
+      { ...overflowMeter, jahr: 2023, verbrauch_jahr: 348, anzahl_warnungen: 2, plausibilitaet_status: 'WARNUNG_UEBERLAUF' }
+    ], overflowMeter, 2023, readings);
+
+    expect(series[0]).toMatchObject({ flagged: false });
+    expect(series[1]).toMatchObject({ flagged: false, overflow: true });
+    expect(annual[0]).toMatchObject({ flagged: false, overflow: true });
+    const html = service.render({
+      meters: [overflowMeter],
+      selectedKey: service.getMeterKey(overflowMeter),
+      selectedYear: '2023',
+      monthlyRows: rows,
+      annualRows: [{ ...overflowMeter, jahr: 2023, verbrauch_jahr: 348, anzahl_warnungen: 2, plausibilitaet_status: 'WARNUNG_UEBERLAUF' }],
+      readingRows: readings,
+      now: new Date(2026, 10, 4)
+    });
+
+    expect(html).toContain('Überlauf berücksichtigt');
+    expect(html).not.toContain('consumption-chart-year-warning">Prüfhinweis');
+  });
+  it('behält echte Prüfhinweise unabhängig von Überlaufereignissen', () => {
+    const series = service.monthlySeries([
+      row('2023-01', 100, { plausibilitaet_status: 'WARNUNG' })
+    ], meter, 2023);
+
+    expect(series[0]).toMatchObject({ value: 100, flagged: true });
   });
   it('gleicht kleine Abweichungen transparent ab und markiert sie', () => {
     const series = service.monthlySeries(

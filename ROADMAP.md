@@ -52,7 +52,7 @@ Diese Datei beschreibt offene und geplante Arbeit.
 ### P2 Verbrauchsstatistik-Follow-ups
 
 - Branch: `feature/verbrauchsstatistik-followups`
-- Status: In Arbeit
+- Status: Teilpaket `codex/zaehler-ueberlauf-klassifikation` in Arbeit
 - Darstellung: Balkenfarben vereinheitlichen und Teilmonat-Anzeige fachlich klarer
   gestalten oder aus der sichtbaren UI entfernen.
 - Datenqualität: Alias-Konflikte gezielt prüfen und LOK-/TEST-Smoke-Tests ergänzen.
@@ -69,10 +69,25 @@ Diese Datei beschreibt offene und geplante Arbeit.
   sichtbare Teilmonat-Kategorie entfernt und Alias-/LOK-/TEST-Regressionen
   automatisiert abgesichert. Cache-Busting bleibt als separates Folgepaket.
 
+#### Teilpaket: Zählerüberlauf und Prüfhinweise
+
+- Branch: `codex/zaehler-ueberlauf-klassifikation`
+- Ziel: Intervallklassifikation ausschließlich über `calc-service.js`; zulässige
+  Überläufe anhand von `stellen` und `ueberlauf_erlaubt` als Überlauf statt als
+  rückläufigen Fehler darstellen.
+- Darstellung: Ein zulässiger Überlauf wird violett als einmaliges Ereignis
+  erklärt. Ein ungeklärter Rücklauf bleibt rot. Ein zusätzlicher Backend-
+  Prüfhinweis bleibt orange und wird nicht durch ein Überlaufereignis verdeckt.
+- QA: Rohdaten-Snapshot `Ra-HS-29` mit 49 Zählern und 1.912 Rohwerten; 1.708
+  normale Intervalle, 2 zulässige Überläufe, 33 ungeklärte Rückläufe, 14
+  unplausibel hohe Rückgänge und 14 steigende Ölfüllstände.
+- Offener nächster Schritt: automatisierte Tests und Dokumentation abschließen,
+  Branch pushen und PR erstellen.
+
 ### P3 Heizöl-Verbrauch
 
 - Branch: `feature/heizoel-verbrauch`
-- Status: Offen, nach P0/P1
+- Status: Implementiert und gepusht (`93bbd09`), PR/Review offen
 - Haupttank: 10.000 Liter; Zusatztank: 2.000 Liter, zunächst separat.
 - Verbrauch zunächst in cm und Litern darstellen; die Arbeitshypothese für den
   Haupttank ist circa 12.000 Liter bei 140 cm.

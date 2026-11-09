@@ -3,7 +3,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const chartSource = fs.readFileSync(new URL('../consumption-charts.js', import.meta.url), 'utf8');
-const chartService = new Function(`${chartSource};return consumptionChartService;`)();
+const calcSource = fs.readFileSync(new URL('../calc-service.js', import.meta.url), 'utf8');
+const calcService = new Function(`${calcSource};return calcService;`)();
+const chartService = new Function('calcService', `${chartSource};return consumptionChartService;`)(calcService);
 const SNAPSHOT_KEYS = [
   '_view_verbrauch_monat',
   '_view_verbrauch_jahr',
@@ -83,6 +85,18 @@ function rawMonthlyRows(monthlyRows, meter, year) {
   return monthlyRows.filter(row => yearOf(row) === Number(year) && sameMeter(row, meter) && number(row.verbrauch_monat) !== null);
 }
 
+function rawIntervals(readingRows, meter) {
+  const readings = readingRows
+    .filter(row => sameMeter(row, meter) && number(row.wert) !== null)
+    .map(row => ({ ...row, _timestamp: calcService.parseGermanDate(row.zeitstempel) }))
+    .filter(row => row._timestamp > 0)
+    .sort((left, right) => left._timestamp - right._timestamp);
+
+  return readings.slice(1).map((currentReading, index) =>
+    calcService.classifyReadingInterval(readings[index], currentReading, meter)
+  );
+}
+
 export function buildMatrixReport(payload, { objectId = '', years = [], now = new Date() } = {}) {
   const monthlyRows = asRows(payload, '_view_verbrauch_monat', 'view_verbrauch_monat');
   const annualRows = asRows(payload, '_view_verbrauch_jahr', 'view_verbrauch_jahr');
@@ -95,6 +109,7 @@ export function buildMatrixReport(payload, { objectId = '', years = [], now = ne
   const availableYears = [...new Set([...monthlyRows, ...annualRows].map(yearOf).filter(Number.isInteger))].sort((a, b) => a - b);
   const selectedYears = years.length ? years.map(Number).filter(Number.isInteger) : availableYears;
   const combinations = [];
+  const rawIntervalStatusCounts = {};
 
   meters.forEach(meter => selectedYears.forEach(year => {
     const monthly = rawMonthlyRows(monthlyRows, meter, year);
@@ -168,6 +183,14 @@ export function buildMatrixReport(payload, { objectId = '', years = [], now = ne
     });
   }));
 
+  if (rawReadingsAvailable) {
+    meters.forEach(meter => {
+      rawIntervals(readingRows, meter).forEach(interval => {
+        rawIntervalStatusCounts[interval.status] = (rawIntervalStatusCounts[interval.status] || 0) + 1;
+      });
+    });
+  }
+
   const count = predicate => combinations.filter(predicate).length;
   return {
     objectId,
@@ -197,6 +220,7 @@ export function buildMatrixReport(payload, { objectId = '', years = [], now = ne
     combinationsFromReadings: count(row => row.fromReadings),
     combinationsReconciled: count(row => row.reconciled),
     combinationsFlagged: count(row => row.flagged),
+    rawIntervalStatusCounts,
     maxRawDifference: Math.max(0, ...combinations.map(row => row.rawDifference || 0)),
     maxDisplayedDifference: Math.max(0, ...combinations.map(row => row.displayedDifference || 0)),
     combinations

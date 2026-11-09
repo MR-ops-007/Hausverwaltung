@@ -396,6 +396,26 @@ const calcService = {
         };
     },
 
+    classifyReadingInterval(previousReading, currentReading, zaehler) {
+        const start = this.parseGermanDate(previousReading && previousReading.zeitstempel);
+        const end = this.parseGermanDate(currentReading && currentReading.zeitstempel);
+        const days = start > 0 && end > start ? (end - start) / this.MS_PER_DAY : 0;
+        const result = this.calculateIntervalConsumption(previousReading, currentReading, zaehler, { days });
+
+        return {
+            previousReading,
+            currentReading,
+            start,
+            end,
+            days,
+            verbrauch: result.value,
+            status: result.status,
+            hinweis: result.note,
+            ueberlauf: result.status === "UEBERLAUF",
+            ruecklaeufigUngeklaert: result.status === "RUECKLAEUFIG_UNGEKLAERT"
+        };
+    },
+
     buildConsumptionIntervals(readings, zaehler) {
         if (!Array.isArray(readings) || readings.length < 2) {
             return [];
