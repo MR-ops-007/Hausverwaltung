@@ -3,7 +3,7 @@
 Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklungspakete.
 `PROJECT_STATE.md` beschreibt den aktuellen Systemstand, `CHANGELOG.md` die Releases.
 
-**Stand: 2026-11-06**
+**Stand: 2026-11-09**
 
 ## Arbeitsregeln
 
@@ -20,7 +20,7 @@ Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklun
 
 ## Erledigt auf `main`
 
-Remote `origin/main` steht aktuell auf `70adcbd`.
+Remote `origin/main` steht aktuell auf `7c79fca`.
 
 | PR | Inhalt |
 | --- | --- |
@@ -29,17 +29,19 @@ Remote `origin/main` steht aktuell auf `70adcbd`.
 | #23 | Verbrauchsstatistik-Follow-ups: Jahresauswahl, Standard `Fläche`, Alias-Regressionen |
 | #24 | Apps Script 4.8.4: Offline-Queue, idempotente `stand_id`, Konflikt-/Korrekturpfad |
 | #25 | Historische Zählerstände mit gleichem Wert, zum Beispiel Leerstand `0`, werden gespeichert |
+| #26 | Zentrale Überlaufklassifikation für Zählerstandsverlauf und Verbrauchsdiagramme |
+| #27 | Sichtbarer Fehlerzustand bei fehlender zentraler Verbrauchsberechnung; Cleanup von `intervalDetails` |
+| #28 | Heizölverbrauch mit Tankbilanz, Haupt-/Zusatztank und Literdarstellung |
+| #29 | Speicherrückmeldung mit Busy-Zustand, Hausmeister-Stempel und idempotenter Erfolgsmeldung |
 
 Der lokale Branch `main` muss nach einem Merge weiterhin mit `origin/main` synchronisiert
 werden, bevor ein neues Feature darauf aufgebaut wird.
 
-## In Arbeit
+## Abgeschlossen in `main`
 
 ### Z0 Zählerüberlauf und Prüfhinweise
 
-- Branch: `codex/zaehler-ueberlauf-klassifikation`
-- Status: implementiert und getestet; vor `feature/heizoel-verbrauch` zu mergen, weil
-  der Heizöl-Branch darauf aufbaut.
+- Status: abgeschlossen in PR #26 und PR #27.
 - Ziel: Intervallklassifikation ausschließlich über `calc-service.js`
   (`classifyReadingInterval`); zulässige Überläufe anhand von `stellen` und
   `ueberlauf_erlaubt` als Überlauf statt als rückläufigen Fehler darstellen.
@@ -49,29 +51,17 @@ werden, bevor ein neues Feature darauf aufgebaut wird.
   Überläufe, 33 ungeklärte Rückläufe, 14 unplausibel hohe Rückgänge, 14 steigende
   Ölfüllstände. Die 33 ungeklärten und 14 unplausiblen Intervalle sind ein
   Datenbereinigungs-Kandidat.
-- Offen: `intervalDetails` verwenden oder entfernen; Schutz gegen falsche Skriptreihenfolge
-  (`calcService` fehlt) sichtbar machen.
+- `intervalDetails` wurde entfernt. Fehlt `calcService`, zeigt die Diagrammansicht einen
+  sichtbaren Fehlerzustand statt still leer zu bleiben.
 
 ### Z1 Zähler-Speichern-Feedback
 
-- Branch: `feature/zaehler-speichern-feedback`
-- Status: Review abgeschlossen, Rebase auf den aktuellen `main` offen.
-- Vor dem Merge:
-  - die Variante aus `main` von `formatZaehlerSaveSuccess` behalten und nur Busy-Zustand
-    und Stempel-Animation übernehmen;
-  - Fehler beim Nachladen getrennt melden: „Gespeichert, Anzeige konnte nicht aktualisiert
-    werden“ statt „Fehler beim Speichern“;
-  - Erfolg nicht doppelt über Stempel und `alert` anzeigen;
-  - Erfolgs-SVG vorladen und die 900-ms-Verzögerung bei `prefers-reduced-motion` vermeiden;
-  - Einrückung am Ende von `saveZaehler` bereinigen.
-- Abhängigkeit: Z1 und Z2 ändern beide den Speicher-/Erfassungsablauf. Vor dem Merge
-  müssen Busy-Zustand und Heizöl-Rückfrage gemeinsam geprüft werden.
+- Status: abgeschlossen in PR #29. Die gemeinsame Prüfung mit dem Heizöl-Speicherablauf
+  und die Regressionstests sind in `main` enthalten; aktuell 384 Tests grün.
 
 ### Z2 Heizöl-Verbrauch
 
-- Branch: `feature/heizoel-verbrauch`
-- Status: Fachlogik, UI, Review-Fixes und automatisierte Tests lokal vorhanden;
-  Commit, Push, PR und Deployment stehen noch aus.
+- Status: abgeschlossen in PR #28; kein Apps-Script-Deployment erforderlich.
 - Haupttank: 10.000 Liter; Zusatztank: 2.000 Liter, zunächst getrennt.
 - Verbrauch aus sinkendem Füllstand in cm und Liter; bei vorhandenen kumulierten
   Tankfüllungen aus `oel_stand_l` gilt je Intervall:
@@ -86,11 +76,14 @@ werden, bevor ein neues Feature darauf aufgebaut wird.
   Haus-Gesamtsumme ist ein separates Folgepaket.
 - Keine kWh-Umrechnung, solange Heizmedium, Heizwert und beheizte Fläche nicht festgelegt
   sind.
-- Validierung: aktuell 371 Tests in 13 Testdateien grün, Syntaxprüfung und
-  `git diff --check` sauber. Vor dem Merge zusätzlich echte Ölwerte prüfen und die
-  fachliche Plausibilität von Betankung plus Bestandsänderung dokumentieren.
+- Validierung: Heizöl- und Diagrammlogik sind mit den aktuellen UI- und Backend-Regressionstests
+  abgesichert. Die fachlichen Grenzen und die Arbeitshypothese `l/cm` stehen in
+  `docs/heizoel-verbrauch.md`.
 - Nicht-Ziel: keine geeichte Brennstoffabrechnung und keine automatische Rückschreibung
   in die Google-Sheets-Views.
+
+Die Pakete Z0 bis Z2 sind damit abgeschlossen. Neue Arbeit startet wieder auf dem
+aktuellen `main` und erhält einen eigenen Branch und PR.
 
 ## Priorisierte nächste Pakete
 
@@ -111,6 +104,34 @@ Ziel: reale Daten schützen und Wiederherstellung beherrschbar machen.
 - CI prüfen: `npm ci` und `npm test` müssen bei jedem Pull Request laufen; Node-Version
   kommt aus `.nvmrc`.
 - Abnahme in `docs/betrieb.md` mit Datum, Ergebnis und Rollback-Hinweis festhalten.
+
+### P1.1 Nächstes Paket: Zugriff, Backup und Release-Betrieb
+
+Dieses Paket ist der nächste mehrstündige Arbeitsblock vor weiteren fachlichen Features.
+
+**Ziel:** Produktive Datenzugriffe nachvollziehbar absichern und eine Wiederherstellung
+des Google-Sheets-Datenbestands praktisch nachweisen.
+
+**Scope:**
+
+- öffentliche Repository-/Backend-Exposition prüfen und eine konkrete Zielentscheidung
+  dokumentieren (Repository privat oder URL-/Konfigurationsbereinigung),
+- `APP_ACCESS_KEY`, alte Apps-Script-Bereitstellungen und URL-Rotation prüfen,
+- Backup-Ablage und Aufbewahrung für das Google Sheet definieren,
+- einen dokumentierten Restore-Test ohne Veränderung der Produktivdaten durchführen,
+- `CHANGELOG.md` und eine neue oder bestehende Betriebsdokumentation mit Deployment-,
+  Rollback- und Abnahmeschritten aktualisieren.
+
+**Nicht-Ziele:** keine Änderung der Verbrauchsberechnung, keine Änderung der GAS-Fachlogik,
+keine Migration von Mietern oder Zählerständen.
+
+**Abnahmekriterien:**
+
+- kein ungeschützter produktiver Lese-/Schreibweg bleibt unbeabsichtigt offen,
+- Backup und Restore sind mit Datum, Quelle, Ziel und Ergebnis dokumentiert,
+- produktive GAS-Version und Bereitstellung sind eindeutig nachvollziehbar,
+- `npm test`, CI und `git diff --check` bleiben grün,
+- alle verbleibenden Risiken sind in `PROJECT_STATE.md` festgehalten.
 
 ### P2 Datenqualität bei der Erfassung
 
@@ -187,19 +208,3 @@ Ziel ist Kostenkontrolle bei Pauschalen, ausdrücklich kein Nebenkostenabrechnun
 - Bei Backend-Änderungen: Version, Deployment-Stand, Rollback und manueller Test gegen
   das echte Apps Script dokumentiert.
 - Bei Schätzwerten: Kennzeichnung in der UI und Herleitung im Datenmodell dokumentiert.
-
-### UI-Paket: Speicherrückmeldung Zählerstände
-
-- Branch: `codex/zaehler-speichern-feedback-aktuell`
-- Status: In Arbeit auf aktuellem `main`; PR/CI offen
-- Der Speichervorgang zeigt einen Ladezustand mit deaktivierten Aktionen und einer kleinen, reduzierten Haus-/Zähleranimation.
-- Idempotente Wiederholungen werden als „bereits gespeichert“ erklärt; bei Korrekturen wird der unveränderte ursprüngliche Zeitstempel transparent ausgewiesen.
-- Validierung vor dem aktuellen Rebase: 348 Tests; nach Integration in den aktuellen Heizölstand erneut vollständig auszuführen. Kein Apps-Script- oder Backend-Change.
-
-### Weitere technische Aufgaben
-
-- Repository privat stellen beziehungsweise Zugriffsschutz weiter härten.
-- Backend-URL aus der öffentlichen Frontend-Konfiguration entfernen.
-- Node-/Toolchain-Aktualisierung prüfen.
-- Weitere Indexreihen ergänzen.
-- Weitere Objekte außerhalb von Ra-HS-29, LOK und TEST als Smoke-Test-Basis aufnehmen.
