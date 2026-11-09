@@ -187,3 +187,19 @@ Ziel ist Kostenkontrolle bei Pauschalen, ausdrücklich kein Nebenkostenabrechnun
 - Bei Backend-Änderungen: Version, Deployment-Stand, Rollback und manueller Test gegen
   das echte Apps Script dokumentiert.
 - Bei Schätzwerten: Kennzeichnung in der UI und Herleitung im Datenmodell dokumentiert.
+
+### UI-Paket: Speicherrückmeldung Zählerstände
+
+- Branch: `codex/zaehler-speichern-feedback-aktuell`
+- Status: In Arbeit auf aktuellem `main`; PR/CI offen
+- Der Speichervorgang zeigt einen Ladezustand mit deaktivierten Aktionen und einer kleinen, reduzierten Haus-/Zähleranimation.
+- Idempotente Wiederholungen werden als „bereits gespeichert“ erklärt; bei Korrekturen wird der unveränderte ursprüngliche Zeitstempel transparent ausgewiesen.
+- Validierung vor dem aktuellen Rebase: 348 Tests; nach Integration in den aktuellen Heizölstand erneut vollständig auszuführen. Kein Apps-Script- oder Backend-Change.
+
+### Weitere technische Aufgaben
+
+- Repository privat stellen beziehungsweise Zugriffsschutz weiter härten.
+- Backend-URL aus der öffentlichen Frontend-Konfiguration entfernen.
+- Node-/Toolchain-Aktualisierung prüfen.
+- Weitere Indexreihen ergänzen.
+- Weitere Objekte außerhalb von Ra-HS-29, LOK und TEST als Smoke-Test-Basis aufnehmen.
