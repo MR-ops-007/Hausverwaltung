@@ -536,4 +536,25 @@ describe('Verbrauchsdiagramme', () => {
     expect(html).toContain('&lt;script&gt;');
     expect(html).toContain('&lt;img');
   });
+  it('zeigt einen sichtbaren Fehler, wenn die zentrale Verbrauchsberechnung fehlt', () => {
+    const serviceWithoutCalc = new Function(
+      'calcService',
+      readFileSync(new URL('../consumption-charts.js', import.meta.url), 'utf8') +
+      ';return consumptionChartService;'
+    )(undefined);
+    const meter = { objekt_id: 'O', einheit_id: 'E', zaehler_id: 'Z', medium: 'strom_kwh', bezeichnung: 'Strom' };
+
+    const html = serviceWithoutCalc.render({
+      meters: [meter],
+      selectedKey: serviceWithoutCalc.getMeterKey(meter),
+      selectedYear: 2026,
+      readingRows: [
+        { ...meter, zeitstempel: '01.01.2026 08:00', wert: 100 },
+        { ...meter, zeitstempel: '01.03.2026 08:00', wert: 300 },
+      ],
+    });
+
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('Die zentrale Verbrauchsberechnung konnte nicht geladen werden');
+  });
 });

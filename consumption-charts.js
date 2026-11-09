@@ -139,7 +139,6 @@ const consumptionChartService = (() => {
     const month = intervalMarkerMonth(interval, year);
     if (month === null) return;
     const entry = totals[month];
-    entry.intervalDetails.push(interval);
     if (interval.status === 'UEBERLAUF') entry.overflow = true;
     if (interval.ruecklaeufigUngeklaert) {
       entry.flagged = true;
@@ -175,7 +174,7 @@ const consumptionChartService = (() => {
   }
 
   function monthlySeriesFromReadings(rows, meter, year) {
-    const totals = Array.from({ length: 12 }, () => ({ amount: 0, count: 0, overflow: false, intervalDetails: [] }));
+    const totals = Array.from({ length: 12 }, () => ({ amount: 0, count: 0, overflow: false }));
     readingIntervals(rows, meter).forEach(interval => {
       if (interval.verbrauch === null) return;
 
@@ -185,14 +184,12 @@ const consumptionChartService = (() => {
         entry.amount += interval.verbrauch * segment.amountFactor;
         entry.count++;
         entry.overflow = entry.overflow || interval.status === 'UEBERLAUF';
-        entry.intervalDetails.push(interval);
       });
     });
 
     return totals.map(entry => ({
       value: entry.count ? entry.amount : null,
-      overflow: entry.overflow,
-      intervalDetails: entry.intervalDetails
+      overflow: entry.overflow
     }));
   }
 
@@ -331,7 +328,7 @@ const consumptionChartService = (() => {
   }
 
   function monthlySeries(rows, meter, year, { readingRows = [], annualRow = null, now = new Date() } = {}) {
-    const totals = Array.from({ length: 12 }, () => ({ amount: 0, count: 0, hasSegment: false, flagged: false, partial: false, derived: false, fromReadings: false, reconciled: false, overflow: false, overflowCoverage: false, invalidReading: false, intervalDetails: [], warningStatuses: new Set() }));
+    const totals = Array.from({ length: 12 }, () => ({ amount: 0, count: 0, hasSegment: false, flagged: false, partial: false, derived: false, fromReadings: false, reconciled: false, overflow: false, overflowCoverage: false, invalidReading: false, warningStatuses: new Set() }));
     (rows || []).forEach(row => {
       if (!sameMeter(row, meter)) return;
       if (String(row.jahr) !== String(year)) return;
@@ -389,7 +386,6 @@ const consumptionChartService = (() => {
           totals[index].count = 1;
           totals[index].fromReadings = true;
           totals[index].overflow = readingTotal.overflow;
-          totals[index].intervalDetails.push(...readingTotal.intervalDetails);
         });
       }
 
@@ -417,7 +413,6 @@ const consumptionChartService = (() => {
           totals[index].count = 1;
           totals[index].fromReadings = true;
           totals[index].overflow = readingTotal.overflow;
-          totals[index].intervalDetails.push(...readingTotal.intervalDetails);
         });
       }
     } else {
@@ -428,7 +423,6 @@ const consumptionChartService = (() => {
         entry.count = 1;
         entry.fromReadings = true;
         entry.overflow = readingTotal.overflow;
-        entry.intervalDetails.push(...readingTotal.intervalDetails);
       });
 
       const activeCount = totals.filter(entry => entry.count).length;
@@ -568,6 +562,10 @@ const consumptionChartService = (() => {
   function render({ meters = [], selectedKey = '', selectedYear, monthlyRows = [], annualRows = [], readingRows = [], mode = '', now = new Date() }) {
     const unique = [...new Map(meters.filter(row => row && row.zaehler_id).map(row => [id(row), row])).values()];
     if (!unique.length) return '';
+    // Ohne zentrale Berechnung wären alle Intervalle leer; das nicht still als leeres Diagramm zeigen.
+    if (!calculationService || typeof calculationService.classifyReadingInterval !== 'function') {
+      return '<section class="consumption-charts" aria-label="Verbrauchsdiagramme"><p class="consumption-chart-error" role="alert">Die zentrale Verbrauchsberechnung konnte nicht geladen werden. Bitte laden Sie die Seite neu.</p></section>';
+    }
     const selectedGroup = typeof uiService !== 'undefined' ? (uiService.consumptionChartGroup || 'ALL') : 'ALL';
     const selectedMedium = typeof uiService !== 'undefined' ? (uiService.consumptionChartMedium || 'ALL') : 'ALL';
     const filtered = unique.filter(row => (selectedGroup === 'ALL' || groupOf(row) === selectedGroup) && (selectedMedium === 'ALL' || mediumOf(row) === selectedMedium));
