@@ -3,9 +3,14 @@
  * Versionen und Deploy-Status: siehe CHANGELOG.md
  */
 
+const runtimeConfig = typeof globalThis !== 'undefined' && globalThis.HV_RUNTIME_CONFIG
+    ? globalThis.HV_RUNTIME_CONFIG
+    : {};
+
 const CONFIG = {
+    ENVIRONMENT: runtimeConfig.environment || 'production',
     // 1. Die zentrale URL (Single Source of Truth)
-    API_URL: "https://script.google.com/macros/s/AKfycbxP1AzOxbGQH3aFYEJzSwxbsQkaUQQ4EKXLpMJvdJYc0TD7sTEw6C_9h1SZshG7A9USog/exec",
+    API_URL: runtimeConfig.apiUrl || "https://script.google.com/macros/s/AKfycbxP1AzOxbGQH3aFYEJzSwxbsQkaUQQ4EKXLpMJvdJYc0TD7sTEw6C_9h1SZshG7A9USog/exec",
     
     // 2. Bestehende Objekt-Einstellungen (DÜRFEN NICHT GELÖSCHT WERDEN!)
     "LOK": {

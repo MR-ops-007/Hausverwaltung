@@ -32,6 +32,7 @@ Das Google Apps Script Backend wird im Repository unter `apps-script/Code.gs` ve
 | :--- | :--- |
 | `index.html` | Einstiegspunkt der App |
 | `config.js` | Konfiguration, aktuell inklusive Apps-Script-Web-App-URL |
+| `config.local.example.js` | Vorlage für eine lokale Test-/Produktionsauswahl; `config.local.js` wird nicht committed |
 | `cloud-service.js` | Kommunikation mit dem Google Apps Script Backend |
 | `data-service.js` | Lokaler Datenzustand und Datenzugriff im Frontend |
 | `ui-service.js` | Rendering und UI-Logik |
@@ -104,3 +105,6 @@ Offline-Queue und Korrekturen (Backend ab 4.8.4): Nicht gespeicherte Werte werde
 Zugriffsschutz (Backend ab 4.8.0): Lesen und Schreiben erfordern einen Zugangsschlüssel
 (Script Property `APP_ACCESS_KEY`). Einspielen, Rollback und Schlüsselwechsel stehen in
 `docs/access-control.md`.
+
+Betrieb, getrennte Test-/Produktionsdaten, Backup, Restore und lokale API-Auswahl sind in
+`docs/betrieb.md` dokumentiert.
