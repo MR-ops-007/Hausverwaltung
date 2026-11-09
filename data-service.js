@@ -14,6 +14,7 @@ const dataService = {
         zahlungen: [],
         parameter: [],
         fixkosten: [],
+        haustechnik: [],
         view_aktive_mieter: [],
         view_verbrauch_monat: [],
         view_verbrauch_jahr: [],
@@ -100,6 +101,7 @@ const dataService = {
         this.state.zahlungen = data.Zahlungen || [];
         this.state.parameter = data.Parameter || [];
         this.state.fixkosten = data.Fixkosten || [];
+        this.state.haustechnik = data.Haustechnik || [];
         
         console.log("DataService: Stufe 2 (Hintergrund-State) sicher übernommen.");
     },

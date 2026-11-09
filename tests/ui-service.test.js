@@ -6,11 +6,16 @@ const calcServiceForCharts = new Function(
   readFileSync(new URL('../calc-service.js', import.meta.url), 'utf8') +
   '; return calcService;'
 )();
+const heatingOilService = new Function(
+  readFileSync(new URL('../heating-oil-service.js', import.meta.url), 'utf8') +
+  '; return heatingOilService;'
+)();
 const consumptionChartService = new Function(
   'calcService',
+  'heatingOilService',
   readFileSync(new URL('../consumption-charts.js', import.meta.url), 'utf8') +
   '; return consumptionChartService;'
-)(calcServiceForCharts);
+)(calcServiceForCharts, heatingOilService);
 
 function loadUiService({
   zaehlerstaende = [],
@@ -23,6 +28,7 @@ function loadUiService({
   viewVerbrauchMonat = [],
   viewVerbrauchAudit = [],
   viewVerbrauchBilanzJahr = [],
+  haustechnik = [],
   consumptionData = null,
   loadConsumptionDataImpl = null,
   calcService = {
@@ -67,6 +73,7 @@ function loadUiService({
       view_verbrauch_monat: viewVerbrauchMonat,
       view_verbrauch_audit: viewVerbrauchAudit,
       view_verbrauch_bilanz_jahr: viewVerbrauchBilanzJahr,
+      haustechnik,
     },
     setZaehlerstaende(data) {
       if (!data || !Array.isArray(data.Zaehlerstaende)) throw new Error('keine Zählerstände');
@@ -178,6 +185,7 @@ function loadUiService({
         VALIDATION_STATUS,
       }
       : undefined,
+    heatingOilService,
   };
 
   const alert = (message) => {
@@ -1099,6 +1107,30 @@ describe('uiService.showZaehlerMaske', () => {
     expect(modalBodyElement.innerHTML).toContain('background:#fffbeb');
   });
 
+  it('rechnet die Heizöl-Tabelle mit denselben Betankungsdaten wie das Diagramm', () => {
+    const level = {
+      objekt_id: 'Ra-HS-29', einheit_id: 'Ra-HS-29_Allgemein',
+      zaehler_id: 'Z_OEL_STAND_IN_CM', medium: 'oel_stand_cm',
+    };
+    const fill = { ...level, zaehler_id: 'Z_OEL_STAND_L', medium: 'oel_stand_l' };
+    const reading = (meter, zeitstempel, wert) => ({ ...meter, zeitstempel, wert });
+    const { uiService } = loadUiService({
+      currentMeters: [level, fill],
+      zaehlerstaende: [
+        reading(level, '01.01.2026 08:00', 100),
+        reading(level, '10.01.2026 14:00', 90),
+        reading(fill, '01.01.2026 08:00', 1000),
+        reading(fill, '10.01.2026 12:00', 4000),
+      ],
+    });
+
+    const report = uiService.getOilConsumptionReport(level, 2026);
+
+    // 3.000 l getankt, 10 cm gefallen: 3.000 l + 10 cm x (10.000 l / 140 cm).
+    expect(report.totalLiters).toBeCloseTo(3000 + 10 * (10000 / 140), 0);
+    expect(report.refills[0].status).toBe('FUELLUNG_REKONSTRUIERT');
+  });
+
   it('renders a helpful message if no manually enterable meters exist', () => {
     const { uiService, modalBodyElement, modalElement } = loadUiService({
       currentMeters: [
@@ -1189,6 +1221,76 @@ describe('uiService.saveZaehler', () => {
     expect(confirms).toHaveLength(0);
     expect(alerts).toContain('Erfolgreich gespeichert!');
     expect(modalElement.style.display).toBe('none');
+  });
+
+  it('schlägt nach einer Tankfüllung ohne neuen Ölstand den maximalen Füllstand vor', async () => {
+    const fillMeter = {
+      objekt_id: 'Ra-HS-29',
+      einheit_id: 'Ra-HS-29_Allgemein',
+      zaehler_id: 'Z_OEL_GETANKT_LITER',
+      medium: 'oel_stand_l',
+      bezeichnung: 'Heizung Öl getankt (Liter)',
+    };
+    const levelMeter = {
+      objekt_id: 'Ra-HS-29',
+      einheit_id: 'Ra-HS-29_Allgemein',
+      zaehler_id: 'Z_OEL_STAND_IN_CM',
+      medium: 'oel_stand_cm',
+      bezeichnung: 'Heizung Ölstand (cm)',
+    };
+    const { uiService, saveCalls, confirms, alerts } = loadUiService({
+      currentMeters: [fillMeter, levelMeter],
+      inputValuesByZaehlerId: { Z_OEL_GETANKT_LITER: '3000' },
+    });
+
+    await uiService.saveZaehler();
+
+    expect(confirms).toHaveLength(1);
+    expect(confirms[0]).toContain('Tankfüllung');
+    expect(saveCalls[0].data).toHaveLength(2);
+    expect(saveCalls[0].data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ zaehler_id: 'Z_OEL_GETANKT_LITER', wert: 3000 }),
+      expect.objectContaining({ zaehler_id: 'Z_OEL_STAND_IN_CM', wert: 140 }),
+    ]));
+    expect(alerts).toContain('Erfolgreich gespeichert!');
+  });
+
+  it('ordnet eine Zusatztank-Füllung dem Zusatztank statt dem Haupttank zu', async () => {
+    const mainLevelMeter = {
+      objekt_id: 'Ra-HS-29',
+      einheit_id: 'Ra-HS-29_Allgemein',
+      zaehler_id: 'Z_OEL_STAND_IN_CM',
+      medium: 'oel_stand_cm',
+      bezeichnung: 'Heizung Ölstand (cm)',
+    };
+    const auxiliaryFillMeter = {
+      objekt_id: 'Ra-HS-29',
+      einheit_id: 'Ra-HS-29_Allgemein',
+      zaehler_id: 'Z_OEL_GETANKT_LITER_ZUSATZTANK',
+      medium: 'oel_stand_l',
+      bezeichnung: 'Heizung Zusatztank Öl getankt (Liter)',
+    };
+    const auxiliaryLevelMeter = {
+      objekt_id: 'Ra-HS-29',
+      einheit_id: 'Ra-HS-29_Allgemein',
+      zaehler_id: 'Z_OEL_STAND_IN_CM_ZUSATZTANK',
+      medium: 'oel_stand_cm',
+      bezeichnung: 'Heizung Ölstand Zusatztank',
+    };
+    const { uiService, saveCalls } = loadUiService({
+      currentMeters: [mainLevelMeter, auxiliaryFillMeter, auxiliaryLevelMeter],
+      inputValuesByZaehlerId: { Z_OEL_GETANKT_LITER_ZUSATZTANK: '1000' },
+    });
+
+    await uiService.saveZaehler();
+
+    expect(saveCalls[0].data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ zaehler_id: 'Z_OEL_GETANKT_LITER_ZUSATZTANK', wert: 1000 }),
+      expect.objectContaining({ zaehler_id: 'Z_OEL_STAND_IN_CM_ZUSATZTANK', wert: 140 }),
+    ]));
+    expect(saveCalls[0].data).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ zaehler_id: 'Z_OEL_STAND_IN_CM', wert: 140 }),
+    ]));
   });
 
   it('blocks negative values and does not save', async () => {

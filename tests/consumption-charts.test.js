@@ -4,11 +4,16 @@ const calcService = new Function(
   readFileSync(new URL('../calc-service.js', import.meta.url), 'utf8') +
   '; return calcService;'
 )();
+const heatingOilService = new Function(
+  readFileSync(new URL('../heating-oil-service.js', import.meta.url), 'utf8') +
+  ';return heatingOilService;'
+)();
 const service = new Function(
   'calcService',
+  'heatingOilService',
   readFileSync(new URL('../consumption-charts.js', import.meta.url), 'utf8') +
   ';return consumptionChartService;'
-)(calcService);
+)(calcService, heatingOilService);
 const meter = {objekt_id:'O1',einheit_id:'W1',zaehler_id:'Z1',medium:'strom_kwh',einheit_name:'Wohnung 1',bezeichnung:'Strom'};
 const row = (monat, verbrauch_monat, extra={}) => ({...meter,jahr:Number(monat.slice(0,4)),monat,verbrauch_monat,...extra});
 
@@ -296,6 +301,10 @@ describe('Verbrauchsdiagramme', () => {
     expect(series[0].invalidReading).not.toBe(true);
     expect(series[1]).toMatchObject({ value: null, flagged: true, invalidReading: true });
     expect(html).toContain('Rückläufiger Zählerstand erkannt');
+    expect(html).toContain('Hinweise erklären');
+    // Wortlaut der zentralen Intervallklassifikation (Überlauf-Branch).
+    expect(html).toContain('100 kWh → 90 kWh');
+    expect(html).toContain('Zählerwechsel, Reset, Übertragungs- oder Eingabefehler prüfen');
   });
   it('klassifiziert einen plausiblen 4-stelligen Überlauf statt ihn rot zu markieren', () => {
     const overflowMeter = { ...meter, stellen: 4, ueberlauf_erlaubt: true };
@@ -513,6 +522,61 @@ describe('Verbrauchsdiagramme', () => {
     expect(barHtml).toContain('2026: 42 kWh');
     expect(barHtml).toContain('2025: 30 kWh');
   });
+  it('zeigt Flächenabschnitte trotz Lücken und färbt Prüfhinweise sichtbar', () => {
+    const html = service.render({
+      meters: [meter],
+      selectedKey: service.getMeterKey(meter),
+      selectedYear: '2026',
+      mode: 'area',
+      monthlyRows: [
+        row('2026-01', 10),
+        row('2026-02', 11, { plausibilitaet_status: 'WARNUNG' }),
+        row('2026-04', 20)
+      ]
+    });
+
+    // Januar/Februar bilden eine Fläche; der fehlende März wird nicht überbrückt.
+    expect((html.match(/<polygon /g) || [])).toHaveLength(1);
+    expect(html).toContain('fill="#f59e0b"');
+    expect(html).toContain('2026: 11 kWh · Prüfhinweis');
+  });
+  it('trennt Zählerstand-Prüfung und Plausibilitätswarnung farblich', () => {
+    const html = service.render({
+      meters: [meter],
+      selectedKey: service.getMeterKey(meter),
+      selectedYear: '2023',
+      monthlyRows: [
+        row('2023-01', 10, { plausibilitaet_status: 'WARNUNG' }),
+        row('2023-02', 11, { plausibilitaet_status: 'WARNUNG' })
+      ],
+      annualRows: [{ ...meter, jahr: 2023, verbrauch_jahr: 21 }],
+      readingRows: [
+        { ...meter, zeitstempel: '01.01.2023 00:00', wert: 100 },
+        { ...meter, zeitstempel: '01.02.2023 00:00', wert: 90 }
+      ]
+    });
+
+    expect(html).toContain('consumption-chart-year-invalid');
+    expect(html).toContain('consumption-chart-year-warning');
+    expect(html).toContain('fill="#dc2626"');
+    expect(html).toContain('fill="#f59e0b"');
+  });
+  it('zeigt das letzte Datum der Zählerstandsachse vollständig', () => {
+    const html = service.render({
+      meters: [meter],
+      selectedKey: service.getMeterKey(meter),
+      selectedYear: '2026',
+      readingRows: [
+        { ...meter, zeitstempel: '01.01.2018 00:00', wert: 100 },
+        { ...meter, zeitstempel: '02.11.2020 00:00', wert: 120 },
+        { ...meter, zeitstempel: '02.06.2026 00:00', wert: 140 }
+      ]
+    });
+
+    expect(html).toContain('>02.06.2026</text>');
+    expect(html).toContain('text-anchor="end"');
+    expect(html).not.toContain('>02.06.20</text>');
+  });
   it('entwertet HTML in Zählerbezeichnungen', () => {
     const dangerous = {
       ...meter,
@@ -536,6 +600,63 @@ describe('Verbrauchsdiagramme', () => {
     expect(html).toContain('&lt;script&gt;');
     expect(html).toContain('&lt;img');
   });
+
+  it('zeigt beim Ölstand den Verlauf in cm und den Verbrauch in Litern', () => {
+    const oilMeter = {
+      ...meter,
+      objekt_id: 'Ra-HS-29',
+      einheit_id: 'Ra-HS-29_Allgemein',
+      zaehler_id: 'Z_OEL_STAND_IN_CM',
+      medium: 'oel_stand_cm',
+      bezeichnung: 'Heizung Ölstand (cm)',
+    };
+    const html = service.render({
+      meters: [oilMeter],
+      selectedKey: service.getMeterKey(oilMeter),
+      selectedYear: 2026,
+      readingRows: [
+        { ...oilMeter, zeitstempel: '01.01.2026 00:00', wert: 100 },
+        { ...oilMeter, zeitstempel: '01.02.2026 00:00', wert: 80 },
+      ],
+    });
+
+    expect(html).toContain('Zählerstandsverlauf für Heizung Ölstand (cm) in cm');
+    expect(html).toContain('Monatlicher Verbrauch 2026 und 2025 in l');
+    expect(html).toContain('1.428,57 l');
+    expect(html).not.toContain('rückläufiger Zählerstand prüfen');
+  });
+
+  it('bilanziert Tankfüllungen im Diagramm auch ohne Füllzähler in der Meterliste', () => {
+    const oilMeter = {
+      ...meter,
+      objekt_id: 'Ra-HS-29',
+      einheit_id: 'Ra-HS-29_Allgemein',
+      zaehler_id: 'Z_OEL_STAND_IN_CM',
+      medium: 'oel_stand_cm',
+      bezeichnung: 'Heizung Ölstand (cm)',
+    };
+    const fillMeter = {
+      ...oilMeter,
+      zaehler_id: 'Z_OEL_STAND_L',
+      medium: 'oel_stand_l',
+      bezeichnung: 'Heizung Öl getankt (Liter)',
+    };
+    const html = service.render({
+      meters: [oilMeter],
+      selectedKey: service.getMeterKey(oilMeter),
+      selectedYear: 2026,
+      readingRows: [
+        { ...oilMeter, zeitstempel: '01.01.2026 08:00', wert: 100 },
+        { ...oilMeter, zeitstempel: '10.01.2026 14:00', wert: 90 },
+        { ...fillMeter, zeitstempel: '01.01.2026 08:00', wert: 1000 },
+        { ...fillMeter, zeitstempel: '10.01.2026 12:00', wert: 4000 },
+      ],
+    });
+
+    expect(html).toContain('3.714,29 l');
+    expect(html).toContain('Tankfüllung oder Korrektur erkannt');
+  });
+
   it('zeigt einen sichtbaren Fehler, wenn die zentrale Verbrauchsberechnung fehlt', () => {
     const serviceWithoutCalc = new Function(
       'calcService',
