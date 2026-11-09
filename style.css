@@ -355,6 +355,8 @@ input[type="text"] {
 .consumption-chart-year-prior::before { content:""; width:9px; height:9px; border-radius:50%; background:#94a3b8; }
 .consumption-chart-year-warning { color:#92400e; background:#fffbeb !important; }
 .consumption-chart-year-warning::before { content:""; width:9px; height:9px; border-radius:50%; background:#f59e0b; }
+.consumption-chart-year-invalid { color:#991b1b; background:#fef2f2 !important; }
+.consumption-chart-year-invalid::before { content:""; width:9px; height:9px; border-radius:50%; background:#dc2626; }
 .consumption-chart-year-derived { color:#92400e; background:#fffbeb !important; }
 .consumption-chart-year-derived::before { content:""; width:9px; height:9px; border-radius:50%; background:#f59e0b; }
 .consumption-chart-year-from-readings { color:#075985; background:#f0f9ff !important; }

@@ -404,6 +404,7 @@ Nächster sinnvoller Schritt:
 - Die Diagrammzuordnung verarbeitet deutsche Zahlenformate, ein- und zweistellige Monatsangaben sowie historische Zähler-ID-Aliase aus dem Audit. Alias-Treffer werden nur innerhalb derselben Einheit zusammengeführt.
 - Angebrochene Monatssegmente werden anhand von `tage_im_monat` als `Teilmonat` gekennzeichnet.
 - Rückläufige Rohintervalle werden in der Statistik als Prüfhinweis sichtbar; die UI erzeugt daraus keinen stillen Verbrauch.
+- Die Statistik trennt `Zählerstand prüfen` (rot: ein Rohwert ist gegenüber dem vorherigen Stand gefallen) von `Prüfhinweis` (orange: ein Monatswert weicht fachlich oder rechnerisch ab). Bei beiden Hinweisen kann `Hinweise erklären` aufgeklappt werden; dort stehen Ursache und nächste Prüfung, bei rückläufigen Werten inklusive Alt-/Neu-Vergleich.
 - Beim Objektwechsel während des Nachladens werden veraltete Render-Ergebnisse verworfen.
 - Die QA-Matrix vom 2026-11-03 umfasst 378 Zähler-/Jahr-Kombinationen. 134 konnten mit Jahres- und Monatswert verglichen werden; davon stimmen 113 ohne Anpassung, 10 werden nur innerhalb des kleinen Abgleichsfensters angepasst und 11 große Abweichungen im laufenden Jahr bleiben als Prüfhinweis sichtbar. In 213 Kombinationen konnten Monats- und Jahresdaten nicht über denselben fachlichen Schlüssel verbunden werden; fehlende Sheet-Zeilen sind dadurch nicht bewiesen. Der Detailbericht steht unter `docs/verbrauchsstatistik-v2-qa-20261103.md`.
 - Die ursprüngliche Browser-Matrix vom 2026-11-03 umfasste 378 Zähler-/Jahr-Kombinationen. Sie ist als historische Prüfung dokumentiert; ihre 213 Fälle „Monatswert ohne Jahreswert“ und 11 großen Abweichungen sind nicht die aktuelle Abnahmebasis und konnten mit dem aktuellen Live-/Rohdaten-Snapshot nicht reproduziert werden.
@@ -467,3 +468,28 @@ Umgesetzt:
 3. Sinkender Ölstand wird als Verbrauch akzeptiert.
 4. Steigender Ölstand erzeugt eine Warnung für Betankung, Korrektur oder Messfehler.
 5. Überlauf wird für Ölstand in cm nicht angewendet.
+
+### Heizöl-Verbrauch (bereit für PR auf `feature/heizoel-verbrauch`)
+
+Die Verbrauchsstatistik unterscheidet jetzt zwischen dem rückläufigen Füllstand
+des Haupttanks und dem daraus abgeleiteten Verbrauch in Litern. Für Hauptstraße 29
+werden zunächst 10.000 Liter bei 140 cm für den Haupttank und 2.000 Liter bei
+140 cm für den separaten Zusatztank angenommen. Die Werte sind in der optionalen
+Tabelle `Haustechnik` objekt- und tankspezifisch anpassbar.
+
+- Sinkende Füllstände werden als `cm` und `l` zeitanteilig auf Monate verteilt.
+- Steigende Füllstände werden ohne passende `oel_stand_l`-Daten als
+  Tankfüllung/Korrektur markiert und nicht als Verbrauch gezählt; mit passender
+  Tankfüllung wird das Intervall über die Tankbilanz rekonstruiert.
+- Eine Tankfüllung ohne neuen Füllstand erzeugt in der Eingabe einen Prüfhinweis;
+  bei Bestätigung kann der Füllstand auf das konfigurierte Maximum gesetzt werden.
+- Der Zusatztank bleibt separat und ist standardmäßig nicht Teil der allgemeinen
+  Hausverbrauchsauswertung.
+- Eine kWh-Umrechnung ist bis zur Klärung von Heizmedium, Heizwert und beheizter
+  Fläche ausdrücklich nicht enthalten.
+- `npm test` läuft auf diesem Branch mit 371 Tests in 13 Testdateien grün; zusätzlich
+  sind `node --check` für die geänderten JavaScript-Dateien und `git diff --check`
+  sauber. Die Tankfüllungs-Automatik ist für Haupt- und Zusatztank separat regressionsgetestet.
+  Das Paket ändert keine Apps-Script-Datei und benötigt für die lokale Prüfung keinen
+  Live-Zugriffsschlüssel.
+- Details und Grenzen stehen in `docs/heizoel-verbrauch.md`.

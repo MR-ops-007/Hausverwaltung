@@ -498,6 +498,27 @@ const uiService = {
     };
   },
 
+  getOilConsumptionReport(zaehler, year) {
+    const service = typeof window !== 'undefined' ? window.heatingOilService : null;
+    if (!service || typeof service.isOilLevelMeter !== 'function' || !service.isOilLevelMeter(zaehler)) {
+      return null;
+    }
+
+    const readings = Array.isArray(dataService.state.zaehlerstaende) ? dataService.state.zaehlerstaende : [];
+    const meters = Array.isArray(dataService.state.zaehler) ? dataService.state.zaehler : [];
+    const fillReadings = typeof service.fillReadingsFor === 'function'
+      ? service.fillReadingsFor(readings, meters, zaehler)
+      : [];
+
+    return service.calculate(
+      readings,
+      zaehler,
+      Array.isArray(dataService.state.haustechnik) ? dataService.state.haustechnik : [],
+      Number(year),
+      { fillReadings }
+    );
+  },
+
   formatValidationMessage(zaehler, latestReading, result, neuerWert) {
     const name = this.getZaehlerLabel(zaehler);
     const alterWert = latestReading ? latestReading.wert : 'kein Vorwert';
@@ -1544,6 +1565,7 @@ const uiService = {
         : []
     );
     const year = yearSelect.value || this.getAvailableConsumptionYears()[0] || '';
+    const previousYear = Number(year) - 1;
     let objektId = objectSelect.value || objectIds[0] || '';
     const firstObjectWithRows = objectIds.find(objId => allRows.some(row => String(row.objekt_id) === String(objId) && String(row.jahr) === String(year)));
     const objectChangedDuringLoad = objectSelect.value && objectSelect.value !== objectValueBeforeLoad;
@@ -1687,7 +1709,8 @@ const uiService = {
           selectedYear: year,
           monthlyRows: dataService.state.view_verbrauch_monat || [],
           annualRows: allRows,
-          readingRows: (dataService.state.zaehlerstaende || []).filter(row => String(row.objekt_id) === String(objektId))
+          readingRows: (dataService.state.zaehlerstaende || []).filter(row => String(row.objekt_id) === String(objektId)),
+          haustechnikRows: dataService.state.haustechnik || []
         });
       } catch (error) {
         console.error('Verbrauchsdiagramme konnten nicht dargestellt werden:', error);
@@ -1763,6 +1786,8 @@ const uiService = {
           ? this.getConsumptionTableGroupLabel(filteredRows[index - 1])
           : '';
         const previousYearRow = this.getConsumptionPreviousYearRow(row, previousYearMap);
+        const oilReport = this.getOilConsumptionReport(row, year);
+        const previousOilReport = previousYearRow ? this.getOilConsumptionReport(row, previousYear) : null;
         const monthRows = this.getConsumptionMonthRowsForRow(row, monthRowsByMeterYear);
         const periodDisplay = this.getConsumptionPeriodDisplay(row, monthRows);
         const runningUsage = this.getConsumptionRunningUsage(row, monthRows, year);
@@ -1811,6 +1836,7 @@ const uiService = {
               ` : `
                 <div style="font-weight:900;">${this.formatDashboardNumber(row.verbrauch_jahr)} ${this.escapeHtml(unit)}</div>
                 <div style="font-size:0.75rem; color:#64748b;">Ø Monat: ${this.formatDashboardNumber(row.verbrauch_monat_durchschnitt)} ${this.escapeHtml(unit)}</div>
+                ${oilReport ? `<div style="font-size:0.75rem; color:#92400e; font-weight:800;">Ölverbrauch: ${this.formatDashboardNumber(oilReport.totalLiters)} l</div>` : ''}
               `}
             </td>
             <td style="${cellStyle}">
@@ -1824,6 +1850,7 @@ const uiService = {
               ${previousYearRow ? `
                 <div style="font-weight:800;">${this.formatDashboardNumber(previousYearRow.verbrauch_jahr)} ${this.escapeHtml(unit)}</div>
                 <div style="font-size:0.75rem; color:#64748b;">Ø Monat: ${this.formatDashboardNumber(previousYearRow.verbrauch_monat_durchschnitt)} ${this.escapeHtml(unit)}</div>
+                ${previousOilReport ? `<div style="font-size:0.75rem; color:#92400e; font-weight:800;">Ölverbrauch: ${this.formatDashboardNumber(previousOilReport.totalLiters)} l</div>` : ''}
               ` : '<span style="color:#94a3b8;">Keine Daten</span>'}
             </td>
             <td style="${cellStyle}">
@@ -2071,6 +2098,41 @@ const uiService = {
 
     this.currentActiveMetersObjects = activeMeters;
     modal.style.display = 'flex';
+  },
+
+  getOilRefillSuggestion(transactions) {
+    const service = typeof window !== 'undefined' ? window.heatingOilService : null;
+    if (!service || typeof service.isOilFillMeter !== 'function' || typeof service.isOilLevelMeter !== 'function') {
+      return null;
+    }
+
+    const meters = Array.isArray(this.currentActiveMetersObjects) ? this.currentActiveMetersObjects : [];
+    const fillTransaction = transactions.find(transaction => {
+      const meter = meters.find(row => String(row.zaehler_id) === String(transaction.zaehler_id));
+      return meter && service.isOilFillMeter(meter);
+    });
+    const fillMeter = fillTransaction
+      ? meters.find(row => String(row.zaehler_id) === String(fillTransaction.zaehler_id))
+      : null;
+    const fillTankId = fillMeter && typeof service.tankIdForMeter === 'function'
+      ? service.tankIdForMeter(fillMeter)
+      : null;
+    const levelMeter = meters.find(meter => service.isOilLevelMeter(meter) && (
+      !fillTankId || typeof service.tankIdForMeter !== 'function' || service.tankIdForMeter(meter) === fillTankId
+    ));
+    if (!fillTransaction || !levelMeter || transactions.some(transaction =>
+      String(transaction.zaehler_id) === String(levelMeter.zaehler_id)
+    )) {
+      return null;
+    }
+
+    const config = service.getTankConfig(
+      levelMeter,
+      Array.isArray(dataService.state.haustechnik) ? dataService.state.haustechnik : []
+    );
+    if (!config || config.max_fuellstand_cm === null) return null;
+
+    return { fillTransaction, levelMeter, config, fillTankId };
   },
 
   getRowStandId(row) {
@@ -2463,6 +2525,30 @@ const uiService = {
     if (transactions.length === 0) {
       alert('Keine Werte eingetragen.');
       return;
+    }
+
+    const oilRefillSuggestion = this.getOilRefillSuggestion(transactions);
+    if (oilRefillSuggestion) {
+      const confirmed = confirm(
+        `Eine Tankfüllung wurde erfasst, aber kein neuer Ölstand.\n\n` +
+        `Vollgetankt? Ja setzt den Füllstand des Haupttanks auf ` +
+        `${this.formatDashboardNumber(oilRefillSuggestion.config.max_fuellstand_cm)} cm.\n\n` +
+        `Nein speichert nur die Tankfüllung.`
+      );
+
+      if (confirmed) {
+        const { levelMeter, config, fillTransaction } = oilRefillSuggestion;
+        transactions.push({
+          objekt_id: levelMeter.objekt_id,
+          einheit_id: levelMeter.einheit_id,
+          zaehler_id: levelMeter.zaehler_id,
+          wert: config.max_fuellstand_cm,
+          zeitstempel: fillTransaction.zeitstempel,
+          stand_id: this.buildStandId(levelMeter.zaehler_id, fillTransaction.zeitstempel),
+          quelle: 'UI',
+          hinweis: 'Füllstand automatisch auf Tankmaximum gesetzt; Tankfüllung in derselben Erfassung.'
+        });
+      }
     }
 
     if (warnings.length > 0) {

@@ -250,8 +250,12 @@ const consumptionChartService = (() => {
       return `<line x1="${left}" x2="${W-right}" y1="${gy}" y2="${gy}" stroke="#e2e8f0"/><text x="${left-8}" y="${gy+4}" font-size="11" text-anchor="end" fill="#64748b">${esc(fmt(value))}</text>`;
     }).join('');
     const formatDateLabel = date => `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}.${date.getFullYear()}`;
-    const xLabels = [...new Set([0, Math.floor((series.length - 1) / 2), series.length - 1])]
-      .map(index => `<text x="${x(series[index]).toFixed(1)}" y="${H-15}" text-anchor="middle" font-size="11" fill="#475569">${esc(formatDateLabel(series[index].date))}</text>`)
+    const labelIndexes = [...new Set([0, Math.floor((series.length - 1) / 2), series.length - 1])];
+    const xLabels = labelIndexes
+      .map((index, labelIndex) => {
+        const anchor = labelIndex === 0 ? 'start' : labelIndex === labelIndexes.length - 1 ? 'end' : 'middle';
+        return `<text x="${x(series[index]).toFixed(1)}" y="${H-15}" text-anchor="${anchor}" font-size="11" fill="#475569">${esc(formatDateLabel(series[index].date))}</text>`;
+      })
       .join('');
     return `<svg class="consumption-chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(alt)}" xmlns="http://www.w3.org/2000/svg">${grid}<line x1="${left}" x2="${W-right}" y1="${H-bottom}" y2="${H-bottom}" stroke="#cbd5e1"/>${lines}${dots}${xLabels}</svg>`;
   }
@@ -286,15 +290,37 @@ const consumptionChartService = (() => {
         .map(points => `<polyline points="${points.join(' ')}" fill="none" stroke="${color}" stroke-width="3"${dash ? ' stroke-dasharray="7 5"' : ''}/>`)
         .join('');
       const markers = items.map((item, index) => item && item.value !== null
-        ? `<circle cx="${x(index).toFixed(1)}" cy="${y(item.value).toFixed(1)}" r="4" fill="${item.invalidReading ? '#dc2626' : item.overflow ? '#7c3aed' : item.derived ? '#f59e0b' : item.fromAnnual ? '#ea580c' : item.reconciled ? '#0f766e' : item.fromReadings ? '#0284c7' : item.flagged ? '#f59e0b' : color}"><title>${esc(labels[index])} ${esc(label)}: ${fmt(item.value)} ${esc(unit)}${item.invalidReading ? ' (rückläufiger Zählerstand ungeklärt)' : ''}${item.overflow ? ' (Überlauf berücksichtigt)' : ''}${item.derived ? ' (linear fortgeschrieben)' : ''}${item.fromReadings ? ' (aus Rohintervall ergänzt)' : ''}${item.fromAnnual ? ' (aus Jahresrest ergänzt)' : ''}${item.reconciled ? ' (mit Jahreswert abgeglichen)' : ''}${item.flagged ? ' (Prüfhinweis)' : ''}</title></circle>`
+        ? `<circle cx="${x(index).toFixed(1)}" cy="${y(item.value).toFixed(1)}" r="4" fill="${item.invalidReading ? '#dc2626' : item.overflow ? '#7c3aed' : item.derived ? '#f59e0b' : item.fromAnnual ? '#ea580c' : item.reconciled ? '#0f766e' : item.fromReadings ? '#0284c7' : item.flagged ? '#f59e0b' : color}"><title>${esc(labels[index])} ${esc(label)}: ${fmt(item.value)} ${esc(unit)}${item.invalidReading ? ' (rückläufiger Zählerstand ungeklärt)' : ''}${item.overflow ? ' (Überlauf berücksichtigt)' : ''}${item.derived ? ' (linear fortgeschrieben)' : ''}${item.fromReadings ? ' (aus Rohintervall ergänzt)' : ''}${item.fromAnnual ? ' (aus Jahresrest ergänzt)' : ''}${item.reconciled ? ' (mit Jahreswert abgeglichen)' : ''}${item.oilRefill ? ' (Tankfüllung oder Korrektur erkannt)' : ''}${item.flagged ? ' (Prüfhinweis)' : ''}</title></circle>`
         : '').join('');
       return `${line}${markers}`;
     };
     const currentColor = '#2563eb', previousColor = '#94a3b8';
     const currentSvg = renderSeries(current, currentColor, currentLabel, false);
     const previousSvg = previous.length ? renderSeries(previous, previousColor, previousLabel, true) : '';
-    const area = mode === 'area' && current.length && current.every(item => item && item.value !== null)
-      ? `<polygon points="${left},${top+ih} ${current.map((item,index) => item && item.value !== null ? `${x(index).toFixed(1)},${y(item.value).toFixed(1)}` : '').filter(Boolean).join(' ')} ${W-right},${top+ih}" fill="#2563eb" opacity="0.12"/>`
+    const area = mode === 'area'
+      ? (() => {
+        const segments = [];
+        let segment = [];
+        current.forEach((item, index) => {
+          if (item && item.value !== null) {
+            segment.push({ item, index });
+          } else if (segment.length) {
+            segments.push(segment);
+            segment = [];
+          }
+        });
+        if (segment.length) segments.push(segment);
+        return segments
+          .filter(points => points.length > 1)
+          .map(points => {
+            const baseline = top + ih;
+            const first = points[0];
+            const last = points[points.length - 1];
+            const coordinates = points.map(point => `${x(point.index).toFixed(1)},${y(point.item.value).toFixed(1)}`).join(' ');
+            return `<polygon points="${x(first.index).toFixed(1)},${baseline} ${coordinates} ${x(last.index).toFixed(1)},${baseline}" fill="#2563eb" opacity="0.12"/>`;
+          })
+          .join('');
+      })()
       : '';
     const barWidth = previous.length ? 16 : 24;
     const bars = mode === 'bar' ? labels.map((label, index) => {
@@ -315,7 +341,7 @@ const consumptionChartService = (() => {
     const hasReconciled = [...current, ...previous].some(item => item && item.reconciled);
     const hasOverflow = [...current, ...previous].some(item => item && item.overflow);
     const hasInvalidReading = [...current, ...previous].some(item => item && item.invalidReading);
-    const legend = `<div class="consumption-chart-key"><span class="consumption-chart-year-current">${esc(currentLabel)}</span>${previous.length ? `<span class="consumption-chart-year-prior">${esc(previousLabel)}</span>` : ''}${hasDerived ? '<span class="consumption-chart-year-derived">linear fortgeschrieben</span>' : ''}${hasFromReadings ? '<span class="consumption-chart-year-from-readings">aus Rohintervall ergänzt</span>' : ''}${hasFromAnnual ? '<span class="consumption-chart-year-from-annual">aus Jahresrest ergänzt</span>' : ''}${hasReconciled ? '<span class="consumption-chart-year-reconciled">Jahreswert abgeglichen</span>' : ''}${hasOverflow ? '<span class="consumption-chart-year-overflow">Überlauf berücksichtigt</span>' : ''}${hasInvalidReading ? '<span class="consumption-chart-year-warning">Zählerstand prüfen</span>' : ''}${showWarning ? '<span class="consumption-chart-year-warning">Prüfhinweis</span>' : ''}</div>`;
+    const legend = `<div class="consumption-chart-key"><span class="consumption-chart-year-current">${esc(currentLabel)}</span>${previous.length ? `<span class="consumption-chart-year-prior">${esc(previousLabel)}</span>` : ''}${hasDerived ? '<span class="consumption-chart-year-derived">linear fortgeschrieben</span>' : ''}${hasFromReadings ? '<span class="consumption-chart-year-from-readings">aus Rohintervall ergänzt</span>' : ''}${hasFromAnnual ? '<span class="consumption-chart-year-from-annual">aus Jahresrest ergänzt</span>' : ''}${hasReconciled ? '<span class="consumption-chart-year-reconciled">Jahreswert abgeglichen</span>' : ''}${hasOverflow ? '<span class="consumption-chart-year-overflow">Überlauf berücksichtigt</span>' : ''}${hasInvalidReading ? '<span class="consumption-chart-year-invalid">Zählerstand prüfen</span>' : ''}${showWarning ? '<span class="consumption-chart-year-warning">Prüfhinweis</span>' : ''}</div>`;
     const values = showValues ? `<div class="consumption-chart-values" aria-label="${esc(valuesLabel)}">${labels.map((label, index) => {
       const formatValue = item => item && item.value !== null
         ? `${fmt(item.value)} ${unit}${item.invalidReading ? ' · Zählerstand prüfen' : ''}${item.overflow ? ' · Überlauf berücksichtigt' : ''}${item.derived ? ' · fortgeschrieben' : ''}${item.fromReadings ? ' · aus Rohintervall' : ''}${item.fromAnnual ? ' · aus Jahresrest' : ''}${item.reconciled ? ' · abgeglichen' : ''}${item.flagged ? ' · Prüfhinweis' : ''}`
@@ -559,7 +585,7 @@ const consumptionChartService = (() => {
     return `<details class="consumption-chart-help"><summary>Hinweise erklären</summary><div><p>Die Farben unterscheiden die fachliche Ursache:</p><ul>${items.join('')}</ul></div></details>`;
   }
 
-  function render({ meters = [], selectedKey = '', selectedYear, monthlyRows = [], annualRows = [], readingRows = [], mode = '', now = new Date() }) {
+  function render({ meters = [], selectedKey = '', selectedYear, monthlyRows = [], annualRows = [], readingRows = [], haustechnikRows = [], mode = '', now = new Date() }) {
     const unique = [...new Map(meters.filter(row => row && row.zaehler_id).map(row => [id(row), row])).values()];
     if (!unique.length) return '';
     // Ohne zentrale Berechnung wären alle Intervalle leer; das nicht still als leeres Diagramm zeigen.
@@ -575,29 +601,49 @@ const consumptionChartService = (() => {
     if (!Number.isInteger(year)) return '';
     const priorYear = year - 1;
     const chartMode = mode || (typeof uiService !== 'undefined' ? (uiService.consumptionChartMode || 'area') : 'area');
-    const curr = monthlySeries(monthlyRows, meter, year, {
+    const oilService = typeof heatingOilService !== 'undefined' ? heatingOilService : null;
+    const isOil = Boolean(oilService && oilService.isOilLevelMeter(meter));
+    // Betankungen (oel_stand_l) bilanzieren Füllintervalle, statt sie als Lücke zu führen.
+    const oilFillReadings = isOil ? oilService.fillReadingsFor(readingRows, unique, meter) : [];
+    const oilOptions = { fillReadings: oilFillReadings };
+    const oilSeries = selected => {
+      if (!isOil) return null;
+      const result = oilService.calculate(readingRows, meter, haustechnikRows, selected, oilOptions);
+      return result.monthly.map((item, month) => ({
+        value: item.hasValue ? item.liter : null,
+        flagged: result.refillMonths && result.refillMonths.has(month),
+        derived: false,
+        ...(result.refillMonths && result.refillMonths.has(month) ? { oilRefill: true } : {})
+      }));
+    };
+    const curr = oilSeries(year) || monthlySeries(monthlyRows, meter, year, {
       readingRows,
       annualRow: annualRowForYear(annualRows, meter, year),
       now
     });
-    const prior = monthlySeries(monthlyRows, meter, priorYear, {
+    const prior = oilSeries(priorYear) || monthlySeries(monthlyRows, meter, priorYear, {
       readingRows,
       annualRow: annualRowForYear(annualRows, meter, priorYear),
       now
     });
-    const history = annualSeries(annualRows, meter, year, readingRows);
+    const history = isOil
+      ? oilService.annualSeries(readingRows, meter, haustechnikRows, year, oilOptions)
+      : annualSeries(annualRows, meter, year, readingRows);
     const yearLabels = history.map(row => String(row.year));
     const hasCurrent = curr.some(row => row.value !== null);
     const hasPrior = prior.some(row => row.value !== null);
-    const hasInvalidReading = reverseReadingMonths(readingRows, meter, year).size > 0 ||
-      reverseReadingMonths(readingRows, meter, priorYear).size > 0;
+    const hasInvalidReading = !isOil && (
+      reverseReadingMonths(readingRows, meter, year).size > 0 ||
+      reverseReadingMonths(readingRows, meter, priorYear).size > 0
+    );
     const flagged = [...curr, ...prior].some(row => row.flagged);
     const derived = [...curr, ...prior].some(row => row.derived);
     const fromReadings = [...curr, ...prior].some(row => row.fromReadings);
     const fromAnnual = [...curr, ...prior].some(row => row.fromAnnual);
     const reconciled = [...curr, ...prior].some(row => row.reconciled);
     const hasOverflow = [...curr, ...prior].some(row => row.overflow);
-    const unit = /kwh/i.test(String(meter.medium)) ? 'kWh' : /m3/i.test(String(meter.medium)) ? 'm³' : /cm/i.test(String(meter.medium)) ? 'cm' : /liter|_l$/i.test(String(meter.medium)) ? 'l' : (meter.einheit || '');
+    const levelUnit = /cm/i.test(String(meter.medium)) ? 'cm' : /liter|_l$/i.test(String(meter.medium)) ? 'l' : (meter.einheit || '');
+    const unit = isOil ? 'l' : /kwh/i.test(String(meter.medium)) ? 'kWh' : /m3/i.test(String(meter.medium)) ? 'm³' : levelUnit;
     const groups = [...new Set(unique.map(groupOf).filter(Boolean))].sort();
     const media = [...new Set(unique.map(mediumOf).filter(Boolean))].sort();
     const chartYears = [...new Set([
@@ -630,11 +676,11 @@ const consumptionChartService = (() => {
         <select id="consumption-chart-meter-select" onchange="uiService.consumptionChartSelection=this.value;uiService.renderConsumptionDashboard()">${options}</select>
       </label><label>Darstellung<select onchange="uiService.consumptionChartMode=this.value;uiService.renderConsumptionDashboard()"><option value="line"${chartMode === 'line' ? ' selected' : ''}>Linie</option><option value="bar"${chartMode === 'bar' ? ' selected' : ''}>Balken</option><option value="area"${chartMode === 'area' ? ' selected' : ''}>Fläche</option></select></label></div>
       <div class="consumption-charts-grid">
-        <div class="consumption-chart-panel"><h4>Zählerstandsverlauf</h4>${lineChart(readingChartSeries(readingRows, meter), unit, `Zählerstandsverlauf für ${meter.bezeichnung || meter.zaehler_id} in ${unit}`)}</div>
+        <div class="consumption-chart-panel"><h4>Zählerstandsverlauf</h4>${lineChart(readingChartSeries(readingRows, meter), isOil ? levelUnit : unit, `Zählerstandsverlauf für ${meter.bezeichnung || meter.zaehler_id} in ${isOil ? levelUnit : unit}`)}</div>
         <div class="consumption-chart-panel"><h4>Monatsverbrauch ${esc(year)} / ${esc(priorYear)}</h4>${monthChart}</div>
         <div class="consumption-chart-panel"><h4>Jahresentwicklung</h4>${annualChart}</div>
       </div>
-      <p class="consumption-chart-note">Die Monatswerte verteilen Ableseintervalle zeitanteilig. Monate ohne berechenbaren Wert bleiben leer, nicht null. Das laufende Jahr kann unvollständig sein.${derived ? ' Orange markierte Monatswerte wurden für ein abgeschlossenes historisches Jahr linear aus dem Jahresrest fortgeschrieben.' : ''}${fromReadings ? ' Blau markierte Monatswerte wurden aus vorhandenen Rohintervallen ergänzt.' : ''}${fromAnnual ? ' Dunkelorange markierte Monatswerte wurden innerhalb des bereits belegten Messzeitraums aus dem verbleibenden Jahreswert ergänzt; spätere Monate werden nicht prognostiziert.' : ''}${reconciled ? ' Türkis markierte Monatswerte wurden wegen einer kleinen Abweichung proportional mit dem Jahreswert aus der Jahresview abgeglichen.' : ''}${hasOverflow ? ' Violett markierte Monatswerte berücksichtigen einen rechnerisch plausiblen Zählerüberlauf anhand der Stellenzahl.' : ''}${hasInvalidReading ? ' Rote Hinweise markieren nur rückläufige Zählerstände, die nicht als zulässiger Überlauf klassifiziert werden konnten.' : ''}${flagged ? ' Einzelne Monatssegmente besitzen Prüfhinweise; Details stehen in der Verbrauchstabelle und Datenqualität.' : ''}</p>
+      <p class="consumption-chart-note">${isOil ? 'Heizölverbrauch wird aus den Rückgängen des Füllstands berechnet: Zentimeter Verbrauch × Liter pro Zentimeter. Liegen Betankungen aus oel_stand_l vor, wird der Verbrauch im Füllintervall aus getankter Menge und Bestandsänderung bilanziert; ohne Betankungsdaten bleibt ein Anstieg ein Prüfhinweis, die Summe ist dann eine Untergrenze.' : 'Die Monatswerte verteilen Ableseintervalle zeitanteilig.'} Monate ohne berechenbaren Wert bleiben leer, nicht null. Das laufende Jahr kann unvollständig sein.${derived ? ' Orange markierte Monatswerte wurden für ein abgeschlossenes historisches Jahr linear aus dem Jahresrest fortgeschrieben.' : ''}${fromReadings ? ' Blau markierte Monatswerte wurden aus vorhandenen Rohintervallen ergänzt.' : ''}${fromAnnual ? ' Dunkelorange markierte Monatswerte wurden innerhalb des bereits belegten Messzeitraums aus dem verbleibenden Jahreswert ergänzt; spätere Monate werden nicht prognostiziert.' : ''}${reconciled ? ' Türkis markierte Monatswerte wurden wegen einer kleinen Abweichung proportional mit dem Jahreswert aus der Jahresview abgeglichen.' : ''}${hasOverflow ? ' Violett markierte Monatswerte berücksichtigen einen rechnerisch plausiblen Zählerüberlauf anhand der Stellenzahl.' : ''}${hasInvalidReading ? ' Rote Hinweise markieren nur rückläufige Zählerstände, die nicht als zulässiger Überlauf klassifiziert werden konnten.' : ''}${flagged ? ' Einzelne Monatssegmente besitzen Prüfhinweise; Details stehen in der Verbrauchstabelle und Datenqualität.' : ''}</p>
     </section>`;
   }
   return { getMeterKey: id, sameMeter, toNumber: num, consumptionMonth, monthlySeries, annualSeries, render };

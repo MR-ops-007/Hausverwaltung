@@ -227,6 +227,7 @@ Bei vorhandenen Rohablesungen werden numerische Y-Achsenwerte, Datumsbeschriftun
 - Historische Alias-Zähler-IDs aus `source_keys` werden für die Diagrammzuordnung berücksichtigt.
 - Monatssegmente mit weniger Tagen als der jeweilige Kalendermonat werden intern weiter als zeitanteilige View-Zeile erkannt. Die wenig hilfreiche sichtbare Kategorie `Teilmonat` wurde aus der Diagrammoberfläche entfernt.
 - Rückläufige Rohintervalle werden im Diagramm als Prüfhinweis sichtbar und nicht still als Verbrauch interpretiert.
+- Die Legende unterscheidet rückläufige Rohwerte jetzt rot (`Zählerstand prüfen`) von allgemeinen Monats-/Jahresabweichungen orange (`Prüfhinweis`). Der aufklappbare Bereich `Hinweise erklären` nennt die konkrete Ursache und die nächste Prüfung; bei einem fallenden Rohintervall sind die betroffenen Alt-/Neu-Werte enthalten.
 - Monatsverbräuche werden aus Rohintervallen zeitanteilig verteilt, wenn die Materialized View dafür Daten liefert.
 - Historische Restwerte und laufende belegte Segmente werden sichtbar gekennzeichnet.
 - Aktuelle Jahre werden nicht in zukünftige Monate hochgerechnet.
