@@ -158,6 +158,12 @@ function loadUiService({
     'consumption-status-filter': { style: {}, innerHTML: '', value: 'all', className: '' },
     'consumption-dashboard-output': { style: {}, innerHTML: '', className: '' },
     'sync-queue-status': { style: { display: 'none' }, innerHTML: '' },
+    'save-meter-values': { style: {}, disabled: false, textContent: 'Speichern', setAttribute() {} },
+    'cancel-meter-values': { style: {}, disabled: false, textContent: 'Abbrechen' },
+    'meter-save-progress': { style: { display: 'none' }, hidden: true, dataset: {} },
+    'meter-save-animation': { src: '', alt: '', style: {} },
+    'meter-save-title': { textContent: '' },
+    'meter-save-detail': { textContent: '' },
   };
 
   const document = {
@@ -227,6 +233,9 @@ function loadUiService({
     consumptionChartService
   );
 
+  // Die Produktion zeigt den Erfolgsstempel kurz sichtbar. Tests prüfen den Zustand
+  // synchron, ohne auf die reine UI-Nachlaufzeit zu warten.
+  uiService.saveSuccessDisplayMs = 0;
   uiService.currentActiveMetersObjects = currentMeters;
 
   return {
@@ -246,6 +255,32 @@ function loadUiService({
 }
 
 describe('uiService helper methods', () => {
+  it('unterscheidet neue, bereits vorhandene und korrigierte Werte', () => {
+    const { uiService } = loadUiService();
+
+    expect(uiService.formatZaehlerSaveSuccess({ status: 'success', angelegt: 1, bereits_vorhanden: 0, ueberschrieben: 0 }))
+      .toContain('1 neuer Zählerstand');
+    expect(uiService.formatZaehlerSaveSuccess({ status: 'success', angelegt: 0, bereits_vorhanden: 1, ueberschrieben: 0 }))
+      .toContain('1 Wert war bereits vorhanden');
+    expect(uiService.formatZaehlerSaveSuccess({ status: 'success', angelegt: 0, bereits_vorhanden: 0, ueberschrieben: 1 }))
+      .toContain('bestehende Zeitstempel bleibt unverändert');
+  });
+
+  it('zeigt den Speichervorgang mit deaktivierten Aktionen an', () => {
+    const { uiService, elementsById } = loadUiService();
+
+    uiService.setZaehlerSaveBusy(true);
+    expect(elementsById['save-meter-values'].disabled).toBe(true);
+    expect(elementsById['cancel-meter-values'].disabled).toBe(true);
+    expect(elementsById['meter-save-progress'].hidden).toBe(false);
+    expect(elementsById['meter-save-progress'].style.display).toBe('flex');
+
+    uiService.setZaehlerSaveBusy(false);
+    expect(elementsById['save-meter-values'].disabled).toBe(false);
+    expect(elementsById['cancel-meter-values'].disabled).toBe(false);
+    expect(elementsById['meter-save-progress'].hidden).toBe(true);
+  });
+
   it('ordnet ISO-UTC-Monatsgrenzen nach deutscher Zeit ein', () => {
     const { uiService } = loadUiService();
 
@@ -271,7 +306,7 @@ describe('uiService helper methods', () => {
     expect(uiService.formatZaehlerSaveSuccess({ angelegt: 1, bereits_vorhanden: 0, ueberschrieben: 0 }))
       .toContain('1 neuer Zählerstand');
     expect(uiService.formatZaehlerSaveSuccess({ angelegt: 0, bereits_vorhanden: 1, ueberschrieben: 0 }))
-      .toContain('identische Eingabe');
+      .toContain('Bereits gespeichert');
     expect(uiService.formatZaehlerSaveSuccess({ angelegt: 0, bereits_vorhanden: 1, ueberschrieben: 0 }))
       .toContain('kein neuer Zeitstempel');
   });
@@ -1069,6 +1104,20 @@ describe('uiService.showZaehlerMaske', () => {
     expect(modalBodyElement.innerHTML).toContain('Noch keine Ablesung vorhanden.');
   });
 
+  it('rendert den Speicherdialog mit Fortschrittsanzeige und eindeutigen Button-IDs', () => {
+    const { uiService, modalBodyElement } = loadUiService({
+      currentMeters: [{ zaehler_id: 'Z1', einheit_id: 'WE001', bezeichnung: 'Strom' }],
+    });
+
+    uiService.showZaehlerMaske('WE001');
+
+    expect(modalBodyElement.innerHTML).toContain('id="meter-save-progress"');
+    expect(modalBodyElement.innerHTML).toContain('hausmeister-stempel-loading.svg');
+    expect(modalBodyElement.innerHTML).toContain('Der Hausmeister sucht noch den richtigen Stempel');
+    expect(modalBodyElement.innerHTML).toContain('id="save-meter-values"');
+    expect(modalBodyElement.innerHTML).toContain('id="cancel-meter-values"');
+  });
+
   it('colors meter cards by medium', () => {
     const { uiService, modalBodyElement } = loadUiService({
       currentMeters: [
@@ -1177,6 +1226,51 @@ describe('uiService.saveZaehler', () => {
   beforeEach(() => {
     // Intentionally empty.
     // Kept for future setup without changing test structure.
+  });
+
+  it('hält den Speicherdialog während der Backend-Anfrage sichtbar und setzt ihn danach zurück', async () => {
+    let resolveSave;
+    const pendingSave = new Promise(resolve => { resolveSave = resolve; });
+    const meter = {
+      zaehler_id: 'Z001',
+      objekt_id: 'OBJ001',
+      einheit_id: 'WE001',
+      bezeichnung: 'Strom HT',
+    };
+    const { uiService, elementsById } = loadUiService({
+      currentMeters: [meter],
+      inputValuesByZaehlerId: { Z001: '1250' },
+      saveResponse: pendingSave,
+    });
+
+    const savePromise = uiService.saveZaehler();
+    await Promise.resolve();
+    expect(elementsById['save-meter-values'].disabled).toBe(true);
+    expect(elementsById['meter-save-progress'].hidden).toBe(false);
+
+    resolveSave({ status: 'success' });
+    await savePromise;
+    expect(elementsById['save-meter-values'].disabled).toBe(false);
+    expect(elementsById['meter-save-progress'].hidden).toBe(true);
+  });
+
+  it('zeigt nach bestätigtem Speichern den Erfolgsstempel vor dem Zurücksetzen', async () => {
+    let resolveSave;
+    const pendingSave = new Promise(resolve => { resolveSave = resolve; });
+    const meter = { zaehler_id: 'Z002', objekt_id: 'OBJ001', einheit_id: 'WE001', bezeichnung: 'Strom NT' };
+    const { uiService, elementsById } = loadUiService({
+      currentMeters: [meter],
+      inputValuesByZaehlerId: { Z002: '1250' },
+      saveResponse: pendingSave,
+    });
+
+    const savePromise = uiService.saveZaehler();
+    await Promise.resolve();
+    resolveSave({ status: 'success' });
+    await savePromise;
+
+    expect(elementsById['meter-save-animation'].src).toBe('assets/hausmeister-stempel-erfolg.svg');
+    expect(elementsById['meter-save-title'].textContent).toBe('Amtlich gespeichert!');
   });
 
   it('saves a normal increasing meter value', async () => {
@@ -1865,8 +1959,7 @@ describe('uiService: Zustände lokal erfasst / übertragen / abgelehnt', () => {
   it('erzeugt bei „bereits vorhanden“ ohne Nachladen keinen Phantomwert', async () => {
     const { uiService, dataService, alerts } = setup({ saveResponse: { status: 'success', angelegt: 0, bereits_vorhanden: 1 } });
     await uiService.saveZaehler();
-    expect(alerts[0]).toContain('identische Eingabe');
-    expect(alerts[0]).toContain('kein neuer Zeitstempel');
+    expect(alerts[0]).toContain('Bereits gespeichert: 1 Wert war bereits vorhanden. Es wurde keine neue Zeile und kein neuer Zeitstempel angelegt.');
     expect(dataService.state.zaehlerstaende).toEqual([earlier]);
   });
 
