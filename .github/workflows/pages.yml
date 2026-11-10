@@ -1,0 +1,94 @@
+name: Deploy frontend to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build static frontend
+        env:
+          HV_TEST_API_URL: ${{ vars.HV_TEST_API_URL }}
+          HV_TEST_SCRIPT_ID: ${{ vars.HV_TEST_SCRIPT_ID }}
+          HV_TEST_DEPLOYMENT_ID: ${{ vars.HV_TEST_DEPLOYMENT_ID }}
+          HV_PROD_API_URL: ${{ vars.HV_PROD_API_URL }}
+          HV_PROD_SCRIPT_ID: ${{ vars.HV_PROD_SCRIPT_ID }}
+          HV_PROD_DEPLOYMENT_ID: ${{ vars.HV_PROD_DEPLOYMENT_ID }}
+        run: |
+          set -euo pipefail
+          for value in \
+            HV_TEST_API_URL HV_TEST_SCRIPT_ID HV_TEST_DEPLOYMENT_ID \
+            HV_PROD_API_URL HV_PROD_SCRIPT_ID HV_PROD_DEPLOYMENT_ID; do
+            if [ -z "${!value:-}" ]; then
+              echo "Fehlende GitHub-Repository-Variable: $value" >&2
+              exit 1
+            fi
+          done
+
+          mkdir -p dist-site/apps-script dist-site/assets
+          cp index.html style.css config.js cloud-service.js data-service.js \
+            access-ui.js calc-service.js contract-ui.js consumption-charts.js \
+            heating-oil-service.js ui-service.js validation-service.js vpi-service.js \
+            favicon.png manifest.webmanifest dist-site/
+          cp apps-script/ContractService.js dist-site/apps-script/
+          cp assets/*.svg assets/*.png dist-site/assets/
+          touch dist-site/.nojekyll
+
+          node <<'NODE'
+          const fs = require('node:fs');
+          const profiles = {
+            test: {
+              label: 'TEST · Entenhausen',
+              apiUrl: process.env.HV_TEST_API_URL,
+              scriptId: process.env.HV_TEST_SCRIPT_ID,
+              deploymentId: process.env.HV_TEST_DEPLOYMENT_ID
+            },
+            production: {
+              label: 'PRODUKTION',
+              apiUrl: process.env.HV_PROD_API_URL,
+              scriptId: process.env.HV_PROD_SCRIPT_ID,
+              deploymentId: process.env.HV_PROD_DEPLOYMENT_ID
+            }
+          };
+          const profileJson = JSON.stringify(profiles);
+          fs.writeFileSync('dist-site/runtime-config.js', `
+          (function configureHausverwaltungRuntime(host) {
+            const profiles = ${profileJson};
+            let storedEnvironment = '';
+            try { storedEnvironment = host.localStorage?.getItem('hv_environment') || ''; } catch (error) {}
+            const environment = profiles[storedEnvironment] ? storedEnvironment : 'test';
+            host.HV_RUNTIME_CONFIG = { environment, profiles, ...profiles[environment] };
+          })(typeof window !== 'undefined' ? window : globalThis);
+          `);
+          NODE
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist-site
+
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

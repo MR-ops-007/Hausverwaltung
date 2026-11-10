@@ -156,3 +156,25 @@ Betrieb, getrennte Test-/Produktionsdaten, Backup, Restore und lokale API-Auswah
 Die Home-Screen-Grundlage (`manifest.webmanifest`, iOS-Metadaten und App-Icons) ist
 vorbereitet. Die Installation auf iPhone/iPad setzt einen HTTPS-Aufruf voraus; ein
 Service Worker ist bewusst noch kein Bestandteil des Prototyps.
+
+### GitHub Pages
+
+Der Workflow `.github/workflows/pages.yml` baut nach einem Merge auf `main` ein
+statisches Frontend und veröffentlicht es über GitHub Pages. Vor dem ersten Lauf
+müssen unter **Settings → Secrets and variables → Actions → Variables** diese sechs
+nicht-sensitiven Repository-Variablen gesetzt werden:
+
+```text
+HV_TEST_API_URL
+HV_TEST_SCRIPT_ID
+HV_TEST_DEPLOYMENT_ID
+HV_PROD_API_URL
+HV_PROD_SCRIPT_ID
+HV_PROD_DEPLOYMENT_ID
+```
+
+Der Workflow erzeugt daraus nur die lokale Laufzeitkonfiguration für die beiden
+Backend-Ziele. `APP_ACCESS_KEY`, `APP_ACCESS_KEYS_JSON` und
+`CONTRACT_WRITE_TOKEN` werden niemals in den Build geschrieben. Die Zugangsschlüssel
+werden beim ersten Öffnen der jeweiligen Umgebung im Browser eingegeben und getrennt
+gespeichert.
