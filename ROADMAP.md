@@ -153,10 +153,26 @@ Betriebsschritt in P1.3 und wurde nicht automatisch ausgeführt.
 
 **Ziel:** Die App auf iPhone und iPad ohne wiederkehrende Anmeldung nutzbar machen.
 
-Vor der Geräte-Einrichtung wird die lokale Umgebungswahl als eigener kleiner DX-Schritt
-abgeschlossen: TEST und PROD erhalten Profile mit eindeutigem Ziel, sichtbarem Banner in
-der UI und getrennten Zugangsschlüsseln. Jeder Apps-Script-Push muss das Ziel explizit
-anzeigen und vor PROD einen zusätzlichen Bestätigungsschritt verlangen.
+#### P1.2a Umgebungsprofile und sichtbarer TEST/PROD-Switch
+
+Dieses Teilpaket wird vor der Geräte-Einrichtung umgesetzt. Es beseitigt die bisherige
+manuelle Umschaltung über eine einzelne `config.local.js`-Datei.
+
+- Profile für TEST und PROD mit eindeutigem Apps-Script-Projekt, Deployment und API-Ziel.
+- Sichtbare Leiste in der UI, zum Beispiel `TEST · Entenhausen` mit roter Kennzeichnung
+  und `PRODUKTION` mit neutraler Kennzeichnung.
+- Klickbarer Umschalter mit vollständigem Reload und Bestätigung vor dem Wechsel zu PROD.
+- Getrennte lokale Schlüsselablage je Umgebung, damit ein TEST-Schlüssel nicht an PROD
+  gesendet werden kann und umgekehrt.
+- Anzeige der aktiven Umgebung und Backend-Version im laufenden System.
+- Explizite Zielprüfung vor `clasp push`; ein PROD-Push benötigt eine zusätzliche
+  Bestätigung.
+
+**Abnahme P1.2a:** Die aktive Umgebung ist jederzeit sichtbar, ein Wechsel ist ohne
+manuelles Editieren von URLs möglich, und automatisierte Tests verhindern eine
+Verwechslung von TEST- und PROD-Ziel.
+
+#### P1.2b Geräte-Einrichtung und produktiver Rollout
 
 - Einrichtungscode-Dialog für Backend-URL, Geräteschlüssel und Gerätebezeichnung ergänzen.
 - Werte lokal speichern; keine Schlüssel in Repository, Pages-Build oder Logs.
