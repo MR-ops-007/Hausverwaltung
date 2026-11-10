@@ -10,6 +10,14 @@ describe('GitHub-Pages-Build', () => {
     expect(workflow).toContain('actions/deploy-pages@v4');
   });
 
+  it('kopiert alle synchron geladenen Frontend-Skripte ins Pages-Artefakt', () => {
+    const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    const requiredScripts = [...html.matchAll(/<script src="([^"]+\.js)(?:\?[^" ]+)?"><\/script>/g)]
+      .map(match => match[1])
+      .filter(src => !['runtime-config.js', 'apps-script/ContractService.js'].includes(src));
+    for (const script of requiredScripts) expect(workflow).toContain(script);
+  });
+
   it('verlangt beide Umgebungsprofile und schreibt keine Zugangsschlüssel', () => {
     for (const variable of [
       'HV_TEST_API_URL', 'HV_TEST_SCRIPT_ID', 'HV_TEST_DEPLOYMENT_ID',
