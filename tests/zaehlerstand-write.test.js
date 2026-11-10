@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 /**
- * Backend-Schreibweg für Zählerstände (4.8.4): Idempotenz über stand_id, CONFLICT,
+ * Backend-Schreibweg für Zählerstände (4.8.5): Authentifizierung, Idempotenz über stand_id, CONFLICT,
  * Überschreiben nur mit Grund (mit Protokoll) und LOCK_TIMEOUT.
  */
+const ACCESS_KEY = 'zaehlerstand-test-key';
+
 function backend({ lockFails = false, failLogAppend = false } = {}) {
   const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
   const calls = { viewUpdates: 0 };
@@ -38,7 +40,7 @@ function backend({ lockFails = false, failLogAppend = false } = {}) {
     }
   };
   const globals = {
-    PropertiesService: { getScriptProperties: () => ({ getProperty: () => null }) },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: name => name === 'APP_ACCESS_KEY' ? ACCESS_KEY : null }) },
     ContentService: { createTextOutput: text => ({ text, setMimeType() { return this; } }), MimeType: { JSON: 'json' } },
     LockService: {
       getScriptLock: () => ({
@@ -66,7 +68,7 @@ const reading = (zaehlerId, wert, minute = '09:00') => ({
   stand_id: `ST_${zaehlerId}_2026-10-30 ${minute}`,
   quelle: 'UI'
 });
-const send = (api, data, extra = {}) => api.post({ typ: 'ZAEHLERSTAND_NEU', data, ...extra });
+const send = (api, data, extra = {}) => api.post({ typ: 'ZAEHLERSTAND_NEU', data, key: ACCESS_KEY, ...extra });
 
 describe('Zählerstände schreiben (idempotent)', () => {
   it('legt neue Stände an und aktualisiert die View', () => {
@@ -282,7 +284,7 @@ describe('Protokoll vor Änderung', () => {
 describe('Leseansicht zaehlerstaende', () => {
   it('liefert nur das Blatt Zaehlerstaende (gezieltes Nachladen)', () => {
     const api = backend();
-    const result = api.post({ typ: 'LESEN', view: 'zaehlerstaende', data: [] });
+    const result = api.post({ typ: 'LESEN', view: 'zaehlerstaende', data: [], key: ACCESS_KEY });
     expect(Object.keys(result)).toEqual(['Zaehlerstaende']);
     expect(result.Zaehlerstaende).toHaveLength(1);
     expect(result.Zaehlerstaende[0]).toMatchObject({ zaehler_id: 'Z1', wert: 1500 });

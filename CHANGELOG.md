@@ -23,6 +23,15 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - Datumsangaben bis 4.6.4 stammen aus der Git-Historie (Commit, der die Version
   eingeführt hat), nicht aus dem Deployment.
 
+## 4.8.5 · 2026-11-10 · lokal
+
+Fail-closed-Zugriffsschutz und Geräteschlüssel mit Rollen. Details: `docs/access-control.md`.
+
+- Ohne konfigurierte Schlüssel werden weder GET noch POST-Datenzugriffe zugelassen.
+- `APP_ACCESS_KEYS_JSON` unterstützt mehrere benannte Geräte mit den Rollen `admin` und `erfassen`.
+- `admin` darf Vertrags- und Indexänderungen ausführen; `erfassen` darf Zählerstände und Zahlungen erfassen.
+- `APP_ACCESS_KEY` bleibt als einzelner Admin-Fallback für den kontrollierten Übergang kompatibel.
+
 ## 4.8.4 · 2026-10-30 · produktiv
 
 Offline-Queue verlustfrei, Konflikte sichtbar, Korrekturen protokolliert. Details: `docs/offline-sync-und-korrekturen.md`.

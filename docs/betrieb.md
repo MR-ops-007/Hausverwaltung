@@ -1,6 +1,6 @@
 # Betrieb, Testumgebungen und Wiederherstellung
 
-Stand: 2026-11-09
+Stand: 2026-11-10
 
 Dieses Dokument beschreibt den sicheren Betrieb der Hausverwaltung mit getrennten
 Test- und Produktivdaten. Die verbindliche Aufgabenpriorisierung steht in
@@ -11,16 +11,15 @@ gespeichert.
 
 | Umgebung | Datenbasis | Apps-Script-Projekt | Schlüssel | Zweck |
 | --- | --- | --- | --- | --- |
-| Produktion | Produktives Google Sheet | Produktive Bereitstellung | eigene `APP_ACCESS_KEY` und `CONTRACT_WRITE_TOKEN` | echte Daten |
-| Test (aktuell) | Kopierte TEST-Tabelle mit synthetischen Daten | Separates Testprojekt und öffentliches TEST-Deployment | kein Schlüssel; bewusst isoliert und nicht produktiv | Entwicklung und Abnahme |
+| Produktion | Produktives Google Sheet | Produktive Bereitstellung | eigene `APP_ACCESS_KEYS_JSON` und `CONTRACT_WRITE_TOKEN` | echte Daten |
+| Test (aktuell) | Kopierte TEST-Tabelle mit synthetischen Daten | Separates Testprojekt und geschütztes TEST-Deployment | eigene Testschlüssel | Entwicklung und Abnahme |
 | Lokal | per `config.local.js` ausgewählte API | Test oder Produktion, bewusst festgelegt | Eingabe im Browser, nicht im Repository | lokale Prüfung |
 
 Test und Produktion müssen immer unterschiedliche Sheet-IDs, GAS-Projekte,
 Deployment-URLs und Script Properties verwenden. Eine gleiche URL ist kein
-zulässiger Testaufbau. Der aktuelle öffentliche TEST-Endpunkt ist nur deshalb
-vertretbar, weil die Datei ausschließlich synthetische Testdaten enthält. Für
-personenbezogene Testdaten muss auch die Testumgebung mit einem eigenen
-`APP_ACCESS_KEY` geschützt werden.
+zulässiger Testaufbau. Auch die synthetische TEST-Umgebung wird mit eigenen
+Schlüsseln geschützt; ein öffentliches Deployment darf nur für einen isolierten
+Smoke-Test ohne echte Daten und nicht als reguläre Arbeitsumgebung bestehen.
 
 ## Testdatenbasis aufbauen
 
@@ -38,9 +37,8 @@ Empfohlener Ablauf:
    separates Apps-Script-Testprojekt übernehmen. Nicht davon ausgehen, dass eine
    Google-Sheets-Kopie das gebundene Script korrekt mitkopiert.
 4. Im geschützten Testprojekt eigene Script Properties setzen:
-   `APP_ACCESS_KEY` und gegebenenfalls `CONTRACT_WRITE_TOKEN`. Niemals
-   Produktionsschlüssel wiederverwenden. Für den aktuellen synthetischen TEST
-   ist der Schlüssel bewusst nicht gesetzt.
+   `APP_ACCESS_KEYS_JSON` und gegebenenfalls `CONTRACT_WRITE_TOKEN`. Niemals
+   Produktionsschlüssel wiederverwenden.
 5. Als Web-App-Testbereitstellung veröffentlichen und die URL ausschließlich in der
    lokalen Konfiguration verwenden.
 6. Mit dem vorhandenen Testbereich (`TEST_WE_01`, `TEST_WE_02`, `TEST_Allgemein`)

@@ -1,7 +1,7 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.4
- * Stand: 2026-10-30
+ * Version: 4.8.5
+ * Stand: 2026-11-10
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
  * Änderungen seit v4.1:
@@ -90,8 +90,13 @@
  *   ausdrücklich als zusätzliche Ablesung
  * - Überschreiben protokolliert zuerst und ändert danach (keine Änderung ohne Protokoll)
  * - Neue Leseansicht 'zaehlerstaende' für gezieltes Nachladen der Zählerstände
+ *
+ * Änderungen seit v4.8.4:
+ * - Zugriffsschutz ist fail-closed; ohne Schlüsselkonfiguration werden keine Daten gelesen oder geschrieben
+ * - Mehrere Geräteschlüssel mit den Rollen 'admin' und 'erfassen' werden über Script Properties unterstützt
+ * - Vertrags- und Indexänderungen sind auf die Rolle 'admin' beschränkt
  */
-const BACKEND_VERSION = "4.8.4";
+const BACKEND_VERSION = "4.8.5";
 
 function sendJSON(obj) {
   return ContentService
@@ -100,12 +105,43 @@ function sendJSON(obj) {
 }
 
 const ACCESS_KEY_PROPERTY = 'APP_ACCESS_KEY';
+const ACCESS_KEYS_PROPERTY = 'APP_ACCESS_KEYS_JSON';
 const ZAEHLER_WRITE_TYPES = ['ZAEHLERSTAND_NEU', 'ZAHLUNG'];
 const BACKEND_ACTION_TYPES = ['VERBRAUCH_VIEWS_AKTUALISIEREN'];
 
-/** True, sobald die Script Property APP_ACCESS_KEY gesetzt ist. Ohne sie gilt der Übergangsmodus. */
-function isAccessProtected() {
-  return Boolean(PropertiesService.getScriptProperties().getProperty(ACCESS_KEY_PROPERTY));
+/**
+ * Liest die erlaubten Geräte aus Script Properties.
+ * APP_ACCESS_KEYS_JSON erwartet ein Array mit {id, label, key, role, aktiv}.
+ * APP_ACCESS_KEY bleibt vorübergehend als einzelner Admin-Schlüssel kompatibel.
+ */
+function getConfiguredAccessClients() {
+  const properties = PropertiesService.getScriptProperties();
+  const encoded = properties.getProperty(ACCESS_KEYS_PROPERTY);
+
+  if (encoded && String(encoded).trim()) {
+    try {
+      const parsed = JSON.parse(encoded);
+      const entries = Array.isArray(parsed)
+        ? parsed
+        : Object.keys(parsed || {}).map(id => Object.assign({ id: id }, parsed[id]));
+
+      return entries.map((entry, index) => ({
+        id: String(entry.id || entry.key_id || `geraet-${index + 1}`),
+        label: String(entry.label || entry.name || entry.id || `Gerät ${index + 1}`),
+        key: String(entry.key || ''),
+        role: String(entry.role || '').toLowerCase(),
+        aktiv: entry.aktiv !== false && String(entry.aktiv).toLowerCase() !== 'false'
+      })).filter(entry => entry.key && ['admin', 'erfassen'].indexOf(entry.role) !== -1);
+    } catch (err) {
+      // Eine unlesbare Konfiguration darf niemals versehentlich den Zugriff öffnen.
+      return [];
+    }
+  }
+
+  const legacyKey = properties.getProperty(ACCESS_KEY_PROPERTY);
+  return legacyKey
+    ? [{ id: 'legacy-admin', label: 'Legacy Admin', key: String(legacyKey), role: 'admin', aktiv: true }]
+    : [];
 }
 
 /** Vergleich ohne frühen Abbruch, damit die Antwortzeit nichts über den Schlüssel verrät. */
@@ -120,11 +156,28 @@ function constantTimeEquals(a, b) {
   return diff === 0;
 }
 
-/** Ohne konfigurierten Schlüssel (Übergangsmodus) ist alles erlaubt, sonst muss der Schlüssel stimmen. */
+/** Gibt das berechtigte Gerät zurück oder null. Fehlende Konfiguration bleibt geschlossen. */
+function getAccessPrincipal(providedKey) {
+  const clients = getConfiguredAccessClients();
+  for (let i = 0; i < clients.length; i++) {
+    const client = clients[i];
+    if (client.aktiv && constantTimeEquals(providedKey, client.key)) {
+      return { id: client.id, label: client.label, role: client.role };
+    }
+  }
+  return null;
+}
+
 function hasValidAccessKey(providedKey) {
-  const configured = PropertiesService.getScriptProperties().getProperty(ACCESS_KEY_PROPERTY);
-  if (!configured) return true;
-  return constantTimeEquals(providedKey, configured);
+  return Boolean(getAccessPrincipal(providedKey));
+}
+
+function canWriteType(principal, type) {
+  if (!principal) return false;
+  if (type === 'VERTRAG_AKTUALISIEREN' || type === 'INDEX_ANWENDEN') {
+    return principal.role === 'admin';
+  }
+  return principal.role === 'admin' || principal.role === 'erfassen';
 }
 
 function sendUnauthorized() {
@@ -135,13 +188,14 @@ function sendUnauthorized() {
   });
 }
 
-/** Lesezugriff auf Views; wird von GET (Übergangsmodus) und POST (typ LESEN) genutzt. */
-function readView(ss, view) {
+/** Lesezugriff auf Views; produktiv nur per POST mit validiertem Geräteschlüssel. */
+function readView(ss, view, principal) {
   if (view === 'vertrag_capabilities') {
     return {
       backend_version: BACKEND_VERSION,
-      contract_writes: true,
-      access_protected: isAccessProtected()
+      contract_writes: Boolean(principal && principal.role === 'admin'),
+      access_protected: true,
+      access_role: principal ? principal.role : ''
     };
   }
 
@@ -439,13 +493,22 @@ function doPost(e) {
   }
 
   // Zugriffsprüfung vor dem Lock, damit unberechtigte Aufrufe nichts blockieren.
-  if (!payload || !hasValidAccessKey(payload.key)) {
+  const principal = payload ? getAccessPrincipal(payload.key) : null;
+  if (!payload || !principal) {
     return sendUnauthorized();
+  }
+
+  if (!canWriteType(principal, payload.typ)) {
+    return sendJSON({
+      status: 'error',
+      code: 'FORBIDDEN',
+      message: 'Dieser Vorgang ist für das angemeldete Gerät nicht freigegeben.'
+    });
   }
 
   if (payload.typ === 'LESEN') {
     try {
-      return sendJSON(readView(SpreadsheetApp.getActiveSpreadsheet(), payload.view));
+      return sendJSON(readView(SpreadsheetApp.getActiveSpreadsheet(), payload.view, principal));
     } catch (err) {
       return sendJSON({
         status: "error",
@@ -2703,18 +2766,8 @@ function updateVerbrauchViews() {
 }
 
 function doGet(e) {
-  // Mit gesetztem Schlüssel gibt es per GET keine Daten mehr (Lesen läuft per POST, typ LESEN).
-  if (isAccessProtected()) {
-    return sendJSON({
-      status: 'error',
-      code: 'UNAUTHORIZED',
-      message: 'Lesezugriff nur per POST mit Zugangsschlüssel.'
-    });
-  }
-
-  // Übergangsmodus (kein Schlüssel gesetzt): Verhalten wie 4.7.0.
-  const param = e ? e.parameter : {};
-  return sendJSON(readView(SpreadsheetApp.getActiveSpreadsheet(), param.view));
+  // GET kennt keinen sicheren Schlüsselkanal und liefert deshalb niemals Daten.
+  return sendUnauthorized();
 }
 
 function getSheetData(sheet) {

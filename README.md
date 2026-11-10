@@ -126,8 +126,9 @@ Siehe `docs/contracts-index-plan.md`.
 
 Offline-Queue und Korrekturen (Backend ab 4.8.4): Nicht gespeicherte Werte werden oben angezeigt und lassen sich erneut senden; Überschreiben nur mit Grund. Siehe `docs/offline-sync-und-korrekturen.md`.
 
-Zugriffsschutz (Backend ab 4.8.0): Lesen und Schreiben erfordern einen Zugangsschlüssel
-(Script Property `APP_ACCESS_KEY`). Einspielen, Rollback und Schlüsselwechsel stehen in
+Zugriffsschutz (Backend ab 4.8.0): Lesen und Schreiben erfordern einen Zugangsschlüssel.
+Backend 4.8.5 ergänzt fail-closed Zugriff und getrennte Geräteschlüssel für die Rollen
+`admin` und `erfassen`. Einspielen, Rollback und Schlüsselwechsel stehen in
 `docs/access-control.md`.
 
 Betrieb, getrennte Test-/Produktionsdaten, Backup, Restore und lokale API-Auswahl sind in

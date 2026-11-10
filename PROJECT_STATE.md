@@ -1,6 +1,6 @@
 # PROJECT_STATE - Hausverwaltung
 
-## Stand: 2026-11-09
+## Stand: 2026-11-10
 
 `main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz 4.8.0 ist produktiv aktiviert.
 
@@ -27,6 +27,12 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 - P1.1 bearbeitet jetzt Zugriff, Backup und Release-Betrieb. Der Backup-/Restore-Test
   der Produktivdatei ist als manueller Betriebsschritt in `docs/backup-restore.md`
   vorbereitet und wurde nicht automatisch ausgeführt.
+- Auf dem Branch `codex/p1-1-security-backup-release-20261109` ist Backend 4.8.5 lokal
+  vorbereitet: Zugriff ist fail-closed, `GET` liefert nie Daten und `APP_ACCESS_KEYS_JSON`
+  unterstützt die Rollen `admin` und `erfassen`. GAS-Bereitstellung und Script Properties
+  sind noch nicht aktualisiert; 4.8.4 bleibt bis zur manuellen Bereitstellung produktiv.
+- Für den zweiten Nutzer ist `erfassen` vorgesehen: Zählerstände und Zahlungen, aber keine
+  Vertrags- oder Indexänderungen. Eine Mieteingangsmaske folgt als eigenes Paket P6.
 
 ### Verbrauchsstatistik: zentrale Intervallklassifikation 2026-11-06
 
