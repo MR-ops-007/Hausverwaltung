@@ -30,7 +30,7 @@ immer eine neue, nicht produktive Zieldatei verwendet.
 3. Tabellenköpfe und Zeilenzahlen gegen das Backup vergleichen.
 4. Das Apps Script nur an das Restore-Ziel binden beziehungsweise ein separates
    Restore-Projekt verwenden. Keine produktiven Script Properties übernehmen.
-5. Mit einer lokalen `config.local.js` gegen das Restore-Ziel lesen. Schreibtests
+5. Mit einer lokalen `runtime-config.js` gegen das Restore-Ziel lesen. Schreibtests
    sind nur im ausdrücklich dafür angelegten TEST-Bereich erlaubt.
 6. `npm test`, einen geschützten Lesetest und die Verbrauchsview-Prüfung ausführen.
 7. Das Ergebnis als `verworfen`, `als Test akzeptiert` oder `produktiv freigegeben`

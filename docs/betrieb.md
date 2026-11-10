@@ -13,7 +13,7 @@ gespeichert.
 | --- | --- | --- | --- | --- |
 | Produktion | Produktives Google Sheet | Produktive Bereitstellung | eigene `APP_ACCESS_KEYS_JSON` und `CONTRACT_WRITE_TOKEN` | echte Daten |
 | Test (aktuell) | Kopierte TEST-Tabelle mit synthetischen Daten | Separates Testprojekt und geschütztes TEST-Deployment | eigene Testschlüssel | Entwicklung und Abnahme |
-| Lokal | per `config.local.js` ausgewählte API | Test oder Produktion, bewusst festgelegt | Eingabe im Browser, nicht im Repository | lokale Prüfung |
+| Lokal | per `runtime-config.js` ausgewählte API | Test oder Produktion, bewusst festgelegt | Eingabe im Browser, nicht im Repository | lokale Prüfung |
 
 Test und Produktion müssen immer unterschiedliche Sheet-IDs, GAS-Projekte,
 Deployment-URLs und Script Properties verwenden. Eine gleiche URL ist kein
@@ -25,8 +25,8 @@ Schlüsseln geschützt und ist kein ungeschützter Ersatz für eine Testumgebung
 Backend 4.8.5 wurde am 2026-11-10 als neue Version der bestehenden Bereitstellungen
 veröffentlicht. PROD steht auf Deployment-Version 41, TEST auf Deployment-Version 5;
 die URLs blieben unverändert. Ein anonymer GET-Aufruf gegen beide Endpunkte liefert
-`UNAUTHORIZED`. Die lokale `clasp`-Zielauswahl wird nach einem PROD-Deploy wieder auf
-das TEST-Projekt zurückgestellt.
+`UNAUTHORIZED`. Die lokale `clasp`-Zielauswahl wird für jeden Befehl aus dem gewählten
+Profil gesetzt; ein PROD-Push oder -Deploy verlangt eine ausdrückliche Bestätigung.
 
 ## Testdatenbasis aufbauen
 
@@ -62,13 +62,14 @@ verbindliche Ablauf für Backup und Restore steht in `docs/backup-restore.md`.
 Backend angesprochen. Für eine Testumgebung:
 
 ```bash
-cp config.local.example.js config.local.js
+cp config.local.example.js runtime-config.js
 ```
 
-Danach in `config.local.js` nur die gewünschte Deployment-URL eintragen. Die Datei
-ist ignoriert und darf nicht committed werden. Die aktuelle Umgebung steht
+Danach in `runtime-config.js` die beiden Profile für TEST und PRODUKTION eintragen.
+Die Datei ist ignoriert und darf nicht committed werden. Die aktuelle Umgebung steht
 anschließend in `CONFIG.ENVIRONMENT` als `test` beziehungsweise `production` zur
-Verfügung.
+Verfügung und wird in der roten TEST- beziehungsweise grünen PROD-Leiste angezeigt.
+Der Umschalter fragt vor dem Wechsel auf Produktion nach und lädt die App danach neu.
 
 Vor jedem Testlauf prüfen:
 
@@ -111,15 +112,16 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
 
 1. `main` aktualisieren und Feature-Branch anlegen.
 2. `npm ci`, `npm test` und `git diff --check` ausführen.
-3. Mit `config.local.js` ausschließlich gegen die vorgesehene Umgebung testen.
+3. Mit `runtime-config.js` ausschließlich gegen die vorgesehene Umgebung testen.
 4. Desktop und Mobil visuell prüfen.
 5. PR und CI abwarten, danach mergen.
 
 ### Apps Script
 
-1. `npm run clasp:pull` ausführen und den Pull-Diff prüfen.
+1. `npm run clasp:test:pull` oder bewusst `npm run clasp:prod:status` ausführen und den Pull-Diff prüfen.
 2. Backend-Version und Changelog-Status abgleichen.
-3. `npm run clasp:push` nur in das ausdrücklich ausgewählte Script-Projekt ausführen.
+3. `npm run clasp:test:push` nur für TEST ausführen; PROD nutzt `npm run clasp:prod:push`
+   und verlangt die zusätzliche Bestätigung.
 4. Neue Version der bestehenden Bereitstellung veröffentlichen; bei einer neuen
    Bereitstellung die API-URL aktualisieren.
 5. Mit dem passenden Umgebungsschlüssel einen geschützten Lese- und Schreibtest
@@ -131,7 +133,7 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
 
 - Keine Schlüssel in `config.js`, `config.local.example.js`, GitHub Actions oder Logs.
 - Keine Backend-URL in `config.js`; lokale URLs gehören ausschließlich in die
-  ignorierte `config.local.js`.
+  ignorierte `runtime-config.js`.
 - Test- und Produktionsschlüssel niemals teilen oder wiederverwenden.
 - Die produktive und die synthetische TEST-Web-App-URL sind ohne gültigen Schlüssel
   nicht ausreichend, um Daten zu lesen; die Schutzwirkung wird mit einem echten

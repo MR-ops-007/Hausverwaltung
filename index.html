@@ -14,6 +14,16 @@
             <h1 style="margin: 0;">Hausverwaltung</h1>
             <div id="sync-status" style="font-size: 0.85em; margin-top: 5px; color: #666;">Prüfe Verbindung...</div>
             <div id="sync-queue-status" class="sync-queue-status" role="status" aria-live="polite" style="display:none;"></div>
+            <div id="environment-banner" class="environment-banner" role="status" hidden>
+                <div>
+                    <strong id="environment-banner-label"></strong>
+                    <span id="environment-banner-meta"></span>
+                </div>
+                <label class="environment-switch-label" for="environment-switch">
+                    Umgebung
+                    <select id="environment-switch" aria-label="Laufzeitumgebung wechseln" hidden></select>
+                </label>
+            </div>
         </header>
 
         <nav style="display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap;">
@@ -85,8 +95,9 @@
     </div>
     
     <!-- Optional: lokale Test-/Produktionsauswahl, niemals committen. -->
-    <script src="config.local.js?v=20261109-runtime-config" onerror="this.remove()"></script>
+    <script src="runtime-config.js?v=20261110-runtime-config-v1" onerror="this.remove()"></script>
     <script src="config.js?v=20260707-consumption-dashboard-controls-v1"></script>
+    <script src="environment-service.js?v=20261110-environment-switch-v1"></script>
     <script src="data-service.js?v=20261030-offline-queue-v2"></script>
     <script src="access-ui.js?v=20261028-access-v1"></script>
     <script src="cloud-service.js?v=20261030-offline-queue-v3"></script>
@@ -112,13 +123,14 @@
     <script>
     async function initApp() {
         const statusEl = document.getElementById('sync-status');
+        environmentService.render();
         // Offene Offline-Einträge sofort anzeigen, auch wenn das Laden der Daten scheitert.
         uiService.renderSyncQueueStatus();
         console.log("System: Starte Initialisierung (Stufe 1)...");
 
         if (!CONFIG.API_CONFIGURED) {
             if (statusEl) {
-                statusEl.textContent = "⚠️ Keine Umgebung konfiguriert – bitte config.local.js anlegen";
+                statusEl.textContent = "⚠️ Keine Umgebung konfiguriert – bitte runtime-config.js anlegen";
                 statusEl.style.color = "darkorange";
             }
             return;
@@ -150,6 +162,9 @@
 
             // Hinweis, solange das Backend nicht durch einen Zugangsschlüssel geschützt ist (Übergangsmodus)
             cloudService.loadCapabilities().then(capabilities => {
+                if (capabilities && capabilities.backend_version) {
+                    environmentService.setBackendVersion(capabilities.backend_version);
+                }
                 if (capabilities && capabilities.access_protected === false && statusEl) {
                     statusEl.textContent += " ⚠️ Backend ohne Zugangsschlüssel";
                     statusEl.style.color = "darkorange";

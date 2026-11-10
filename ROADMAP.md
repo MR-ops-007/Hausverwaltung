@@ -140,7 +140,7 @@ Verbrauchsberechnung, keine Migration von Mietern oder Zählerständen.
 - produktive GAS-Version und Bereitstellung sind eindeutig nachvollziehbar,
 - `npm test`, CI und `git diff --check` bleiben grün,
 - alle verbleibenden Risiken sind in `PROJECT_STATE.md` festgehalten.
-- Test- und Produktionsumgebung lassen sich lokal über die ignorierte `config.local.js`
+- Test- und Produktionsumgebung lassen sich lokal über die ignorierte `runtime-config.js`
   eindeutig auswählen; die Vorlage liegt in `config.local.example.js`.
 
 **Ergebnis:** Backend 4.8.5 ist in PROD und TEST als neue Version der bestehenden
@@ -156,7 +156,7 @@ Betriebsschritt in P1.3 und wurde nicht automatisch ausgeführt.
 #### P1.2a Umgebungsprofile und sichtbarer TEST/PROD-Switch
 
 Dieses Teilpaket wird vor der Geräte-Einrichtung umgesetzt. Es beseitigt die bisherige
-manuelle Umschaltung über eine einzelne `config.local.js`-Datei.
+manuelle Umschaltung über eine einzelne `runtime-config.js`-Datei.
 
 - Profile für TEST und PROD mit eindeutigem Apps-Script-Projekt, Deployment und API-Ziel.
 - Sichtbare Leiste in der UI, zum Beispiel `TEST · Entenhausen` mit roter Kennzeichnung

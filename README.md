@@ -32,7 +32,7 @@ Das Google Apps Script Backend wird im Repository unter `apps-script/Code.gs` ve
 | :--- | :--- |
 | `index.html` | Einstiegspunkt der App |
 | `config.js` | Nicht-sensitive Objektkonfiguration und Laufzeitprüfung |
-| `config.local.example.js` | Vorlage für eine lokale Test-/Produktionsauswahl; `config.local.js` wird nicht committed |
+| `config.local.example.js` | Vorlage für eine lokale Test-/Produktionsauswahl; die lokale `runtime-config.js` wird nicht committed |
 | `cloud-service.js` | Kommunikation mit dem Google Apps Script Backend |
 | `data-service.js` | Lokaler Datenzustand und Datenzugriff im Frontend |
 | `ui-service.js` | Rendering und UI-Logik |
@@ -68,17 +68,34 @@ Die Dateien `.clasp.json` und `.clasprc.json` enthalten lokale Projekt- bzw. OAu
 ### Laufzeitumgebung
 
 Die Apps-Script-URL steht absichtlich nicht in `config.js` und wird nicht im
-Repository versioniert. Für einen lokalen Lauf muss die gewünschte Umgebung
-explizit ausgewählt werden:
+Repository versioniert. Für einen lokalen Lauf werden die Profile in der
+ignorierten `runtime-config.js` hinterlegt:
 
 ```bash
-cp config.local.example.js config.local.js
-# Danach environment und apiUrl in config.local.js setzen.
+cp config.local.example.js runtime-config.js
+# Danach die Profile und apiUrl in runtime-config.js setzen.
 ```
 
-`config.local.js` ist ignoriert und darf weder Schlüssel noch produktive URLs in
+`runtime-config.js` ist ignoriert und darf weder Schlüssel noch produktive URLs in
 einen Commit bringen. Ohne diese Datei zeigt die App bewusst einen
 Konfigurationshinweis statt stillschweigend ein Backend anzusprechen.
+
+Die aktive Umgebung wird in der App sichtbar angezeigt. Der Umschalter speichert sie
+unter `hv_environment`, bestätigt den Wechsel zu PRODUKTION und lädt die App neu.
+Zugangsschlüssel werden je Umgebung getrennt unter `hv_access_key:test` und
+`hv_access_key:production` gespeichert.
+
+Auch `clasp` nutzt die Profile und setzt vor jedem Aufruf das passende Projekt:
+
+```bash
+npm run clasp:test:status
+npm run clasp:test:push
+npm run clasp:test:deploy
+npm run clasp:prod:status
+# PROD-Schreibzugriffe sind absichtlich ausdrücklich bestätigt:
+npm run clasp:prod:push
+npm run clasp:prod:deploy
+```
 
 Für Verbrauchs-Snapshots wird die URL ebenfalls explizit übergeben:
 

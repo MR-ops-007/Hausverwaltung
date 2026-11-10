@@ -3,15 +3,29 @@
  * Versionen und Deploy-Status: siehe CHANGELOG.md
  */
 
-const runtimeConfig = typeof globalThis !== 'undefined' && globalThis.HV_RUNTIME_CONFIG
-    ? globalThis.HV_RUNTIME_CONFIG
+const configRuntimeHost = typeof window !== 'undefined'
+    ? window
+    : (typeof globalThis !== 'undefined' ? globalThis : {});
+const runtimeConfig = configRuntimeHost.HV_RUNTIME_CONFIG
+    ? configRuntimeHost.HV_RUNTIME_CONFIG
     : {};
-const runtimeApiUrl = typeof runtimeConfig.apiUrl === 'string'
-    ? runtimeConfig.apiUrl.trim()
+const normalizeEnvironment = value => {
+    const normalized = String(value || 'production').trim().toLowerCase();
+    return normalized === 'test' ? 'test' : 'production';
+};
+const runtimeEnvironment = normalizeEnvironment(runtimeConfig.environment);
+const runtimeProfiles = runtimeConfig.profiles && typeof runtimeConfig.profiles === 'object'
+    ? runtimeConfig.profiles
+    : {};
+const selectedProfile = runtimeProfiles[runtimeEnvironment] || runtimeConfig;
+const runtimeApiUrl = typeof selectedProfile.apiUrl === 'string'
+    ? selectedProfile.apiUrl.trim()
     : '';
 
 const CONFIG = {
-    ENVIRONMENT: runtimeConfig.environment || 'production',
+    ENVIRONMENT: runtimeEnvironment,
+    ENVIRONMENT_LABEL: selectedProfile.label || (runtimeEnvironment === 'test' ? 'TEST' : 'PRODUKTION'),
+    ENVIRONMENT_PROFILES: runtimeProfiles,
     // Die Backend-URL kommt ausschließlich aus der lokalen Laufzeitkonfiguration.
     // Dadurch landet weder die produktive noch die Test-URL im öffentlichen Quellcode.
     API_URL: runtimeApiUrl,

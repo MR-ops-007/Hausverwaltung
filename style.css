@@ -5,6 +5,54 @@ body {
     -webkit-tap-highlight-color: transparent;
 }
 
+.environment-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-left: 6px solid #475569;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #1e293b;
+}
+.environment-banner-test {
+    border-color: #fecaca;
+    border-left-color: #dc2626;
+    background: #fff1f2;
+    color: #991b1b;
+}
+.environment-banner-production {
+    border-color: #bbf7d0;
+    border-left-color: #15803d;
+    background: #f0fdf4;
+    color: #166534;
+}
+.environment-banner strong,
+.environment-banner span { display: block; }
+.environment-banner span { margin-top: 2px; font-size: 0.82rem; font-weight: 600; }
+.environment-switch-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.environment-switch-label select {
+    min-width: 170px;
+    font-size: 0.95rem !important;
+    padding: 6px 8px !important;
+    border-radius: 6px !important;
+}
+@media (max-width: 560px) {
+    .environment-banner { align-items: stretch; flex-direction: column; }
+    .environment-switch-label { justify-content: space-between; }
+    .environment-switch-label select { min-width: 0; flex: 1; }
+}
+
 .contract-fields {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
