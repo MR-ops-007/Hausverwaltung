@@ -28,6 +28,8 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   erforderlich.
 - Der Backup-/Restore-Test der Produktivdatei bleibt als eigener manueller Betriebsschritt
   in `docs/backup-restore.md` und ist in P1.3 eingeordnet; er wurde nicht automatisch ausgeführt.
+- P1.2b ist begonnen: Manifest, iOS-Home-Screen-Metadaten und App-Icons sind vorhanden.
+  Die Geräte-Einrichtung mit Geräteschlüsseln und die mobile Abnahme folgen als eigener Schritt.
 - P1.1 ist mit PR #32 abgeschlossen: Zugriff ist fail-closed, `GET` liefert nie Daten und
   `APP_ACCESS_KEYS_JSON` unterstützt die Rollen `admin` und `erfassen`. Die produktiven und
   synthetischen Bereitstellungen verwenden getrennte Script Properties.

@@ -33,6 +33,8 @@ Das Google Apps Script Backend wird im Repository unter `apps-script/Code.gs` ve
 | `index.html` | Einstiegspunkt der App |
 | `config.js` | Nicht-sensitive Objektkonfiguration und Laufzeitprüfung |
 | `config.local.example.js` | Vorlage für eine lokale Test-/Produktionsauswahl; die lokale `runtime-config.js` wird nicht committed |
+| `manifest.webmanifest` | Metadaten für eigenständigen Start und Home-Screen-Installation |
+| `assets/app-icon-*.png` | App-Icons für Manifest und iOS-Home-Screen |
 | `cloud-service.js` | Kommunikation mit dem Google Apps Script Backend |
 | `data-service.js` | Lokaler Datenzustand und Datenzugriff im Frontend |
 | `ui-service.js` | Rendering und UI-Logik |
@@ -150,3 +152,7 @@ Backend 4.8.5 ergänzt fail-closed Zugriff und getrennte Geräteschlüssel für 
 
 Betrieb, getrennte Test-/Produktionsdaten, Backup, Restore und lokale API-Auswahl sind in
 `docs/betrieb.md` dokumentiert.
+
+Die Home-Screen-Grundlage (`manifest.webmanifest`, iOS-Metadaten und App-Icons) ist
+vorbereitet. Die Installation auf iPhone/iPad setzt einen HTTPS-Aufruf voraus; ein
+Service Worker ist bewusst noch kein Bestandteil des Prototyps.

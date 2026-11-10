@@ -174,12 +174,15 @@ Verwechslung von TEST- und PROD-Ziel.
 
 #### P1.2b Geräte-Einrichtung und produktiver Rollout
 
+**Status:** Home-Screen-Grundlage umgesetzt; Geräte-Einrichtung und mobile Abnahme folgen.
+
 - Einrichtungscode-Dialog für Backend-URL, Geräteschlüssel und Gerätebezeichnung ergänzen.
 - Werte lokal speichern; keine Schlüssel in Repository, Pages-Build oder Logs.
 - Admin- und Erfassungs-Gerät mit dem echten Backend testen.
 - Auf iPhone und iPad den Workflow **„Zum Home-Bildschirm hinzufügen“** unterstützen.
-- Web-App-Manifest und App-Icon ergänzen; der Start über das Home-Bildschirm-Icon öffnet
-  die Anwendung als eigenständige Web-App mit sichtbarer TEST-/PROD-Kennzeichnung.
+- Web-App-Manifest, iOS-Metadaten und App-Icons ergänzen; der Start über das
+  Home-Bildschirm-Icon öffnet die Anwendung als eigenständige Web-App mit sichtbarer
+  TEST-/PROD-Kennzeichnung.
 - Erst danach neue produktive Bereitstellung veröffentlichen und alte URL archivieren.
 
 **Nicht-Ziele:** kein Google-Login, kein vollständiges Benutzerkonto, kein Service Worker.

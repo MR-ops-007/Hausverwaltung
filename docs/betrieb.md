@@ -71,6 +71,12 @@ anschließend in `CONFIG.ENVIRONMENT` als `test` beziehungsweise `production` zu
 Verfügung und wird in der roten TEST- beziehungsweise grünen PROD-Leiste angezeigt.
 Der Umschalter fragt vor dem Wechsel auf Produktion nach und lädt die App danach neu.
 
+Für **„Zum Home-Bildschirm hinzufügen“** muss die App über HTTPS geöffnet werden.
+Das Manifest `manifest.webmanifest`, die iOS-Metadaten und die Icons werden bereits
+ausgeliefert. Die sichtbare TEST-/PROD-Kennzeichnung bleibt auch beim eigenständigen
+Start erhalten. Ein Service Worker ist derzeit bewusst nicht aktiviert; Offline-Betrieb
+nach dem vollständigen Schließen der App ist daher kein Abnahmekriterium.
+
 Vor jedem Testlauf prüfen:
 
 - Browser-URL und Deployment-URL gehören zur selben Umgebung.
