@@ -1,6 +1,6 @@
 # Betrieb, Testumgebungen und Wiederherstellung
 
-Stand: 2026-11-09
+Stand: 2026-11-10
 
 Dieses Dokument beschreibt den sicheren Betrieb der Hausverwaltung mit getrennten
 Test- und Produktivdaten. Die verbindliche Aufgabenpriorisierung steht in
@@ -11,13 +11,15 @@ gespeichert.
 
 | Umgebung | Datenbasis | Apps-Script-Projekt | Schlüssel | Zweck |
 | --- | --- | --- | --- | --- |
-| Produktion | Produktives Google Sheet | Produktive Bereitstellung | eigene `APP_ACCESS_KEY` und `CONTRACT_WRITE_TOKEN` | echte Daten |
-| Test | Bereinigte Kopie oder Testvorlage | Separates Testprojekt und Deployment | eigene Testschlüssel | Entwicklung und Abnahme |
+| Produktion | Produktives Google Sheet | Produktive Bereitstellung | eigene `APP_ACCESS_KEYS_JSON` und `CONTRACT_WRITE_TOKEN` | echte Daten |
+| Test (aktuell) | Kopierte TEST-Tabelle mit synthetischen Daten | Separates Testprojekt und geschütztes TEST-Deployment | eigene Testschlüssel | Entwicklung und Abnahme |
 | Lokal | per `config.local.js` ausgewählte API | Test oder Produktion, bewusst festgelegt | Eingabe im Browser, nicht im Repository | lokale Prüfung |
 
 Test und Produktion müssen immer unterschiedliche Sheet-IDs, GAS-Projekte,
 Deployment-URLs und Script Properties verwenden. Eine gleiche URL ist kein
-zulässiger Testaufbau.
+zulässiger Testaufbau. Auch die synthetische TEST-Umgebung wird mit eigenen
+Schlüsseln geschützt; ein öffentliches Deployment darf nur für einen isolierten
+Smoke-Test ohne echte Daten und nicht als reguläre Arbeitsumgebung bestehen.
 
 ## Testdatenbasis aufbauen
 
@@ -34,9 +36,9 @@ Empfohlener Ablauf:
 3. `Code.gs`, `Contracts.gs`, `ContractService.js`, Manifest und Migrationen in ein
    separates Apps-Script-Testprojekt übernehmen. Nicht davon ausgehen, dass eine
    Google-Sheets-Kopie das gebundene Script korrekt mitkopiert.
-4. Im Testprojekt eigene Script Properties setzen:
-   `APP_ACCESS_KEY` und `CONTRACT_WRITE_TOKEN`. Niemals Produktionsschlüssel
-   wiederverwenden.
+4. Im geschützten Testprojekt eigene Script Properties setzen:
+   `APP_ACCESS_KEYS_JSON` und gegebenenfalls `CONTRACT_WRITE_TOKEN`. Niemals
+   Produktionsschlüssel wiederverwenden.
 5. Als Web-App-Testbereitstellung veröffentlichen und die URL ausschließlich in der
    lokalen Konfiguration verwenden.
 6. Mit dem vorhandenen Testbereich (`TEST_WE_01`, `TEST_WE_02`, `TEST_Allgemein`)
@@ -44,20 +46,22 @@ Empfohlener Ablauf:
 
 Die Testdatei wird in diesem Paket nicht automatisch kopiert. Das ist eine bewusste
 Sicherheitsgrenze: Eine externe Kopie mit realen personenbezogenen Daten darf nicht
-ohne ausdrückliche Auswahl von Quelle, Ziel und Zugriffskreis angelegt werden.
+ohne ausdrückliche Auswahl von Quelle, Ziel und Zugriffskreis angelegt werden. Der
+verbindliche Ablauf für Backup und Restore steht in `docs/backup-restore.md`.
 
 ## Lokale API-Auswahl
 
-`config.js` verwendet weiterhin die Produktiv-URL als sicheren Rückfall, damit ein
-bestehender lokaler Start nicht unvermittelt ausfällt. Für eine Testumgebung:
+`config.js` enthält keine Backend-URL mehr. Ohne lokale Konfiguration wird kein
+Backend angesprochen. Für eine Testumgebung:
 
 ```bash
 cp config.local.example.js config.local.js
 ```
 
-Danach in `config.local.js` nur die Test-Deployment-URL eintragen. Die Datei ist
-ignoriert und darf nicht committed werden. Die aktuelle Umgebung steht anschließend
-in `CONFIG.ENVIRONMENT` als `test` beziehungsweise `production` zur Verfügung.
+Danach in `config.local.js` nur die gewünschte Deployment-URL eintragen. Die Datei
+ist ignoriert und darf nicht committed werden. Die aktuelle Umgebung steht
+anschließend in `CONFIG.ENVIRONMENT` als `test` beziehungsweise `production` zur
+Verfügung.
 
 Vor jedem Testlauf prüfen:
 
@@ -66,6 +70,10 @@ Vor jedem Testlauf prüfen:
 - `TEST` wird verwendet; produktive Objekte werden nicht für Schreibtests verwendet.
 - Nach dem Test wird der Testschlüssel aus dem Browser entfernt oder der Testbrowser
   geschlossen.
+
+Die Regel gilt auch für CLI-Skripte: `tools/fetch-verbrauch-snapshot.mjs` nimmt die
+URL über `HV_API_URL` oder `--url` entgegen und liest sie nicht aus einer
+versionierten Datei.
 
 ## Backup und Restore
 
@@ -82,6 +90,9 @@ Ein Restore-Protokoll enthält mindestens:
 - geprüfte Tabellen und Zeilenzahlen,
 - Ergebnis von `npm test` und dem manuellen Test,
 - Entscheidung: verworfen, als Test akzeptiert oder produktiv freigegeben.
+
+Der vollständige Ablauf und eine ausfüllbare Protokollvorlage stehen in
+`docs/backup-restore.md`.
 
 Ein Backup ist keine Transaktion und ersetzt keine fachliche Prüfung. Das Apps Script
 arbeitet mit Google-Sheets-Operationen; ein Rollback ist deshalb ein kontrollierter
@@ -112,7 +123,11 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
 ## Sicherheitsgrenzen
 
 - Keine Schlüssel in `config.js`, `config.local.example.js`, GitHub Actions oder Logs.
+- Keine Backend-URL in `config.js`; lokale URLs gehören ausschließlich in die
+  ignorierte `config.local.js`.
 - Test- und Produktionsschlüssel niemals teilen oder wiederverwenden.
-- Die öffentliche Web-App-URL ist ohne gültigen Schlüssel nicht ausreichend, um Daten
+- Die produktive Web-App-URL ist ohne gültigen Schlüssel nicht ausreichend, um Daten
   zu lesen; die Schutzwirkung muss mit einem echten `UNAUTHORIZED`-Test bestätigt werden.
+  Der aktuelle öffentliche TEST-Endpunkt ist davon ausgenommen und darf nur
+  synthetische Daten enthalten.
 - Eine Testumgebung mit einer kopierten Produktivdatei ist nicht automatisch anonymisiert.

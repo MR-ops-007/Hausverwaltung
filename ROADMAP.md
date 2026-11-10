@@ -3,7 +3,7 @@
 Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklungspakete.
 `PROJECT_STATE.md` beschreibt den aktuellen Systemstand, `CHANGELOG.md` die Releases.
 
-**Stand: 2026-11-09**
+**Stand: 2026-11-10**
 
 ## Arbeitsregeln
 
@@ -20,7 +20,7 @@ Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklun
 
 ## Erledigt auf `main`
 
-Remote `origin/main` steht aktuell auf `7c79fca`.
+Remote `origin/main` steht aktuell auf `6205840`.
 
 | PR | Inhalt |
 | --- | --- |
@@ -33,6 +33,7 @@ Remote `origin/main` steht aktuell auf `7c79fca`.
 | #27 | Sichtbarer Fehlerzustand bei fehlender zentraler Verbrauchsberechnung; Cleanup von `intervalDetails` |
 | #28 | Heizölverbrauch mit Tankbilanz, Haupt-/Zusatztank und Literdarstellung |
 | #29 | Speicherrückmeldung mit Busy-Zustand, Hausmeister-Stempel und idempotenter Erfolgsmeldung |
+| #31 | Getrennte Laufzeitkonfiguration und dokumentierte TEST-Umgebung |
 
 Der lokale Branch `main` muss nach einem Merge weiterhin mit `origin/main` synchronisiert
 werden, bevor ein neues Feature darauf aufgebaut wird.
@@ -108,35 +109,83 @@ Ziel: reale Daten schützen und Wiederherstellung beherrschbar machen.
   kommt aus `.nvmrc`.
 - Abnahme in `docs/betrieb.md` mit Datum, Ergebnis und Rollback-Hinweis festhalten.
 
-### P1.1 Nächstes Paket: Zugriff, Backup und Release-Betrieb
+### P1.1 In Arbeit: Zugriff, Laufzeitkonfiguration und Release-Betrieb
+
+**Branch:** `codex/p1-1-security-backup-release-20261109`
 
 Dieses Paket ist der nächste mehrstündige Arbeitsblock vor weiteren fachlichen Features.
 
-**Ziel:** Produktive Datenzugriffe nachvollziehbar absichern und eine Wiederherstellung
-des Google-Sheets-Datenbestands praktisch nachweisen.
+**Ziel:** Die produktive Arbeitsweise mit zwei Geräten ermöglichen, ohne Geheimnisse im
+Repository zu hinterlegen oder bei fehlender Konfiguration versehentlich Daten zu öffnen.
 
 **Scope:**
 
 - öffentliche Repository-/Backend-Exposition prüfen und eine konkrete Zielentscheidung
   dokumentieren (Repository privat oder URL-/Konfigurationsbereinigung),
-- `APP_ACCESS_KEY`, alte Apps-Script-Bereitstellungen und URL-Rotation prüfen,
-- Backup-Ablage und Aufbewahrung für das Google Sheet definieren,
-- einen dokumentierten Restore-Test ohne Veränderung der Produktivdaten durchführen,
+- `APP_ACCESS_KEY` durch fail-closed Zugriff und `APP_ACCESS_KEYS_JSON` mit den Rollen
+  `admin` und `erfassen` ergänzen,
+- Vertrags- und Indexänderungen auf `admin` beschränken; Zählerstände und Zahlungen für
+  `erfassen` zulassen,
+- alte Apps-Script-Bereitstellungen und URL-Rotation prüfen,
 - `CHANGELOG.md` und eine neue oder bestehende Betriebsdokumentation mit Deployment-,
   Rollback- und Abnahmeschritten aktualisieren.
 
-**Nicht-Ziele:** keine Änderung der Verbrauchsberechnung, keine Änderung der GAS-Fachlogik,
-keine Migration von Mietern oder Zählerständen.
+**Nicht-Ziele:** keine Mieteingangsmaske, kein Kontoauszug-Import, keine Änderung der
+Verbrauchsberechnung, keine Migration von Mietern oder Zählerständen.
 
 **Abnahmekriterien:**
 
 - kein ungeschützter produktiver Lese-/Schreibweg bleibt unbeabsichtigt offen,
-- Backup und Restore sind mit Datum, Quelle, Ziel und Ergebnis dokumentiert,
+- ein Admin-Gerät kann Vertragsänderungen ausführen,
+- ein Erfassungs-Gerät kann Zählerstände und Zahlungen schreiben, aber keine Verträge ändern,
 - produktive GAS-Version und Bereitstellung sind eindeutig nachvollziehbar,
 - `npm test`, CI und `git diff --check` bleiben grün,
 - alle verbleibenden Risiken sind in `PROJECT_STATE.md` festgehalten.
 - Test- und Produktionsumgebung lassen sich lokal über die ignorierte `config.local.js`
   eindeutig auswählen; die Vorlage liegt in `config.local.example.js`.
+
+**Aktueller Zwischenstand:** PR #31 hat die isolierte TEST-Umgebung und die lokale
+Laufzeitkonfiguration nach `main` gebracht. Der aktuelle TEST-Endpunkt ist öffentlich,
+weil er ausschließlich synthetische Daten enthält. Ein Backup-/Restore-Test der
+Produktivdatei ist noch ein manueller Schritt und wird nicht automatisch ausgeführt.
+Der Branch ergänzt lokal Backend 4.8.5 mit fail-closed Zugriff und Geräteschlüsseln;
+die GAS-Bereitstellung und die Script Properties sind noch manuell zu aktualisieren.
+
+### P1.2 Geräte-Einrichtung und produktiver Rollout
+
+**Ziel:** Die App auf iPhone und iPad ohne wiederkehrende Anmeldung nutzbar machen.
+
+- Einrichtungscode-Dialog für Backend-URL, Geräteschlüssel und Gerätebezeichnung ergänzen.
+- Werte lokal speichern; keine Schlüssel in Repository, Pages-Build oder Logs.
+- Admin- und Erfassungs-Gerät mit dem echten Backend testen.
+- Web-App-Manifest und Home-Bildschirm-Verknüpfung ergänzen.
+- Erst danach neue produktive Bereitstellung veröffentlichen und alte URL archivieren.
+
+**Nicht-Ziele:** kein Google-Login, kein vollständiges Benutzerkonto, kein Service Worker.
+
+**Abnahme:** Beide Geräte laden Daten, der Vater kann Zählerstände und Zahlungen erfassen,
+Vertragsänderungen sind nur auf dem Admin-Gerät möglich; erneutes Öffnen benötigt keine
+Anmeldung.
+
+### P1.3 Backup und Restore
+
+**Ziel:** Wenige, brauchbare Sicherungen mit einem tatsächlich getesteten Restore.
+
+- Wöchentlicher Trigger, nur bei geändertem Datenbestand.
+- Höchstens drei automatische Kopien mit unterschiedlichem Alter; manuelle Release-/Migrations-
+  kopien bleiben außerhalb der Rotation.
+- Eigener, nur für den Product Owner freigegebener Drive-Ordner.
+- Restore zunächst in eine separate Testdatei, mit Datum, Quelle, Ziel und Ergebnis dokumentieren.
+
+**Nicht-Ziel:** tägliche Kopierflut oder automatische Wiederherstellung der Produktion.
+
+### P1.4 Housekeeping und Qualitätssicherung
+
+- Doku-Drift, Versionsstände und alte Branches bereinigen.
+- `constantTimeEquals` für Vertrags-Token verwenden und unescapte UI-Ausgaben entfernen.
+- `node --check` und `git diff --check` in CI ergänzen.
+- `Migration.gs.gs` und die Einmal-Migration nur anfassen, wenn der Deployment-Rollback geklärt ist.
+- Dependabot separat aktivieren, ohne den Produktionsrollout daran zu koppeln.
 
 ### P2 Datenqualität bei der Erfassung
 
@@ -184,6 +233,31 @@ Ziel ist Kostenkontrolle bei Pauschalen, ausdrücklich kein Nebenkostenabrechnun
 - Node-/Toolchain-Upgrade getrennt prüfen; unter Node 24 den stabilen Vitest-Pool und
   unter Windows `cross-env` für `TZ` dokumentieren.
 
+### P6 Mieteingänge manuell
+
+**Ziel:** Zahlungseingänge im Alltag schnell und nachvollziehbar erfassen. Das ist ein
+Erfassungsmodul, kein Mahnwesen und keine Nebenkostenabrechnung.
+
+- Matrix Mieter × Monat mit Sollbetrag aus dem aktiven Vertrag.
+- Schnelle Aktion `voll bezahlt`, vorbelegtes Eingangsdatum und Rückgängig-Funktion.
+- Status `bezahlt`, `teilbezahlt`, `offen` und `überfällig` mit konfigurierbaren Karenztagen.
+- Zahlungen append-only speichern; Korrekturen als Storno oder Gegenbuchung statt Überschreiben.
+- Offline-Queue und idempotente Zahlungs-ID wiederverwenden.
+
+**Voraussetzung:** P1.1/P1.2 Rollen und Geräteeinrichtung sind produktiv geprüft.
+
+### P7 Kontoauszug-Import
+
+**Ziel:** Manuelle Zahlungserfassung durch Vorschläge aus strukturierten Bankexporten reduzieren.
+
+- CSV, CAMT.053 oder MT940 bevorzugen; PDF/OCR ist kein Startpunkt.
+- Vorschläge über IBAN, Namen, Verwendungszweck, Vertragsnummer und Betrag erzeugen.
+- Unklare Buchungen bleiben offen und werden manuell bestätigt.
+- Keine direkte Bankanbindung und keine automatische externe KI-Verarbeitung in der ersten Version.
+
+**Voraussetzung:** P6 läuft im Alltag und das Zahlungsdatenmodell ist erprobt. Die konkrete
+Bank und das verfügbare Exportformat werden erst vor Beginn von P7 geprüft.
+
 ## Zurückgestellt
 
 - LOK-/TEST-Smoke-Test mit Live-Daten, bis für diese Objekte echte Verbrauchsdaten vorliegen.
@@ -198,10 +272,12 @@ Ziel ist Kostenkontrolle bei Pauschalen, ausdrücklich kein Nebenkostenabrechnun
 | --- | --- |
 | 2026-11-05 | Teilmonate aus Rohintervallen werden nicht als eigene UI-Kategorie gezeigt. |
 | 2026-11-05 | Zahlenformat bleibt deutsch: Tausenderpunkt und Dezimalkomma. |
-| 2026-11-05 | Lineare Umrechnung `l/cm` bleibt eine Arbeitshypothese für Kostenkontrolle. |
+| 2026-11-10 | Lineare Umrechnung `l/cm` bleibt eine bewusste interne Näherung für Kostenkontrolle, nicht geeicht. |
 | 2026-11-05 | LOK-Smoke-Test wird bis zu echten Live-Daten zurückgestellt. |
 | 2026-11-06 | Heizölfüllungen werden bei vorhandenen Literdaten über Tankbilanz rekonstruiert. |
 | 2026-11-06 | Security, Backup und Release-Nachvollziehbarkeit gehen vor neuen Auswertungsfeatures. |
+| 2026-11-10 | Zwei Geräteschlüssel: Admin für Verträge, Erfassen für Zählerstände und Zahlungen. |
+| 2026-11-10 | Mieteingänge zuerst manuell, strukturierter Kontoauszug-Import erst danach; OCR/PSD2 sind kein Startpunkt. |
 
 ## Definition of Done
 

@@ -1,6 +1,6 @@
-# Zugriffsschutz (Backend 4.8.0)
+# Zugriffsschutz (Backend 4.8.5)
 
-Stand: 2026-10-28
+Stand: 2026-11-10
 
 ## Ziel
 
@@ -9,34 +9,47 @@ Sie ist deshalb nicht geheim. Geschützt wird der Zugriff durch einen Zugangssch
 
 ## Überblick
 
-- Ein App-Schlüssel (Script Property `APP_ACCESS_KEY`) schützt **Lesen und Schreiben**
-  (Zählerstände, Zahlungen, Verträge). Der `CONTRACT_WRITE_TOKEN` bleibt für Vertragsänderungen
-  zusätzlich nötig.
+- Der Zugriffsschutz ist **fail-closed**: Ohne gültige Schlüsselkonfiguration liefert das
+  Backend keine Daten und führt keine Schreibaktion aus.
+- Mehrere Geräte werden über `APP_ACCESS_KEYS_JSON` in den Script Properties verwaltet. Ein Eintrag
+  enthält `id`, `label`, `key`, `role` und optional `aktiv`:
+
+  ```json
+  [{"id":"iphone-admin","label":"iPhone Admin","key":"...","role":"admin","aktiv":true},
+   {"id":"ipad-erfassen","label":"iPad Erfassen","key":"...","role":"erfassen","aktiv":true}]
+  ```
+
+- `erfassen` darf lesen sowie Zählerstände und Zahlungen schreiben.
+- `admin` darf zusätzlich Verträge und Indexänderungen schreiben.
+- `APP_ACCESS_KEY` bleibt als einzelner Admin-Fallback für die Übergangsphase kompatibel.
+  Sobald `APP_ACCESS_KEYS_JSON` gesetzt ist, wird diese Mehrgeräte-Konfiguration verwendet.
+- Der `CONTRACT_WRITE_TOKEN` bleibt für Vertragsänderungen zusätzlich nötig.
 - Lesen läuft per POST: `{ "typ": "LESEN", "view": "alle" | "dashboard" | "verbrauch" | "vertrag_capabilities", "key": "..." }`.
   `GET` liefert bei gesetztem Schlüssel keine Daten mehr.
-- Fehlender oder falscher Schlüssel: Antwort `{ "status": "error", "code": "UNAUTHORIZED" }`
+- Fehlender, falscher oder nicht konfigurierter Schlüssel: Antwort
+  `{ "status": "error", "code": "UNAUTHORIZED" }`
   (Apps Script kann keinen HTTP-401 senden, der Status ist 200).
 - Schreibtypen sind eine Erlaubnisliste: `ZAEHLERSTAND_NEU`, `ZAHLUNG`, `VERTRAG_AKTUALISIEREN`,
   `INDEX_ANWENDEN`. Dazu kommt die Backend-Aktion `VERBRAUCH_VIEWS_AKTUALISIEREN` (ab 4.8.1).
   Alles andere ergibt den Fehler „Unbekannter Typ.“ und schreibt nichts.
 - Die Prüfung läuft vor dem Skript-Lock. Der Vergleich erfolgt ohne frühen Abbruch.
-- **Übergangsmodus:** Ist `APP_ACCESS_KEY` nicht gesetzt (oder leer), verhält sich das Backend wie
-  4.7.0. Das Frontend zeigt dann „⚠️ Backend ohne Zugangsschlüssel“. Der Schutz beginnt erst mit dem
-  Setzen der Property und wirkt sofort, ein neues Deployment ist dafür nicht nötig.
+- `GET` liefert grundsätzlich keine Daten. Lesen läuft ausschließlich per POST mit gültigem
+  Geräteschlüssel.
+- Vertrags- und Indexänderungen werden anhand der Rolle mit `FORBIDDEN` abgewiesen, bevor ein Lock
+  angefordert oder geschrieben wird.
 
 ## Einspielen (Reihenfolge einhalten)
 
-1. **Backend 4.8.0 deployen:** `Code.gs` ersetzen, neue Version der bestehenden Bereitstellung
-   veröffentlichen (URL bleibt gleich). Die App läuft unverändert weiter (Übergangsmodus).
-2. **Frontend mergen** (PR nach `main`, Pages-Deployment abwarten, Seite hart neu laden). Die App liest
-   jetzt per POST und zeigt die Warnung zum fehlenden Schlüssel.
-3. **Schlüssel erzeugen** (`openssl rand -hex 24`), im Passwortmanager ablegen und als Script Property
-   `APP_ACCESS_KEY` setzen.
-4. **Prüfen:**
+1. **Backend 4.8.5 deployen:** `Code.gs` ersetzen und eine neue Version der bestehenden
+   Bereitstellung veröffentlichen. Vorher mindestens einen Admin- und einen Erfassungs-Schlüssel
+   erzeugen und als Script Property setzen.
+2. **Frontend mergen** (PR nach `main`, Pages-Deployment abwarten, Seite hart neu laden).
+3. **Prüfen:**
    - Die Web-App-URL im Browser öffnen: es erscheint `UNAUTHORIZED` statt Daten.
-   - App neu laden: der Dialog fragt den Schlüssel ab, danach erscheinen die Daten.
-   - Einen Zählerstand im Testbereich speichern.
-5. Auf weiteren Geräten den Schlüssel einmal eingeben.
+   - App mit Admin-Schlüssel laden: Daten und Vertragsansicht erscheinen.
+   - App mit Erfassungs-Schlüssel laden: Daten erscheinen, Vertragsänderungen werden abgewiesen.
+   - Einen Zählerstand und eine Zahlung im Testbereich speichern.
+4. Schlüssel je Gerät über die geplante Einrichtung oder einmalig im Browser hinterlegen.
 
 Das Frontend darf **nicht vor** dem Backend 4.8.0 live gehen: Ein älteres Backend würde die
 Leseanfrage als Schreibvorgang behandeln. Das Frontend sendet deshalb `data: []` (es entstehen keine
@@ -44,14 +57,18 @@ Zeilen) und meldet „Version 4.8.0 erforderlich“, liefert aber keine Daten.
 
 ## Rollback
 
-- Schlüssel entfernen (Script Property löschen): Übergangsmodus, sofort wirksam.
+- Bei einem Fehler die vorherige Apps-Script-Version bereitstellen. Die neue Mehrgeräte-
+  konfiguration bleibt dabei in den Script Properties erhalten und wird von der alten Version
+  ignoriert.
 - Backend zurück: In „Bereitstellungen verwalten“ die vorherige Version wählen. Das neue Frontend
   zeigt dann „Version 4.8.0 erforderlich“; bei Bedarf das Frontend-Commit zurücknehmen.
 
 ## Schlüssel wechseln oder verloren
 
-- Neuen Schlüssel in der Script Property eintragen. Jedes Gerät fragt beim nächsten Laden neu.
-- Der Schlüssel liegt pro Browser im `localStorage` (`hv_access_key`). Entfernen über die
+- Neue oder gesperrte Geräte in `APP_ACCESS_KEYS_JSON` ändern. Ein deaktiviertes Gerät wird beim
+  nächsten Zugriff sofort abgewiesen.
+- Ein neuer Schlüssel muss pro Gerät einmal hinterlegt werden. Er liegt pro Browser im
+  `localStorage` (`hv_access_key`). Entfernen über die
   Browserdaten der Seite.
 
 ## Offline-Queue
@@ -66,7 +83,11 @@ Ausführlich in `docs/offline-sync-und-korrekturen.md`. Kurzfassung:
 
 ## Grenzen
 
-- Gemeinsames Geheimnis, keine Benutzerverwaltung. Wer den Schlüssel hat, hat vollen Zugriff.
+- Die Geräteschlüssel sind eine kleine Geräteverwaltung, keine vollständige Benutzerverwaltung.
+  Wer einen aktiven Schlüssel besitzt, erhält die zugehörige Rolle.
 - Der Schlüssel liegt im Browser des Geräts. Bei fremdem Zugriff auf das Gerät Schlüssel wechseln.
 - Kein Rate Limiting; ein zufälliger Schlüssel (48 Hex-Zeichen) macht Raten praktisch aussichtslos.
 - Quelltext und `config.js` bleiben öffentlich und enthalten kein Geheimnis.
+- Die Anzeige des Gerätenamens im Korrekturprotokoll ist ein separates Folgepaket. Die
+  Zugriffsbeschränkung ist bereits wirksam; bestehende `quelle`-Werte werden nicht rückwirkend
+  umgeschrieben.

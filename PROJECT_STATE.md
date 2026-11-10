@@ -1,14 +1,14 @@
 # PROJECT_STATE - Hausverwaltung
 
-## Stand: 2026-11-09
+## Stand: 2026-11-10
 
 `main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz 4.8.0 ist produktiv aktiviert.
 
 Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die nächsten sinnvollen Arbeitspakete.
 
-### Aktueller Stand nach PR #29
+### Aktueller Stand nach PR #31
 
-- `main` steht auf `7c79fca` und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
+- `main` steht auf `6205840` und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
   Z1 Speicherrückmeldung und Z2 Heizöl-Verbrauch.
 - Die Überlaufklassifikation, die Diagramm-Fehlerbehandlung, die Heizöl-Tankbilanz und
   der Speichervorgang sind gemeinsam regressionsgetestet.
@@ -16,10 +16,23 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   bleibt produktiv und wurde durch die letzten UI-/Domain-Pakete nicht verändert.
 - Der nächste fachliche Fokus ist P1.1 „Zugriff, Backup und Release-Betrieb“. Die verbindliche
   Aufgabenbeschreibung und die Abnahmekriterien stehen in `ROADMAP.md`.
-- Die Vorbereitung für getrennte Test-/Produktionsumgebungen liegt in `docs/betrieb.md`.
-  Die lokale API-Auswahl erfolgt über die ignorierte `config.local.js`; eine echte
-  bereinigte Testdatei und ein separates Test-Deployment müssen noch administrativ
-  angelegt und mit eigenen Script Properties versehen werden.
+- PR #31 hat die getrennte Laufzeitkonfiguration und die isolierte TEST-Umgebung
+  dokumentiert. `config.js` enthält keine Backend-URL mehr; die lokale Auswahl erfolgt
+  ausschließlich über die ignorierte `config.local.js`.
+- Das aktuelle TEST-Deployment ist öffentlich und enthält ausschließlich synthetische
+  Daten aus Entenhausen. Die Oberfläche wurde mit echten TEST-Views geprüft: 35 aktive
+  Einheiten, 33 Verträge, 4.603 Monatszeilen, 360 Jahreszeilen, 180 Auditzeilen und
+  9 Bilanzzeilen. Ein geschütztes Test-Deployment bleibt für personenbezogene Testdaten
+  erforderlich.
+- P1.1 bearbeitet jetzt Zugriff, Backup und Release-Betrieb. Der Backup-/Restore-Test
+  der Produktivdatei ist als manueller Betriebsschritt in `docs/backup-restore.md`
+  vorbereitet und wurde nicht automatisch ausgeführt.
+- Auf dem Branch `codex/p1-1-security-backup-release-20261109` ist Backend 4.8.5 lokal
+  vorbereitet: Zugriff ist fail-closed, `GET` liefert nie Daten und `APP_ACCESS_KEYS_JSON`
+  unterstützt die Rollen `admin` und `erfassen`. GAS-Bereitstellung und Script Properties
+  sind noch nicht aktualisiert; 4.8.4 bleibt bis zur manuellen Bereitstellung produktiv.
+- Für den zweiten Nutzer ist `erfassen` vorgesehen: Zählerstände und Zahlungen, aber keine
+  Vertrags- oder Indexänderungen. Eine Mieteingangsmaske folgt als eigenes Paket P6.
 
 ### Verbrauchsstatistik: zentrale Intervallklassifikation 2026-11-06
 
@@ -443,7 +456,11 @@ Nächster sinnvoller Schritt:
 
 Spätere Auswertungen sollen den Testbereich `TEST` sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.
 
-Offener Sicherheits-/Konfigurationspunkt: Die produktive Apps-Script-Web-App-URL steht aktuell noch in der Frontend-Konfiguration. Vor einer breiteren Veröffentlichung muss die Backend-URL aus dem öffentlichen Quellcode herausgezogen oder über eine nicht committete lokale Konfiguration/Deployment-Umgebung bereitgestellt werden. Bereits veröffentlichte sensible Links sollten dann rotiert werden.
+Die produktive Apps-Script-Web-App-URL steht nicht mehr in `config.js`. Lokale URLs
+werden über die ignorierte `config.local.js` beziehungsweise bei CLI-Snapshots über
+`HV_API_URL` oder `--url` gesetzt. Bereits veröffentlichte URLs bleiben in der
+Git-Historie technisch auffindbar; eine Rotation des produktiven Deployments ist
+deshalb weiterhin als bewusster administrativer Schritt offen.
 
 ### Fortschritt 2026-09-30
 

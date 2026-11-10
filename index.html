@@ -116,6 +116,14 @@
         uiService.renderSyncQueueStatus();
         console.log("System: Starte Initialisierung (Stufe 1)...");
 
+        if (!CONFIG.API_CONFIGURED) {
+            if (statusEl) {
+                statusEl.textContent = "⚠️ Keine Umgebung konfiguriert – bitte config.local.js anlegen";
+                statusEl.style.color = "darkorange";
+            }
+            return;
+        }
+
         try {
             // STUFE 1: Schneller Ladevorgang (nur Dashboard-Tabelle)
             const fastData = await cloudService.loadDashboardData();
@@ -159,6 +167,9 @@
                         statusEl.style.cursor = "";
                         initApp();
                     };
+                } else if (error && error.code === 'CONFIGURATION_ERROR') {
+                    statusEl.textContent = "⚠️ Backend-Umgebung ist nicht konfiguriert";
+                    statusEl.style.color = "darkorange";
                 } else {
                     statusEl.textContent = "❌ Fehler beim Laden der Daten";
                     statusEl.style.color = "red";

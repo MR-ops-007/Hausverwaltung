@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const KEY = 'test-only-key';
 
-function backend({ key } = {}) {
+function backend({ key, accessKeys } = {}) {
   const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
   const calls = { locks: 0, viewUpdates: 0, contractWrites: [] };
   const rows = {
@@ -25,7 +25,9 @@ function backend({ key } = {}) {
     _view_aktive_mieter: makeSheet('_view_aktive_mieter', [['name'], ['Aktiv Mieter']])
   };
   const ss = { getSheets: () => Object.values(sheets), getSheetByName: name => sheets[name] || null };
-  const properties = key === undefined ? {} : { APP_ACCESS_KEY: key };
+  const properties = {};
+  if (key !== undefined) properties.APP_ACCESS_KEY = key;
+  if (accessKeys !== undefined) properties.APP_ACCESS_KEYS_JSON = JSON.stringify(accessKeys);
   const globals = {
     PropertiesService: { getScriptProperties: () => ({ getProperty: name => properties[name] ?? null }) },
     ContentService: { createTextOutput: text => ({ text, setMimeType() { return this; } }), MimeType: { JSON: 'json' } },
@@ -36,7 +38,7 @@ function backend({ key } = {}) {
     updateAktiveMieterView = () => { calls.viewUpdates++; };
     updateVerbrauchViews = () => { calls.viewUpdates++; return { status: 'success', message: 'Verbrauchsviews aktualisiert' }; };
     handleContractWrite = (spreadsheet, payload) => { calls.contractWrites.push(payload); return { status: 'success', vertrag: {}, anpassung: {} }; };
-    return { doGet, doPost, constantTimeEquals };`);
+    return { doGet, doPost, constantTimeEquals, getAccessPrincipal };`);
   const api = factory(...Object.values(globals), calls);
   const parse = output => JSON.parse(output.text);
   return {
@@ -49,27 +51,22 @@ function backend({ key } = {}) {
 
 const meter = { stand_id: 'ST_TEST', zaehler_id: 'Z_TEST', wert: 5 };
 
-describe('Übergangsmodus ohne APP_ACCESS_KEY (Verhalten wie 4.7.0)', () => {
-  it('liefert Daten per GET, aber keine archivierten OLD_-Blätter', () => {
+describe('Fail-closed ohne konfigurierte Zugangsschlüssel', () => {
+  it('liefert per GET keine Daten', () => {
     const data = backend().get();
-    expect(data.Mieter).toEqual([{ name: 'Max Muster' }]);
-    expect(data.OLD_Mieter).toBeUndefined();
+    expect(data).toMatchObject({ status: 'error', code: 'UNAUTHORIZED' });
+    expect(JSON.stringify(data)).not.toContain('Max Muster');
   });
 
-  it('liest per POST ohne Schlüssel und meldet den ungeschützten Zustand', () => {
+  it('weist Lesen und Schreiben ohne Konfiguration ab', () => {
     const api = backend();
-    expect(api.post({ typ: 'LESEN', view: 'alle' }).Mieter).toHaveLength(1);
-    expect(api.post({ typ: 'LESEN', view: 'vertrag_capabilities' })).toMatchObject({ contract_writes: true, access_protected: false });
+    expect(api.post({ typ: 'LESEN', view: 'alle' })).toMatchObject({ status: 'error', code: 'UNAUTHORIZED' });
+    expect(api.post({ typ: 'ZAEHLERSTAND_NEU', data: [meter] })).toMatchObject({ status: 'error', code: 'UNAUTHORIZED' });
+    expect(api.rows.Zaehlerstaende).toHaveLength(1);
   });
 
-  it('erlaubt das Schreiben ohne Schlüssel', () => {
-    const api = backend();
-    expect(api.post({ typ: 'ZAEHLERSTAND_NEU', data: [meter] }).status).toBe('success');
-    expect(api.rows.Zaehlerstaende).toHaveLength(2);
-  });
-
-  it('behandelt eine leere Script Property wie nicht gesetzt', () => {
-    expect(backend({ key: '' }).post({ typ: 'LESEN', view: 'alle' }).Mieter).toHaveLength(1);
+  it('behandelt eine leere Script Property ebenfalls als geschlossen', () => {
+    expect(backend({ key: '' }).post({ typ: 'LESEN', view: 'alle' })).toMatchObject({ status: 'error', code: 'UNAUTHORIZED' });
   });
 });
 
@@ -100,7 +97,7 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     expect(Object.keys(api.post({ typ: 'LESEN', view: 'verbrauch', key: KEY })).sort()).toEqual([
       '_view_verbrauch_audit', '_view_verbrauch_bilanz_jahr', '_view_verbrauch_jahr', '_view_verbrauch_monat'
     ]);
-    expect(api.post({ typ: 'LESEN', view: 'vertrag_capabilities', key: KEY })).toMatchObject({ access_protected: true });
+    expect(api.post({ typ: 'LESEN', view: 'vertrag_capabilities', key: KEY })).toMatchObject({ access_protected: true, access_role: 'admin' });
   });
 
   it('lehnt Schreibzugriffe ohne Schlüssel ab, ohne zu schreiben, zu sperren oder Views zu aktualisieren', () => {
@@ -139,11 +136,10 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
 });
 
 describe('Schreibtypen und Eingaben', () => {
-  it.each([undefined, { key: KEY }])('schreibt bei unbekanntem oder fehlendem Typ nichts', protectedMode => {
-    const api = backend(protectedMode);
-    const key = protectedMode ? KEY : undefined;
+  it('schreibt bei unbekanntem oder fehlendem Typ nichts', () => {
+    const api = backend({ key: KEY });
     for (const typ of ['IRGENDWAS', 'LESEN_ALLES', undefined]) {
-      expect(api.post({ typ, data: [meter], key })).toMatchObject({ status: 'error', message: 'Unbekannter Typ.' });
+      expect(api.post({ typ, data: [meter], key: KEY })).toMatchObject({ status: 'error', message: 'Unbekannter Typ.' });
     }
     expect(api.rows.Zaehlerstaende).toHaveLength(1);
     expect(api.rows.Zahlungen).toHaveLength(1);
@@ -155,6 +151,39 @@ describe('Schreibtypen und Eingaben', () => {
     const output = JSON.parse(api.doPost({ postData: { contents: '{kaputt' } }).text);
     expect(output.status).toBe('error');
     expect(api.doPost(undefined).text).toContain('Keine Daten');
+  });
+});
+
+describe('Geräteschlüssel und Rollen', () => {
+  const accessKeys = [
+    { id: 'iphone-michael', label: 'iPhone Michael', key: 'admin-key', role: 'admin', aktiv: true },
+    { id: 'ipad-vater', label: 'iPad Vater', key: 'capture-key', role: 'erfassen', aktiv: true },
+    { id: 'altes-geraet', label: 'Altes Gerät', key: 'old-key', role: 'erfassen', aktiv: false }
+  ];
+
+  it('erlaubt Erfassen Lesen, Zählerstände und Zahlungen, aber keine Verträge', () => {
+    const api = backend({ accessKeys });
+    expect(api.getAccessPrincipal('capture-key')).toMatchObject({ id: 'ipad-vater', label: 'iPad Vater', role: 'erfassen' });
+    expect(api.post({ typ: 'LESEN', view: 'vertrag_capabilities', key: 'capture-key' })).toMatchObject({
+      contract_writes: false,
+      access_role: 'erfassen'
+    });
+    expect(api.post({ typ: 'ZAEHLERSTAND_NEU', data: [meter], key: 'capture-key' }).status).toBe('success');
+    expect(api.post({ typ: 'ZAHLUNG', data: { zahlung_id: 'Z2', betrag: 10 }, key: 'capture-key' }).status).toBe('success');
+    expect(api.post({ typ: 'VERTRAG_AKTUALISIEREN', token: 'vertrag', data: {}, key: 'capture-key' })).toMatchObject({ status: 'error', code: 'FORBIDDEN' });
+    expect(api.calls.contractWrites).toHaveLength(0);
+  });
+
+  it('erlaubt Vertragsänderungen nur für Admin-Geräte', () => {
+    const api = backend({ accessKeys });
+    expect(api.post({ typ: 'VERTRAG_AKTUALISIEREN', token: 'vertrag', data: {}, key: 'admin-key' }).status).toBe('success');
+    expect(api.calls.contractWrites).toHaveLength(1);
+  });
+
+  it('ignoriert deaktivierte Geräte und unlesbare Schlüsselkonfigurationen', () => {
+    const api = backend({ accessKeys });
+    expect(api.post({ typ: 'LESEN', view: 'alle', key: 'old-key' })).toMatchObject({ status: 'error', code: 'UNAUTHORIZED' });
+    expect(backend({ accessKeys: [{ id: 'kaputt', key: 'x', role: 'unbekannt' }] }).post({ typ: 'LESEN', view: 'alle', key: 'x' })).toMatchObject({ status: 'error', code: 'UNAUTHORIZED' });
   });
 });
 

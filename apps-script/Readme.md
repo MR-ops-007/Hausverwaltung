@@ -16,6 +16,15 @@ Regel:
 
 ## Zweck
 
+### Zugriffsschutz und Rollen
+
+Backend 4.8.5 arbeitet fail-closed: Ohne gültige Script-Property wird kein Datenzugriff
+zugelassen. Für zwei Geräte kann `APP_ACCESS_KEYS_JSON` als JSON-Array mit `id`, `label`,
+`key`, `role` (`admin` oder `erfassen`) und optional `aktiv` gesetzt werden. `erfassen`
+darf Zählerstände und Zahlungen schreiben; `admin` darf zusätzlich Verträge und
+Indexänderungen ändern. `APP_ACCESS_KEY` bleibt als einzelner Admin-Fallback für den
+Übergang kompatibel. Keine Schlüssel in Git oder Sheets speichern.
+
 ### Vertragsausbau (ab 4.7.0)
 
 `ContractService.js` enthält gemeinsame Regeln für Browser und GAS; `Contracts.gs`

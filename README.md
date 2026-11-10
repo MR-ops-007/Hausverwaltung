@@ -31,7 +31,7 @@ Das Google Apps Script Backend wird im Repository unter `apps-script/Code.gs` ve
 | Datei / Ordner | Zweck |
 | :--- | :--- |
 | `index.html` | Einstiegspunkt der App |
-| `config.js` | Konfiguration, aktuell inklusive Apps-Script-Web-App-URL |
+| `config.js` | Nicht-sensitive Objektkonfiguration und Laufzeitprüfung |
 | `config.local.example.js` | Vorlage für eine lokale Test-/Produktionsauswahl; `config.local.js` wird nicht committed |
 | `cloud-service.js` | Kommunikation mit dem Google Apps Script Backend |
 | `data-service.js` | Lokaler Datenzustand und Datenzugriff im Frontend |
@@ -64,6 +64,30 @@ Einmalige Einrichtung:
 5. `npm run clasp:pull` ausführen und den Diff prüfen.
 
 Die Dateien `.clasp.json` und `.clasprc.json` enthalten lokale Projekt- bzw. OAuth-Daten und werden nicht committed.
+
+### Laufzeitumgebung
+
+Die Apps-Script-URL steht absichtlich nicht in `config.js` und wird nicht im
+Repository versioniert. Für einen lokalen Lauf muss die gewünschte Umgebung
+explizit ausgewählt werden:
+
+```bash
+cp config.local.example.js config.local.js
+# Danach environment und apiUrl in config.local.js setzen.
+```
+
+`config.local.js` ist ignoriert und darf weder Schlüssel noch produktive URLs in
+einen Commit bringen. Ohne diese Datei zeigt die App bewusst einen
+Konfigurationshinweis statt stillschweigend ein Backend anzusprechen.
+
+Für Verbrauchs-Snapshots wird die URL ebenfalls explizit übergeben:
+
+```bash
+APP_ACCESS_KEY="..." HV_API_URL="https://.../exec" \
+  npm run qa:consumption-snapshot -- --output=/private/tmp/verbrauch-snapshot.json
+```
+
+Die URL wird dabei absichtlich nicht aus `config.js` gelesen.
 
 Regel: Vor jedem `npm run clasp:push` muss der Pull-Diff geprüft sein, damit das bestehende GAS-Projekt nicht versehentlich mit einem unvollständigen lokalen Stand überschrieben wird.
 
@@ -102,8 +126,9 @@ Siehe `docs/contracts-index-plan.md`.
 
 Offline-Queue und Korrekturen (Backend ab 4.8.4): Nicht gespeicherte Werte werden oben angezeigt und lassen sich erneut senden; Überschreiben nur mit Grund. Siehe `docs/offline-sync-und-korrekturen.md`.
 
-Zugriffsschutz (Backend ab 4.8.0): Lesen und Schreiben erfordern einen Zugangsschlüssel
-(Script Property `APP_ACCESS_KEY`). Einspielen, Rollback und Schlüsselwechsel stehen in
+Zugriffsschutz (Backend ab 4.8.0): Lesen und Schreiben erfordern einen Zugangsschlüssel.
+Backend 4.8.5 ergänzt fail-closed Zugriff und getrennte Geräteschlüssel für die Rollen
+`admin` und `erfassen`. Einspielen, Rollback und Schlüsselwechsel stehen in
 `docs/access-control.md`.
 
 Betrieb, getrennte Test-/Produktionsdaten, Backup, Restore und lokale API-Auswahl sind in
