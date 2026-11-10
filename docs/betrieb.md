@@ -71,6 +71,25 @@ anschließend in `CONFIG.ENVIRONMENT` als `test` beziehungsweise `production` zu
 Verfügung und wird in der roten TEST- beziehungsweise grünen PROD-Leiste angezeigt.
 Der Umschalter fragt vor dem Wechsel auf Produktion nach und lädt die App danach neu.
 
+Für **„Zum Home-Bildschirm hinzufügen“** muss die App über HTTPS geöffnet werden.
+Das Manifest `manifest.webmanifest`, die iOS-Metadaten und die Icons werden bereits
+ausgeliefert. Die sichtbare TEST-/PROD-Kennzeichnung bleibt auch beim eigenständigen
+Start erhalten. Ein Service Worker ist derzeit bewusst nicht aktiviert; Offline-Betrieb
+nach dem vollständigen Schließen der App ist daher kein Abnahmekriterium.
+
+### GitHub-Pages-Bereitstellung
+
+Die öffentliche Frontend-Adresse wird durch `.github/workflows/pages.yml` aus `main`
+gebaut. Der Workflow erzeugt `runtime-config.js` erst im Build aus den sechs
+nicht-sensitiven Repository-Variablen `HV_TEST_API_URL`, `HV_TEST_SCRIPT_ID`,
+`HV_TEST_DEPLOYMENT_ID`, `HV_PROD_API_URL`, `HV_PROD_SCRIPT_ID` und
+`HV_PROD_DEPLOYMENT_ID`. Fehlt eine Variable, bricht der Build ab, statt eine
+scheinbar funktionierende App ohne Backend zu veröffentlichen.
+
+Die GAS-URLs und Projekt-IDs sind keine Zugangsschlüssel. Die eigentlichen
+`APP_ACCESS_KEY`-Werte werden niemals in GitHub Pages oder den Workflow geschrieben,
+sondern bleiben im jeweiligen Browser-Speicher getrennt nach Umgebung.
+
 Vor jedem Testlauf prüfen:
 
 - Browser-URL und Deployment-URL gehören zur selben Umgebung.
