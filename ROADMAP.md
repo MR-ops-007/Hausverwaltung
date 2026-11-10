@@ -177,14 +177,17 @@ Verwechslung von TEST- und PROD-Ziel.
 - Einrichtungscode-Dialog für Backend-URL, Geräteschlüssel und Gerätebezeichnung ergänzen.
 - Werte lokal speichern; keine Schlüssel in Repository, Pages-Build oder Logs.
 - Admin- und Erfassungs-Gerät mit dem echten Backend testen.
-- Web-App-Manifest und Home-Bildschirm-Verknüpfung ergänzen.
+- Auf iPhone und iPad den Workflow **„Zum Home-Bildschirm hinzufügen“** unterstützen.
+- Web-App-Manifest und App-Icon ergänzen; der Start über das Home-Bildschirm-Icon öffnet
+  die Anwendung als eigenständige Web-App mit sichtbarer TEST-/PROD-Kennzeichnung.
 - Erst danach neue produktive Bereitstellung veröffentlichen und alte URL archivieren.
 
 **Nicht-Ziele:** kein Google-Login, kein vollständiges Benutzerkonto, kein Service Worker.
 
 **Abnahme:** Beide Geräte laden Daten, der Vater kann Zählerstände und Zahlungen erfassen,
-Vertragsänderungen sind nur auf dem Admin-Gerät möglich; erneutes Öffnen benötigt keine
-Anmeldung.
+Vertragsänderungen sind nur auf dem Admin-Gerät möglich; die App lässt sich über „Zum
+Home-Bildschirm hinzufügen“ starten, zeigt die aktive Umgebung sichtbar an und benötigt
+beim erneuten Öffnen keine Anmeldung.
 
 ### P1.3 Backup und Restore
 
