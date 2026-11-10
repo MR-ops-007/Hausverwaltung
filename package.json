@@ -8,6 +8,13 @@
     "clasp:status": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && clasp --auth .clasprc.json status'",
     "clasp:pull": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && clasp --auth .clasprc.json pull'",
     "clasp:push": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && clasp --auth .clasprc.json push'",
+    "clasp:test:status": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && NODE_OPTIONS=--dns-result-order=ipv4first node tools/clasp-target.mjs test status'",
+    "clasp:test:pull": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && NODE_OPTIONS=--dns-result-order=ipv4first node tools/clasp-target.mjs test pull'",
+    "clasp:test:push": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && NODE_OPTIONS=--dns-result-order=ipv4first node tools/clasp-target.mjs test push'",
+    "clasp:test:deploy": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && NODE_OPTIONS=--dns-result-order=ipv4first node tools/clasp-target.mjs test deploy'",
+    "clasp:prod:status": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && NODE_OPTIONS=--dns-result-order=ipv4first node tools/clasp-target.mjs production status'",
+    "clasp:prod:push": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && NODE_OPTIONS=--dns-result-order=ipv4first node tools/clasp-target.mjs production push --confirm-prod'",
+    "clasp:prod:deploy": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && NODE_OPTIONS=--dns-result-order=ipv4first node tools/clasp-target.mjs production deploy --confirm-prod'",
     "test": "TZ=Europe/Berlin vitest run",
     "qa:consumption-matrix": "node tools/qa-consumption-matrix.mjs",
     "qa:consumption-snapshot": "node tools/fetch-verbrauch-snapshot.mjs"

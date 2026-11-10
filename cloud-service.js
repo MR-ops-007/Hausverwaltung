@@ -8,6 +8,7 @@ const cloudService = {
     scriptUrl: CONFIG.API_URL,
     ENABLE_OFFLINE_SYNC: true,
     ACCESS_KEY_STORAGE: 'hv_access_key',
+    LEGACY_ACCESS_KEY_STORAGE: 'hv_access_key',
     QUEUE_KEY: 'offline_queue',
     LEGACY_FAILED_QUEUE_KEY: 'offline_queue_failed',
     MAX_KEY_ATTEMPTS: 5,
@@ -19,16 +20,33 @@ const cloudService = {
     retryTimer: null,
 
     // --- Zugangsschlüssel -------------------------------------------------
+    getAccessKeyStorage() {
+        const environment = CONFIG && CONFIG.ENVIRONMENT;
+        return environment ? `${this.ACCESS_KEY_STORAGE}:${environment}` : this.LEGACY_ACCESS_KEY_STORAGE;
+    },
+
     getAccessKey() {
-        try { return localStorage.getItem(this.ACCESS_KEY_STORAGE) || ''; } catch (e) { return ''; }
+        try {
+            const scopedKey = localStorage.getItem(this.getAccessKeyStorage()) || '';
+            if (scopedKey || this.getAccessKeyStorage() === this.LEGACY_ACCESS_KEY_STORAGE) return scopedKey;
+
+            // Ein vorhandener Schlüssel aus der Zeit vor dem Umgebungs-Switch wird
+            // einmalig der aktuell aktiven Umgebung zugeordnet. Danach bleibt er getrennt.
+            const legacyKey = localStorage.getItem(this.LEGACY_ACCESS_KEY_STORAGE) || '';
+            if (legacyKey) {
+                localStorage.setItem(this.getAccessKeyStorage(), legacyKey);
+                localStorage.removeItem(this.LEGACY_ACCESS_KEY_STORAGE);
+            }
+            return legacyKey;
+        } catch (e) { return ''; }
     },
 
     setAccessKey(key) {
-        try { localStorage.setItem(this.ACCESS_KEY_STORAGE, key); } catch (e) { /* Speicher nicht verfügbar */ }
+        try { localStorage.setItem(this.getAccessKeyStorage(), key); } catch (e) { /* Speicher nicht verfügbar */ }
     },
 
     clearAccessKey() {
-        try { localStorage.removeItem(this.ACCESS_KEY_STORAGE); } catch (e) { /* Speicher nicht verfügbar */ }
+        try { localStorage.removeItem(this.getAccessKeyStorage()); } catch (e) { /* Speicher nicht verfügbar */ }
     },
 
     accessError(message) {

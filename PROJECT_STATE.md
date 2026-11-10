@@ -19,7 +19,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Aufgabenbeschreibung und die Abnahmekriterien stehen in `ROADMAP.md`.
 - PR #31 hat die getrennte Laufzeitkonfiguration und die isolierte TEST-Umgebung
   dokumentiert. `config.js` enthält keine Backend-URL mehr; die lokale Auswahl erfolgt
-  ausschließlich über die ignorierte `config.local.js`.
+  ausschließlich über die ignorierte `runtime-config.js`.
 - Das aktuelle TEST-Deployment enthält ausschließlich synthetische Daten aus Entenhausen und
   ist wie PROD durch einen eigenen Schlüssel geschützt. Anonyme GET-Aufrufe gegen beide
   Bereitstellungen liefern `UNAUTHORIZED`. Die Oberfläche wurde mit echten TEST-Views geprüft: 35 aktive
@@ -461,7 +461,7 @@ Nächster sinnvoller Schritt:
 Spätere Auswertungen sollen den Testbereich `TEST` sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.
 
 Die produktive Apps-Script-Web-App-URL steht nicht mehr in `config.js`. Lokale URLs
-werden über die ignorierte `config.local.js` beziehungsweise bei CLI-Snapshots über
+werden über die ignorierte `runtime-config.js` beziehungsweise bei CLI-Snapshots über
 `HV_API_URL` oder `--url` gesetzt. Bereits veröffentlichte URLs bleiben in der
 Git-Historie technisch auffindbar; eine Rotation des produktiven Deployments ist
 deshalb weiterhin als bewusster administrativer Schritt offen.
