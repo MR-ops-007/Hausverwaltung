@@ -20,7 +20,7 @@ Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklun
 
 ## Erledigt auf `main`
 
-Remote `origin/main` steht aktuell auf `6205840`.
+Remote `origin/main` enthält aktuell PR #32 und den produktiven Backend-Stand 4.8.5.
 
 | PR | Inhalt |
 | --- | --- |
@@ -34,6 +34,7 @@ Remote `origin/main` steht aktuell auf `6205840`.
 | #28 | Heizölverbrauch mit Tankbilanz, Haupt-/Zusatztank und Literdarstellung |
 | #29 | Speicherrückmeldung mit Busy-Zustand, Hausmeister-Stempel und idempotenter Erfolgsmeldung |
 | #31 | Getrennte Laufzeitkonfiguration und dokumentierte TEST-Umgebung |
+| #32 | Fail-closed-Zugriffsschutz, Geräteschlüssel und getrennte Rechte für TEST und PROD |
 
 Der lokale Branch `main` muss nach einem Merge weiterhin mit `origin/main` synchronisiert
 werden, bevor ein neues Feature darauf aufgebaut wird.
@@ -58,7 +59,7 @@ werden, bevor ein neues Feature darauf aufgebaut wird.
 ### Z1 Zähler-Speichern-Feedback
 
 - Status: abgeschlossen in PR #29. Die gemeinsame Prüfung mit dem Heizöl-Speicherablauf
-  und die Regressionstests sind in `main` enthalten; aktuell 384 Tests grün.
+  und die Regressionstests sind in `main` enthalten; aktuell 389 Tests grün.
 
 ### Z2 Heizöl-Verbrauch
 
@@ -109,11 +110,9 @@ Ziel: reale Daten schützen und Wiederherstellung beherrschbar machen.
   kommt aus `.nvmrc`.
 - Abnahme in `docs/betrieb.md` mit Datum, Ergebnis und Rollback-Hinweis festhalten.
 
-### P1.1 In Arbeit: Zugriff, Laufzeitkonfiguration und Release-Betrieb
+### P1.1 Abgeschlossen: Zugriff, Laufzeitkonfiguration und Release-Betrieb
 
-**Branch:** `codex/p1-1-security-backup-release-20261109`
-
-Dieses Paket ist der nächste mehrstündige Arbeitsblock vor weiteren fachlichen Features.
+**PR:** #32
 
 **Ziel:** Die produktive Arbeitsweise mit zwei Geräten ermöglichen, ohne Geheimnisse im
 Repository zu hinterlegen oder bei fehlender Konfiguration versehentlich Daten zu öffnen.
@@ -144,16 +143,20 @@ Verbrauchsberechnung, keine Migration von Mietern oder Zählerständen.
 - Test- und Produktionsumgebung lassen sich lokal über die ignorierte `config.local.js`
   eindeutig auswählen; die Vorlage liegt in `config.local.example.js`.
 
-**Aktueller Zwischenstand:** PR #31 hat die isolierte TEST-Umgebung und die lokale
-Laufzeitkonfiguration nach `main` gebracht. Der aktuelle TEST-Endpunkt ist öffentlich,
-weil er ausschließlich synthetische Daten enthält. Ein Backup-/Restore-Test der
-Produktivdatei ist noch ein manueller Schritt und wird nicht automatisch ausgeführt.
-Der Branch ergänzt lokal Backend 4.8.5 mit fail-closed Zugriff und Geräteschlüsseln;
-die GAS-Bereitstellung und die Script Properties sind noch manuell zu aktualisieren.
+**Ergebnis:** Backend 4.8.5 ist in PROD und TEST als neue Version der bestehenden
+Bereitstellungen veröffentlicht. PROD steht auf Deployment-Version 41, TEST auf
+Deployment-Version 5; die URLs blieben unverändert. Anonyme GET-Aufrufe liefern
+`UNAUTHORIZED`. Der Backup-/Restore-Test der Produktivdatei bleibt als eigener manueller
+Betriebsschritt in P1.3 und wurde nicht automatisch ausgeführt.
 
 ### P1.2 Geräte-Einrichtung und produktiver Rollout
 
 **Ziel:** Die App auf iPhone und iPad ohne wiederkehrende Anmeldung nutzbar machen.
+
+Vor der Geräte-Einrichtung wird die lokale Umgebungswahl als eigener kleiner DX-Schritt
+abgeschlossen: TEST und PROD erhalten Profile mit eindeutigem Ziel, sichtbarem Banner in
+der UI und getrennten Zugangsschlüsseln. Jeder Apps-Script-Push muss das Ziel explizit
+anzeigen und vor PROD einen zusätzlichen Bestätigungsschritt verlangen.
 
 - Einrichtungscode-Dialog für Backend-URL, Geräteschlüssel und Gerätebezeichnung ergänzen.
 - Werte lokal speichern; keine Schlüssel in Repository, Pages-Build oder Logs.

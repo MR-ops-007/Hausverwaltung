@@ -2,35 +2,35 @@
 
 ## Stand: 2026-11-10
 
-`main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz 4.8.0 ist produktiv aktiviert.
+`main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz 4.8.5 ist in TEST und PROD produktiv aktiviert.
 
 Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die nächsten sinnvollen Arbeitspakete.
 
-### Aktueller Stand nach PR #31
+### Aktueller Stand nach PR #32
 
-- `main` steht auf `6205840` und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
+- `main` steht auf dem Stand nach PR #32 und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
   Z1 Speicherrückmeldung und Z2 Heizöl-Verbrauch.
 - Die Überlaufklassifikation, die Diagramm-Fehlerbehandlung, die Heizöl-Tankbilanz und
   der Speichervorgang sind gemeinsam regressionsgetestet.
-- Der vollständige Testlauf umfasst aktuell 384 Tests in 13 Testdateien; Apps Script 4.8.4
-  bleibt produktiv und wurde durch die letzten UI-/Domain-Pakete nicht verändert.
-- Der nächste fachliche Fokus ist P1.1 „Zugriff, Backup und Release-Betrieb“. Die verbindliche
+- Der vollständige Testlauf umfasst aktuell 389 Tests in 14 Testdateien. Apps Script 4.8.5
+  ist in PROD (bestehende Bereitstellung, Deployment-Version 41) und TEST (Deployment-Version 5)
+  veröffentlicht; die jeweiligen URLs blieben unverändert.
+- Der nächste organisatorische Fokus ist die eindeutige lokale Auswahl von TEST und PROD. Die verbindliche
   Aufgabenbeschreibung und die Abnahmekriterien stehen in `ROADMAP.md`.
 - PR #31 hat die getrennte Laufzeitkonfiguration und die isolierte TEST-Umgebung
   dokumentiert. `config.js` enthält keine Backend-URL mehr; die lokale Auswahl erfolgt
   ausschließlich über die ignorierte `config.local.js`.
-- Das aktuelle TEST-Deployment ist öffentlich und enthält ausschließlich synthetische
-  Daten aus Entenhausen. Die Oberfläche wurde mit echten TEST-Views geprüft: 35 aktive
+- Das aktuelle TEST-Deployment enthält ausschließlich synthetische Daten aus Entenhausen und
+  ist wie PROD durch einen eigenen Schlüssel geschützt. Anonyme GET-Aufrufe gegen beide
+  Bereitstellungen liefern `UNAUTHORIZED`. Die Oberfläche wurde mit echten TEST-Views geprüft: 35 aktive
   Einheiten, 33 Verträge, 4.603 Monatszeilen, 360 Jahreszeilen, 180 Auditzeilen und
   9 Bilanzzeilen. Ein geschütztes Test-Deployment bleibt für personenbezogene Testdaten
   erforderlich.
-- P1.1 bearbeitet jetzt Zugriff, Backup und Release-Betrieb. Der Backup-/Restore-Test
-  der Produktivdatei ist als manueller Betriebsschritt in `docs/backup-restore.md`
-  vorbereitet und wurde nicht automatisch ausgeführt.
-- Auf dem Branch `codex/p1-1-security-backup-release-20261109` ist Backend 4.8.5 lokal
-  vorbereitet: Zugriff ist fail-closed, `GET` liefert nie Daten und `APP_ACCESS_KEYS_JSON`
-  unterstützt die Rollen `admin` und `erfassen`. GAS-Bereitstellung und Script Properties
-  sind noch nicht aktualisiert; 4.8.4 bleibt bis zur manuellen Bereitstellung produktiv.
+- Der Backup-/Restore-Test der Produktivdatei bleibt als eigener manueller Betriebsschritt
+  in `docs/backup-restore.md` und ist in P1.3 eingeordnet; er wurde nicht automatisch ausgeführt.
+- P1.1 ist mit PR #32 abgeschlossen: Zugriff ist fail-closed, `GET` liefert nie Daten und
+  `APP_ACCESS_KEYS_JSON` unterstützt die Rollen `admin` und `erfassen`. Die produktiven und
+  synthetischen Bereitstellungen verwenden getrennte Script Properties.
 - Für den zweiten Nutzer ist `erfassen` vorgesehen: Zählerstände und Zahlungen, aber keine
   Vertrags- oder Indexänderungen. Eine Mieteingangsmaske folgt als eigenes Paket P6.
 
@@ -69,7 +69,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 - Der Ladezustand bleibt bis zur bestätigten Erfolgsmeldung aktiv. Die kurze Nachlaufzeit zeigt ausschließlich den bestätigten Erfolgszustand und verzögert den Backend-Speichervorgang nicht.
 - Eine identische Wiederholung wird als bereits gespeicherter Wert erklärt. Das Backend bleibt idempotent: Es wird keine zweite Zeile und kein neuer Zeitstempel angelegt.
 - Bei einer Korrektur wird ausdrücklich darauf hingewiesen, dass der bestehende Zeitstempel unverändert bleibt. Neue Ablesungen und bewusste Überschreibungen bleiben fachlich getrennt.
-- Das Verhalten ist durch UI-Regressionstests für Busy-Zustand, Duplikatmeldung, Korrekturmeldung, Modal-Markup und Fehlerpfad abgesichert. Der aktuelle Stand läuft mit 384 Tests grün; Apps Script und Datenmodell wurden nicht geändert.
+- Das Verhalten ist durch UI-Regressionstests für Busy-Zustand, Duplikatmeldung, Korrekturmeldung, Modal-Markup und Fehlerpfad abgesichert. Der aktuelle Stand läuft mit 389 Tests grün; Apps Script und Datenmodell wurden nicht geändert.
 
 ### Vertragsausbau 2026-10-21/22: Mietverträge / Indexmieten (produktiv)
 
@@ -286,11 +286,15 @@ Dieser Bereich erlaubt produktive Schreibtests, ohne reale Objekt-, Einheiten- o
 
 ## Google Apps Script
 
-Das Backend wird derzeit **manuell per Copy-Paste im Apps-Script-Editor** aktualisiert
-(zuletzt 4.7.0 am 2026-10-22: `Code.gs` ersetzt, `Contracts` und `ContractService`
-neu angelegt, dann neue Version der bestehenden Bereitstellung veröffentlicht; die
-Web-App-URL bleibt dabei gleich). `clasp` ist vorbereitet und für den Abgleich nutzbar,
-aber noch nicht der Standardweg.
+Das Backend wird über `clasp` aus dem versionierten Repository synchronisiert. Backend
+4.8.5 ist in der bestehenden PROD-Bereitstellung (Deployment-Version 41) und in der
+getrennten TEST-Bereitstellung (Deployment-Version 5) veröffentlicht; beide URLs blieben
+unverändert. Ein anonymer GET-Aufruf gegen beide Endpunkte liefert nach dem Deploy
+`UNAUTHORIZED`.
+
+Die lokale `clasp`-Zielauswahl liegt weiterhin in der ignorierten `.clasp.json`. Bis die
+Umgebungsprofile aus der Roadmap umgesetzt sind, wird sie nach einem PROD-Deploy wieder
+auf TEST zurückgestellt, damit ein späterer Push nicht versehentlich PROD trifft.
 
 Versionen und Deploy-Status stehen ausschließlich in [CHANGELOG.md](CHANGELOG.md).
 Im Code steht die Version in `BACKEND_VERSION` (`apps-script/Code.gs`).
@@ -530,7 +534,7 @@ Tabelle `Haustechnik` objekt- und tankspezifisch anpassbar.
   Hausverbrauchsauswertung.
 - Eine kWh-Umrechnung ist bis zur Klärung von Heizmedium, Heizwert und beheizter
   Fläche ausdrücklich nicht enthalten.
-- `npm test` läuft im aktuellen `main` mit 384 Tests in 13 Testdateien grün; zusätzlich
+- `npm test` läuft im aktuellen `main` mit 389 Tests in 14 Testdateien grün; zusätzlich
   sind `node --check` für die geänderten JavaScript-Dateien und `git diff --check`
   sauber. Die Tankfüllungs-Automatik ist für Haupt- und Zusatztank separat regressionsgetestet.
   Das Paket änderte keine Apps-Script-Datei und benötigt für die lokale Prüfung keinen

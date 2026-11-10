@@ -18,8 +18,15 @@ gespeichert.
 Test und Produktion müssen immer unterschiedliche Sheet-IDs, GAS-Projekte,
 Deployment-URLs und Script Properties verwenden. Eine gleiche URL ist kein
 zulässiger Testaufbau. Auch die synthetische TEST-Umgebung wird mit eigenen
-Schlüsseln geschützt; ein öffentliches Deployment darf nur für einen isolierten
-Smoke-Test ohne echte Daten und nicht als reguläre Arbeitsumgebung bestehen.
+Schlüsseln geschützt und ist kein ungeschützter Ersatz für eine Testumgebung.
+
+## Letzter Backend-Stand
+
+Backend 4.8.5 wurde am 2026-11-10 als neue Version der bestehenden Bereitstellungen
+veröffentlicht. PROD steht auf Deployment-Version 41, TEST auf Deployment-Version 5;
+die URLs blieben unverändert. Ein anonymer GET-Aufruf gegen beide Endpunkte liefert
+`UNAUTHORIZED`. Die lokale `clasp`-Zielauswahl wird nach einem PROD-Deploy wieder auf
+das TEST-Projekt zurückgestellt.
 
 ## Testdatenbasis aufbauen
 
@@ -126,8 +133,7 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
 - Keine Backend-URL in `config.js`; lokale URLs gehören ausschließlich in die
   ignorierte `config.local.js`.
 - Test- und Produktionsschlüssel niemals teilen oder wiederverwenden.
-- Die produktive Web-App-URL ist ohne gültigen Schlüssel nicht ausreichend, um Daten
-  zu lesen; die Schutzwirkung muss mit einem echten `UNAUTHORIZED`-Test bestätigt werden.
-  Der aktuelle öffentliche TEST-Endpunkt ist davon ausgenommen und darf nur
-  synthetische Daten enthalten.
+- Die produktive und die synthetische TEST-Web-App-URL sind ohne gültigen Schlüssel
+  nicht ausreichend, um Daten zu lesen; die Schutzwirkung wird mit einem echten
+  `UNAUTHORIZED`-Test bestätigt.
 - Eine Testumgebung mit einer kopierten Produktivdatei ist nicht automatisch anonymisiert.
