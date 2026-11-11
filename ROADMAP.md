@@ -20,7 +20,7 @@ Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklun
 
 ## Erledigt auf `main`
 
-Remote `origin/main` enthält aktuell PR #35 und den produktiven Backend-Stand 4.8.5.
+Remote `origin/main` enthält aktuell PR #37 und den produktiven Backend-Stand 4.8.5.
 
 | PR | Inhalt |
 | --- | --- |
@@ -36,6 +36,8 @@ Remote `origin/main` enthält aktuell PR #35 und den produktiven Backend-Stand 4
 | #31 | Getrennte Laufzeitkonfiguration und dokumentierte TEST-Umgebung |
 | #32 | Fail-closed-Zugriffsschutz, Geräteschlüssel und getrennte Rechte für TEST und PROD |
 | #35 | GitHub-Pages-Bereitstellung, Umgebungsprofile und PWA/Home-Screen-Grundlage |
+| #36 | Pages-Laufzeitdatei `environment-service.js` in das veröffentlichte Artefakt aufnehmen |
+| #37 | Pages-Build- und CI-Prüfungen gegen fehlende Frontend-Assets härten |
 
 Der lokale Branch `main` muss nach einem Merge weiterhin mit `origin/main` synchronisiert
 werden, bevor ein neues Feature darauf aufgebaut wird.
@@ -207,7 +209,7 @@ beim erneuten Öffnen keine Anmeldung.
 
 ### P1.4 Housekeeping und Qualitätssicherung
 
-**Status:** in Arbeit auf `codex/p1-4-pages-build-hardening`.
+**Status:** abgeschlossen in PR #37.
 
 - Der Pages-Build kopiert `environment-service.js`, das von `index.html` benötigt wird.
 - `tools/check-frontend-assets.mjs` prüft im Quellbaum und im erzeugten Pages-Artefakt,
@@ -215,8 +217,8 @@ beim erneuten Öffnen keine Anmeldung.
 - CI führt die Frontend-Asset-Prüfung und `git diff --check` zusätzlich zu `npm test` aus.
 - Ein Regressionstest prüft, dass jedes statische Script aus `index.html` im Pages-Workflow
   berücksichtigt wird.
-- Offen bleiben die bereits geplanten Punkte `constantTimeEquals`, unescapte UI-Ausgaben,
-  `Migration.gs.gs` und Dependabot. Sie werden nicht ungeprüft mit diesem Build-Paket vermischt.
+- Die offenen Folgepunkte `constantTimeEquals`, unescapte UI-Ausgaben, `Migration.gs.gs`
+  und Dependabot bleiben separat und sind nicht Teil von PR #37.
 
 - Doku-Drift, Versionsstände und alte Branches bereinigen.
 - `constantTimeEquals` für Vertrags-Token verwenden und unescapte UI-Ausgaben entfernen.
@@ -225,10 +227,17 @@ beim erneuten Öffnen keine Anmeldung.
 
 ### P2 Datenqualität bei der Erfassung
 
+**Status:** in Arbeit auf `codex/p2-datenqualitaet`.
+
 - Auffällige Sprünge je Medium konfigurierbar warnen, aber niemals das Speichern blockieren.
 - Zwei Werte am selben Tag oder innerhalb des Korrekturfensters als mögliche Korrektur
   behandeln und nicht fälschlich als Verbrauchssprung bewerten.
 - Dashboard-Hinweis für Zähler ohne Ablesung seit X Tagen und für Dauernullreihen ergänzen.
+- Im aktuellen Paket werden fehlende bestätigte Ablesungen, Ablesungen älter als 365 Tage
+  und dauerhafte Nullwerte im Dashboard getrennt ausgewiesen. Leerstände werden bei der
+  Dauernullprüfung nicht als Fehler markiert.
+- Die Regressionen für Klassifikation und Dashboard-Darstellung laufen im Branch mit
+  406 Tests; das Paket ändert weder Apps Script noch Google-Sheet-Daten.
 - Leerstand und Defekt als unterschiedliche fachliche Zustände vorbereiten.
 - LOK-/TEST-Smoke-Tests erst mit echten, gepflegten Live-Daten ergänzen; bis dahin bleibt
   die Objekttrennung automatisiert getestet.

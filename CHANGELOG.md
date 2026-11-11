@@ -23,6 +23,17 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - Datumsangaben bis 4.6.4 stammen aus der Git-Historie (Commit, der die Version
   eingeführt hat), nicht aus dem Deployment.
 
+## Frontend- und Betriebsmeilensteine ohne Backend-Versionserhöhung
+
+- PR #35 (2026-11-10): GitHub-Pages-Auslieferung, getrennte TEST-/PROD-Profile,
+  sichtbarer Umgebungsschalter und PWA-/Home-Screen-Grundlage.
+- PR #36 (2026-11-10): Fehlende `environment-service.js` in das Pages-Artefakt aufgenommen.
+- PR #37 (2026-11-11): Pages-Asset-Prüfung, JavaScript-Syntaxprüfung und `git diff --check`
+  in CI ergänzt.
+
+Diese Einträge ändern die Apps-Script-Version nicht. Die Backend-Version bleibt 4.8.5;
+neue Backend-Logik benötigt weiterhin einen eigenen Versionseintrag nach den Regeln oben.
+
 ## 4.8.5 · 2026-11-10 · produktiv
 
 Fail-closed-Zugriffsschutz und Geräteschlüssel mit Rollen. Details: `docs/access-control.md`.

@@ -1,6 +1,6 @@
 # Betrieb, Testumgebungen und Wiederherstellung
 
-Stand: 2026-11-10
+Stand: 2026-11-11
 
 Dieses Dokument beschreibt den sicheren Betrieb der Hausverwaltung mit getrennten
 Test- und Produktivdaten. Die verbindliche Aufgabenpriorisierung steht in

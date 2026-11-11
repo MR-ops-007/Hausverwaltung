@@ -6,9 +6,9 @@
 
 Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die nächsten sinnvollen Arbeitspakete.
 
-### Aktueller Stand nach PR #35
+### Aktueller Stand nach PR #37
 
-- `main` steht auf dem Stand nach PR #35 und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
+- `main` steht auf dem Stand nach PR #37 und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
   Z1 Speicherrückmeldung und Z2 Heizöl-Verbrauch.
 - Die Überlaufklassifikation, die Diagramm-Fehlerbehandlung, die Heizöl-Tankbilanz und
   der Speichervorgang sind gemeinsam regressionsgetestet.
@@ -34,10 +34,15 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   GitHub-Pages-Auslieferung und sichtbare Umgebungsprofile sind vorhanden. Die App wurde auf
   dem iPhone zum Home-Bildschirm hinzugefügt und geöffnet; die Schlüssel-Persistenz wird separat
   verifiziert.
-- P1.4 läuft auf `codex/p1-4-pages-build-hardening`: Der Pages-Build prüft künftig, dass alle
-  lokalen Assets aus `index.html` im Artefakt vorhanden sind. Der konkrete Auslöser war ein
-  fehlendes `environment-service.js`, das sonst zu einem dauerhaft stehenden „Prüfe Verbindung…“
-  führte. Die Prüfung steht in `tools/check-frontend-assets.mjs`.
+- PR #36 nahm `environment-service.js` in das Pages-Artefakt auf; PR #37 ergänzt die
+  automatisierte Asset-Prüfung, JavaScript-Syntaxprüfung und `git diff --check` in CI.
+  Der konkrete Auslöser war ein fehlendes `environment-service.js`, das sonst zu einem
+  dauerhaft stehenden „Prüfe Verbindung…“ führte. Die Prüfung steht in
+  `tools/check-frontend-assets.mjs`.
+- P2 läuft auf `codex/p2-datenqualitaet`: Das Dashboard unterscheidet fehlende bestätigte
+  Ablesungen, veraltete Ablesungen und dauerhafte Nullwerte. Leerstände werden bei der
+  Dauernullprüfung nicht als Fehler markiert; die Hinweise blockieren keine Eingabe. Der
+  Branch läuft mit 406 Tests; Apps Script und Google-Sheet-Daten bleiben unverändert.
 - P1.1 ist mit PR #32 abgeschlossen: Zugriff ist fail-closed, `GET` liefert nie Daten und
   `APP_ACCESS_KEYS_JSON` unterstützt die Rollen `admin` und `erfassen`. Die produktiven und
   synthetischen Bereitstellungen verwenden getrennte Script Properties.

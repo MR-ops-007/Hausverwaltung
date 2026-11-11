@@ -330,6 +330,13 @@ input[type="text"] {
     color: #334155;
 }
 
+.consumption-quality-note {
+    margin: -2px 0 10px;
+    color: #64748b;
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
 .consumption-quality-row {
     display: grid;
     grid-template-columns: minmax(180px, 1.4fr) minmax(160px, 1fr) minmax(160px, 1fr);

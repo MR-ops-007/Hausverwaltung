@@ -5,6 +5,7 @@ const uiService = {
   currentSelection: null,
   currentActiveMetersObjects: [],
   saveSuccessDisplayMs: 900,
+  CONSUMPTION_STALE_READING_DAYS: 365,
 
   applyStyles(el, styles) {
     Object.assign(el.style, styles);
@@ -607,7 +608,9 @@ const uiService = {
       TEILWEISE_UNBERECHENBAR: 'Teilweise offen',
       RUECKLAEUFIG_UNGEKLAERT: 'Prüfen',
       FUELLSTAND_GESTIEGEN: 'Prüfen',
-      FORTGESCHRIEBEN: 'Fortgeschrieben'
+      FORTGESCHRIEBEN: 'Fortgeschrieben',
+      ABLESUNG_VERALTET: 'Ablesung veraltet',
+      DAUERNULL: 'Dauerhafte Nullwerte'
     };
 
     return labels[status] || status || '';
@@ -616,7 +619,7 @@ const uiService = {
   getConsumptionStatusColor(status) {
     if (status === 'OK') return '#15803d';
     if (status === 'UEBERLAUF' || status === 'EINZELWERT' || status === 'FORTGESCHRIEBEN' || status === 'KANONISCH_ZUGEORDNET') return '#0369a1';
-    if (status === 'KEINE_WERTE' || status === 'KEINE_ABLESUNG' || status === 'NUR_EIN_WERT') return '#64748b';
+    if (status === 'KEINE_WERTE' || status === 'KEINE_ABLESUNG' || status === 'ABLESUNG_VERALTET' || status === 'NUR_EIN_WERT') return '#64748b';
     return '#b45309';
   },
 
@@ -1043,9 +1046,12 @@ const uiService = {
     });
 
     const meterTemplates = {};
-    allRows
+    const masterMeters = Array.isArray(dataService.state.zaehler)
+      ? dataService.state.zaehler
+      : [];
+    [...allRows, ...masterMeters]
       .filter(row => String(row.objekt_id) === String(objektId))
-      .filter(row => includeCalculated || String(row.verbrauchsgruppe).toUpperCase() !== 'BERECHNET')
+      .filter(row => includeCalculated || !this.isConsumptionCalculatedRow(row))
       .forEach(row => {
         const key = this.getConsumptionMeterKey(row);
         const currentTemplate = meterTemplates[key];
@@ -1259,13 +1265,27 @@ const uiService = {
   },
 
   isConsumptionWarningStatus(status) {
-    return !['OK', 'KANONISCH_ZUGEORDNET', 'KEINE_WERTE'].includes(String(status || ''));
+    return ![
+      'OK',
+      'KANONISCH_ZUGEORDNET',
+      ...[
+        'KEINE_WERTE',
+        'KEINE_ABLESUNG',
+        'NUR_EIN_WERT',
+        'UNGELOESTE_MESSWERTE',
+        'MONATSZEILEN_ABWEICHUNG',
+        'TEILWEISE_UNBERECHENBAR',
+        'NICHT_BERECHENBAR',
+        'UNBERECHENBAR'
+      ]
+    ].includes(String(status || ''));
   },
 
   isConsumptionMissingStatus(status) {
     return [
       'KEINE_WERTE',
       'KEINE_ABLESUNG',
+      'ABLESUNG_VERALTET',
       'NUR_EIN_WERT',
       'UNGELOESTE_MESSWERTE',
       'MONATSZEILEN_ABWEICHUNG',
@@ -1302,7 +1322,9 @@ const uiService = {
       }
     });
     (dataQualityRows || []).forEach(row => {
-      warningKeys.add([row.objekt_id, row.einheit_id, row.zaehler_id].map(value => String(value || '').trim()).join('||'));
+      if (this.isConsumptionWarningStatus(row.status)) {
+        warningKeys.add([row.objekt_id, row.einheit_id, row.zaehler_id].map(value => String(value || '').trim()).join('||'));
+      }
     });
 
     return {
@@ -1313,26 +1335,82 @@ const uiService = {
     };
   },
 
-  buildConsumptionDataQualityRows(auditRows, rows) {
+  getConsumptionReadingRows(row, readings) {
+    const key = this.getConsumptionMeterKey(row);
+    return (readings || [])
+      .filter(reading => this.getConsumptionMeterKey(reading) === key)
+      .filter(reading => this.toDashboardNumber(reading.wert) !== null)
+      .sort((left, right) => this.parseGermanDate(left.zeitstempel) - this.parseGermanDate(right.zeitstempel));
+  },
+
+  getConsumptionDataQualityRow(rawRow, displayRow, status, hint) {
+    return {
+      ...rawRow,
+      label: rawRow.bezeichnung || displayRow.bezeichnung || rawRow.zaehler_id || displayRow.zaehler_id || 'Zähler',
+      unitLabel: this.getConsumptionRowUnitLabel(displayRow) || rawRow.einheit_id || displayRow.einheit_id || '',
+      status,
+      statusLabel: this.getConsumptionStatusLabel(status),
+      hint: hint || rawRow.hinweis || '',
+      readings_count: rawRow.readings_count ?? displayRow.readings_count,
+      intervalle_count: rawRow.intervalle_count ?? displayRow.intervalle_count,
+      monatszeilen: rawRow.monatszeilen ?? displayRow.monatszeilen
+    };
+  },
+
+  buildConsumptionDataQualityRows(auditRows, rows, {
+    readings = [],
+    selectedYear = '',
+    now = new Date()
+  } = {}) {
     const rowByKey = {};
     (rows || []).forEach(row => {
       rowByKey[this.getConsumptionMeterKey(row)] = row;
     });
 
-    return (auditRows || [])
-      .filter(row => this.isConsumptionWarningStatus(row.status))
-      .map(row => {
-        const key = [row.objekt_id, row.einheit_id, row.zaehler_id].map(value => String(value || '').trim()).join('||');
-        const displayRow = rowByKey[key] || row;
+    const result = [];
+    const seen = new Set();
+    const add = (rawRow, displayRow, status, hint) => {
+      if (!status || status === 'OK' || status === 'KANONISCH_ZUGEORDNET') return;
+      const key = `${this.getConsumptionMeterKey(displayRow || rawRow)}||${status}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      result.push(this.getConsumptionDataQualityRow(rawRow, displayRow || rawRow, status, hint));
+    };
 
-        return {
-          ...row,
-          label: row.bezeichnung || displayRow.bezeichnung || row.zaehler_id || 'Zähler',
-          unitLabel: this.getConsumptionRowUnitLabel(displayRow) || row.einheit_id || '',
-          statusLabel: this.getConsumptionStatusLabel(row.status),
-          hint: row.hinweis || ''
-        };
-      });
+    (auditRows || []).forEach(row => {
+      const displayRow = rowByKey[this.getConsumptionMeterKey(row)] || row;
+      add(row, displayRow, row.status, row.hinweis);
+    });
+
+    const hasRawReadings = Array.isArray(readings) && readings.some(reading => this.toDashboardNumber(reading.wert) !== null);
+    const selectedYearNumber = Number(selectedYear);
+    const currentYear = now instanceof Date ? now.getFullYear() : new Date(now).getFullYear();
+    const staleCutoff = (now instanceof Date ? now : new Date(now)).getTime()
+      - this.CONSUMPTION_STALE_READING_DAYS * 86400000;
+
+    (rows || []).forEach(row => {
+      const rowReadings = this.getConsumptionReadingRows(row, readings);
+      if (!hasRawReadings) return;
+
+      if (rowReadings.length === 0) {
+        add(row, row, 'KEINE_ABLESUNG', 'Für diesen Zähler ist keine bestätigte Ablesung vorhanden.');
+        return;
+      }
+
+      const latest = rowReadings[rowReadings.length - 1];
+      const latestTimestamp = this.parseGermanDate(latest.zeitstempel);
+      if (selectedYearNumber === currentYear && latestTimestamp > 0 && latestTimestamp < staleCutoff) {
+        add(row, row, 'ABLESUNG_VERALTET', `Die letzte bestätigte Ablesung ist älter als ${this.CONSUMPTION_STALE_READING_DAYS} Tage (${this.formatReadingTimestamp(latest.zeitstempel)}).`);
+      }
+
+      const numericValues = rowReadings.map(reading => this.toDashboardNumber(reading.wert));
+      const isVacant = String(row.mieter_name || '').trim().toLowerCase() === 'leerstand';
+      if (!isVacant && !this.isConsumptionCalculatedRow(row) && numericValues.length >= 3 && numericValues.every(value => value === 0)) {
+        add(row, row, 'DAUERNULL', 'Mehrere bestätigte Ablesungen sind unverändert 0. Bitte Leerstand, Defekt oder fehlende Erfassung unterscheiden.');
+      }
+    });
+
+    return result;
   },
 
   async ensureConsumptionViewData() {
@@ -1606,8 +1684,6 @@ const uiService = {
     const summary = this.buildConsumptionSummaryFromViews(summaryRows);
     const auditRows = (Array.isArray(dataService.state.view_verbrauch_audit) ? dataService.state.view_verbrauch_audit : [])
       .filter(row => String(row.objekt_id) === String(objektId));
-    const openAuditRows = auditRows
-      .filter(row => ['NUR_EIN_WERT', 'KEINE_ABLESUNG', 'UNGELOESTE_MESSWERTE', 'MONATSZEILEN_ABWEICHUNG'].includes(String(row.status)));
     const canonicalAuditRows = auditRows
       .filter(row => String(row.status) === 'KANONISCH_ZUGEORDNET');
     const displayRows = this.buildConsumptionFixedDisplayRows(allRows, selectedRows, objektId, year, includeCalculated);
@@ -1718,7 +1794,11 @@ const uiService = {
         chartHtml = '<section class="consumption-charts" aria-label="Verbrauchsdiagramme"><p class="consumption-chart-empty">Die Diagramme konnten nicht geladen werden. Tabelle und Datenqualität bleiben verfügbar.</p></section>';
       }
     }
-    const dataQualityRows = this.buildConsumptionDataQualityRows(auditRows, decoratedRows);
+    const dataQualityRows = this.buildConsumptionDataQualityRows(auditRows, decoratedRows, {
+      readings: Array.isArray(dataService.state.zaehlerstaende) ? dataService.state.zaehlerstaende : [],
+      selectedYear: year,
+      now: new Date()
+    });
     const overviewMetrics = this.buildConsumptionOverviewMetrics(decoratedRows, effectiveBalanceRows, dataQualityRows);
     const overviewCardsHtml = [
       {
@@ -1870,7 +1950,7 @@ const uiService = {
         <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${this.escapeHtml(year)} · ${this.escapeHtml(this.getObjectDisplayName(objektId))}</span>
         <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${sortedRows.length} Jahreszeilen</span>
         <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${filteredRows.length} angezeigt</span>
-        <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${openAuditRows.length} offene Audit-Hinweise</span>
+        <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${dataQualityRows.length} offene Datenqualitätshinweise</span>
         <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">${canonicalAuditRows.length} historisch zugeordnet</span>
         <span style="background:white; border:1px solid #e2e8f0; border-radius:999px; padding:5px 9px;">Summen nach Medium und Gruppe</span>
       </div>
@@ -1883,6 +1963,7 @@ const uiService = {
 
       <section class="consumption-quality-section">
         <h3>Datenqualität</h3>
+        <p class="consumption-quality-note">Neben den Backend-Hinweisen werden fehlende, veraltete oder wiederholt unveränderte Ablesungen angezeigt. Diese Hinweise blockieren keine Eingabe.</p>
         ${dataQualityHtml}
       </section>
 
