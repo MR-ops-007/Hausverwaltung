@@ -165,6 +165,31 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     })).toMatchObject({ status: 'success', angelegt: 1 });
   });
 
+  it('speichert fachlichen Mietmonat und negative Erstattung nur mit erweitertem Zahlungen-Schema', () => {
+    const api = backend({
+      key: KEY,
+      paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art']]
+    });
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'FEB_1', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-02', betrag: 150, art: 'Miete' }]
+    })).toMatchObject({ status: 'success', angelegt: 1 });
+    expect(api.rows.Zahlungen[1]).toEqual(['FEB_1', 'V1', '2026-11-11', 150, 'Miete', '2026-02', '', '']);
+
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'REFUND_1', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-02', betrag: -25, art: 'Erstattung' }]
+    })).toMatchObject({ status: 'success', angelegt: 1 });
+
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'REFUND_2', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-02', betrag: 25, art: 'Erstattung' }]
+    })).toMatchObject({ status: 'error' });
+  });
+
   it('aktualisiert Verbrauchsviews nur mit richtigem Schlüssel', () => {
     const api = backend({ key: KEY });
     expect(api.post({ typ: 'VERBRAUCH_VIEWS_AKTUALISIEREN', key: 'falsch' })).toMatchObject({ status: 'error', code: 'UNAUTHORIZED' });

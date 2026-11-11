@@ -292,7 +292,8 @@ Erfassungsmodul, kein Mahnwesen und keine Nebenkostenabrechnung.
 - Zahlungen append-only speichern; Korrekturen als Storno oder Gegenbuchung statt Überschreiben.
 - Offline-Queue und idempotente Zahlungs-ID wiederverwenden.
 - Umsetzung im aktuellen Branch: Monatsmatrix für aktive Verträge, Status je Monat,
-  Teilzahlungen, Storno als negative Gegenbuchung und keine doppelte Speicherung bei
+  Teilzahlungen, fachlicher `mietmonat` unabhängig vom Eingangsdatum, Gesamtstatus,
+  Kautionsstatus, Storno als negative Gegenbuchung und keine doppelte Speicherung bei
   gleicher `zahlung_id`.
 - Der Backend-Schreibweg wird dafür auf 4.8.6 angehoben. Die produktive 4.8.5 bleibt
   unverändert, bis die neue Apps-Script-Version manuell bereitgestellt und geprüft ist.
@@ -312,6 +313,11 @@ Erfassungsmodul, kein Mahnwesen und keine Nebenkostenabrechnung.
 - Der CSV-MVP liest die Datei lokal im Browser, schlägt Verträge anhand von Namen,
   Vertrags-ID und Sollbetrag vor und speichert erst nach manueller Bestätigung.
 - Unklare oder negative CSV-Buchungen werden nicht automatisch übernommen.
+
+Für die fachliche Abnahme stehen im keyfreien lokalen Mock mehrere synthetische Personas
+bereit: Teilzahlung und späte Nachzahlung, pünktliche Zahlung mit vollständiger Kaution,
+Leerstand ohne Zahlung, wiederholte Verspätungen, Nachzahlung/Erstattung, Überzahlung und
+zwei Hauptmieter in einer Einheit. Der Mock schreibt ausschließlich in seinen Prozessspeicher.
 
 **Voraussetzung:** P6 läuft im Alltag und das Zahlungsdatenmodell ist erprobt. Die konkrete
 Bank und das verfügbare Exportformat werden erst vor Beginn von P7 geprüft.

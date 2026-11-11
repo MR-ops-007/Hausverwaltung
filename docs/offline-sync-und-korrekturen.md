@@ -185,6 +185,9 @@ Einträge aus Frontend-Ständen vor 4.8.4 (rohe Payloads in `offline_queue`, abg
   Schreibweg wie andere Transaktionen. Bei einer vorübergehenden Netzwerkstörung darf
   eine Zahlung in die bestehende Offline-Queue gelangen; sie gilt erst nach Backend-
   Bestätigung als gespeichert. Gleiche `zahlung_id`s sind in Backend 4.8.6 idempotent.
+  Das Eingangsdatum und der fachliche `mietmonat` werden getrennt gespeichert; dadurch
+  kann eine verspätete Zahlung einem offenen Vormonat zugeordnet werden. Kautionen bleiben
+  außerhalb der Monatsmiete, Erstattungen werden negativ erfasst.
   CAMT/MT940 und automatische Bankanbindung sind nicht Teil des CSV-MVP.
 - Es gibt keine Benutzerverwaltung: Im Protokoll steht kein Name, nur die Quelle. Gleichzeitige Änderungen mehrerer Personen sind nicht Teil des Szenarios.
 - **Anforderung an die spätere Verbrauchs-Plausibilität („Sprung“):** Mehrere Werte desselben Zählers am selben Tag dürfen nicht allein deshalb auffallen, weil ein Zahlendreher korrigiert wurde. Die Prüfung sollte pro Zähler und Tag den jeweils letzten Wert bewerten. Noch nicht umgesetzt.

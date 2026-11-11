@@ -37,6 +37,14 @@ describe('paymentUiService Monatsstatus', () => {
     expect(service.summarizeMonth(contract, '2026-12', new Date(2026, 10, 11)).status).toBe('zukünftig');
   });
 
+  it('führt Leerstand sichtbar, aber ohne offene Sollmiete', () => {
+    const service = loadPaymentService(baseState({
+      vertraege: [{ vertrag_id: 'V7', einheit_id: 'O1_WE_01', hauptperson_id: '', aktiv: true, soll_gesamt: 0 }]
+    }));
+    const summary = service.summarizeMonth(service.getContracts()[0], '2026-11', new Date(2026, 10, 11));
+    expect(summary).toMatchObject({ due: 0, remaining: 0, status: 'leerstand', verspaetet: false });
+  });
+
   it('berücksichtigt Stornos append-only als Gegenbuchung', () => {
     const service = loadPaymentService(baseState({ zahlungen: [
       { zahlung_id: 'PAY', vertrag_id: 'V1', datum: '2026-10-03', betrag: 650, art: 'Miete' },
@@ -45,6 +53,36 @@ describe('paymentUiService Monatsstatus', () => {
     const summary = service.summarizeMonth(service.getContracts()[0], '2026-10', new Date(2026, 10, 11));
     expect(summary.paid).toBe(0);
     expect(summary.status).toBe('überfällig');
+  });
+
+  it('ordnet einen später eingegangenen Betrag dem ausgewählten Mietmonat zu', () => {
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'FEB_NACHZAHLUNG', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-02', betrag: 650, art: 'Miete' }
+    ] }));
+    const february = service.summarizeMonth(service.getContracts()[0], '2026-02', new Date(2026, 10, 11));
+    const november = service.summarizeMonth(service.getContracts()[0], '2026-11', new Date(2026, 10, 11));
+    expect(february).toMatchObject({ paid: 650, status: 'bezahlt', verspaetet: true });
+    expect(november.paid).toBe(0);
+  });
+
+  it('hält Kaution außerhalb der Monatsmiete und berechnet den Kautionsstatus', () => {
+    const service = loadPaymentService(baseState({
+      vertraege: [{ ...baseState().vertraege[0], kaution_soll: 2000 }],
+      zahlungen: [{ zahlung_id: 'K1', vertrag_id: 'V1', datum: '2026-01-02', mietmonat: '', betrag: 1200, art: 'Kaution' }]
+    }));
+    const contract = service.getContracts()[0];
+    expect(service.summarizeMonth(contract, '2026-01').paid).toBe(0);
+    expect(service.summarizeDeposit(contract)).toMatchObject({ due: 2000, paid: 1200, remaining: 800, status: 'teilweise' });
+  });
+
+  it('führt Erstattungen als negative Monatskorrektur', () => {
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'REFUND', vertrag_id: 'V1', datum: '2026-03-20', mietmonat: '2026-03', betrag: -100, art: 'Erstattung' }
+    ] }));
+    const summary = service.summarizeMonth(service.getContracts()[0], '2026-03', new Date(2026, 10, 11));
+    expect(summary.paid).toBe(-100);
+    expect(summary.status).toBe('überfällig');
+    expect(summary.remaining).toBe(750);
   });
 
   it('baut eine Matrix nur für aktive Verträge', () => {
@@ -103,6 +141,7 @@ describe('paymentUiService CSV-Import', () => {
     expect(output.innerHTML).toContain('Mieteingänge');
     expect(output.innerHTML).toContain('Wohnung 1');
     expect(output.innerHTML).toContain('Überfällig');
+    expect(output.innerHTML).toContain('Guthaben / Überzahlungen');
     expect(output.innerHTML).toContain('Kontoauszug als CSV');
   });
 

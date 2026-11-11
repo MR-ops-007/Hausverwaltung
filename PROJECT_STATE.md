@@ -44,8 +44,11 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Dauernullprüfung nicht als Fehler markiert; die Hinweise blockieren keine Eingabe.
   Apps Script und Google-Sheet-Daten blieben unverändert.
 - P6/P7 laufen auf `codex/p6-mieteingaenge`: Die neue Mieteingangsansicht bietet eine
-  Monatsmatrix, Teilzahlungen, Überfälligkeit, Storno-Gegenbuchungen und einen lokalen
-  CSV-Import mit manueller Vertragszuordnung. Der Branch umfasst aktuell 418 Tests.
+  Monatsmatrix, Teilzahlungen, fachliche Mietmonate, Kautionen, Überfälligkeit,
+  Storno-Gegenbuchungen und einen lokalen CSV-Import mit manueller Vertragszuordnung.
+  Der Branch umfasst aktuell 423 Tests. Der lokale Mock deckt mehrere aktive Verträge,
+  Leerstand, Teilzahlungen, Nachzahlungen, Erstattungen, wiederholte Verspätungen,
+  Überzahlungen, Mitmieter und unterschiedliche Kautionsstände ab.
   Für die neue Idempotenz des Zahlungswegs ist Apps Script 4.8.6 erforderlich; die
   produktive 4.8.5 wurde nicht verändert.
 - P1.1 ist mit PR #32 abgeschlossen: Zugriff ist fail-closed, `GET` liefert nie Daten und

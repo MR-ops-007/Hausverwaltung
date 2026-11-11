@@ -43,7 +43,9 @@ Manuelle Mieteingänge und der erste CSV-Import werden vorbereitet.
   wird als Konflikt abgewiesen.
 - Stornos werden als negative append-only Gegenbuchungen mit eigener ID gespeichert.
 - Der Frontend-Paketstand enthält die Monatsmatrix, Teilzahlungen, Überfälligkeit,
-  Rückgängigmachen und lokale CSV-Zuordnungsvorschläge.
+  Rückgängigmachen, fachliche Mietmonate und lokale CSV-Zuordnungsvorschläge.
+- Kautionen werden separat gegen `kaution_soll` ausgewertet; Erstattungen sind negative
+  Buchungen. Der keyfreie Mock enthält mehrere Entenhausen-Personas für die Abnahme.
 - Diese Version ist noch nicht in Apps Script bereitgestellt. Vor dem Merge und Deploy
   laufen Backend- und UI-Regressionstests gegen Mock-Daten.
 

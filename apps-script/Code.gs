@@ -98,6 +98,7 @@
  *
  * Änderungen seit v4.8.5:
  * - ZAHLUNG-Schreibweg ist über zahlung_id idempotent und meldet Wiederholungen oder Konflikte eindeutig
+ * - Zahlungen unterscheiden Eingangsdatum und fachlichen Mietmonat; Erstattungen sind negative Buchungen
  */
 const BACKEND_VERSION = "4.8.6";
 
@@ -599,6 +600,17 @@ function writePayments(ss, payloadData) {
     return { status: 'error', code: 'PAYMENT_SCHEMA_MISSING', message: 'Im Blatt Zahlungen fehlt die Spalte zahlung_id.' };
   }
 
+  const optionalPaymentFields = ['mietmonat', 'storno_von', 'gegen_art'];
+  const requestedFields = optionalPaymentFields.filter(field => items.some(item => Object.prototype.hasOwnProperty.call(item || {}, field)));
+  const missingFields = requestedFields.filter(field => headers.indexOf(field) < 0);
+  if (missingFields.length > 0) {
+    return {
+      status: 'error',
+      code: 'PAYMENT_SCHEMA_MISSING',
+      message: `Im Blatt Zahlungen fehlen die Spalten: ${missingFields.join(', ')}.`
+    };
+  }
+
   const values = sheet.getDataRange().getValues();
   const existingById = {};
   values.slice(1).forEach(row => {
@@ -611,8 +623,9 @@ function writePayments(ss, payloadData) {
     result.zahlung_id = String(item.zahlung_id).trim();
     result.art = isBlankValue(item.art) ? 'Miete' : String(item.art).trim();
     const amount = Number(String(item.betrag === undefined ? '' : item.betrag).replace(',', '.'));
-    if (!isFinite(amount) || amount === 0 || (amount < 0 && result.art.toLowerCase() !== 'storno')) {
-      throw new Error('Zahlungsbetrag muss ungleich 0 sein; negative Beträge sind nur für Stornos erlaubt.');
+    const normalizedArt = result.art.toLowerCase();
+    if (!isFinite(amount) || amount === 0 || (amount < 0 && ['storno', 'erstattung'].indexOf(normalizedArt) < 0) || (normalizedArt === 'erstattung' && amount > 0)) {
+      throw new Error('Zahlungsbetrag muss ungleich 0 sein; Erstattungen müssen negativ sein, andere Zahlungsarten dürfen nicht negativ sein.');
     }
     result.betrag = amount;
     return result;
@@ -637,7 +650,7 @@ function writePayments(ss, payloadData) {
     const item = normalized[index];
     const existing = existingById[item.zahlung_id];
     if (existing) {
-      const equivalent = ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art']
+      const equivalent = ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art']
         .every(header => getComparable(item, header) === rowComparable(existing, header));
       if (!equivalent) {
         return {

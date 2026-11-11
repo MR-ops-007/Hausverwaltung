@@ -2,17 +2,96 @@ import http from 'node:http';
 
 const port = Number(process.env.PORT || 8787);
 
+const rent = (zahlung_id, vertrag_id, mietmonat, betrag, datum, art = 'Miete', extra = {}) => ({
+  zahlung_id, vertrag_id, mietmonat, betrag, datum, art, ...extra
+});
+
 const state = {
   Objekte: [{ objekt_id: 'TEST', bezeichnung: 'TEST · Entenhausen' }],
-  Einheiten: [{ einheit_id: 'TEST_WE_01', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 1' }],
-  Personen: [{ person_id: 'P1', vorname: 'Donald', name: 'Duck' }],
-  Vertraege: [{ vertrag_id: 'TEST_V1', einheit_id: 'TEST_WE_01', hauptperson_id: 'P1', aktiv: true, soll_gesamt: 650 }],
-  Vertragsparteien: [{ vertrag_id: 'TEST_V1', person_id: 'P1', rolle: 'Hauptmieter', ordnet: 1 }],
-  Zaehler: [{ zaehler_id: 'Z_TEST_STROM', objekt_id: 'TEST', einheit_id: 'TEST_WE_01', medium: 'Strom', bezeichnung: 'Strom Wohnung 1', einheit: 'kWh', aktiv: true, erfassbar: true }],
-  Zaehlerstaende: [{ stand_id: 'ST_TEST_1', objekt_id: 'TEST', einheit_id: 'TEST_WE_01', zaehler_id: 'Z_TEST_STROM', zeitstempel: '01.11.2026 08:00', wert: 1000, quelle: 'Mock' }],
-  Zahlungen: [{ zahlung_id: 'MOCK_PAYMENT_2026_10', vertrag_id: 'TEST_V1', datum: '2026-10-03', betrag: 650, art: 'Miete' }],
+  Einheiten: [
+    { einheit_id: 'TEST_WE_01', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 1' },
+    { einheit_id: 'TEST_WE_02', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 2' },
+    { einheit_id: 'TEST_WE_03', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 3' },
+    { einheit_id: 'TEST_WE_04', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 4' },
+    { einheit_id: 'TEST_WE_05', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 5' },
+    { einheit_id: 'TEST_WE_06', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 6' },
+    { einheit_id: 'TEST_WE_07', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 7' }
+  ],
+  Personen: [
+    { person_id: 'P1', vorname: 'Donald', name: 'Duck' },
+    { person_id: 'P2', vorname: 'Mickey', name: 'Mouse' },
+    { person_id: 'P3', vorname: 'Daisy', name: 'Duck' },
+    { person_id: 'P4', vorname: 'Dagobert', name: 'Duck' },
+    { person_id: 'P5', vorname: 'Gustav', name: 'Gans' },
+    { person_id: 'P6', vorname: 'Tick', name: 'Duck' },
+    { person_id: 'P7', vorname: 'Trick', name: 'Duck' }
+  ],
+  Vertraege: [
+    { vertrag_id: 'TEST_V1', einheit_id: 'TEST_WE_01', hauptperson_id: 'P1', aktiv: true, soll_gesamt: 650, kaution_soll: 2000 },
+    { vertrag_id: 'TEST_V2', einheit_id: 'TEST_WE_02', hauptperson_id: 'P2', aktiv: true, soll_gesamt: 900, kaution_soll: 2000 },
+    { vertrag_id: 'TEST_V3', einheit_id: 'TEST_WE_03', hauptperson_id: 'P3', aktiv: true, soll_gesamt: 750, kaution_soll: 1500 },
+    { vertrag_id: 'TEST_V4', einheit_id: 'TEST_WE_04', hauptperson_id: 'P4', aktiv: true, soll_gesamt: 1450, kaution_soll: 2000 },
+    { vertrag_id: 'TEST_V5', einheit_id: 'TEST_WE_05', hauptperson_id: 'P5', aktiv: true, soll_gesamt: 500, kaution_soll: 2000 },
+    { vertrag_id: 'TEST_V6', einheit_id: 'TEST_WE_06', hauptperson_id: 'P6', aktiv: true, soll_gesamt: 800, kaution_soll: 1600 },
+    { vertrag_id: 'TEST_V7', einheit_id: 'TEST_WE_07', hauptperson_id: '', aktiv: true, soll_gesamt: 0, kaution_soll: 0 }
+  ],
+  Vertragsparteien: [
+    { vertrag_id: 'TEST_V1', person_id: 'P1', rolle: 'Hauptmieter', ordnet: 1 },
+    { vertrag_id: 'TEST_V2', person_id: 'P2', rolle: 'Hauptmieter', ordnet: 1 },
+    { vertrag_id: 'TEST_V3', person_id: 'P3', rolle: 'Hauptmieter', ordnet: 1 },
+    { vertrag_id: 'TEST_V4', person_id: 'P4', rolle: 'Hauptmieter', ordnet: 1 },
+    { vertrag_id: 'TEST_V5', person_id: 'P5', rolle: 'Hauptmieter', ordnet: 1 },
+    { vertrag_id: 'TEST_V6', person_id: 'P6', rolle: 'Hauptmieter', ordnet: 1 },
+    { vertrag_id: 'TEST_V6', person_id: 'P7', rolle: 'Hauptmieter', ordnet: 2 }
+  ],
+  Zaehler: [1, 2, 3, 4, 5, 6].map(index => ({
+    zaehler_id: `Z_TEST_STROM_${index}`,
+    objekt_id: 'TEST',
+    einheit_id: `TEST_WE_0${index}`,
+    medium: 'Strom',
+    bezeichnung: `Strom Wohnung ${index}`,
+    einheit: 'kWh',
+    aktiv: true,
+    erfassbar: true
+  })),
+  Zaehlerstaende: [{ stand_id: 'ST_TEST_1', objekt_id: 'TEST', einheit_id: 'TEST_WE_01', zaehler_id: 'Z_TEST_STROM_1', zeitstempel: '01.11.2026 08:00', wert: 1000, quelle: 'Mock' }],
+  Zahlungen: [
+    rent('D_2026_01', 'TEST_V1', '2026-01', 650, '2026-01-05'),
+    rent('D_2026_02', 'TEST_V1', '2026-02', 150, '2026-11-11'),
+    rent('D_2026_03', 'TEST_V1', '2026-03', 650, '2026-03-05'),
+    rent('D_2026_04', 'TEST_V1', '2026-04', 650, '2026-04-05'),
+    rent('D_2026_05', 'TEST_V1', '2026-05', 650, '2026-05-05'),
+    rent('D_2026_06', 'TEST_V1', '2026-06', 650, '2026-06-05'),
+    rent('D_2026_07', 'TEST_V1', '2026-07', 650, '2026-07-05'),
+    rent('D_2026_08', 'TEST_V1', '2026-08', 650, '2026-08-05'),
+    rent('D_2026_09', 'TEST_V1', '2026-09', 650, '2026-09-05'),
+    rent('D_2026_10', 'TEST_V1', '2026-10', 650, '2026-10-05'),
+    rent('D_KAUTION', 'TEST_V1', '', 1200, '2026-01-03', 'Kaution'),
+    ...Array.from({ length: 11 }, (_, index) => rent(`M_2026_${index + 1}`, 'TEST_V2', `2026-${String(index + 1).padStart(2, '0')}`, 900, index === 4 ? '2026-05-20' : `2026-${String(index + 1).padStart(2, '0')}-04`)),
+    rent('M_KAUTION', 'TEST_V2', '', 2000, '2026-01-02', 'Kaution'),
+    rent('G_01', 'TEST_V4', '2026-01', 1450, '2026-01-04'),
+    rent('G_02', 'TEST_V4', '2026-02', 1450, '2026-02-04'),
+    rent('G_03', 'TEST_V4', '2026-03', 1450, '2026-03-04'),
+    rent('G_04', 'TEST_V4', '2026-04', 700, '2026-05-12'),
+    rent('G_05', 'TEST_V4', '2026-05', 1450, '2026-05-20'),
+    rent('G_06', 'TEST_V4', '2026-06', 1450, '2026-06-20'),
+    rent('G_08', 'TEST_V4', '2026-08', 1450, '2026-08-20'),
+    rent('G_09', 'TEST_V4', '2026-09', 1450, '2026-09-20'),
+    rent('G_10', 'TEST_V4', '2026-10', 1450, '2026-10-20'),
+    rent('G_11', 'TEST_V4', '2026-11', 1450, '2026-11-11'),
+    rent('G_KAUTION', 'TEST_V4', '', 2000, '2026-01-02', 'Kaution'),
+    rent('GUS_01', 'TEST_V5', '2026-01', 600, '2026-01-05'),
+    rent('GUS_02', 'TEST_V5', '2026-02', 500, '2026-02-05'),
+    rent('GUS_NACH', 'TEST_V5', '2026-02', 250, '2026-03-01', 'Nachzahlung'),
+    rent('GUS_ERST', 'TEST_V5', '2026-03', -100, '2026-03-20', 'Erstattung'),
+    rent('GUS_KAUTION', 'TEST_V5', '', 2000, '2026-01-02', 'Kaution'),
+    rent('TICK_01', 'TEST_V6', '2026-01', 400, '2026-01-05'),
+    rent('TRICK_01', 'TEST_V6', '2026-01', 400, '2026-01-05'),
+    rent('TICK_02', 'TEST_V6', '2026-02', 800, '2026-02-20'),
+    rent('TICK_KAUTION', 'TEST_V6', '', 1000, '2026-01-02', 'Kaution')
+  ],
   Haustechnik: [],
-  _view_aktive_mieter: [{ objekt_id: 'TEST', einheit_id: 'TEST_WE_01', vertrag_id: 'TEST_V1', mieter_name: 'Duck, Donald', soll_gesamt: 650 }],
+  _view_aktive_mieter: [1, 2, 3, 4, 5, 6, 7].map(index => ({ objekt_id: 'TEST', einheit_id: `TEST_WE_0${index}`, vertrag_id: `TEST_V${index}`, mieter_name: index === 7 ? 'Leerstand' : 'Testmieter', soll_gesamt: [650, 900, 750, 1450, 500, 800, 0][index - 1] })),
   _view_verbrauch_monat: [],
   _view_verbrauch_jahr: [],
   _view_verbrauch_audit: [],
@@ -40,6 +119,11 @@ function writePayments(items) {
   let added = 0;
   let alreadyPresent = 0;
   for (const item of items) {
+    const art = String(item?.art || 'Miete').trim().toLowerCase();
+    const amount = Number(String(item?.betrag ?? '').replace(',', '.'));
+    if (!Number.isFinite(amount) || amount === 0 || (amount < 0 && !['storno', 'erstattung'].includes(art)) || (art === 'erstattung' && amount > 0)) {
+      return { status: 'error', code: 'PAYMENT_AMOUNT_INVALID', message: 'Erstattungen müssen negativ sein; andere Zahlungsarten dürfen nicht negativ sein.' };
+    }
     const existing = state.Zahlungen.find(row => row.zahlung_id === item.zahlung_id);
     if (existing) {
       alreadyPresent++;

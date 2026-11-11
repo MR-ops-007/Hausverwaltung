@@ -61,13 +61,21 @@ Speichert jede Zahlung auf einen Vertrag.
 | **C** | `datum` | Datum | Buchungsdatum |
 | **D** | `betrag` | Zahl | Gezahlter Betrag |
 | **E** | `art` | String | `Miete`, `Kaution`, `Nachzahlung`, `Erstattung` |
+| **F** | `mietmonat` | Text, optional | Fachlicher Monat `YYYY-MM`, für den eine Miete, Nachzahlung oder Erstattung zählt; bei Kaution leer |
+| **G** | `storno_von` | String, optional | `zahlung_id` der stornierten Buchung |
+| **H** | `gegen_art` | String, optional | Ursprüngliche Art bei `art = Storno`, insbesondere `Kaution` |
 
 `zahlung_id` ist der Idempotenzschlüssel des Schreibwegs. Ein erneuter Versand mit
 derselben ID und denselben Buchungsdaten wird als bereits vorhanden bestätigt und
 erzeugt keine zweite Zeile. Die Wiederverwendung einer ID mit abweichendem Vertrag,
-Datum, Betrag oder Art wird als Konflikt abgewiesen. Korrekturen werden append-only
-als eigene Gegenbuchung gespeichert: `art = Storno`, eigene `zahlung_id`, negativer
-`betrag`. Die ursprüngliche Zahlung bleibt unverändert nachvollziehbar.
+Datum, Betrag, Art oder fachlicher Zuordnung wird als Konflikt abgewiesen. `datum`
+ist das tatsächliche Eingangsdatum; `mietmonat` ist die fachliche Zuordnung. Dadurch
+kann eine Zahlung am 11.11.2026 den Mietmonat `2026-02` ausgleichen. Korrekturen werden
+append-only als eigene Gegenbuchung gespeichert: `art = Storno`, eigene `zahlung_id`,
+`storno_von` und ein gegenläufiger Betrag. Eine Erstattung vom Vermieter an den Mieter
+wird als `art = Erstattung` mit negativem `betrag` erfasst. Kautionen werden nicht in
+die Monatsmiete eingerechnet, sondern separat gegen `Vertraege.kaution_soll` ausgewertet.
+Die ursprüngliche Zahlung bleibt unverändert nachvollziehbar.
 
 Der erste Kontoauszug-Import unterstützt CSV-Dateien lokal im Browser. Die App liest
 keine Bankzugänge und sendet keine Datei an einen externen Dienst. Vertragsvorschläge

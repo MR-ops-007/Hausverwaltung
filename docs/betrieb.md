@@ -34,6 +34,28 @@ produktive TEST-/PROD-Ablauf wird dadurch nicht verändert. Unit- und Backend-Re
 verwenden denselben Grundsatz: künstliche Daten und Mock-Services, niemals echte Schlüssel
 im Testlauf.
 
+### Zahlungstestfälle im Mock
+
+Die Testmatrix enthält bewusst unterschiedliche Fälle:
+
+| Persona | Fachlicher Fall |
+| --- | --- |
+| Donald Duck | Februar-Teilzahlung, die erst am 11.11. eingeht; Kaution teilweise hinterlegt |
+| Mickey Mouse | überwiegend pünktliche Zahlungen; Kaution vollständig hinterlegt |
+| Daisy Duck | keine Zahlungen; offene und überfällige Monate |
+| Dagobert Duck | mehrere verspätete Monate und eine Teilzahlung; wiederholte Verspätung sichtbar |
+| Gustav Gans | Überzahlung, Nachzahlung und negative Erstattung |
+| Tick und Trick Duck | zwei Hauptmieter in einer Wohnung; getrennte Teilzahlungen |
+| Wohnung 7 | Leerstand ohne Zahlung; wird sichtbar geführt, aber nicht als offene Miete gezählt |
+
+Im Dialog ist `datum` das tatsächliche Eingangsdatum. `mietmonat` ist die fachliche
+Zuordnung. Eine Zahlung vom 11.11.2026 kann dadurch den Februar ausgleichen. Eine Kaution
+wird ohne Mietmonat gespeichert und separat gegen `Vertraege.kaution_soll` ausgewertet.
+Für den produktiven Schreibweg müssen die optionalen Spalten `mietmonat`, `storno_von`
+und `gegen_art` im Blatt `Zahlungen` vorhanden sein; fehlen sie, lehnt Backend 4.8.6 den
+erweiterten Datensatz verständlich mit `PAYMENT_SCHEMA_MISSING` ab, statt die Zuordnung
+still zu verlieren.
+
 Dieses Dokument beschreibt den sicheren Betrieb der Hausverwaltung mit getrennten
 Test- und Produktivdaten. Die verbindliche Aufgabenpriorisierung steht in
 `ROADMAP.md`; Zugangsschlüssel werden niemals in Git oder in dieser Dokumentation

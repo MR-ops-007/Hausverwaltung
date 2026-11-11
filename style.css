@@ -515,6 +515,11 @@ input[type="text"] {
     color: #1e3a8a;
     line-height: 1.45;
 }
+.payment-overview { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:16px 0; }
+.payment-overview > div { display:grid; gap:4px; min-height:92px; padding:14px 16px; border:1px solid #dbe4ee; border-radius:8px; background:#fff; }
+.payment-overview strong { color:#40516a; font-size:.9rem; }
+.payment-overview b { color:#18263d; font-size:1.35rem; }
+.payment-overview small { color:#68758a; }
 .payment-legend {
     display: flex;
     flex-wrap: wrap;
@@ -540,16 +545,26 @@ input[type="text"] {
 .payment-tenant-cell small { display: block; }
 .payment-tenant-cell span { margin-top: 3px; color: #475569; font-weight: 600; }
 .payment-tenant-cell small { margin-top: 7px; color: #64748b; font-weight: 600; }
+.payment-deposit { display:block; margin-top:6px; color:#52637a; font-size:.78rem; }
+.payment-deposit-vollstaendig { color:#198754; }
+.payment-deposit-teilweise { color:#a56600; }
+.payment-deposit-offen { color:#b42318; }
+.payment-deposit-action { width:fit-content; margin-top:7px; padding:4px 8px; border:1px solid #2f67d8; border-radius:5px; color:#2456bc; background:#f4f7ff; cursor:pointer; font-size:.75rem; }
+.payment-deposit-action:hover { background:#e8efff; }
 .payment-month-number { display: block; color: #94a3b8; font-size: .7rem; font-weight: 600; }
 .payment-cell { display: flex; flex-direction: column; gap: 4px; width: 100%; min-width: 74px; min-height: 62px; padding: 7px 6px; border: 1px solid #cbd5e1; border-radius: 7px !important; background: #fff; color: #334155; cursor: pointer; text-align: left; font-size: .72rem !important; }
 .payment-cell:hover { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,.12); }
 .payment-cell strong { font-size: .72rem; }
 .payment-cell span { font-size: .68rem; font-weight: 600; white-space: nowrap; }
+.payment-cell-late { box-shadow:inset 0 0 0 2px #f0a11a; }
+.payment-cell strong small { display:block; color:#9a5c00; font-size:.7rem; }
 .payment-status-bezahlt { color: #166534; background: #dcfce7; border-color: #86efac !important; }
 .payment-status-teilbezahlt { color: #92400e; background: #fef3c7; border-color: #fbbf24 !important; }
 .payment-status-offen { color: #475569; background: #f8fafc; border-color: #cbd5e1 !important; }
 .payment-status-ueberfaellig { color: #991b1b; background: #fee2e2; border-color: #fca5a5 !important; }
 .payment-status-zukuenftig { color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe !important; }
+.payment-status-leerstand { color: #64748b; background: #f1f5f9; border-color: #cbd5e1 !important; }
+.payment-deposit-nicht_vereinbart { color:#64748b; }
 .payment-empty { padding: 18px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; color: #64748b; }
 .payment-import-section { margin-top: 16px; padding: 14px; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; }
 .payment-section-heading { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
@@ -577,6 +592,7 @@ input[type="text"] {
 .payment-dialog-heading p { margin:5px 0 0; color:#475569; }
 .payment-dialog-close { border:0; background:transparent; color:#475569; cursor:pointer; font-size:2rem !important; line-height:1; padding:0 4px; }
 .payment-dialog-context { padding:10px 12px; border-radius:8px; background:#f8fafc; color:#475569; }
+.payment-dialog-hint { margin:8px 0 0; color:#68758a; font-size:.86rem; }
 .payment-dialog form { display:grid; gap:12px; }
 .payment-dialog-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
 .btn-secondary { padding:10px 14px; border:1px solid #94a3b8; border-radius:8px !important; background:#fff; color:#334155; cursor:pointer; }
@@ -585,7 +601,9 @@ input[type="text"] {
 .payment-history h3 { margin:0 0 7px; color:#334155; font-size:1rem; }
 .payment-history > div { display:flex; justify-content:space-between; gap:10px; align-items:center; padding:7px 0; border-top:1px solid #f1f5f9; color:#475569; }
 @media (max-width: 700px) {
+    .payment-overview { grid-template-columns:repeat(2,minmax(0,1fr)); }
     .payments-toolbar { grid-template-columns: 1fr; }
     .payment-import-row { grid-template-columns: 1fr; }
     .payment-import-row button { width:100%; }
 }
+@media (max-width: 520px) { .payment-overview { grid-template-columns:1fr; } }
