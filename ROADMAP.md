@@ -3,7 +3,7 @@
 Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklungspakete.
 `PROJECT_STATE.md` beschreibt den aktuellen Systemstand, `CHANGELOG.md` die Releases.
 
-**Stand: 2026-11-10**
+**Stand: 2026-11-11**
 
 ## Arbeitsregeln
 
@@ -20,7 +20,7 @@ Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklun
 
 ## Erledigt auf `main`
 
-Remote `origin/main` enthält aktuell PR #32 und den produktiven Backend-Stand 4.8.5.
+Remote `origin/main` enthält aktuell PR #35 und den produktiven Backend-Stand 4.8.5.
 
 | PR | Inhalt |
 | --- | --- |
@@ -35,6 +35,7 @@ Remote `origin/main` enthält aktuell PR #32 und den produktiven Backend-Stand 4
 | #29 | Speicherrückmeldung mit Busy-Zustand, Hausmeister-Stempel und idempotenter Erfolgsmeldung |
 | #31 | Getrennte Laufzeitkonfiguration und dokumentierte TEST-Umgebung |
 | #32 | Fail-closed-Zugriffsschutz, Geräteschlüssel und getrennte Rechte für TEST und PROD |
+| #35 | GitHub-Pages-Bereitstellung, Umgebungsprofile und PWA/Home-Screen-Grundlage |
 
 Der lokale Branch `main` muss nach einem Merge weiterhin mit `origin/main` synchronisiert
 werden, bevor ein neues Feature darauf aufgebaut wird.
@@ -206,10 +207,20 @@ beim erneuten Öffnen keine Anmeldung.
 
 ### P1.4 Housekeeping und Qualitätssicherung
 
+**Status:** in Arbeit auf `codex/p1-4-pages-build-hardening`.
+
+- Der Pages-Build kopiert `environment-service.js`, das von `index.html` benötigt wird.
+- `tools/check-frontend-assets.mjs` prüft im Quellbaum und im erzeugten Pages-Artefakt,
+  dass alle lokalen Script- und Link-Assets aus `index.html` vorhanden sind.
+- CI führt die Frontend-Asset-Prüfung und `git diff --check` zusätzlich zu `npm test` aus.
+- Ein Regressionstest prüft, dass jedes statische Script aus `index.html` im Pages-Workflow
+  berücksichtigt wird.
+- Offen bleiben die bereits geplanten Punkte `constantTimeEquals`, unescapte UI-Ausgaben,
+  `Migration.gs.gs` und Dependabot. Sie werden nicht ungeprüft mit diesem Build-Paket vermischt.
+
 - Doku-Drift, Versionsstände und alte Branches bereinigen.
 - `constantTimeEquals` für Vertrags-Token verwenden und unescapte UI-Ausgaben entfernen.
-- `node --check` und `git diff --check` in CI ergänzen.
-- `Migration.gs.gs` und die Einmal-Migration nur anfassen, wenn der Deployment-Rollback geklärt ist.
+- `Migration.gs.gs` und die Einmal-Migration erst anfassen, wenn der Deployment-Rollback geklärt ist.
 - Dependabot separat aktivieren, ohne den Produktionsrollout daran zu koppeln.
 
 ### P2 Datenqualität bei der Erfassung

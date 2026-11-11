@@ -1,22 +1,24 @@
 # PROJECT_STATE - Hausverwaltung
 
-## Stand: 2026-11-10
+## Stand: 2026-11-11
 
 `main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz 4.8.5 ist in TEST und PROD produktiv aktiviert.
 
 Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die nächsten sinnvollen Arbeitspakete.
 
-### Aktueller Stand nach PR #32
+### Aktueller Stand nach PR #35
 
-- `main` steht auf dem Stand nach PR #32 und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
+- `main` steht auf dem Stand nach PR #35 und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
   Z1 Speicherrückmeldung und Z2 Heizöl-Verbrauch.
 - Die Überlaufklassifikation, die Diagramm-Fehlerbehandlung, die Heizöl-Tankbilanz und
   der Speichervorgang sind gemeinsam regressionsgetestet.
-- Der vollständige Testlauf umfasst aktuell 389 Tests in 14 Testdateien. Apps Script 4.8.5
+- Der vollständige Testlauf umfasst aktuell 402 Tests in 17 Testdateien. Apps Script 4.8.5
   ist in PROD (bestehende Bereitstellung, Deployment-Version 41) und TEST (Deployment-Version 5)
   veröffentlicht; die jeweiligen URLs blieben unverändert.
-- Der nächste organisatorische Fokus ist die eindeutige lokale Auswahl von TEST und PROD. Die verbindliche
-  Aufgabenbeschreibung und die Abnahmekriterien stehen in `ROADMAP.md`.
+- Die lokale Auswahl von TEST und PROD sowie die GitHub-Pages-/Home-Screen-Grundlage sind in PR #35
+  enthalten. Die mobile Installation wurde bestätigt; die Persistenz des Zugangsschlüssels über
+  URL-Änderungen bleibt als eigener Abnahmepunkt offen, weil ein erneuter Dialog auch durch eine
+  Backend-Ablehnung oder isolierte Firefox-Site-Daten ausgelöst werden kann.
 - PR #31 hat die getrennte Laufzeitkonfiguration und die isolierte TEST-Umgebung
   dokumentiert. `config.js` enthält keine Backend-URL mehr; die lokale Auswahl erfolgt
   ausschließlich über die ignorierte `runtime-config.js`.
@@ -28,8 +30,14 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   erforderlich.
 - Der Backup-/Restore-Test der Produktivdatei bleibt als eigener manueller Betriebsschritt
   in `docs/backup-restore.md` und ist in P1.3 eingeordnet; er wurde nicht automatisch ausgeführt.
-- P1.2b ist begonnen: Manifest, iOS-Home-Screen-Metadaten und App-Icons sind vorhanden.
-  Die Geräte-Einrichtung mit Geräteschlüsseln und die mobile Abnahme folgen als eigener Schritt.
+- P1.2b ist in PR #35 umgesetzt: Manifest, iOS-Home-Screen-Metadaten, App-Icons,
+  GitHub-Pages-Auslieferung und sichtbare Umgebungsprofile sind vorhanden. Die App wurde auf
+  dem iPhone zum Home-Bildschirm hinzugefügt und geöffnet; die Schlüssel-Persistenz wird separat
+  verifiziert.
+- P1.4 läuft auf `codex/p1-4-pages-build-hardening`: Der Pages-Build prüft künftig, dass alle
+  lokalen Assets aus `index.html` im Artefakt vorhanden sind. Der konkrete Auslöser war ein
+  fehlendes `environment-service.js`, das sonst zu einem dauerhaft stehenden „Prüfe Verbindung…“
+  führte. Die Prüfung steht in `tools/check-frontend-assets.mjs`.
 - P1.1 ist mit PR #32 abgeschlossen: Zugriff ist fail-closed, `GET` liefert nie Daten und
   `APP_ACCESS_KEYS_JSON` unterstützt die Rollen `admin` und `erfassen`. Die produktiven und
   synthetischen Bereitstellungen verwenden getrennte Script Properties.
@@ -71,7 +79,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 - Der Ladezustand bleibt bis zur bestätigten Erfolgsmeldung aktiv. Die kurze Nachlaufzeit zeigt ausschließlich den bestätigten Erfolgszustand und verzögert den Backend-Speichervorgang nicht.
 - Eine identische Wiederholung wird als bereits gespeicherter Wert erklärt. Das Backend bleibt idempotent: Es wird keine zweite Zeile und kein neuer Zeitstempel angelegt.
 - Bei einer Korrektur wird ausdrücklich darauf hingewiesen, dass der bestehende Zeitstempel unverändert bleibt. Neue Ablesungen und bewusste Überschreibungen bleiben fachlich getrennt.
-- Das Verhalten ist durch UI-Regressionstests für Busy-Zustand, Duplikatmeldung, Korrekturmeldung, Modal-Markup und Fehlerpfad abgesichert. Der aktuelle Stand läuft mit 389 Tests grün; Apps Script und Datenmodell wurden nicht geändert.
+- Das Verhalten ist durch UI-Regressionstests für Busy-Zustand, Duplikatmeldung, Korrekturmeldung, Modal-Markup und Fehlerpfad abgesichert. Der aktuelle Stand läuft mit 402 Tests grün; Apps Script und Datenmodell wurden nicht geändert.
 
 ### Vertragsausbau 2026-10-21/22: Mietverträge / Indexmieten (produktiv)
 
@@ -536,7 +544,7 @@ Tabelle `Haustechnik` objekt- und tankspezifisch anpassbar.
   Hausverbrauchsauswertung.
 - Eine kWh-Umrechnung ist bis zur Klärung von Heizmedium, Heizwert und beheizter
   Fläche ausdrücklich nicht enthalten.
-- `npm test` läuft im aktuellen `main` mit 389 Tests in 14 Testdateien grün; zusätzlich
+- `npm test` läuft in diesem Arbeitsstand mit 402 Tests in 17 Testdateien grün; zusätzlich
   sind `node --check` für die geänderten JavaScript-Dateien und `git diff --check`
   sauber. Die Tankfüllungs-Automatik ist für Haupt- und Zusatztank separat regressionsgetestet.
   Das Paket änderte keine Apps-Script-Datei und benötigt für die lokale Prüfung keinen

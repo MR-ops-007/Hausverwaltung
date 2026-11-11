@@ -16,6 +16,7 @@
     "clasp:prod:push": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && NODE_OPTIONS=--dns-result-order=ipv4first node tools/clasp-target.mjs production push --confirm-prod'",
     "clasp:prod:deploy": "zsh -lc 'source ~/.nvm/nvm.sh && nvm use >/dev/null && NODE_OPTIONS=--dns-result-order=ipv4first node tools/clasp-target.mjs production deploy --confirm-prod'",
     "test": "TZ=Europe/Berlin vitest run",
+    "check:frontend-assets": "node tools/check-frontend-assets.mjs",
     "qa:consumption-matrix": "node tools/qa-consumption-matrix.mjs",
     "qa:consumption-snapshot": "node tools/fetch-verbrauch-snapshot.mjs"
   },
