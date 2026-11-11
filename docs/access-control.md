@@ -1,6 +1,6 @@
 # Zugriffsschutz (Backend 4.8.5)
 
-Stand: 2026-11-10
+Stand: 2026-11-11
 
 ## Ziel
 
@@ -68,7 +68,7 @@ Zeilen) und meldet „Version 4.8.0 erforderlich“, liefert aber keine Daten.
 - Neue oder gesperrte Geräte in `APP_ACCESS_KEYS_JSON` ändern. Ein deaktiviertes Gerät wird beim
   nächsten Zugriff sofort abgewiesen.
 - Ein neuer Schlüssel muss pro Gerät einmal hinterlegt werden. Er liegt pro Browser im
-  `localStorage` (`hv_access_key`). Entfernen über die
+  `localStorage` (`hv_access_key:test` beziehungsweise `hv_access_key:production`). Entfernen über die
   Browserdaten der Seite.
 
 ## Offline-Queue
@@ -85,7 +85,12 @@ Ausführlich in `docs/offline-sync-und-korrekturen.md`. Kurzfassung:
 
 - Die Geräteschlüssel sind eine kleine Geräteverwaltung, keine vollständige Benutzerverwaltung.
   Wer einen aktiven Schlüssel besitzt, erhält die zugehörige Rolle.
-- Der Schlüssel liegt im Browser des Geräts. Bei fremdem Zugriff auf das Gerät Schlüssel wechseln.
+- Der Schlüssel liegt im Browser des Geräts und wird getrennt nach Umgebung gespeichert:
+  `hv_access_key:test` beziehungsweise `hv_access_key:production`. Eine Änderung des
+  Query-Parameters wie `?v=...` löscht ihn nicht, solange Ursprung, Browserprofil und
+  Speicherbereich gleich bleiben. Ein erneuter Dialog weist daher auf einen abgelehnten
+  Schlüssel oder getrennte Browser-/PWA-Site-Daten hin, nicht auf das URL-Busting selbst.
+- Bei fremdem Zugriff auf das Gerät Schlüssel wechseln.
 - Kein Rate Limiting; ein zufälliger Schlüssel (48 Hex-Zeichen) macht Raten praktisch aussichtslos.
 - Quelltext und `config.js` bleiben öffentlich und enthalten kein Geheimnis.
 - Die Anzeige des Gerätenamens im Korrekturprotokoll ist ein separates Folgepaket. Die

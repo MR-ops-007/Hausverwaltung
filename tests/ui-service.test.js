@@ -953,6 +953,94 @@ describe('uiService consumption dashboard', () => {
   });
 });
 
+describe('Verbrauchs-Datenqualität', () => {
+  it('unterscheidet fehlende, veraltete und dauerhafte Nullwerte und ignoriert valide Leerstände', () => {
+    const readings = [
+      { objekt_id: 'O1', einheit_id: 'W2', zaehler_id: 'Z_STALE', wert: 100, zeitstempel: '01.01.2024 10:00' },
+      { objekt_id: 'O1', einheit_id: 'W3', zaehler_id: 'Z_ZERO', wert: 0, zeitstempel: '01.01.2026 10:00' },
+      { objekt_id: 'O1', einheit_id: 'W3', zaehler_id: 'Z_ZERO', wert: 0, zeitstempel: '01.02.2026 10:00' },
+      { objekt_id: 'O1', einheit_id: 'W3', zaehler_id: 'Z_ZERO', wert: 0, zeitstempel: '01.03.2026 10:00' },
+      { objekt_id: 'O1', einheit_id: 'W4', zaehler_id: 'Z_VACANT', wert: 0, zeitstempel: '01.01.2026 10:00' },
+      { objekt_id: 'O1', einheit_id: 'W4', zaehler_id: 'Z_VACANT', wert: 0, zeitstempel: '01.02.2026 10:00' },
+      { objekt_id: 'O1', einheit_id: 'W4', zaehler_id: 'Z_VACANT', wert: 0, zeitstempel: '01.03.2026 10:00' },
+    ];
+    const { uiService } = loadUiService({
+      zaehlerstaende: readings,
+    });
+    const rows = [
+      { objekt_id: 'O1', einheit_id: 'W1', zaehler_id: 'Z_NONE', bezeichnung: 'Keine Ablesung', medium: 'strom_kwh', mieter_name: 'Mieter' },
+      { objekt_id: 'O1', einheit_id: 'W2', zaehler_id: 'Z_STALE', bezeichnung: 'Veraltete Ablesung', medium: 'strom_kwh', mieter_name: 'Mieter' },
+      { objekt_id: 'O1', einheit_id: 'W3', zaehler_id: 'Z_ZERO', bezeichnung: 'Dauernde Nullwerte', medium: 'strom_kwh', mieter_name: 'Mieter' },
+      { objekt_id: 'O1', einheit_id: 'W4', zaehler_id: 'Z_VACANT', bezeichnung: 'Leerstand', medium: 'strom_kwh', mieter_name: 'Leerstand' },
+    ];
+
+    const qualityRows = uiService.buildConsumptionDataQualityRows([], rows, {
+      readings,
+      selectedYear: 2026,
+      now: new Date(2026, 8, 30, 12),
+    });
+
+    expect(qualityRows.map(row => row.status)).toEqual([
+      'KEINE_ABLESUNG',
+      'ABLESUNG_VERALTET',
+      'DAUERNULL',
+    ]);
+    expect(qualityRows.find(row => row.status === 'DAUERNULL').label).toBe('Dauernde Nullwerte');
+    expect(qualityRows.some(row => row.zaehler_id === 'Z_VACANT')).toBe(false);
+  });
+
+  it('zeigt Datenqualitäts-Hinweise auch im Dashboard sichtbar an', async () => {
+    const { uiService, elementsById } = loadUiService({
+      objects: [{ objekt_id: 'O1', bezeichnung: 'Objekt 1' }],
+      zaehlerstaende: [{
+        objekt_id: 'O1',
+        einheit_id: 'W1',
+        zaehler_id: 'Z_STALE',
+        wert: 100,
+        zeitstempel: '01.01.2024 10:00'
+      }],
+      viewVerbrauchJahr: [{
+        jahr: 2026,
+        objekt_id: 'O1',
+        einheit_id: 'W1',
+        zaehler_id: 'Z_STALE',
+        bezeichnung: 'Strom Wohnung 1',
+        medium: 'strom_kwh',
+        verbrauch_jahr: 100,
+        verbrauch_monat_durchschnitt: 8.33,
+        plausibilitaet_status: 'OK'
+      }],
+    });
+
+    await uiService.showConsumptionDashboard();
+
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Datenqualität');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('Ablesung veraltet');
+    expect(elementsById['consumption-dashboard-output'].innerHTML).toContain('älter als 365 Tage');
+  });
+
+  it('zeigt Stammdatenzähler auch ohne Jahreszeile als fehlenden Wert', () => {
+    const { uiService } = loadUiService({
+      currentMeters: [{
+        objekt_id: 'O1',
+        einheit_id: 'W1',
+        zaehler_id: 'Z_NOT_YET_READ',
+        bezeichnung: 'Noch nicht abgelesen',
+        medium: 'strom_kwh',
+        aktiv: true,
+      }],
+    });
+
+    const rows = uiService.buildConsumptionFixedDisplayRows([], [], 'O1', 2026, true);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].zaehler_id).toBe('Z_NOT_YET_READ');
+    expect(rows[0].plausibilitaet_status).toBe('KEINE_WERTE');
+    expect(uiService.isConsumptionWarningStatus('DAUERNULL')).toBe(true);
+    expect(uiService.isConsumptionMissingStatus('DAUERNULL')).toBe(false);
+  });
+});
+
 describe('uiService.showZaehlerMaske', () => {
   it('renders only active manually enterable meters', () => {
     const { uiService, modalBodyElement, modalElement } = loadUiService({
