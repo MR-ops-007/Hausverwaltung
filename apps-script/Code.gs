@@ -1,7 +1,7 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.5
- * Stand: 2026-11-10
+ * Version: 4.8.6
+ * Stand: 2026-11-11
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
  * Änderungen seit v4.1:
@@ -95,8 +95,11 @@
  * - Zugriffsschutz ist fail-closed; ohne Schlüsselkonfiguration werden keine Daten gelesen oder geschrieben
  * - Mehrere Geräteschlüssel mit den Rollen 'admin' und 'erfassen' werden über Script Properties unterstützt
  * - Vertrags- und Indexänderungen sind auf die Rolle 'admin' beschränkt
+ *
+ * Änderungen seit v4.8.5:
+ * - ZAHLUNG-Schreibweg ist über zahlung_id idempotent und meldet Wiederholungen oder Konflikte eindeutig
  */
-const BACKEND_VERSION = "4.8.5";
+const BACKEND_VERSION = "4.8.6";
 
 function sendJSON(obj) {
   return ContentService
@@ -560,36 +563,7 @@ function doPost(e) {
       ));
     }
 
-    const targetSheet = "Zahlungen";
-
-    const sheet = ss.getSheetByName(targetSheet);
-
-    const headers = sheet
-      .getRange(1, 1, 1, sheet.getLastColumn())
-      .getValues()[0]
-      .map(h => String(h).trim().toLowerCase());
-
-    const items = Array.isArray(payload.data)
-      ? payload.data
-      : [payload.data];
-
-    items.forEach(item => {
-      const normalizedItem = targetSheet === "Zaehlerstaende"
-        ? normalizeZaehlerstandItem(item)
-        : item;
-
-      sheet.appendRow(
-        headers.map(h => getItemValueForHeader(normalizedItem, h))
-      );
-    });
-
-    // WICHTIG: Cache-Update nach jeder Datenänderung
-    updateAktiveMieterView();
-
-    return sendJSON({
-      status: "success",
-      message: "Daten verarbeitet und View aktualisiert"
-    });
+    return sendJSON(writePayments(ss, payload.data));
   } catch (err) {
     return sendJSON({
       status: "error",
@@ -598,6 +572,107 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * Append-only Zahlungsweg mit idempotenter zahlung_id.
+ *
+ * Ein wiederholter Versand derselben Buchung ist erfolgreich, erzeugt aber keine
+ * zweite Zeile. Wird dieselbe ID mit abweichenden Buchungsdaten wiederverwendet,
+ * wird der Vorgang abgewiesen, damit keine Zahlung still überschrieben wird.
+ */
+function writePayments(ss, payloadData) {
+  const sheet = ss.getSheetByName('Zahlungen');
+  if (!sheet) {
+    return { status: 'error', code: 'PAYMENT_SHEET_MISSING', message: 'Das Blatt Zahlungen fehlt.' };
+  }
+
+  const items = Array.isArray(payloadData) ? payloadData : [payloadData];
+  if (items.length === 0 || items.some(item => !item || isBlankValue(item.zahlung_id))) {
+    return { status: 'error', code: 'PAYMENT_ID_MISSING', message: 'Jede Zahlung benötigt eine eindeutige zahlung_id.' };
+  }
+
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+    .map(h => String(h).trim().toLowerCase());
+  const idColumn = headers.indexOf('zahlung_id');
+  if (idColumn < 0) {
+    return { status: 'error', code: 'PAYMENT_SCHEMA_MISSING', message: 'Im Blatt Zahlungen fehlt die Spalte zahlung_id.' };
+  }
+
+  const values = sheet.getDataRange().getValues();
+  const existingById = {};
+  values.slice(1).forEach(row => {
+    const id = row[idColumn];
+    if (!isBlankValue(id)) existingById[String(id)] = row;
+  });
+
+  const normalized = items.map(item => {
+    const result = Object.assign({}, item);
+    result.zahlung_id = String(item.zahlung_id).trim();
+    result.art = isBlankValue(item.art) ? 'Miete' : String(item.art).trim();
+    const amount = Number(String(item.betrag === undefined ? '' : item.betrag).replace(',', '.'));
+    if (!isFinite(amount) || amount === 0 || (amount < 0 && result.art.toLowerCase() !== 'storno')) {
+      throw new Error('Zahlungsbetrag muss ungleich 0 sein; negative Beträge sind nur für Stornos erlaubt.');
+    }
+    result.betrag = amount;
+    return result;
+  });
+
+  const getComparable = (item, header) => {
+    if (header === 'betrag') return Number(item.betrag);
+    if (header === 'art') return String(item.art || 'Miete').trim();
+    if (header === 'zahlung_id') return String(item.zahlung_id).trim();
+    if (header === 'datum') return normalizePaymentDate(item.datum);
+    return String(item[header] === undefined || item[header] === null ? '' : item[header]).trim();
+  };
+  const rowComparable = (row, header) => {
+    if (header === 'betrag') return Number(row[headers.indexOf(header)]);
+    if (header === 'datum') return normalizePaymentDate(row[headers.indexOf(header)]);
+    return String(row[headers.indexOf(header)] === undefined || row[headers.indexOf(header)] === null ? '' : row[headers.indexOf(header)]).trim();
+  };
+
+  const append = [];
+  let alreadyPresent = 0;
+  for (let index = 0; index < normalized.length; index++) {
+    const item = normalized[index];
+    const existing = existingById[item.zahlung_id];
+    if (existing) {
+      const equivalent = ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art']
+        .every(header => getComparable(item, header) === rowComparable(existing, header));
+      if (!equivalent) {
+        return {
+          status: 'error',
+          code: 'PAYMENT_ID_CONFLICT',
+          message: `Die zahlung_id ${item.zahlung_id} ist bereits mit anderen Daten gespeichert.`,
+          zahlung_id: item.zahlung_id
+        };
+      }
+      alreadyPresent++;
+      continue;
+    }
+    append.push(item);
+    existingById[item.zahlung_id] = headers.map(header => getItemValueForHeader(item, header));
+  }
+
+  append.forEach(item => sheet.appendRow(headers.map(header => getItemValueForHeader(item, header))));
+  if (append.length > 0) updateAktiveMieterView();
+
+  return {
+    status: 'success',
+    message: append.length > 0 ? 'Zahlung gespeichert.' : 'Zahlung war bereits gespeichert.',
+    angelegt: append.length,
+    bereits_vorhanden: alreadyPresent
+  };
+}
+
+function normalizePaymentDate(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, 'Europe/Berlin', 'yyyy-MM-dd');
+  }
+  const text = String(value === undefined || value === null ? '' : value).trim();
+  const german = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if (german) return `${german[3]}-${pad2(german[2])}-${pad2(german[1])}`;
+  return text.slice(0, 10);
 }
 
 function isBlankValue(value) {

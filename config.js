@@ -18,13 +18,27 @@ const runtimeProfiles = runtimeConfig.profiles && typeof runtimeConfig.profiles 
     ? runtimeConfig.profiles
     : {};
 const selectedProfile = runtimeProfiles[runtimeEnvironment] || runtimeConfig;
-const runtimeApiUrl = typeof selectedProfile.apiUrl === 'string'
+const runtimeLocation = configRuntimeHost.location && typeof configRuntimeHost.location === 'object'
+    ? configRuntimeHost.location
+    : null;
+const isLocalMock = Boolean(
+    runtimeLocation
+    && /^(127\.0\.0\.1|localhost)$/.test(String(runtimeLocation.hostname || ''))
+    && new URLSearchParams(String(runtimeLocation.search || '')).get('mock') === '1'
+);
+const runtimeApiUrl = isLocalMock
+    ? 'http://127.0.0.1:8787'
+    : typeof selectedProfile.apiUrl === 'string'
     ? selectedProfile.apiUrl.trim()
     : '';
+const effectiveEnvironment = isLocalMock ? 'test' : runtimeEnvironment;
+const effectiveEnvironmentLabel = isLocalMock
+    ? 'LOKALER MOCK · Entenhausen'
+    : (selectedProfile.label || (runtimeEnvironment === 'test' ? 'TEST' : 'PRODUKTION'));
 
 const CONFIG = {
-    ENVIRONMENT: runtimeEnvironment,
-    ENVIRONMENT_LABEL: selectedProfile.label || (runtimeEnvironment === 'test' ? 'TEST' : 'PRODUKTION'),
+    ENVIRONMENT: effectiveEnvironment,
+    ENVIRONMENT_LABEL: effectiveEnvironmentLabel,
     ENVIRONMENT_PROFILES: runtimeProfiles,
     // Die Backend-URL kommt ausschließlich aus der lokalen Laufzeitkonfiguration.
     // Dadurch landet weder die produktive noch die Test-URL im öffentlichen Quellcode.

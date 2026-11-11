@@ -1536,6 +1536,10 @@ const uiService = {
     const contractsButton = document.getElementById('nav-contracts');
     if (contractsSection && activeView !== 'contracts') contractsSection.style.display = 'none';
     if (contractsButton) contractsButton.className = activeView === 'contracts' ? 'tab-btn-active' : 'tab-btn-inactive';
+    const paymentsSection = document.getElementById('payments-section');
+    const paymentsButton = document.getElementById('nav-payments');
+    if (paymentsSection && activeView !== 'payments') paymentsSection.style.display = 'none';
+    if (paymentsButton) paymentsButton.className = activeView === 'payments' ? 'tab-btn-active' : 'tab-btn-inactive';
     const meterButton = document.getElementById('nav-meter-entry');
     const dashboardButton = document.getElementById('nav-consumption-dashboard');
 
@@ -1552,8 +1556,10 @@ const uiService = {
     const dashboardSection = document.getElementById('consumption-dashboard-section');
     const selectorSection = document.getElementById('object-selector-section');
     const unitSection = document.getElementById('unit-list-section');
+    const paymentsSection = document.getElementById('payments-section');
 
     if (dashboardSection) dashboardSection.style.display = 'none';
+    if (paymentsSection) paymentsSection.style.display = 'none';
     if (selectorSection) selectorSection.style.display = 'block';
     if (unitSection) unitSection.style.display = 'none';
 
@@ -1564,9 +1570,11 @@ const uiService = {
     const dashboardSection = document.getElementById('consumption-dashboard-section');
     const selectorSection = document.getElementById('object-selector-section');
     const unitSection = document.getElementById('unit-list-section');
+    const paymentsSection = document.getElementById('payments-section');
 
     if (selectorSection) selectorSection.style.display = 'none';
     if (unitSection) unitSection.style.display = 'none';
+    if (paymentsSection) paymentsSection.style.display = 'none';
     if (dashboardSection) dashboardSection.style.display = 'block';
 
     this.setNavigationState('consumption');

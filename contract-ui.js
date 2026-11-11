@@ -73,7 +73,7 @@ const contractUiService = {
   },
 
   show() {
-    ['object-selector-section', 'unit-list-section', 'consumption-dashboard-section'].forEach(id => {
+    ['object-selector-section', 'unit-list-section', 'consumption-dashboard-section', 'payments-section'].forEach(id => {
       document.getElementById(id).style.display = 'none';
     });
     document.getElementById('contracts-section').style.display = 'block';

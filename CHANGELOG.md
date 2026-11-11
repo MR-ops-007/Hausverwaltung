@@ -31,8 +31,21 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - PR #37 (2026-11-11): Pages-Asset-Prüfung, JavaScript-Syntaxprüfung und `git diff --check`
   in CI ergänzt.
 
-Diese Einträge ändern die Apps-Script-Version nicht. Die Backend-Version bleibt 4.8.5;
-neue Backend-Logik benötigt weiterhin einen eigenen Versionseintrag nach den Regeln oben.
+Diese Einträge ändern die produktive Apps-Script-Version nicht. PROD bleibt bei 4.8.5;
+die lokale Backend-Erweiterung 4.8.6 steht deshalb als eigener Versionseintrag oben.
+
+## 4.8.6 · 2026-11-11 · lokal
+
+Manuelle Mieteingänge und der erste CSV-Import werden vorbereitet.
+
+- Der Schreibweg `ZAHLUNG` ist über `zahlung_id` idempotent: dieselbe Buchung wird
+  bestätigt, aber nicht doppelt angelegt; eine abweichende Wiederverwendung der ID
+  wird als Konflikt abgewiesen.
+- Stornos werden als negative append-only Gegenbuchungen mit eigener ID gespeichert.
+- Der Frontend-Paketstand enthält die Monatsmatrix, Teilzahlungen, Überfälligkeit,
+  Rückgängigmachen und lokale CSV-Zuordnungsvorschläge.
+- Diese Version ist noch nicht in Apps Script bereitgestellt. Vor dem Merge und Deploy
+  laufen Backend- und UI-Regressionstests gegen Mock-Daten.
 
 ## 4.8.5 · 2026-11-10 · produktiv
 

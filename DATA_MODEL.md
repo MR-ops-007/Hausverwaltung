@@ -62,6 +62,18 @@ Speichert jede Zahlung auf einen Vertrag.
 | **D** | `betrag` | Zahl | Gezahlter Betrag |
 | **E** | `art` | String | `Miete`, `Kaution`, `Nachzahlung`, `Erstattung` |
 
+`zahlung_id` ist der Idempotenzschlüssel des Schreibwegs. Ein erneuter Versand mit
+derselben ID und denselben Buchungsdaten wird als bereits vorhanden bestätigt und
+erzeugt keine zweite Zeile. Die Wiederverwendung einer ID mit abweichendem Vertrag,
+Datum, Betrag oder Art wird als Konflikt abgewiesen. Korrekturen werden append-only
+als eigene Gegenbuchung gespeichert: `art = Storno`, eigene `zahlung_id`, negativer
+`betrag`. Die ursprüngliche Zahlung bleibt unverändert nachvollziehbar.
+
+Der erste Kontoauszug-Import unterstützt CSV-Dateien lokal im Browser. Die App liest
+keine Bankzugänge und sendet keine Datei an einen externen Dienst. Vertragsvorschläge
+werden aus Name, Verwendungszweck, Vertrags-ID und Sollbetrag gebildet und müssen vor
+dem Speichern bestätigt werden. CAMT.053 und MT940 sind ein späterer Importausbau.
+
 ---
 
 ## 4. Stammdaten

@@ -6,13 +6,13 @@
 
 Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die nächsten sinnvollen Arbeitspakete.
 
-### Aktueller Stand nach PR #37
+### Aktueller Stand nach PR #38
 
-- `main` steht auf dem Stand nach PR #37 und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
+- `main` steht auf dem Stand nach PR #38 und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
   Z1 Speicherrückmeldung und Z2 Heizöl-Verbrauch.
 - Die Überlaufklassifikation, die Diagramm-Fehlerbehandlung, die Heizöl-Tankbilanz und
   der Speichervorgang sind gemeinsam regressionsgetestet.
-- Der vollständige Testlauf umfasst aktuell 403 Tests in 17 Testdateien. Apps Script 4.8.5
+- Der vollständige Testlauf auf `main` umfasst aktuell 406 Tests in 17 Testdateien. Apps Script 4.8.5
   ist in PROD (bestehende Bereitstellung, Deployment-Version 41) und TEST (Deployment-Version 5)
   veröffentlicht; die jeweiligen URLs blieben unverändert.
 - Die lokale Auswahl von TEST und PROD sowie die GitHub-Pages-/Home-Screen-Grundlage sind in PR #35
@@ -39,10 +39,15 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Der konkrete Auslöser war ein fehlendes `environment-service.js`, das sonst zu einem
   dauerhaft stehenden „Prüfe Verbindung…“ führte. Die Prüfung steht in
   `tools/check-frontend-assets.mjs`.
-- P2 läuft auf `codex/p2-datenqualitaet`: Das Dashboard unterscheidet fehlende bestätigte
+- P2 ist in PR #38 abgeschlossen: Das Dashboard unterscheidet fehlende bestätigte
   Ablesungen, veraltete Ablesungen und dauerhafte Nullwerte. Leerstände werden bei der
-  Dauernullprüfung nicht als Fehler markiert; die Hinweise blockieren keine Eingabe. Der
-  Branch läuft mit 406 Tests; Apps Script und Google-Sheet-Daten bleiben unverändert.
+  Dauernullprüfung nicht als Fehler markiert; die Hinweise blockieren keine Eingabe.
+  Apps Script und Google-Sheet-Daten blieben unverändert.
+- P6/P7 laufen auf `codex/p6-mieteingaenge`: Die neue Mieteingangsansicht bietet eine
+  Monatsmatrix, Teilzahlungen, Überfälligkeit, Storno-Gegenbuchungen und einen lokalen
+  CSV-Import mit manueller Vertragszuordnung. Der Branch umfasst aktuell 418 Tests.
+  Für die neue Idempotenz des Zahlungswegs ist Apps Script 4.8.6 erforderlich; die
+  produktive 4.8.5 wurde nicht verändert.
 - P1.1 ist mit PR #32 abgeschlossen: Zugriff ist fail-closed, `GET` liefert nie Daten und
   `APP_ACCESS_KEYS_JSON` unterstützt die Rollen `admin` und `erfassen`. Die produktiven und
   synthetischen Bereitstellungen verwenden getrennte Script Properties.

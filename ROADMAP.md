@@ -20,7 +20,7 @@ Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklun
 
 ## Erledigt auf `main`
 
-Remote `origin/main` enthält aktuell PR #37 und den produktiven Backend-Stand 4.8.5.
+Remote `origin/main` enthält aktuell PR #38 und den produktiven Backend-Stand 4.8.5.
 
 | PR | Inhalt |
 | --- | --- |
@@ -38,6 +38,7 @@ Remote `origin/main` enthält aktuell PR #37 und den produktiven Backend-Stand 4
 | #35 | GitHub-Pages-Bereitstellung, Umgebungsprofile und PWA/Home-Screen-Grundlage |
 | #36 | Pages-Laufzeitdatei `environment-service.js` in das veröffentlichte Artefakt aufnehmen |
 | #37 | Pages-Build- und CI-Prüfungen gegen fehlende Frontend-Assets härten |
+| #38 | Dashboard-Datenqualität: fehlende, veraltete und dauerhafte Null-Ablesungen sichtbar machen |
 
 Der lokale Branch `main` muss nach einem Merge weiterhin mit `origin/main` synchronisiert
 werden, bevor ein neues Feature darauf aufgebaut wird.
@@ -227,7 +228,7 @@ beim erneuten Öffnen keine Anmeldung.
 
 ### P2 Datenqualität bei der Erfassung
 
-**Status:** in Arbeit auf `codex/p2-datenqualitaet`.
+**Status:** abgeschlossen in PR #38.
 
 - Auffällige Sprünge je Medium konfigurierbar warnen, aber niemals das Speichern blockieren.
 - Zwei Werte am selben Tag oder innerhalb des Korrekturfensters als mögliche Korrektur
@@ -236,8 +237,8 @@ beim erneuten Öffnen keine Anmeldung.
 - Im aktuellen Paket werden fehlende bestätigte Ablesungen, Ablesungen älter als 365 Tage
   und dauerhafte Nullwerte im Dashboard getrennt ausgewiesen. Leerstände werden bei der
   Dauernullprüfung nicht als Fehler markiert.
-- Die Regressionen für Klassifikation und Dashboard-Darstellung laufen im Branch mit
-  406 Tests; das Paket ändert weder Apps Script noch Google-Sheet-Daten.
+- Die Regressionen für Klassifikation und Dashboard-Darstellung liefen im Branch mit
+  406 Tests; das Paket änderte weder Apps Script noch Google-Sheet-Daten.
 - Leerstand und Defekt als unterschiedliche fachliche Zustände vorbereiten.
 - LOK-/TEST-Smoke-Tests erst mit echten, gepflegten Live-Daten ergänzen; bis dahin bleibt
   die Objekttrennung automatisiert getestet.
@@ -280,6 +281,8 @@ Ziel ist Kostenkontrolle bei Pauschalen, ausdrücklich kein Nebenkostenabrechnun
 
 ### P6 Mieteingänge manuell
 
+**Status:** in Arbeit auf `codex/p6-mieteingaenge`.
+
 **Ziel:** Zahlungseingänge im Alltag schnell und nachvollziehbar erfassen. Das ist ein
 Erfassungsmodul, kein Mahnwesen und keine Nebenkostenabrechnung.
 
@@ -288,10 +291,17 @@ Erfassungsmodul, kein Mahnwesen und keine Nebenkostenabrechnung.
 - Status `bezahlt`, `teilbezahlt`, `offen` und `überfällig` mit konfigurierbaren Karenztagen.
 - Zahlungen append-only speichern; Korrekturen als Storno oder Gegenbuchung statt Überschreiben.
 - Offline-Queue und idempotente Zahlungs-ID wiederverwenden.
+- Umsetzung im aktuellen Branch: Monatsmatrix für aktive Verträge, Status je Monat,
+  Teilzahlungen, Storno als negative Gegenbuchung und keine doppelte Speicherung bei
+  gleicher `zahlung_id`.
+- Der Backend-Schreibweg wird dafür auf 4.8.6 angehoben. Die produktive 4.8.5 bleibt
+  unverändert, bis die neue Apps-Script-Version manuell bereitgestellt und geprüft ist.
 
 **Voraussetzung:** P1.1/P1.2 Rollen und Geräteeinrichtung sind produktiv geprüft.
 
 ### P7 Kontoauszug-Import
+
+**Status:** CSV-MVP im selben Arbeitsstand vorbereitet; CAMT.053/MT940 bleiben Folgeausbau.
 
 **Ziel:** Manuelle Zahlungserfassung durch Vorschläge aus strukturierten Bankexporten reduzieren.
 
@@ -299,6 +309,9 @@ Erfassungsmodul, kein Mahnwesen und keine Nebenkostenabrechnung.
 - Vorschläge über IBAN, Namen, Verwendungszweck, Vertragsnummer und Betrag erzeugen.
 - Unklare Buchungen bleiben offen und werden manuell bestätigt.
 - Keine direkte Bankanbindung und keine automatische externe KI-Verarbeitung in der ersten Version.
+- Der CSV-MVP liest die Datei lokal im Browser, schlägt Verträge anhand von Namen,
+  Vertrags-ID und Sollbetrag vor und speichert erst nach manueller Bestätigung.
+- Unklare oder negative CSV-Buchungen werden nicht automatisch übernommen.
 
 **Voraussetzung:** P6 läuft im Alltag und das Zahlungsdatenmodell ist erprobt. Die konkrete
 Bank und das verfügbare Exportformat werden erst vor Beginn von P7 geprüft.
@@ -323,6 +336,7 @@ Bank und das verfügbare Exportformat werden erst vor Beginn von P7 geprüft.
 | 2026-11-06 | Security, Backup und Release-Nachvollziehbarkeit gehen vor neuen Auswertungsfeatures. |
 | 2026-11-10 | Zwei Geräteschlüssel: Admin für Verträge, Erfassen für Zählerstände und Zahlungen. |
 | 2026-11-10 | Mieteingänge zuerst manuell, strukturierter Kontoauszug-Import erst danach; OCR/PSD2 sind kein Startpunkt. |
+| 2026-11-11 | P6/P7 bleiben pragmatisch: CSV lokal importieren, Vorschläge bestätigen, keine direkte Bankanbindung. |
 
 ## Definition of Done
 

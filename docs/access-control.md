@@ -37,6 +37,9 @@ Sie ist deshalb nicht geheim. Geschützt wird der Zugriff durch einen Zugangssch
   Geräteschlüssel.
 - Vertrags- und Indexänderungen werden anhand der Rolle mit `FORBIDDEN` abgewiesen, bevor ein Lock
   angefordert oder geschrieben wird.
+- Der Mieteingangsweg bleibt für die Rolle `erfassen` freigegeben. Ab Backend 4.8.6
+  verhindert `zahlung_id` doppelte Buchungen bei Wiederholungen; eine abweichende
+  Wiederverwendung derselben ID wird als `PAYMENT_ID_CONFLICT` abgewiesen.
 
 ## Einspielen (Reihenfolge einhalten)
 

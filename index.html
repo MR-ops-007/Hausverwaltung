@@ -39,6 +39,7 @@
                 Verbrauch
             </button>
             <button id="nav-contracts" class="tab-btn-inactive" onclick="contractUiService.show()" style="padding:10px 14px; cursor:pointer;">Verträge</button>
+            <button id="nav-payments" class="tab-btn-inactive" onclick="paymentUiService.show()" style="padding:10px 14px; cursor:pointer;">Mieteingänge</button>
         </nav>
 
         <section id="contracts-section" style="display:none;">
@@ -91,6 +92,10 @@
             <div id="consumption-dashboard-output"></div>
         </section>
 
+        <section id="payments-section" style="display:none;">
+            <div id="payments-output"></div>
+        </section>
+
         <div id="modal-container" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; padding:16px; overflow:auto;">
             <div style="background:white; width:min(100%, 960px); max-height:calc(100vh - 32px); margin:0 auto; padding:24px 28px; border-radius:16px; position:relative; overflow:auto;">
                 <span style="position:absolute; top:10px; right:15px; font-size:24px; cursor:pointer;" onclick="uiService.closeModal()">&times;</span>
@@ -124,6 +129,7 @@
     <script src="consumption-charts.js?v=20261106-heizoel-v3"></script>
     <script src="ui-service.js?v=20261109-save-feedback-v1"></script>
     <script src="contract-ui.js?v=20261022-contracts-v4"></script>
+    <script src="payment-ui.js?v=20261111-payments-v1"></script>
 
     <script>
     async function initApp() {

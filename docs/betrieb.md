@@ -2,6 +2,38 @@
 
 Stand: 2026-11-11
 
+## Mieteingänge und Backend 4.8.6
+
+Der Branch `codex/p6-mieteingaenge` enthält den ersten Mieteingangs- und CSV-Import-
+Ausbau. Vor einer Bereitstellung muss `apps-script/Code.gs` als neue Version 4.8.6
+in der bestehenden TEST-Bereitstellung veröffentlicht und mit einem Erfassungs-
+Schlüssel geprüft werden. Danach folgt derselbe Ablauf für PROD. Eine alte 4.8.5-
+Bereitstellung bleibt als Rollback erhalten.
+
+Der CSV-Import ist absichtlich lokal und bestätigungspflichtig: Datei auswählen,
+Vorschläge prüfen, einzelne Buchung übernehmen. Unklare Zeilen bleiben offen. Die
+Version enthält keine direkte Bankanbindung und keine OCR-Verarbeitung.
+
+## Keyfreie lokale Systemprüfung
+
+Für reproduzierbare UI- und Schreibtests ohne PROD-/TEST-Schlüssel steht ein lokaler
+Mock bereit. Er verwendet ausschließlich synthetische Entenhausen-Daten und schreibt
+nichts in Google Sheets:
+
+```bash
+npm run dev:mock-backend
+npx vite --host 127.0.0.1 --port 5193
+```
+
+Die App kann dafür auf `http://127.0.0.1:5193/?mock=1` geöffnet werden. Der Query-Schalter
+greift ausschließlich auf `localhost`/`127.0.0.1` und setzt die API-URL auf
+`http://127.0.0.1:8787`; eine `runtime-config.js` muss für diesen Lauf nicht geändert
+werden. Die App lädt danach die Mock-Daten, die Mieteingangs-Matrix kann ohne Schlüssel
+bedient werden, und Schreibvorgänge bleiben im Prozessspeicher des Mock-Servers. Der
+produktive TEST-/PROD-Ablauf wird dadurch nicht verändert. Unit- und Backend-Regressionstests
+verwenden denselben Grundsatz: künstliche Daten und Mock-Services, niemals echte Schlüssel
+im Testlauf.
+
 Dieses Dokument beschreibt den sicheren Betrieb der Hausverwaltung mit getrennten
 Test- und Produktivdaten. Die verbindliche Aufgabenpriorisierung steht in
 `ROADMAP.md`; Zugangsschlüssel werden niemals in Git oder in dieser Dokumentation

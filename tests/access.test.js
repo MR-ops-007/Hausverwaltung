@@ -3,12 +3,12 @@ import { readFileSync } from 'node:fs';
 
 const KEY = 'test-only-key';
 
-function backend({ key, accessKeys } = {}) {
+function backend({ key, accessKeys, paymentRows } = {}) {
   const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
   const calls = { locks: 0, viewUpdates: 0, contractWrites: [] };
   const rows = {
     Zaehlerstaende: [['stand_id', 'zaehler_id', 'wert']],
-    Zahlungen: [['zahlung_id', 'betrag']]
+    Zahlungen: paymentRows || [['zahlung_id', 'betrag']]
   };
   const makeSheet = (name, values) => ({
     getName: () => name,
@@ -124,6 +124,45 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     expect(api.calls.viewUpdates).toBe(2);
     api.post({ typ: 'INDEX_ANWENDEN', token: 'vertrag', data: {}, key: KEY });
     expect(api.calls.contractWrites).toHaveLength(1);
+  });
+
+  it('behandelt Zahlungen über zahlung_id idempotent und weist abweichende Wiederholungen ab', () => {
+    const api = backend({
+      key: KEY,
+      paymentRows: [
+        ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art'],
+        ['P_EXISTING', 'V1', '2026-11-01', 650, 'Miete']
+      ]
+    });
+
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'P_EXISTING', vertrag_id: 'V1', datum: '2026-11-01', betrag: 650, art: 'Miete' }]
+    })).toMatchObject({ status: 'success', angelegt: 0, bereits_vorhanden: 1 });
+    expect(api.rows.Zahlungen).toHaveLength(2);
+
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'P_EXISTING', vertrag_id: 'V1', datum: '2026-11-01', betrag: 700, art: 'Miete' }]
+    })).toMatchObject({ status: 'error', code: 'PAYMENT_ID_CONFLICT' });
+    expect(api.rows.Zahlungen).toHaveLength(2);
+  });
+
+  it('akzeptiert negative Zahlungsbeträge nur als Storno', () => {
+    const api = backend({ key: KEY });
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'NEGATIVE_Miete', vertrag_id: 'V1', datum: '2026-11-11', betrag: -650, art: 'Miete' }]
+    })).toMatchObject({ status: 'error' });
+
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'STORNO_1', vertrag_id: 'V1', datum: '2026-11-11', betrag: -650, art: 'Storno' }]
+    })).toMatchObject({ status: 'success', angelegt: 1 });
   });
 
   it('aktualisiert Verbrauchsviews nur mit richtigem Schlüssel', () => {
