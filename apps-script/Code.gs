@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.7
+ * Version: 4.8.8
  * Stand: 2026-11-11
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
@@ -102,8 +102,12 @@
  *
  * Änderungen seit v4.8.6:
  * - Vertragsfelder für individuelle Zahlungstermine (Werktag oder Kalendertag) ergänzt
+ *
+ * Änderungen seit v4.8.7:
+ * - Überzahlungen können als mehrere append-only Zahlungszeilen mit gemeinsamer
+ *   zahlungsgruppe_id auf Mietmonate verteilt oder als Guthaben offen gelassen werden
  */
-const BACKEND_VERSION = "4.8.7";
+const BACKEND_VERSION = "4.8.8";
 
 function sendJSON(obj) {
   return ContentService
@@ -603,7 +607,7 @@ function writePayments(ss, payloadData) {
     return { status: 'error', code: 'PAYMENT_SCHEMA_MISSING', message: 'Im Blatt Zahlungen fehlt die Spalte zahlung_id.' };
   }
 
-  const optionalPaymentFields = ['mietmonat', 'storno_von', 'gegen_art'];
+  const optionalPaymentFields = ['mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id'];
   const requestedFields = optionalPaymentFields.filter(field => items.some(item => Object.prototype.hasOwnProperty.call(item || {}, field)));
   const missingFields = requestedFields.filter(field => headers.indexOf(field) < 0);
   if (missingFields.length > 0) {
@@ -653,7 +657,7 @@ function writePayments(ss, payloadData) {
     const item = normalized[index];
     const existing = existingById[item.zahlung_id];
     if (existing) {
-      const equivalent = ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art']
+      const equivalent = ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id']
         .every(header => getComparable(item, header) === rowComparable(existing, header));
       if (!equivalent) {
         return {

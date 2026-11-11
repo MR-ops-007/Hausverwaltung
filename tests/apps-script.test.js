@@ -42,6 +42,31 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     expect(statuses.slice(productive + 1).every(status => status === 'ersetzt')).toBe(true);
   });
 
+  it('prepares the payment schema without changing existing rows', () => {
+    const paymentCode = readFileSync(new URL('../apps-script/Payments.gs', import.meta.url), 'utf8');
+    const headers = ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art'];
+    let writtenHeaders;
+    let insertedColumns = 0;
+    const range = {
+      getValues: () => [headers],
+      setValues: values => { writtenHeaders = values[0]; }
+    };
+    const sheet = {
+      getLastColumn: () => headers.length,
+      getMaxColumns: () => headers.length,
+      insertColumnsAfter: (_after, count) => { insertedColumns = count; },
+      getRange: () => range
+    };
+    const SpreadsheetApp = { getActiveSpreadsheet: () => ({ getSheetByName: () => sheet }) };
+    const preparePaymentSchema = new Function('SpreadsheetApp', `${paymentCode}; return preparePaymentSchema;`)(SpreadsheetApp);
+
+    const result = preparePaymentSchema();
+
+    expect(result).toEqual({ addedHeaders: ['zahlungsgruppe_id'] });
+    expect(insertedColumns).toBe(1);
+    expect(writtenHeaders).toEqual(['zahlungsgruppe_id']);
+  });
+
   it('formats German timestamps for stand_id values', () => {
     const { formatStandIdTimestamp } = loadAppsScriptHelpers();
 

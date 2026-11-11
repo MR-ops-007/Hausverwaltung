@@ -61,9 +61,10 @@ Speichert jede Zahlung auf einen Vertrag.
 | **C** | `datum` | Datum | Buchungsdatum |
 | **D** | `betrag` | Zahl | Gezahlter Betrag |
 | **E** | `art` | String | `Miete`, `Kaution`, `Nachzahlung`, `Erstattung` |
-| **F** | `mietmonat` | Text, optional | Fachlicher Monat `YYYY-MM`, für den eine Miete, Nachzahlung oder Erstattung zählt; bei Kaution leer |
+| **F** | `mietmonat` | Text, optional | Fachlicher Monat `YYYY-MM`; bei Kaution und ausdrücklich nicht zugeordnetem Guthaben leer |
 | **G** | `storno_von` | String, optional | `zahlung_id` der stornierten Buchung |
 | **H** | `gegen_art` | String, optional | Ursprüngliche Art bei `art = Storno`, insbesondere `Kaution` |
+| **I** | `zahlungsgruppe_id` | String, optional | Gemeinsame ID für Teilbuchungen aus einem tatsächlichen Zahlungseingang |
 
 `zahlung_id` ist der Idempotenzschlüssel des Schreibwegs. Ein erneuter Versand mit
 derselben ID und denselben Buchungsdaten wird als bereits vorhanden bestätigt und
@@ -75,7 +76,11 @@ append-only als eigene Gegenbuchung gespeichert: `art = Storno`, eigene `zahlung
 `storno_von` und ein gegenläufiger Betrag. Eine Erstattung vom Vermieter an den Mieter
 wird als `art = Erstattung` mit negativem `betrag` erfasst. Kautionen werden nicht in
 die Monatsmiete eingerechnet, sondern separat gegen `Vertraege.kaution_soll` ausgewertet.
-Die ursprüngliche Zahlung bleibt unverändert nachvollziehbar.
+Die ursprüngliche Zahlung bleibt unverändert nachvollziehbar. Wird ein Eingang auf mehrere
+Mietmonate verteilt, erhält jede Teilbuchung eine eigene `zahlung_id` und dieselbe
+`zahlungsgruppe_id`. Die Summe aller Teilbuchungen dieser Gruppe entspricht exakt dem
+tatsächlichen Eingang. Ein Rest ohne `mietmonat` ist ein ausdrücklich bestätigtes
+Mietguthaben, nicht eine Kaution; er wird in der Übersicht separat als Guthaben geführt.
 
 Der erste Kontoauszug-Import unterstützt CSV-Dateien lokal im Browser. Die App liest
 keine Bankzugänge und sendet keine Datei an einen externen Dienst. Vertragsvorschläge

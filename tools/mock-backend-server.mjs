@@ -105,7 +105,7 @@ function readView(view) {
     _view_verbrauch_bilanz_jahr: state._view_verbrauch_bilanz_jahr
   };
   if (view === 'zaehlerstaende') return { Zaehlerstaende: state.Zaehlerstaende };
-  if (view === 'vertrag_capabilities') return { backend_version: '4.8.6-mock', access_protected: false, access_role: 'admin', contract_writes: true };
+  if (view === 'vertrag_capabilities') return { backend_version: '4.8.8-mock', access_protected: false, access_role: 'admin', contract_writes: true };
   return Object.fromEntries(Object.entries(state).filter(([key]) => !key.startsWith('_')));
 }
 

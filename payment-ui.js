@@ -188,7 +188,21 @@ const paymentUiService = {
   },
 
   getPaymentMonth(payment) {
-    return String(payment.mietmonat || '').trim() || this.monthKey(payment.datum || payment.buchungsdatum || payment.zahlungsdatum);
+    return String(payment.mietmonat || '').trim();
+  },
+
+  getEffectivePaymentMonth(payment) {
+    const assigned = this.getPaymentMonth(payment);
+    if (assigned) return assigned;
+    // Legacy rows without the optional field were historically assigned by receipt
+    // month. New explicit credit rows carry a group ID and remain unassigned.
+    return Object.prototype.hasOwnProperty.call(payment || {}, 'zahlungsgruppe_id')
+      ? ''
+      : this.getReceiptMonth(payment);
+  },
+
+  getReceiptMonth(payment) {
+    return this.monthKey(payment && (payment.datum || payment.buchungsdatum || payment.zahlungsdatum));
   },
 
   paymentArt(payment) {
@@ -213,21 +227,21 @@ const paymentUiService = {
     return (dataService.state.zahlungen || [])
       .filter(payment => String(payment.vertrag_id) === String(contractId)
         && this.isRentSettlementPayment(payment)
-        && this.getPaymentMonth(payment) === month);
+        && this.getEffectivePaymentMonth(payment) === month);
   },
 
   getRefundPayments(contractId, month) {
     return (dataService.state.zahlungen || [])
       .filter(payment => String(payment.vertrag_id) === String(contractId)
         && this.isRefundPayment(payment)
-        && this.getPaymentMonth(payment) === month);
+        && this.getEffectivePaymentMonth(payment) === month);
   },
 
   getPaymentsEnteredInMonth(contractId, month) {
     return (dataService.state.zahlungen || [])
       .filter(payment => String(payment.vertrag_id) === String(contractId))
       .filter(payment => this.isRentSettlementPayment(payment) || this.isRefundPayment(payment))
-      .filter(payment => this.monthKey(payment.datum || payment.buchungsdatum || payment.zahlungsdatum) === month);
+      .filter(payment => this.getReceiptMonth(payment) === month);
   },
 
   getDepositPayments(contractId) {
@@ -325,7 +339,18 @@ const paymentUiService = {
     const visibleMonths = matrix.flatMap(item => item.months)
       .filter(month => String(year) < String(current.getFullYear()) || month.month <= currentMonth);
     const openAmount = visibleMonths.reduce((sum, month) => sum + month.remaining, 0);
-    const creditAmount = visibleMonths.reduce((sum, month) => sum + month.credit, 0);
+    const monthlyCredit = visibleMonths.reduce((sum, month) => sum + month.credit, 0);
+    const contractIds = new Set(matrix.map(item => String(item.contract.vertrag_id)));
+    const unassignedCredit = (dataService.state.zahlungen || [])
+      .filter(payment => contractIds.has(String(payment.vertrag_id)))
+      .filter(payment => this.isRentSettlementPayment(payment))
+      .filter(payment => !this.getEffectivePaymentMonth(payment))
+      .filter(payment => this.getReceiptMonth(payment).slice(0, 4) === String(year))
+      .reduce((sum, payment) => {
+        const amount = this.parseNumber(payment.betrag) || 0;
+        return sum + (amount > 0 ? amount : 0);
+      }, 0);
+    const creditAmount = monthlyCredit + unassignedCredit;
     const overdueMonths = visibleMonths.filter(month => month.status === 'überfällig').length;
     const lateMonths = visibleMonths.filter(month => month.verspaetet).length;
     const repeatedDelay = matrix.filter(item => item.months.filter(month => month.verspaetet).length >= 2).length;
@@ -336,6 +361,7 @@ const paymentUiService = {
       contractCount: matrix.length,
       openAmount,
       creditAmount,
+      unassignedCredit,
       overdueMonths,
       lateMonths,
       repeatedDelay,
@@ -458,7 +484,7 @@ const paymentUiService = {
         <label>Objekt<select id="payment-object-select" onchange="paymentUiService.selectedObject=this.value; paymentUiService.render()"><option value="">Alle Objekte</option>${objectIds.map(id => `<option value="${this.escape(id)}" ${id === this.selectedObject ? 'selected' : ''}>${this.escape(this.objectName(id))}</option>`).join('')}</select></label>
         <label>Jahr<select id="payment-year-select" onchange="paymentUiService.selectedYear=this.value; paymentUiService.render()">${years.map(year => `<option value="${year}" ${year === String(this.selectedYear) ? 'selected' : ''}>${year}</option>`).join('')}</select></label>
       </div>
-      <div class="payment-overview" aria-label="Zusammenfassung der Mieteingänge"><div><strong>Offene Miete</strong><b>${this.formatMoney(overview.openAmount)} EUR</b><small>bis zum aktuellen Monat</small></div><div><strong>Überfällige Monate</strong><b>${overview.overdueMonths}</b><small>${overview.lateMonths} verspätete oder offene Monate</small></div><div><strong>Wiederholte Verspätungen</strong><b>${overview.repeatedDelay}</b><small>Verträge mit mindestens 2 Hinweisen</small></div><div><strong>Guthaben / Überzahlungen</strong><b>${this.formatMoney(overview.creditAmount)} EUR</b><small>positiver Saldo aus Monatsbuchungen</small></div><div><strong>Kaution</strong><b>${this.formatMoney(overview.depositPaid)} / ${this.formatMoney(overview.depositDue)} EUR</b><small>${this.formatMoney(overview.depositRemaining)} EUR offen</small></div></div>
+      <div class="payment-overview" aria-label="Zusammenfassung der Mieteingänge"><div><strong>Offene Miete</strong><b>${this.formatMoney(overview.openAmount)} EUR</b><small>bis zum aktuellen Monat</small></div><div><strong>Überfällige Monate</strong><b>${overview.overdueMonths}</b><small>${overview.lateMonths} verspätete oder offene Monate</small></div><div><strong>Wiederholte Verspätungen</strong><b>${overview.repeatedDelay}</b><small>Verträge mit mindestens 2 Hinweisen</small></div><div><strong>Guthaben / Überzahlungen</strong><b>${this.formatMoney(overview.creditAmount)} EUR</b><small>inklusive nicht zugeordneter Reste</small></div><div><strong>Kaution</strong><b>${this.formatMoney(overview.depositPaid)} / ${this.formatMoney(overview.depositDue)} EUR</b><small>${this.formatMoney(overview.depositRemaining)} EUR offen</small></div></div>
       <details class="payment-contract-summary"><summary><strong>Vertragsstatus</strong><span class="payment-contract-summary-overall">${depositSummary}</span></summary><div class="payment-contract-summary-grid">${contractSummary}</div></details>
       <p class="payment-help"><strong>So wird zugeordnet:</strong> Das Eingangsdatum dokumentiert den tatsächlichen Geldfluss. Der ausgewählte Mietmonat bestimmt die fachliche Zuordnung. <strong>Miete</strong> ist der reguläre Monatsbetrag; eine <strong>Nachzahlung</strong> gleicht einen zusätzlich offenen Betrag für den zugeordneten Monat aus. Eine <strong>Erstattung</strong> wird als negative Rückzahlung geführt und verändert den Zahlungsstatus der Miete nicht. Die Frist wird je Vertrag als 3. Werktag oder individueller Kalendertag berechnet.</p>
       ${this.legendHtml()}
@@ -469,6 +495,7 @@ const paymentUiService = {
   openPaymentDialog(contractId, month, initialArt = 'Miete') {
     const contract = (dataService.state.vertraege || []).find(row => String(row.vertrag_id) === String(contractId));
     if (!contract) return;
+    this.pendingAllocation = null;
     const isDeposit = initialArt === 'Kaution';
     const summary = isDeposit ? this.summarizeDeposit(contract) : this.summarizeMonth(contract, month);
     const remaining = summary.remaining;
@@ -484,7 +511,7 @@ const paymentUiService = {
       .sort((a, b) => String(a.datum || '').localeCompare(String(b.datum || '')));
     const history = historyPayments.length ? `<div class="payment-history"><h3>Bereits erfasst</h3><p class="payment-history-note">Fachlich zugeordnete Zahlungen und Zahlungen, die in diesem Monat eingegangen sind.</p>${historyPayments.map(payment => {
       const originalArt = payment.gegen_art || payment.art || 'Miete';
-      const assignedMonth = payment.mietmonat || (isDeposit ? '' : this.getPaymentMonth(payment));
+      const assignedMonth = payment.mietmonat || (isDeposit ? '' : this.getEffectivePaymentMonth(payment));
       const undo = this.paymentArt(payment) === 'storno' ? '' : `<button class="btn-link-danger" type="button" onclick="paymentUiService.saveStorno('${this.escape(contractId)}','${this.escape(historyMonth)}','${this.escape(payment.zahlung_id)}',${this.parseNumber(payment.betrag) || 0},'${this.escape(originalArt)}','${this.escape(assignedMonth)}')">Rückgängig</button>`;
       return `<div><span>${this.escape(payment.datum || '')}${assignedMonth ? ` · Monat ${this.escape(assignedMonth)}` : ''} · ${this.formatMoney(payment.betrag)} EUR · ${this.escape(payment.art || 'Zahlung')}</span>${undo}</div>`;
     }).join('')}</div>` : '';
@@ -510,6 +537,104 @@ const paymentUiService = {
     return `Storno_${paymentId}_${Date.now()}`;
   },
 
+  getAllocationCandidates(contractId, selectedMonth, year = String(selectedMonth || '').slice(0, 4), now = new Date()) {
+    const contract = (dataService.state.vertraege || []).find(row => String(row.vertrag_id) === String(contractId));
+    if (!contract || !/^\d{4}$/.test(String(year))) return [];
+    const months = Array.from({ length: 12 }, (_, index) => `${year}-${String(index + 1).padStart(2, '0')}`)
+      .map(month => this.summarizeMonth(contract, month, now))
+      .filter(summary => summary.due > 0 && summary.remaining > 0);
+    return months
+      .sort((a, b) => {
+        if (a.month === selectedMonth) return -1;
+        if (b.month === selectedMonth) return 1;
+        return a.month.localeCompare(b.month);
+      })
+      .map(summary => ({
+        month: summary.month,
+        due: summary.due,
+        paid: summary.paid,
+        remaining: summary.remaining,
+        status: summary.status,
+        verspaetet: summary.verspaetet,
+        deadlineLabel: summary.deadlineLabel
+      }));
+  },
+
+  planPaymentAllocation(contractId, selectedMonth, amount, art = 'Miete', now = new Date()) {
+    const numericAmount = this.parseNumber(amount) || 0;
+    const candidates = this.getAllocationCandidates(contractId, selectedMonth, String(selectedMonth || '').slice(0, 4), now);
+    let remaining = Math.max(numericAmount, 0);
+    const allocations = candidates.map(candidate => {
+      const allocated = Math.min(remaining, candidate.remaining);
+      remaining = Math.max(remaining - allocated, 0);
+      return { ...candidate, amount: Math.round(allocated * 100) / 100 };
+    });
+    return {
+      contractId: String(contractId),
+      selectedMonth: String(selectedMonth || ''),
+      amount: Math.round(numericAmount * 100) / 100,
+      art,
+      allocations,
+      unassigned: Math.round(remaining * 100) / 100
+    };
+  },
+
+  makePaymentGroupId(contractId, date, amount, art, allocations) {
+    const detail = allocations.map(item => `${item.month || 'guthaben'}:${Number(item.amount).toFixed(2)}`).join('|');
+    return `ZG_${contractId}_${this.hash(`${date}|${amount}|${art}|${detail}`)}`;
+  },
+
+  buildAllocationRows(plan, date) {
+    const rows = plan.allocations
+      .filter(item => Number(item.amount) > 0)
+      .map(item => ({ month: item.month, amount: Number(item.amount) }));
+    if (Number(plan.unassigned) > 0) rows.push({ month: '', amount: Number(plan.unassigned) });
+    const groupId = this.makePaymentGroupId(plan.contractId, date, plan.amount, plan.art, rows);
+    return rows.map((item, index) => ({
+      zahlung_id: this.makePaymentId(plan.contractId, item.month || date, `gruppe_${groupId}_${index + 1}`, plan.art),
+      vertrag_id: plan.contractId,
+      datum: date,
+      mietmonat: item.month,
+      betrag: Math.round(item.amount * 100) / 100,
+      art: plan.art,
+      zahlungsgruppe_id: groupId
+    }));
+  },
+
+  showAllocationDialog(pending) {
+    const modal = document.getElementById('modal-container');
+    const body = document.getElementById('modal-body');
+    if (!modal || !body) return;
+    this.pendingAllocation = pending;
+    const rows = pending.plan.allocations.map(item => `<label class="payment-allocation-row"><span><strong>${this.escape(item.month)}</strong><small>${this.formatMoney(item.remaining)} EUR offen${item.verspaetet ? ' · überfällig' : ''}</small></span><input type="number" min="0" step="0.01" data-payment-allocation-month="${this.escape(item.month)}" value="${this.escape(item.amount.toFixed(2))}"></label>`).join('');
+    body.innerHTML = `<div class="payment-dialog payment-allocation-dialog"><div class="payment-dialog-heading"><div><h2>Zahlung verteilen</h2><p>${this.escape(this.unitName(pending.contract))} · ${this.escape(this.tenantName(pending.contract))}</p></div><button type="button" class="payment-dialog-close" onclick="uiService.closeModal()" aria-label="Schließen">×</button></div><p class="payment-dialog-context">${this.formatMoney(pending.plan.amount)} EUR Eingang für ${this.escape(pending.plan.selectedMonth)}. Der angeklickte Monat wird zuerst vorgeschlagen, danach die ältesten offenen Monate.</p><div class="payment-allocation-list">${rows || '<p class="payment-dialog-hint">Für diesen Vertrag sind keine weiteren offenen Mietmonate vorhanden.</p>'}<label class="payment-allocation-row payment-allocation-credit"><span><strong>Als Guthaben stehen lassen</strong><small>Wird keinem Mietmonat zugeordnet und später in der Übersicht als Guthaben gezeigt.</small></span><input type="number" min="0" step="0.01" data-payment-allocation-month="" value="${this.escape(pending.plan.unassigned.toFixed(2))}"></label></div><p class="payment-allocation-total">Verteilt: <strong data-payment-allocation-total>0,00 EUR</strong> · Eingang: <strong>${this.formatMoney(pending.plan.amount)} EUR</strong></p><p class="payment-dialog-hint">Die Summe muss exakt dem Zahlungseingang entsprechen. Es wird nichts automatisch in einen anderen Monat verschoben.</p><div class="payment-dialog-actions"><button class="btn-primary" type="button" onclick="paymentUiService.confirmPaymentAllocation()">Verteilung speichern</button><button class="btn-secondary" type="button" onclick="uiService.closeModal()">Abbrechen</button></div></div>`;
+    modal.style.display = 'flex';
+    const inputs = body.querySelectorAll('[data-payment-allocation-month]');
+    const updateTotal = () => {
+      const total = Array.from(inputs).reduce((sum, input) => sum + (this.parseNumber(input.value) || 0), 0);
+      const output = body.querySelector('[data-payment-allocation-total]');
+      if (output) output.textContent = `${this.formatMoney(total)} EUR`;
+    };
+    inputs.forEach(input => input.addEventListener('input', updateTotal));
+    updateTotal();
+  },
+
+  async confirmPaymentAllocation() {
+    const pending = this.pendingAllocation;
+    const body = document.getElementById('modal-body');
+    if (!pending || !body) return null;
+    const inputs = Array.from(body.querySelectorAll('[data-payment-allocation-month]'));
+    const rows = inputs.map(input => ({ month: input.getAttribute('data-payment-allocation-month') || '', amount: this.parseNumber(input.value) || 0 }));
+    if (rows.some(row => row.amount < 0)) return this.showMessage('Bitte nur positive Teilbeträge eingeben.', 'error');
+    const total = rows.reduce((sum, row) => sum + row.amount, 0);
+    if (Math.abs(total - pending.plan.amount) > 0.009) return this.showMessage(`Die Verteilung muss ${this.formatMoney(pending.plan.amount)} EUR ergeben. Aktuell sind es ${this.formatMoney(total)} EUR.`, 'error');
+    const plan = { ...pending.plan, allocations: rows.filter(row => row.month), unassigned: rows.find(row => !row.month)?.amount || 0 };
+    const payments = this.buildAllocationRows(plan, pending.date);
+    if (!payments.length) return this.showMessage('Bitte mindestens einen Teilbetrag verteilen oder als Guthaben stehen lassen.', 'error');
+    this.pendingAllocation = null;
+    return this.persistPayment(payments, 'Zahlung verteilt und gespeichert.');
+  },
+
   async savePayment(contractId, month) {
     const rawAmount = this.parseNumber(document.getElementById('payment-amount')?.value);
     const date = document.getElementById('payment-date')?.value || this.todayInput();
@@ -520,6 +645,10 @@ const paymentUiService = {
     if (art !== 'Kaution' && !/^\d{4}-\d{2}$/.test(assignedMonth)) return this.showMessage('Bitte einen Mietmonat für diese Buchung auswählen.', 'error');
     const contract = (dataService.state.vertraege || []).find(row => String(row.vertrag_id) === String(contractId));
     const remaining = contract ? (art === 'Kaution' ? this.summarizeDeposit(contract).remaining : this.summarizeMonth(contract, assignedMonth).remaining) : Math.abs(amount);
+    if (contract && ['Miete', 'Nachzahlung'].includes(art) && amount > remaining + 0.009) {
+      const plan = this.planPaymentAllocation(contractId, assignedMonth, amount, art);
+      return this.showAllocationDialog({ contract, date, plan });
+    }
     const suffix = amount >= remaining - 0.009 ? 'voll' : `teil_${this.hash(`${date}|${amount}`)}`;
     const id = this.makePaymentId(contractId, assignedMonth || date, suffix, art);
     await this.persistPayment({ zahlung_id: id, vertrag_id: contractId, datum: date, mietmonat: assignedMonth, betrag: amount, art });
@@ -531,11 +660,12 @@ const paymentUiService = {
     await this.persistPayment({ zahlung_id: this.makeStornoId(paymentId), vertrag_id: contractId, datum: this.todayInput(), mietmonat: originalArt === 'Kaution' ? '' : assignedMonth || month, betrag: stornoAmount, art: 'Storno', storno_von: paymentId, gegen_art: originalArt });
   },
 
-  async persistPayment(payment) {
+  async persistPayment(paymentOrPayments, successMessage = '') {
     if (this.busy) return null;
     this.busy = true;
+    const payments = Array.isArray(paymentOrPayments) ? paymentOrPayments : [paymentOrPayments];
     try {
-      const result = await cloudService.saveTransaction({ typ: 'ZAHLUNG', data: [payment] });
+      const result = await cloudService.saveTransaction({ typ: 'ZAHLUNG', data: payments });
       if (!result || result.status !== 'success') throw new Error(result && result.message || 'Zahlung wurde nicht bestätigt.');
       if (result.queued === true) {
         if (typeof uiService !== 'undefined' && typeof uiService.closeModal === 'function') uiService.closeModal();
@@ -544,10 +674,15 @@ const paymentUiService = {
         return result;
       }
       const existing = dataService.state.zahlungen || (dataService.state.zahlungen = []);
-      if (!existing.some(row => String(row.zahlung_id) === String(payment.zahlung_id))) existing.push(payment);
+      payments.forEach(payment => {
+        if (!existing.some(row => String(row.zahlung_id) === String(payment.zahlung_id))) existing.push(payment);
+      });
       if (typeof uiService !== 'undefined' && typeof uiService.closeModal === 'function') uiService.closeModal();
       this.render();
-      this.showMessage(result.bereits_vorhanden ? 'Diese Zahlung war bereits gespeichert.' : 'Zahlung gespeichert.', 'success');
+      const message = result.bereits_vorhanden && !result.angelegt
+        ? 'Diese Zahlung war bereits gespeichert.'
+        : successMessage || (payments.length > 1 ? 'Zahlung verteilt und gespeichert.' : 'Zahlung gespeichert.');
+      this.showMessage(message, 'success');
       return result;
     } catch (error) {
       this.showMessage(error.message || String(error), 'error');

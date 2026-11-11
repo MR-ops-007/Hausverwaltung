@@ -2,10 +2,10 @@
 
 Stand: 2026-11-11
 
-## Mieteingänge und Backend 4.8.7
+## Mieteingänge und Backend 4.8.8
 
 Der Branch `codex/p6-mieteingaenge` enthält den ersten Mieteingangs- und CSV-Import-
-Ausbau. Vor einer Bereitstellung muss `apps-script/Code.gs` als neue Version 4.8.7
+Ausbau. Vor einer Bereitstellung muss `apps-script/Code.gs` als neue Version 4.8.8
 in der bestehenden TEST-Bereitstellung veröffentlicht und mit einem Erfassungs-
 Schlüssel geprüft werden. Danach folgt derselbe Ablauf für PROD. Eine alte 4.8.5-
 Bereitstellung bleibt als Rollback erhalten.
@@ -31,10 +31,19 @@ zu einer Teilzahlung. Eine Kaution hat keinen Mietmonat und wird separat ausgewe
 Im Dialog „Bereits erfasst“ wird eine Zahlung zusätzlich im tatsächlichen Eingangsmonat
 angezeigt, auch wenn sie fachlich einem anderen Mietmonat zugeordnet ist. Die Zeile zeigt
 dann ausdrücklich `Monat YYYY-MM`.
+Eine Zahlung, die den offenen Betrag des angeklickten Mietmonats übersteigt, wird nicht
+still einem anderen Monat gutgeschrieben. Die App öffnet stattdessen „Zahlung verteilen“:
+Der angeklickte Monat wird zuerst vorgeschlagen, danach die ältesten offenen Monate.
+Die Beträge können vor dem Speichern angepasst werden; der Rest kann ausdrücklich als
+Guthaben ohne `mietmonat` stehen bleiben. Jede Teilbuchung besitzt eine eigene
+`zahlung_id`, alle Teilbuchungen teilen eine `zahlungsgruppe_id`. Zugeordnete Teilbeträge
+senken den offenen Gesamtbetrag der jeweiligen Monate; ein nicht zugeordneter Rest
+erscheint oben als Guthaben.
 Für die Speicherung der beiden neuen Vertragsfelder muss einmalig die ausdrücklich
-manuell aufzurufende Funktion `prepareContractSchema()` im Backend 4.8.7 ausgeführt
-werden. Sie ergänzt nur fehlende Spalten; sie wird nicht automatisch durch einen
-Lese- oder Schreibvorgang gestartet.
+manuell aufzurufende Funktion `prepareContractSchema()` ausgeführt werden. Für die
+Zahlungsaufteilung muss zusätzlich einmalig `preparePaymentSchema()` ausgeführt werden.
+Beide Funktionen ergänzen nur fehlende Spalten; sie werden nicht automatisch durch
+einen Lese- oder Schreibvorgang gestartet.
 
 ## Keyfreie lokale Systemprüfung
 
@@ -80,8 +89,8 @@ ausgewertet.
 Der Mock enthält außerdem Strom-, Kaltwasser-, Warmwasser- und Heizöl-Verbrauchsdaten
 für 2025 und 2026 sowie Audit- und Bilanzzeilen. Die Fixture-Quelle liegt in
 `tools/mock-consumption-fixtures.mjs` und wird beim Neustart reproduzierbar neu geladen.
-Für den produktiven Schreibweg müssen die optionalen Spalten `mietmonat`, `storno_von`
-und `gegen_art` im Blatt `Zahlungen` vorhanden sein; fehlen sie, lehnt Backend 4.8.7 den
+Für den produktiven Schreibweg müssen die optionalen Spalten `mietmonat`, `storno_von`,
+`gegen_art` und `zahlungsgruppe_id` im Blatt `Zahlungen` vorhanden sein; fehlen sie, lehnt Backend 4.8.8 den
 erweiterten Datensatz verständlich mit `PAYMENT_SCHEMA_MISSING` ab, statt die Zuordnung
 still zu verlieren.
 

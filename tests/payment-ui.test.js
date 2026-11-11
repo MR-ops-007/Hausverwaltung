@@ -88,6 +88,43 @@ describe('paymentUiService Monatsstatus', () => {
     expect(service.getPaymentsFor('V1', '2026-11')).toEqual([]);
   });
 
+  it('plant eine Überzahlung zuerst im angeklickten und danach im ältesten offenen Mietmonat', () => {
+    const service = loadPaymentService(baseState());
+    const plan = service.planPaymentAllocation('V1', '2026-02', 900, 'Miete', new Date(2026, 10, 11));
+    expect(plan.allocations.slice(0, 2)).toEqual([
+      expect.objectContaining({ month: '2026-02', amount: 650 }),
+      expect.objectContaining({ month: '2026-01', amount: 250 })
+    ]);
+    expect(plan.unassigned).toBe(0);
+  });
+
+  it('erzeugt für eine Verteilung eindeutige Teilbuchungen mit gemeinsamer Zahlungsgruppe', () => {
+    const service = loadPaymentService(baseState());
+    const plan = service.planPaymentAllocation('V1', '2026-02', 900);
+    const rows = service.buildAllocationRows(plan, '2026-11-11');
+    expect(rows.reduce((sum, row) => sum + row.betrag, 0)).toBe(900);
+    expect(new Set(rows.map(row => row.zahlung_id)).size).toBe(rows.length);
+    expect(new Set(rows.map(row => row.zahlungsgruppe_id)).size).toBe(1);
+    expect(rows.map(row => row.mietmonat)).toEqual(['2026-02', '2026-01']);
+  });
+
+  it('führt einen nicht zugeordneten Rest als Guthaben und nicht als Mietmonat', () => {
+    const service = loadPaymentService(baseState());
+    const plan = service.planPaymentAllocation('V1', '2026-02', 8000);
+    expect(plan.unassigned).toBe(200);
+    const rows = service.buildAllocationRows(plan, '2026-11-11');
+    expect(rows.at(-1)).toMatchObject({ mietmonat: '', betrag: 200, zahlungsgruppe_id: rows[0].zahlungsgruppe_id });
+  });
+
+  it('rechnet unzugeordnetes Mietguthaben in die Übersicht ein', () => {
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'CREDIT', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '', betrag: 100, art: 'Miete', zahlungsgruppe_id: 'ZG_CREDIT' }
+    ] }));
+    const matrix = service.buildMatrix({ contracts: service.getContracts(), year: '2026', now: new Date(2026, 10, 11) });
+    expect(service.summarizeOverview(matrix, '2026', new Date(2026, 10, 11))).toMatchObject({ unassignedCredit: 100, creditAmount: 100 });
+    expect(service.summarizeMonth(service.getContracts()[0], '2026-11', new Date(2026, 10, 11)).paid).toBe(0);
+  });
+
   it('speichert beim Februar-Dialog den angeklickten Mietmonat statt des Eingangsmonats', async () => {
     const fields = {
       'payment-amount': { value: '250' },
@@ -109,6 +146,28 @@ describe('paymentUiService Monatsstatus', () => {
       betrag: 250,
       art: 'Miete'
     });
+  });
+
+  it('öffnet bei einer Überzahlung zuerst die explizite Verteilung statt still zu buchen', async () => {
+    const fields = {
+      'payment-amount': { value: '900' },
+      'payment-date': { value: '2026-11-11' },
+      'payment-art': { value: 'Miete' }
+    };
+    let pending;
+    let request = false;
+    const service = loadPaymentService(
+      baseState(),
+      { getElementById: id => fields[id] || null },
+      { saveTransaction: async () => { request = true; return { status: 'success' }; } }
+    );
+    service.showAllocationDialog = value => { pending = value; };
+
+    await service.savePayment('V1', '2026-02');
+
+    expect(pending.plan).toMatchObject({ amount: 900, selectedMonth: '2026-02' });
+    expect(pending.plan.allocations[0]).toMatchObject({ month: '2026-02', amount: 650 });
+    expect(request).toBe(false);
   });
 
   it('hält Kaution außerhalb der Monatsmiete und berechnet den Kautionsstatus', () => {
@@ -253,5 +312,21 @@ describe('paymentUiService CSV-Import', () => {
     expect(result.queued).toBe(true);
     expect(state.zahlungen).toHaveLength(0);
     expect(messages.at(-1)).toContain('vorgemerkt');
+  });
+
+  it('sendet eine aufgeteilte Zahlung als mehrere Zeilen an den Schreibweg', async () => {
+    let request;
+    const state = baseState();
+    const service = loadPaymentService(state, { getElementById: () => null }, {
+      saveTransaction: async transaction => { request = transaction; return { status: 'success', angelegt: 2 }; }
+    });
+    service.render = () => {};
+    await service.persistPayment([
+      { zahlung_id: 'SPLIT_1', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-02', betrag: 650, art: 'Miete', zahlungsgruppe_id: 'ZG_1' },
+      { zahlung_id: 'SPLIT_2', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-01', betrag: 250, art: 'Miete', zahlungsgruppe_id: 'ZG_1' }
+    ]);
+    expect(request.data).toHaveLength(2);
+    expect(new Set(request.data.map(row => row.zahlungsgruppe_id))).toEqual(new Set(['ZG_1']));
+    expect(state.zahlungen.map(row => row.zahlung_id)).toEqual(['SPLIT_1', 'SPLIT_2']);
   });
 });

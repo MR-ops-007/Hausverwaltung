@@ -32,7 +32,17 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
   in CI ergänzt.
 
 Diese Einträge ändern die produktive Apps-Script-Version nicht. PROD bleibt bei 4.8.5;
-die lokalen Backend-Erweiterungen 4.8.6 und 4.8.7 stehen deshalb als eigene Versionseinträge oben.
+die lokalen Backend-Erweiterungen 4.8.6 bis 4.8.8 stehen deshalb als eigene Versionseinträge oben.
+
+## 4.8.8 · 2026-11-11 · lokal
+
+Aufteilung von Überzahlungen auf Mietmonate.
+
+- Der Zahlungsweg akzeptiert `zahlungsgruppe_id` als gemeinsame Kennung für mehrere
+  append-only Teilbuchungen eines tatsächlichen Eingangs.
+- Ein nicht zugeordneter Rest kann als Guthaben ohne `mietmonat` gespeichert werden.
+- Die Version ist noch nicht in Apps Script bereitgestellt; die Spalte muss im Blatt
+  `Zahlungen` vorhanden sein.
 
 ## 4.8.7 · 2026-11-11 · lokal
 
