@@ -37,6 +37,21 @@ describe('paymentUiService Monatsstatus', () => {
     expect(service.summarizeMonth(contract, '2026-12', new Date(2026, 10, 11)).status).toBe('zukünftig');
   });
 
+  it('berechnet die Frist als Werktag und überspringt Feiertage', () => {
+    const service = loadPaymentService(baseState());
+    const contract = service.getContracts()[0];
+    expect(service.formatDate(service.paymentDeadlineDate(contract, '2026-03'))).toBe('04.03.2026');
+    expect(service.formatDate(service.paymentDeadlineDate(contract, '2026-05'))).toBe('06.05.2026');
+    expect(service.paymentDeadlineLabel(contract, '2026-05')).toContain('3. Werktag');
+  });
+
+  it('berücksichtigt individuellen Kalendertag und Mietbeginn im ersten Monat', () => {
+    const service = loadPaymentService(baseState({ vertraege: [{ ...baseState().vertraege[0], start_datum: '2026-01-15', zahlungsziel_typ: 'KALENDERTAG', zahlungsziel_wert: 15 }] }));
+    const contract = service.getContracts()[0];
+    expect(service.formatDate(service.paymentDeadlineDate(contract, '2026-01'))).toBe('15.01.2026');
+    expect(service.formatDate(service.paymentDeadlineDate(contract, '2026-02'))).toBe('16.02.2026');
+  });
+
   it('führt Leerstand sichtbar, aber ohne offene Sollmiete', () => {
     const service = loadPaymentService(baseState({
       vertraege: [{ vertrag_id: 'V7', einheit_id: 'O1_WE_01', hauptperson_id: '', aktiv: true, soll_gesamt: 0 }]
@@ -98,14 +113,16 @@ describe('paymentUiService Monatsstatus', () => {
     expect(service.summarizeDeposit(contract)).toMatchObject({ due: 2000, paid: 1200, remaining: 800, status: 'teilweise' });
   });
 
-  it('führt Erstattungen als negative Monatskorrektur', () => {
+  it('führt Erstattungen separat und verschlechtert den Mietstatus nicht', () => {
     const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'RENT', vertrag_id: 'V1', datum: '2026-03-05', mietmonat: '2026-03', betrag: 650, art: 'Miete' },
       { zahlung_id: 'REFUND', vertrag_id: 'V1', datum: '2026-03-20', mietmonat: '2026-03', betrag: -100, art: 'Erstattung' }
     ] }));
     const summary = service.summarizeMonth(service.getContracts()[0], '2026-03', new Date(2026, 10, 11));
-    expect(summary.paid).toBe(-100);
-    expect(summary.status).toBe('überfällig');
-    expect(summary.remaining).toBe(750);
+    expect(summary.paid).toBe(650);
+    expect(summary.status).toBe('bezahlt');
+    expect(summary.refunds).toHaveLength(1);
+    expect(summary.remaining).toBe(0);
   });
 
   it('speichert eine Erstattung auch bei positiver Eingabe als negativen Betrag', async () => {

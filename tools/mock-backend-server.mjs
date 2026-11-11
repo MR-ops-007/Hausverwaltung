@@ -1,10 +1,12 @@
 import http from 'node:http';
+import { createMockConsumptionData } from './mock-consumption-fixtures.mjs';
 
 const port = Number(process.env.PORT || 8787);
 
 const rent = (zahlung_id, vertrag_id, mietmonat, betrag, datum, art = 'Miete', extra = {}) => ({
   zahlung_id, vertrag_id, mietmonat, betrag, datum, art, ...extra
 });
+const consumptionFixture = createMockConsumptionData();
 
 const state = {
   Objekte: [{ objekt_id: 'TEST', bezeichnung: 'TEST · Entenhausen' }],
@@ -15,7 +17,8 @@ const state = {
     { einheit_id: 'TEST_WE_04', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 4' },
     { einheit_id: 'TEST_WE_05', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 5' },
     { einheit_id: 'TEST_WE_06', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 6' },
-    { einheit_id: 'TEST_WE_07', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 7' }
+    { einheit_id: 'TEST_WE_07', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 7' },
+    { einheit_id: 'TEST_Allgemein', objekt_id: 'TEST', typ: 'Allgemein', nummer: 'Allgemein' }
   ],
   Personen: [
     { person_id: 'P1', vorname: 'Donald', name: 'Duck' },
@@ -27,13 +30,13 @@ const state = {
     { person_id: 'P7', vorname: 'Trick', name: 'Duck' }
   ],
   Vertraege: [
-    { vertrag_id: 'TEST_V1', einheit_id: 'TEST_WE_01', hauptperson_id: 'P1', aktiv: true, soll_gesamt: 650, kaution_soll: 2000 },
-    { vertrag_id: 'TEST_V2', einheit_id: 'TEST_WE_02', hauptperson_id: 'P2', aktiv: true, soll_gesamt: 900, kaution_soll: 2000 },
-    { vertrag_id: 'TEST_V3', einheit_id: 'TEST_WE_03', hauptperson_id: 'P3', aktiv: true, soll_gesamt: 750, kaution_soll: 1500 },
-    { vertrag_id: 'TEST_V4', einheit_id: 'TEST_WE_04', hauptperson_id: 'P4', aktiv: true, soll_gesamt: 1450, kaution_soll: 2000 },
-    { vertrag_id: 'TEST_V5', einheit_id: 'TEST_WE_05', hauptperson_id: 'P5', aktiv: true, soll_gesamt: 500, kaution_soll: 2000 },
-    { vertrag_id: 'TEST_V6', einheit_id: 'TEST_WE_06', hauptperson_id: 'P6', aktiv: true, soll_gesamt: 800, kaution_soll: 1600 },
-    { vertrag_id: 'TEST_V7', einheit_id: 'TEST_WE_07', hauptperson_id: '', aktiv: true, soll_gesamt: 0, kaution_soll: 0 }
+    { vertrag_id: 'TEST_V1', einheit_id: 'TEST_WE_01', hauptperson_id: 'P1', start_datum: '2026-01-01', aktiv: true, mietmodell: 'Kalt+NK', erhoehungs_typ: 'Normal', soll_kaltmiete: 500, soll_nebenkosten: 150, soll_gesamt: 650, kaution_soll: 2000, kaution_ist: 1200, zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: 3 },
+    { vertrag_id: 'TEST_V2', einheit_id: 'TEST_WE_02', hauptperson_id: 'P2', start_datum: '2026-01-15', aktiv: true, mietmodell: 'Kalt+NK', erhoehungs_typ: 'Normal', soll_kaltmiete: 700, soll_nebenkosten: 200, soll_gesamt: 900, kaution_soll: 2000, kaution_ist: 2000, zahlungsziel_typ: 'KALENDERTAG', zahlungsziel_wert: 15 },
+    { vertrag_id: 'TEST_V3', einheit_id: 'TEST_WE_03', hauptperson_id: 'P3', start_datum: '2026-03-01', aktiv: true, mietmodell: 'Pauschal', erhoehungs_typ: 'Normal', soll_kaltmiete: 750, soll_nebenkosten: 0, soll_gesamt: 750, kaution_soll: 1500, kaution_ist: 750, zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: 4 },
+    { vertrag_id: 'TEST_V4', einheit_id: 'TEST_WE_04', hauptperson_id: 'P4', start_datum: '2026-01-01', aktiv: true, mietmodell: 'Warmmiete', erhoehungs_typ: 'Normal', soll_kaltmiete: 1100, soll_nebenkosten: 350, soll_gesamt: 1450, kaution_soll: 2000, kaution_ist: 2000, zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: 3 },
+    { vertrag_id: 'TEST_V5', einheit_id: 'TEST_WE_05', hauptperson_id: 'P5', start_datum: '2026-01-01', aktiv: true, mietmodell: 'Kalt+NK', erhoehungs_typ: 'Normal', soll_kaltmiete: 400, soll_nebenkosten: 100, soll_gesamt: 500, kaution_soll: 2000, kaution_ist: 2000, zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: 3 },
+    { vertrag_id: 'TEST_V6', einheit_id: 'TEST_WE_06', hauptperson_id: 'P6', start_datum: '2026-02-01', aktiv: true, mietmodell: 'Kalt+NK', erhoehungs_typ: 'Normal', soll_kaltmiete: 600, soll_nebenkosten: 200, soll_gesamt: 800, kaution_soll: 1600, kaution_ist: 1000, zahlungsziel_typ: 'KALENDERTAG', zahlungsziel_wert: 15 },
+    { vertrag_id: 'TEST_V7', einheit_id: 'TEST_WE_07', hauptperson_id: '', start_datum: '', aktiv: true, mietmodell: 'Pauschal', erhoehungs_typ: 'Normal', soll_kaltmiete: 0, soll_nebenkosten: 0, soll_gesamt: 0, kaution_soll: 0, kaution_ist: 0, zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: 3 }
   ],
   Vertragsparteien: [
     { vertrag_id: 'TEST_V1', person_id: 'P1', rolle: 'Hauptmieter', ordnet: 1 },
@@ -44,17 +47,8 @@ const state = {
     { vertrag_id: 'TEST_V6', person_id: 'P6', rolle: 'Hauptmieter', ordnet: 1 },
     { vertrag_id: 'TEST_V6', person_id: 'P7', rolle: 'Hauptmieter', ordnet: 2 }
   ],
-  Zaehler: [1, 2, 3, 4, 5, 6].map(index => ({
-    zaehler_id: `Z_TEST_STROM_${index}`,
-    objekt_id: 'TEST',
-    einheit_id: `TEST_WE_0${index}`,
-    medium: 'Strom',
-    bezeichnung: `Strom Wohnung ${index}`,
-    einheit: 'kWh',
-    aktiv: true,
-    erfassbar: true
-  })),
-  Zaehlerstaende: [{ stand_id: 'ST_TEST_1', objekt_id: 'TEST', einheit_id: 'TEST_WE_01', zaehler_id: 'Z_TEST_STROM_1', zeitstempel: '01.11.2026 08:00', wert: 1000, quelle: 'Mock' }],
+  Zaehler: consumptionFixture.zaehler,
+  Zaehlerstaende: consumptionFixture.zaehlerstaende,
   Zahlungen: [
     rent('D_2026_01', 'TEST_V1', '2026-01', 650, '2026-01-05'),
     rent('D_2026_02', 'TEST_V1', '2026-02', 150, '2026-11-11'),
@@ -92,10 +86,10 @@ const state = {
   ],
   Haustechnik: [],
   _view_aktive_mieter: [1, 2, 3, 4, 5, 6, 7].map(index => ({ objekt_id: 'TEST', einheit_id: `TEST_WE_0${index}`, vertrag_id: `TEST_V${index}`, mieter_name: ['Donald Duck', 'Mickey Mouse', 'Daisy Duck', 'Dagobert Duck', 'Gustav Gans', 'Tick Duck / Trick Duck', 'Leerstand'][index - 1], soll_gesamt: [650, 900, 750, 1450, 500, 800, 0][index - 1] })),
-  _view_verbrauch_monat: [],
-  _view_verbrauch_jahr: [],
-  _view_verbrauch_audit: [],
-  _view_verbrauch_bilanz_jahr: []
+  _view_verbrauch_monat: consumptionFixture._view_verbrauch_monat,
+  _view_verbrauch_jahr: consumptionFixture._view_verbrauch_jahr,
+  _view_verbrauch_audit: consumptionFixture._view_verbrauch_audit,
+  _view_verbrauch_bilanz_jahr: consumptionFixture._view_verbrauch_bilanz_jahr
 };
 
 function json(response, status = 200) {

@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.6
+ * Version: 4.8.7
  * Stand: 2026-11-11
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
@@ -99,8 +99,11 @@
  * Änderungen seit v4.8.5:
  * - ZAHLUNG-Schreibweg ist über zahlung_id idempotent und meldet Wiederholungen oder Konflikte eindeutig
  * - Zahlungen unterscheiden Eingangsdatum und fachlichen Mietmonat; Erstattungen sind negative Buchungen
+ *
+ * Änderungen seit v4.8.6:
+ * - Vertragsfelder für individuelle Zahlungstermine (Werktag oder Kalendertag) ergänzt
  */
-const BACKEND_VERSION = "4.8.6";
+const BACKEND_VERSION = "4.8.7";
 
 function sendJSON(obj) {
   return ContentService

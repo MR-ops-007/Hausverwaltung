@@ -184,6 +184,8 @@ Die Zuordnung wird in Apps Script zentral über `getLokEinheitEntranceMapping` g
 | **L** | `soll_gesamt` | Zahl | Summe aus soll_kaltmiete und soll_nebenkosten |
 | **M** | `kaution_soll` | Zahl | Vereinbarte Kautionssumme |
 | **N** | `kaution_ist` | Zahl | Tatsächlich bisher gezahlte Kaution |
+| **O** | `zahlungsziel_typ` | String | `WERKTAG` oder `KALENDERTAG`; Standard ist der 3. Werktag |
+| **P** | `zahlungsziel_wert` | Zahl | Anzahl des Werktags oder Kalendertag des Monats, z. B. `3` oder `15` |
 
 #### Lokale Erweiterung ab Backend 4.7.0 (noch nicht produktiv migriert)
 
@@ -205,6 +207,16 @@ Spaltenbuchstaben geschrieben:
 Nebenkostenabrechnung. `soll_nebenkosten` bleibt Pflicht beim Speichern und die
 verbindliche Rechengröße. Optionale Teilbeträge ändern sie nicht.
 `soll_gesamt = soll_kaltmiete + soll_nebenkosten`.
+
+Für die Mieteingangsansicht wird die Zahlungsfrist pro Vertrag geführt. Bei
+`zahlungsziel_typ = WERKTAG` zählt die Anwendung Montag bis Freitag und überspringt
+bundesweite Feiertage; `zahlungsziel_wert = 3` bedeutet also „3. Werktag des Monats“.
+Bei `KALENDERTAG` bezeichnet der Wert den vereinbarten Tag, zum Beispiel den 15.;
+fällt dieser auf ein Wochenende oder einen Feiertag, wird der nächste Werktag als
+Frist verwendet.
+Im ersten Vertragsmonat wird ein späterer Mietbeginn als frühester Zahlungstermin
+berücksichtigt. Ein individueller Zahlungstermin wird nicht aus dem Gehaltseingang
+erraten, sondern ausdrücklich im Vertrag hinterlegt.
 
 Neue Tabelle `Mietanpassungen` (append-only): `anpassung_id`, `vertrag_id` (FK),
 `art` (`INDEX`/`STAMMDATEN`), `erfasst_am`, `wirksam_ab`, `zugang_datum`,

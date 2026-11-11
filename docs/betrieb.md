@@ -2,10 +2,10 @@
 
 Stand: 2026-11-11
 
-## Mieteingänge und Backend 4.8.6
+## Mieteingänge und Backend 4.8.7
 
 Der Branch `codex/p6-mieteingaenge` enthält den ersten Mieteingangs- und CSV-Import-
-Ausbau. Vor einer Bereitstellung muss `apps-script/Code.gs` als neue Version 4.8.6
+Ausbau. Vor einer Bereitstellung muss `apps-script/Code.gs` als neue Version 4.8.7
 in der bestehenden TEST-Bereitstellung veröffentlicht und mit einem Erfassungs-
 Schlüssel geprüft werden. Danach folgt derselbe Ablauf für PROD. Eine alte 4.8.5-
 Bereitstellung bleibt als Rollback erhalten.
@@ -13,6 +13,25 @@ Bereitstellung bleibt als Rollback erhalten.
 Der CSV-Import ist absichtlich lokal und bestätigungspflichtig: Datei auswählen,
 Vorschläge prüfen, einzelne Buchung übernehmen. Unklare Zeilen bleiben offen. Die
 Version enthält keine direkte Bankanbindung und keine OCR-Verarbeitung.
+
+### Zahlungsfristen
+
+Die Frist steht am Vertrag in `zahlungsziel_typ` und `zahlungsziel_wert`. Ohne
+individuelle Angabe gilt der 3. Werktag. Bei `WERKTAG` werden Samstag, Sonntag und
+bundesweite Feiertage übersprungen. Für eine Vereinbarung wie „zum 15.“ wird
+`KALENDERTAG` mit dem Wert `15` verwendet. Der erste Vertragsmonat beginnt nicht vor
+dem tatsächlichen Mietbeginn. Die Anwendung errät keinen Gehaltseingang; abweichende
+Vereinbarungen müssen am Vertrag eingetragen werden.
+
+Die Mieteingangsansicht zeigt die konkrete Frist im Zell-Tooltip und im Erfassungsdialog.
+`Miete` ist der reguläre Monatsbetrag, `Nachzahlung` ein zusätzlicher Ausgleich für den
+ausgewählten Mietmonat. `Erstattung` ist eine negative Rückzahlung an den Mieter und
+wird separat geführt; sie macht einen zuvor vollständig bezahlten Monat nicht wieder
+zu einer Teilzahlung. Eine Kaution hat keinen Mietmonat und wird separat ausgewertet.
+Für die Speicherung der beiden neuen Vertragsfelder muss einmalig die ausdrücklich
+manuell aufzurufende Funktion `prepareContractSchema()` im Backend 4.8.7 ausgeführt
+werden. Sie ergänzt nur fehlende Spalten; sie wird nicht automatisch durch einen
+Lese- oder Schreibvorgang gestartet.
 
 ## Keyfreie lokale Systemprüfung
 
@@ -55,8 +74,11 @@ angezeigt; für einen anderen Monat wird die entsprechende Spalte geöffnet. Ein
 ausgeglichene verspätete Zahlung ist grün und trägt zusätzlich den Hinweis „verspätet“.
 Eine Kaution wird ohne Mietmonat gespeichert und separat gegen `Vertraege.kaution_soll`
 ausgewertet.
+Der Mock enthält außerdem Strom-, Kaltwasser-, Warmwasser- und Heizöl-Verbrauchsdaten
+für 2025 und 2026 sowie Audit- und Bilanzzeilen. Die Fixture-Quelle liegt in
+`tools/mock-consumption-fixtures.mjs` und wird beim Neustart reproduzierbar neu geladen.
 Für den produktiven Schreibweg müssen die optionalen Spalten `mietmonat`, `storno_von`
-und `gegen_art` im Blatt `Zahlungen` vorhanden sein; fehlen sie, lehnt Backend 4.8.6 den
+und `gegen_art` im Blatt `Zahlungen` vorhanden sein; fehlen sie, lehnt Backend 4.8.7 den
 erweiterten Datensatz verständlich mit `PAYMENT_SCHEMA_MISSING` ab, statt die Zuordnung
 still zu verlieren.
 

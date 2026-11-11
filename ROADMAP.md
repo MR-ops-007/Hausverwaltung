@@ -288,16 +288,19 @@ Erfassungsmodul, kein Mahnwesen und keine Nebenkostenabrechnung.
 
 - Matrix Mieter × Monat mit Sollbetrag aus dem aktiven Vertrag.
 - Schnelle Aktion `voll bezahlt`, vorbelegtes Eingangsdatum und Rückgängig-Funktion.
-- Status `bezahlt`, `teilbezahlt`, `offen` und `überfällig` mit konfigurierbaren Karenztagen.
+- Status `bezahlt`, `teilbezahlt`, `offen` und `überfällig` mit vertragsspezifischer Frist.
 - Zahlungen append-only speichern; Korrekturen als Storno oder Gegenbuchung statt Überschreiben.
 - Offline-Queue und idempotente Zahlungs-ID wiederverwenden.
 - Umsetzung im aktuellen Branch: Monatsmatrix für aktive Verträge, Status je Monat,
   Teilzahlungen, fachlicher `mietmonat` unabhängig vom Eingangsdatum, Gesamtstatus,
   Kautionsstatus, Storno als negative Gegenbuchung und keine doppelte Speicherung bei
   gleicher `zahlung_id`. Der Dialog übernimmt den angeklickten Mietmonat unveränderbar,
-  zeigt den Kautionsstatus prominent und markiert verspätete Teil- oder Vollzahlungen
-  zusätzlich zum eigentlichen Zahlungsstatus.
-- Der Backend-Schreibweg wird dafür auf 4.8.6 angehoben. Die produktive 4.8.5 bleibt
+  zeigt den Kautionsstatus einklappbar und markiert verspätete Teil- oder Vollzahlungen
+  zusätzlich zum eigentlichen Zahlungsstatus. Erstattungen werden separat geführt und
+  ändern den Mietstatus nicht. Zahlungsfristen können als 3. Werktag oder individueller
+  Kalendertag hinterlegt werden; der lokale Mock enthält Verbrauchsviews für die
+  fachliche Gesamtprüfung.
+- Der Backend-Schreibweg wird dafür auf 4.8.7 angehoben. Die produktive 4.8.5 bleibt
   unverändert, bis die neue Apps-Script-Version manuell bereitgestellt und geprüft ist.
 
 **Voraussetzung:** P1.1/P1.2 Rollen und Geräteeinrichtung sind produktiv geprüft.

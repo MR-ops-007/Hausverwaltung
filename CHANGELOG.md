@@ -32,7 +32,19 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
   in CI ergänzt.
 
 Diese Einträge ändern die produktive Apps-Script-Version nicht. PROD bleibt bei 4.8.5;
-die lokale Backend-Erweiterung 4.8.6 steht deshalb als eigener Versionseintrag oben.
+die lokalen Backend-Erweiterungen 4.8.6 und 4.8.7 stehen deshalb als eigene Versionseinträge oben.
+
+## 4.8.7 · 2026-11-11 · lokal
+
+Vertragsspezifische Zahlungsfristen für die Mieteingangsansicht.
+
+- `Vertraege` kann `zahlungsziel_typ` (`WERKTAG` oder `KALENDERTAG`) und
+  `zahlungsziel_wert` speichern.
+- Die bestehende Mieteingangslogik kann damit den 3. Werktag oder einen individuell
+  vereinbarten Kalendertag auswerten; Wochenenden und bundesweite Feiertage werden bei
+  Werktagen übersprungen.
+- Die Version ist noch nicht in Apps Script bereitgestellt. Die beiden neuen Spalten
+  werden ausschließlich über die explizite Schema-Vorbereitung ergänzt.
 
 ## 4.8.6 · 2026-11-11 · lokal
 

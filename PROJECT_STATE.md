@@ -46,10 +46,15 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 - P6/P7 laufen auf `codex/p6-mieteingaenge`: Die neue Mieteingangsansicht bietet eine
   Monatsmatrix, Teilzahlungen, fachliche Mietmonate, Kautionen, Überfälligkeit,
   Storno-Gegenbuchungen und einen lokalen CSV-Import mit manueller Vertragszuordnung.
-  Der Branch umfasst aktuell 426 Tests. Der lokale Mock deckt mehrere aktive Verträge,
+  Der Branch umfasst aktuell 430 Tests. Der lokale Mock enthält wiederverwendbare
+  synthetische Verbrauchsviews für Strom, Kaltwasser, Warmwasser und Heizöl sowie
+  mehrere aktive Verträge,
   Leerstand, Teilzahlungen, Nachzahlungen, Erstattungen, wiederholte Verspätungen,
-  Überzahlungen, Mitmieter und unterschiedliche Kautionsstände ab.
-  Für die neue Idempotenz des Zahlungswegs ist Apps Script 4.8.6 erforderlich; die
+  Überzahlungen, Mitmieter, unterschiedliche Kautionsstände und individuelle
+  Zahlungsfristen ab. Erstattungen beeinflussen den Mietstatus nicht; Nachzahlungen
+  werden dem gewählten Mietmonat zugerechnet. Der Vertrags-Schreibweg kennt ab
+  Apps Script 4.8.7 Zahlungsziele als Werktag oder Kalendertag; diese Version ist noch
+  nicht produktiv bereitgestellt. Für den Zahlungsweg ist mindestens Apps Script 4.8.6 erforderlich; die
   produktive 4.8.5 wurde nicht verändert.
 - P1.1 ist mit PR #32 abgeschlossen: Zugriff ist fail-closed, `GET` liefert nie Daten und
   `APP_ACCESS_KEYS_JSON` unterstützt die Rollen `admin` und `erfassen`. Die produktiven und

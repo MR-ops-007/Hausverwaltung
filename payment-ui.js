@@ -11,7 +11,8 @@ const paymentUiService = {
   selectedYear: '',
   busy: false,
   importRows: [],
-  GRACE_DAYS: 7,
+  DEFAULT_PAYMENT_DEADLINE_TYPE: 'WERKTAG',
+  DEFAULT_PAYMENT_DEADLINE_VALUE: 3,
   MONTH_NAMES: ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'],
 
   escape(value) {
@@ -59,6 +60,86 @@ const paymentUiService = {
   todayInput(now = new Date()) {
     const date = this.parseDate(now) || new Date();
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  },
+
+  paymentDeadlineConfig(contract) {
+    const type = String(contract && contract.zahlungsziel_typ || this.DEFAULT_PAYMENT_DEADLINE_TYPE).trim().toUpperCase();
+    const normalizedType = ['WERKTAG', 'KALENDERTAG'].includes(type) ? type : this.DEFAULT_PAYMENT_DEADLINE_TYPE;
+    const fallback = normalizedType === 'WERKTAG' ? this.DEFAULT_PAYMENT_DEADLINE_VALUE : 1;
+    const value = Number(contract && contract.zahlungsziel_wert || fallback);
+    return { type: normalizedType, value: Number.isInteger(value) && value > 0 ? value : fallback };
+  },
+
+  easterSunday(year) {
+    const a = year % 19, b = Math.floor(year / 100), c = year % 100, d = Math.floor(b / 4);
+    const e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31);
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(year, month - 1, day);
+  },
+
+  germanHolidays(year) {
+    const easter = this.easterSunday(year);
+    const offset = (days) => new Date(year, easter.getMonth(), easter.getDate() + days);
+    return new Set([
+      `${year}-01-01`, `${year}-05-01`, `${year}-10-03`, `${year}-12-25`, `${year}-12-26`,
+      this.todayInput(offset(-2)), this.todayInput(offset(1)), this.todayInput(offset(39)), this.todayInput(offset(50))
+    ]);
+  },
+
+  isWorkingDay(date) {
+    const day = date.getDay();
+    return day !== 0 && day !== 6 && !this.germanHolidays(date.getFullYear()).has(this.todayInput(date));
+  },
+
+  nthWorkingDay(year, monthIndex, occurrence) {
+    const date = new Date(year, monthIndex, 1);
+    let count = 0;
+    while (date.getMonth() === monthIndex) {
+      if (this.isWorkingDay(date) && ++count === occurrence) return new Date(date.getTime());
+      date.setDate(date.getDate() + 1);
+    }
+    return new Date(year, monthIndex + 1, 0);
+  },
+
+  contractPeriodStatus(contract, month) {
+    const start = this.parseDate(contract && contract.start_datum);
+    const end = this.parseDate(contract && contract.end_datum);
+    const startMonth = start ? this.monthKey(start) : '';
+    const endMonth = end ? this.monthKey(end) : '';
+    if (startMonth && month < startMonth) return 'vor_mietbeginn';
+    if (endMonth && month > endMonth) return 'nach_mietende';
+    return '';
+  },
+
+  paymentDeadlineDate(contract, month) {
+    const [year, monthNumber] = String(month).split('-').map(Number);
+    if (!year || !monthNumber) return null;
+    const config = this.paymentDeadlineConfig(contract);
+    let date = config.type === 'WERKTAG'
+      ? this.nthWorkingDay(year, monthNumber - 1, config.value)
+      : new Date(year, monthNumber - 1, Math.min(config.value, new Date(year, monthNumber, 0).getDate()));
+    if (config.type === 'KALENDERTAG') {
+      while (!this.isWorkingDay(date)) date.setDate(date.getDate() + 1);
+    }
+    const start = this.parseDate(contract && contract.start_datum);
+    if (start && this.monthKey(start) === month && start > date) return start;
+    return date;
+  },
+
+  formatDate(value) {
+    const date = this.parseDate(value);
+    return date ? `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}.${date.getFullYear()}` : '-';
+  },
+
+  paymentDeadlineLabel(contract, month) {
+    const date = this.paymentDeadlineDate(contract, month);
+    if (!date) return 'Frist unbekannt';
+    const config = this.paymentDeadlineConfig(contract);
+    const rule = config.type === 'WERKTAG' ? `${config.value}. Werktag` : `${config.value}. Kalendertag, nächster Werktag falls nötig`;
+    return `Mieteingang spätestens am ${this.formatDate(date)} (${rule})`;
   },
 
   isActive(value) {
@@ -119,14 +200,26 @@ const paymentUiService = {
     return art === 'kaution' || (art === 'storno' && String(payment.gegen_art || '').trim().toLowerCase() === 'kaution');
   },
 
-  isRentPayment(payment) {
-    return !this.isDepositPayment(payment);
+  isRentSettlementPayment(payment) {
+    const art = this.paymentArt(payment);
+    return art === 'miete' || art === 'nachzahlung' || (art === 'storno' && String(payment.gegen_art || '').trim().toLowerCase() !== 'kaution' && String(payment.gegen_art || '').trim().toLowerCase() !== 'erstattung');
+  },
+
+  isRefundPayment(payment) {
+    return this.paymentArt(payment) === 'erstattung';
   },
 
   getPaymentsFor(contractId, month) {
     return (dataService.state.zahlungen || [])
       .filter(payment => String(payment.vertrag_id) === String(contractId)
-        && this.isRentPayment(payment)
+        && this.isRentSettlementPayment(payment)
+        && this.getPaymentMonth(payment) === month);
+  },
+
+  getRefundPayments(contractId, month) {
+    return (dataService.state.zahlungen || [])
+      .filter(payment => String(payment.vertrag_id) === String(contractId)
+        && this.isRefundPayment(payment)
         && this.getPaymentMonth(payment) === month);
   },
 
@@ -168,21 +261,22 @@ const paymentUiService = {
 
   summarizeMonth(contract, month, now = new Date()) {
     const payments = this.getPaymentsFor(contract.vertrag_id, month);
+    const refunds = this.getRefundPayments(contract.vertrag_id, month);
     const paid = payments.reduce((sum, payment) => sum + (this.parseNumber(payment.betrag) || 0), 0);
-    const due = this.monthlyDue(contract);
-    const [year, monthNumber] = month.split('-').map(Number);
-    const dueDate = new Date(year, monthNumber - 1, 1 + this.GRACE_DAYS);
+    const outsidePeriod = this.contractPeriodStatus(contract, month);
+    const due = outsidePeriod ? 0 : this.monthlyDue(contract);
+    const dueDate = this.paymentDeadlineDate(contract, month);
     const current = this.parseDate(now) || new Date();
     const settled = this.settledDate(payments, due);
-    let status = due <= 0 ? 'leerstand' : 'offen';
+    let status = outsidePeriod || (due <= 0 ? 'leerstand' : 'offen');
     if (due > 0) {
       if (paid >= due - 0.009) status = 'bezahlt';
       else if (paid > 0) status = 'teilbezahlt';
-      else if (current > dueDate) status = 'überfällig';
-      else if (dueDate > current) status = 'zukünftig';
+      else if (dueDate && current > dueDate) status = 'überfällig';
+      else if (dueDate && dueDate > current) status = 'zukünftig';
     }
-    const settledLate = settled && this.parseDate(settled) > dueDate;
-    const stillOpenLate = current > dueDate && ['offen', 'teilbezahlt', 'überfällig'].includes(status);
+    const settledLate = settled && dueDate && this.parseDate(settled) > dueDate;
+    const stillOpenLate = dueDate && current > dueDate && ['offen', 'teilbezahlt', 'überfällig'].includes(status);
     const verspaetet = due > 0 && (settledLate || stillOpenLate);
     return {
       month,
@@ -193,7 +287,10 @@ const paymentUiService = {
       status,
       verspaetet,
       settledDate: settled,
-      payments
+      dueDate,
+      deadlineLabel: this.paymentDeadlineLabel(contract, month),
+      payments,
+      refunds
     };
   },
 
@@ -227,6 +324,7 @@ const paymentUiService = {
     const repeatedDelay = matrix.filter(item => item.months.filter(month => month.verspaetet).length >= 2).length;
     const depositDue = matrix.reduce((sum, item) => sum + item.deposit.due, 0);
     const depositPaid = matrix.reduce((sum, item) => sum + item.deposit.paid, 0);
+    const depositOpenContracts = matrix.filter(item => item.deposit.status === 'offen' || item.deposit.status === 'teilweise').length;
     return {
       contractCount: matrix.length,
       openAmount,
@@ -236,7 +334,8 @@ const paymentUiService = {
       repeatedDelay,
       depositDue,
       depositPaid,
-      depositRemaining: Math.max(depositDue - depositPaid, 0)
+      depositRemaining: Math.max(depositDue - depositPaid, 0),
+      depositOpenContracts
     };
   },
 
@@ -247,7 +346,7 @@ const paymentUiService = {
 
   depositStatusHtml(deposit) {
     if (deposit.status === 'vollständig') {
-      return '<span class="payment-deposit-summary payment-deposit-vollstaendig" title="Die vereinbarte Kaution ist vollständig eingegangen">✓ Kaution vollständig hinterlegt: ' + this.formatMoney(deposit.paid) + ' EUR</span>';
+      return '<span class="payment-deposit-summary payment-deposit-vollstaendig" title="Die vereinbarte Kaution ist vollständig eingegangen">✓ Kaution vollständig hinterlegt</span>';
     }
     if (deposit.status === 'nicht_vereinbart') {
       return '<span class="payment-deposit-summary payment-deposit-nicht_vereinbart" title="Für diesen Vertrag ist keine Kaution hinterlegt">Keine Kaution vereinbart</span>';
@@ -256,7 +355,42 @@ const paymentUiService = {
   },
 
   statusLabel(status) {
-    return { bezahlt: 'Bezahlt', teilbezahlt: 'Teilbezahlt', offen: 'Offen', überfällig: 'Überfällig', zukünftig: 'Zukünftig', leerstand: 'Leerstand' }[status] || status;
+    return { bezahlt: 'Bezahlt', teilbezahlt: 'Teilbezahlt', offen: 'Offen', überfällig: 'Überfällig', zukünftig: 'Zukünftig', leerstand: 'Leerstand', vor_mietbeginn: 'Vor Mietbeginn', nach_mietende: 'Nach Mietende' }[status] || status;
+  },
+
+  statusTitle(month) {
+    const deadline = month.deadlineLabel || 'Frist unbekannt';
+    const descriptions = {
+      bezahlt: 'Grün: Der Sollbetrag ist vollständig erreicht.',
+      teilbezahlt: 'Gelb: Ein Teilbetrag ist eingegangen; der Rest ist noch offen.',
+      offen: `Grau: Noch keine Zahlung. ${deadline} ist noch nicht überschritten.`,
+      überfällig: `Rot: Der Sollbetrag ist nicht vollständig erreicht. ${deadline} ist überschritten.`,
+      zukünftig: `Blau: Dieser Mietmonat liegt noch vor der Frist. ${deadline}.`,
+      leerstand: 'Weiß: Leerstand ohne vereinbarte Sollmiete.',
+      vor_mietbeginn: 'Neutral: Der Mietvertrag begann in diesem Monat noch nicht.',
+      nach_mietende: 'Neutral: Der Mietvertrag war in diesem Monat bereits beendet.'
+    };
+    return descriptions[month.status] || 'Status des Mietmonats.';
+  },
+
+  legendHtml() {
+    const items = [
+      ['bezahlt', 'Bezahlt', 'Grün: Sollbetrag vollständig erreicht.'],
+      ['teilbezahlt', 'Teilbezahlt', 'Gelb: Teilbetrag eingegangen; Rest offen.'],
+      ['offen', 'Offen', 'Grau: Noch keine Zahlung; die individuelle Frist ist noch nicht überschritten.'],
+      ['überfällig', 'Überfällig', 'Rot: Frist überschritten und Sollbetrag nicht vollständig erreicht.'],
+      ['zukünftig', 'Zukünftig', 'Blau: Mietmonat liegt vor seiner individuellen Frist.'],
+      ['leerstand', 'Leerstand', 'Weiß: Kein aktiver Mietvertrag mit Sollmiete.']
+    ];
+    return '<div class="payment-legend" aria-label="Farblegende für Mietstatus">' + items.map(([status, label, detail]) =>
+      `<button type="button" class="payment-legend-item ${this.statusClass(status)}" aria-expanded="false" onclick="paymentUiService.toggleLegend(this)"><span>${label}</span><small>${detail}</small></button>`).join('') + '</div>';
+  },
+
+  toggleLegend(button) {
+    if (!button) return;
+    const open = button.getAttribute('aria-expanded') === 'true';
+    button.setAttribute('aria-expanded', String(!open));
+    button.classList.toggle('is-open', !open);
   },
 
   statusClass(status) {
@@ -301,12 +435,15 @@ const paymentUiService = {
     const contracts = this.getContracts(this.selectedObject);
     const matrix = this.buildMatrix({ contracts, payments: dataService.state.zahlungen || [], year: this.selectedYear });
     const overview = this.summarizeOverview(matrix, this.selectedYear);
+    const depositSummary = overview.depositRemaining > 0
+      ? `⚠ ${this.formatMoney(overview.depositRemaining)} EUR Kaution offen`
+      : '✓ Kautionen vollständig hinterlegt oder nicht vereinbart';
     const contractSummary = matrix.map(item => '<div class="payment-contract-summary-item"><strong>' + this.escape(item.unit) + ' · ' + this.escape(item.tenant) + '</strong><span>' + this.formatMoney(item.due) + ' EUR / Monat</span>' + this.depositStatusHtml(item.deposit) + '</div>').join('');
     const monthHeaders = this.MONTH_NAMES.map((name, index) => `<th scope="col">${name}<span class="payment-month-number">${index + 1}</span></th>`).join('');
     const rows = matrix.map(item => `
       <tr>
-        <th scope="row" class="payment-tenant-cell"><strong>${this.escape(item.unit)}</strong><span>${this.escape(item.tenant)}</span><small>${this.formatMoney(item.due)} EUR / Monat</small><span class="payment-deposit payment-deposit-${item.deposit.status}">Kaution: ${this.formatMoney(item.deposit.paid)} / ${this.formatMoney(item.deposit.due)} EUR</span><button class="payment-deposit-action" type="button" onclick="paymentUiService.openPaymentDialog('${this.escape(item.contract.vertrag_id)}','','Kaution')">Kaution erfassen</button></th>
-        ${item.months.map(month => `<td><button class="payment-cell ${this.statusClass(month.status)}${month.verspaetet ? ' payment-cell-late' : ''}" type="button" onclick="paymentUiService.openPaymentDialog('${this.escape(item.contract.vertrag_id)}','${month.month}')" title="${this.escape(this.statusLabel(month.status) + (month.verspaetet ? ' · verspätet beglichen oder überfällig' : ''))}"><strong>${this.escape(this.statusLabel(month.status))}${month.verspaetet ? '<small>verspätet</small>' : ''}</strong><span>${this.formatMoney(month.paid)} / ${this.formatMoney(month.due)} EUR</span></button></td>`).join('')}
+        <th scope="row" class="payment-tenant-cell"><strong>${this.escape(item.unit)}</strong><span>${this.escape(item.tenant)}</span><small>${this.formatMoney(item.due)} EUR / Monat</small><span class="payment-deposit payment-deposit-${item.deposit.status}">${item.deposit.due > 0 ? 'Kaution: ' + this.formatMoney(item.deposit.paid) + ' / ' + this.formatMoney(item.deposit.due) + ' EUR' : 'Keine Kaution vereinbart'}</span>${item.deposit.due > 0 && item.deposit.status !== 'vollständig' ? `<button class="payment-deposit-action" type="button" onclick="paymentUiService.openPaymentDialog('${this.escape(item.contract.vertrag_id)}','','Kaution')">Kaution erfassen</button>` : ''}</th>
+        ${item.months.map(month => `<td><button class="payment-cell ${this.statusClass(month.status)}${month.verspaetet ? ' payment-cell-late' : ''}" type="button" onclick="paymentUiService.openPaymentDialog('${this.escape(item.contract.vertrag_id)}','${month.month}')" title="${this.escape(this.statusTitle(month) + (month.verspaetet ? ' Zusätzlich verspätet beglichen oder aktuell überfällig.' : ''))}"><strong>${this.escape(this.statusLabel(month.status))}${month.verspaetet ? '<small>verspätet</small>' : ''}</strong><span>${this.formatMoney(month.paid)} / ${this.formatMoney(month.due)} EUR</span></button></td>`).join('')}
       </tr>`).join('');
     output.innerHTML = `
       <div class="payment-page-heading"><div><h2>Mieteingänge</h2><p>Monatliche Zahlungseingänge je aktivem Mietvertrag</p></div></div>
@@ -315,18 +452,11 @@ const paymentUiService = {
         <label>Jahr<select id="payment-year-select" onchange="paymentUiService.selectedYear=this.value; paymentUiService.render()">${years.map(year => `<option value="${year}" ${year === String(this.selectedYear) ? 'selected' : ''}>${year}</option>`).join('')}</select></label>
       </div>
       <div class="payment-overview" aria-label="Zusammenfassung der Mieteingänge"><div><strong>Offene Miete</strong><b>${this.formatMoney(overview.openAmount)} EUR</b><small>bis zum aktuellen Monat</small></div><div><strong>Überfällige Monate</strong><b>${overview.overdueMonths}</b><small>${overview.lateMonths} verspätete oder offene Monate</small></div><div><strong>Wiederholte Verspätungen</strong><b>${overview.repeatedDelay}</b><small>Verträge mit mindestens 2 Hinweisen</small></div><div><strong>Guthaben / Überzahlungen</strong><b>${this.formatMoney(overview.creditAmount)} EUR</b><small>positiver Saldo aus Monatsbuchungen</small></div><div><strong>Kaution</strong><b>${this.formatMoney(overview.depositPaid)} / ${this.formatMoney(overview.depositDue)} EUR</b><small>${this.formatMoney(overview.depositRemaining)} EUR offen</small></div></div>
-      <p class="payment-help"><strong>So wird zugeordnet:</strong> Das Eingangsdatum dokumentiert, wann das Geld eingegangen ist. Der ausgewählte Mietmonat bestimmt, für welchen Monat es zählt. Deshalb kann eine Zahlung vom 11.11.2026 den Februar vollständig oder teilweise ausgleichen. Wird der Monatsbetrag erreicht, wird der Monat grün; eine verspätete Zahlung bleibt zusätzlich markiert.</p>
-      <div class="payment-legend"><span class="payment-status-bezahlt">Bezahlt</span><span class="payment-status-teilbezahlt">Teilbezahlt</span><span class="payment-status-offen">Offen</span><span class="payment-status-ueberfaellig">Überfällig</span><span class="payment-status-zukuenftig">Zukünftig</span><span class="payment-status-leerstand">Leerstand</span></div>
+      <details class="payment-contract-summary"><summary><strong>Vertragsstatus</strong><span class="payment-contract-summary-overall">${depositSummary}</span></summary><div class="payment-contract-summary-grid">${contractSummary}</div></details>
+      <p class="payment-help"><strong>So wird zugeordnet:</strong> Das Eingangsdatum dokumentiert den tatsächlichen Geldfluss. Der ausgewählte Mietmonat bestimmt die fachliche Zuordnung. <strong>Miete</strong> ist der reguläre Monatsbetrag; eine <strong>Nachzahlung</strong> gleicht einen zusätzlich offenen Betrag für den zugeordneten Monat aus. Eine <strong>Erstattung</strong> wird als negative Rückzahlung geführt und verändert den Zahlungsstatus der Miete nicht. Die Frist wird je Vertrag als 3. Werktag oder individueller Kalendertag berechnet.</p>
+      ${this.legendHtml()}
       ${matrix.length ? `<div class="payment-table-wrap"><table class="payment-table"><thead><tr><th scope="col">Mieter / Einheit</th>${monthHeaders}</tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="payment-empty">Keine aktiven Verträge für diese Auswahl vorhanden.</p>'}
       <section class="payment-import-section"><div class="payment-section-heading"><div><h3>Kontoauszug als CSV</h3><p>Die Datei wird lokal gelesen. Buchungen werden erst nach deiner Zuordnung gespeichert.</p></div><label class="payment-file-button">CSV auswählen<input type="file" accept=".csv,text/csv,text/plain" onchange="paymentUiService.handleImportFile(this.files && this.files[0])"></label></div><div id="payment-import-output"></div></section>`;
-    output.innerHTML = output.innerHTML.replace('<p class="payment-help">', '<section class="payment-contract-summary" aria-label="Vertrags- und Kautionsstatus"><h3>Vertragsstatus</h3><div class="payment-contract-summary-grid">' + contractSummary + '</div></section><p class="payment-help">');
-    output.innerHTML = output.innerHTML
-      .replace('<span class="payment-status-bezahlt">Bezahlt</span>', '<span class="payment-status-bezahlt" title="Grün: Sollbetrag für den Monat ist vollständig erreicht">Bezahlt</span>')
-      .replace('<span class="payment-status-teilbezahlt">Teilbezahlt</span>', '<span class="payment-status-teilbezahlt" title="Gelb: Es ist ein Teilbetrag eingegangen">Teilbezahlt</span>')
-      .replace('<span class="payment-status-offen">Offen</span>', '<span class="payment-status-offen" title="Grau: Noch keine Zahlung und die Frist ist noch nicht überschritten">Offen</span>')
-      .replace('<span class="payment-status-ueberfaellig">Überfällig</span>', '<span class="payment-status-ueberfaellig" title="Rot: Der Monat ist fällig und noch nicht vollständig ausgeglichen">Überfällig</span>')
-      .replace('<span class="payment-status-zukuenftig">Zukünftig</span>', '<span class="payment-status-zukuenftig" title="Blau: Der Monat liegt noch in der Zukunft">Zukünftig</span>')
-      .replace('<span class="payment-status-leerstand">Leerstand</span>', '<span class="payment-status-leerstand" title="Weiß: Leerstand ohne vereinbarte Sollmiete">Leerstand</span>');
   },
 
   openPaymentDialog(contractId, month, initialArt = 'Miete') {
@@ -348,17 +478,12 @@ const paymentUiService = {
     const title = isDeposit ? 'Kaution erfassen' : 'Mieteingang erfassen';
     const context = isDeposit
       ? `Soll ${this.formatMoney(summary.due)} EUR · bisher ${this.formatMoney(summary.paid)} EUR`
-      : `<strong>${this.escape(month)}</strong> · Soll ${this.formatMoney(summary.due)} EUR · bisher ${this.formatMoney(summary.paid)} EUR`;
-    body.innerHTML = `<div class="payment-dialog"><div class="payment-dialog-heading"><div><h2>${title}</h2><p>${this.escape(this.unitName(contract))} · ${this.escape(this.tenantName(contract))}</p></div><button type="button" class="payment-dialog-close" onclick="uiService.closeModal()" aria-label="Schließen">×</button></div><p class="payment-dialog-context">${context}</p><form onsubmit="event.preventDefault(); paymentUiService.savePayment('${this.escape(contractId)}','${this.escape(month)}')"><label>Betrag (EUR)<input id="payment-amount" type="number" min="-1000000" step="0.01" value="${this.escape(remaining.toFixed(2))}" required></label><label>Eingangsdatum<input id="payment-date" type="date" value="${this.todayInput()}" required></label><label>Zugeordneter Mietmonat (bei Kaution leer lassen)<input id="payment-month" type="month" value="${this.escape(month)}"></label><label>Art<select id="payment-art"><option value="Miete" ${initialArt === 'Miete' ? 'selected' : ''}>Miete</option><option value="Kaution" ${initialArt === 'Kaution' ? 'selected' : ''}>Kaution</option><option value="Nachzahlung" ${initialArt === 'Nachzahlung' ? 'selected' : ''}>Nachzahlung</option><option value="Erstattung" ${initialArt === 'Erstattung' ? 'selected' : ''}>Erstattung (wird negativ gespeichert)</option></select></label><p class="payment-dialog-hint">Das Eingangsdatum ist der tatsächliche Geldfluss. Der Mietmonat steuert die fachliche Zuordnung.</p><div class="payment-dialog-actions"><button class="btn-primary" type="submit">Zahlung speichern</button><button class="btn-secondary" type="button" onclick="uiService.closeModal()">Abbrechen</button></div></form>${history}</div>`;
-    const monthInput = body.querySelector ? body.querySelector('#payment-month') : null;
-    if (monthInput) {
-      monthInput.readOnly = true;
-      monthInput.setAttribute('aria-label', 'Fachlicher Mietmonat aus der angeklickten Spalte');
-      const monthLabel = monthInput.closest('label');
-      if (monthLabel && monthLabel.firstChild) monthLabel.firstChild.textContent = 'Fachlicher Mietmonat (aus der angeklickten Spalte)';
-    }
-    const dialogHint = body.querySelector ? body.querySelector('.payment-dialog-hint') : null;
-    if (dialogHint) dialogHint.textContent = 'Eingangsdatum und fachlicher Mietmonat werden getrennt gespeichert. Für einen anderen Mietmonat bitte die entsprechende Monatsspalte öffnen.';
+      : `<strong>${this.escape(month)}</strong> · Soll ${this.formatMoney(summary.due)} EUR · bisher ${this.formatMoney(summary.paid)} EUR · ${this.escape(this.paymentDeadlineLabel(contract, month))}`;
+    const monthField = isDeposit ? '' : `<label>Fachlicher Mietmonat<input id="payment-month" type="month" value="${this.escape(month)}" readonly aria-label="Fachlicher Mietmonat aus der angeklickten Spalte"></label>`;
+    const dialogHint = isDeposit
+      ? 'Die Kaution wird separat vom Mietmonat geführt. Das Eingangsdatum dokumentiert den tatsächlichen Geldfluss.'
+      : 'Eingangsdatum und fachlicher Mietmonat werden getrennt gespeichert. Für einen anderen Mietmonat bitte die entsprechende Monatsspalte öffnen.';
+    body.innerHTML = `<div class="payment-dialog"><div class="payment-dialog-heading"><div><h2>${title}</h2><p>${this.escape(this.unitName(contract))} · ${this.escape(this.tenantName(contract))}</p></div><button type="button" class="payment-dialog-close" onclick="uiService.closeModal()" aria-label="Schließen">×</button></div><p class="payment-dialog-context">${context}</p><form onsubmit="event.preventDefault(); paymentUiService.savePayment('${this.escape(contractId)}','${this.escape(month)}')"><label>Betrag (EUR)<input id="payment-amount" type="number" min="-1000000" step="0.01" value="${this.escape(remaining.toFixed(2))}" required></label><label>Eingangsdatum<input id="payment-date" type="date" value="${this.todayInput()}" required></label>${monthField}<label>Art<select id="payment-art"><option value="Miete" ${initialArt === 'Miete' ? 'selected' : ''}>Miete</option><option value="Kaution" ${initialArt === 'Kaution' ? 'selected' : ''}>Kaution</option><option value="Nachzahlung" ${initialArt === 'Nachzahlung' ? 'selected' : ''}>Nachzahlung</option><option value="Erstattung" ${initialArt === 'Erstattung' ? 'selected' : ''}>Erstattung (wird negativ gespeichert)</option></select></label><p class="payment-dialog-hint">${dialogHint}</p><p class="payment-art-hint">Miete = regulärer Monatsbetrag · Nachzahlung = zusätzlicher Betrag für den ausgewählten Mietmonat · Erstattung = Rückzahlung an den Mieter und keine offene Miete.</p><div class="payment-dialog-actions"><button class="btn-primary" type="submit">Zahlung speichern</button><button class="btn-secondary" type="button" onclick="uiService.closeModal()">Abbrechen</button></div></form>${history}</div>`;
     modal.style.display = 'flex';
   },
 

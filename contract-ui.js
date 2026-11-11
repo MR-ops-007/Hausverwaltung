@@ -108,6 +108,8 @@ const contractUiService = {
     const history = (dataService.state.mietanpassungen || []).filter(row => String(row.vertrag_id) === this.selectedId);
     const schemaReady = contractService.fields.every(field => Object.prototype.hasOwnProperty.call(contract, field));
     const standardSeries = typeof vpiService !== 'undefined' ? vpiService.seriesLabel : 'VPI Deutschland 2020=100';
+    const deadlineType = contract.zahlungsziel_typ || 'WERKTAG';
+    const deadlineValue = contract.zahlungsziel_wert || (deadlineType === 'WERKTAG' ? 3 : 1);
     this.loadedSnapshot = contractService.snapshot(contract);
     output.innerHTML = `
       <div class="contract-fields">
@@ -132,6 +134,12 @@ const contractUiService = {
         <div class="contract-fields">
           ${select('mietmodell', 'Mietmodell', ['Pauschal', 'Warmmiete', 'Kalt+NK'])}
           ${select('erhoehungs_typ', 'Erhoehungstyp', ['Normal', 'Staffel', 'Index'])}
+          <label>Mieteingang spätestens am<select id="contract-zahlungsziel_typ">
+            <option value="WERKTAG" ${deadlineType === 'WERKTAG' ? 'selected' : ''}>${deadlineValue}. Werktag des Monats</option>
+            <option value="KALENDERTAG" ${deadlineType === 'KALENDERTAG' ? 'selected' : ''}>Kalendertag des Monats</option>
+          </select></label>
+          ${input('zahlungsziel_wert', 'Werktag oder Kalendertag', 'number')}
+          <p class="contract-field-note">Wochenenden und bundesweite Feiertage werden bei Werktagen übersprungen. Für individuelle Vereinbarungen, zum Beispiel den 15. des Monats, Kalendertag auswählen.</p>
           ${input('soll_kaltmiete', 'Nettokaltmiete (EUR)', 'number')}
           ${input('soll_nebenkosten', 'Nebenkosten gesamt (EUR) *', 'number')}
           ${input('nk_betriebskosten', 'Davon Betriebskosten (optional)', 'number')}
