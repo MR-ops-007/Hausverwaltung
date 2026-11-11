@@ -46,7 +46,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 - P6/P7 laufen auf `codex/p6-mieteingaenge`: Die neue Mieteingangsansicht bietet eine
   Monatsmatrix, Teilzahlungen, fachliche Mietmonate, Kautionen, Überfälligkeit,
   Storno-Gegenbuchungen und einen lokalen CSV-Import mit manueller Vertragszuordnung.
-  Der Branch umfasst aktuell 423 Tests. Der lokale Mock deckt mehrere aktive Verträge,
+  Der Branch umfasst aktuell 426 Tests. Der lokale Mock deckt mehrere aktive Verträge,
   Leerstand, Teilzahlungen, Nachzahlungen, Erstattungen, wiederholte Verspätungen,
   Überzahlungen, Mitmieter und unterschiedliche Kautionsstände ab.
   Für die neue Idempotenz des Zahlungswegs ist Apps Script 4.8.6 erforderlich; die

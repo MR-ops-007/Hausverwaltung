@@ -49,8 +49,12 @@ Die Testmatrix enthält bewusst unterschiedliche Fälle:
 | Wohnung 7 | Leerstand ohne Zahlung; wird sichtbar geführt, aber nicht als offene Miete gezählt |
 
 Im Dialog ist `datum` das tatsächliche Eingangsdatum. `mietmonat` ist die fachliche
-Zuordnung. Eine Zahlung vom 11.11.2026 kann dadurch den Februar ausgleichen. Eine Kaution
-wird ohne Mietmonat gespeichert und separat gegen `Vertraege.kaution_soll` ausgewertet.
+Zuordnung. Eine Zahlung vom 11.11.2026 kann dadurch den Februar ausgleichen. Im manuellen
+Dialog ist der fachliche Mietmonat die angeklickte Monatsspalte und wird dort nur lesbar
+angezeigt; für einen anderen Monat wird die entsprechende Spalte geöffnet. Eine vollständig
+ausgeglichene verspätete Zahlung ist grün und trägt zusätzlich den Hinweis „verspätet“.
+Eine Kaution wird ohne Mietmonat gespeichert und separat gegen `Vertraege.kaution_soll`
+ausgewertet.
 Für den produktiven Schreibweg müssen die optionalen Spalten `mietmonat`, `storno_von`
 und `gegen_art` im Blatt `Zahlungen` vorhanden sein; fehlen sie, lehnt Backend 4.8.6 den
 erweiterten Datensatz verständlich mit `PAYMENT_SCHEMA_MISSING` ab, statt die Zuordnung

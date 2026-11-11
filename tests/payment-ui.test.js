@@ -32,7 +32,7 @@ describe('paymentUiService Monatsstatus', () => {
     const contract = service.getContracts()[0];
 
     expect(service.summarizeMonth(contract, '2026-01', new Date(2026, 10, 11))).toMatchObject({ status: 'bezahlt', paid: 650, remaining: 0 });
-    expect(service.summarizeMonth(contract, '2026-02', new Date(2026, 10, 11))).toMatchObject({ status: 'teilbezahlt', paid: 300, remaining: 350 });
+    expect(service.summarizeMonth(contract, '2026-02', new Date(2026, 10, 11))).toMatchObject({ status: 'teilbezahlt', paid: 300, remaining: 350, verspaetet: true });
     expect(service.summarizeMonth(contract, '2026-03', new Date(2026, 10, 11)).status).toBe('überfällig');
     expect(service.summarizeMonth(contract, '2026-12', new Date(2026, 10, 11)).status).toBe('zukünftig');
   });
@@ -65,6 +65,29 @@ describe('paymentUiService Monatsstatus', () => {
     expect(november.paid).toBe(0);
   });
 
+  it('speichert beim Februar-Dialog den angeklickten Mietmonat statt des Eingangsmonats', async () => {
+    const fields = {
+      'payment-amount': { value: '250' },
+      'payment-date': { value: '2026-11-11' },
+      'payment-art': { value: 'Miete' }
+    };
+    let request;
+    const service = loadPaymentService(
+      baseState(),
+      { getElementById: id => fields[id] || null },
+      { saveTransaction: async transaction => { request = transaction; return { status: 'success', angelegt: 1 }; } }
+    );
+
+    await service.savePayment('V1', '2026-02');
+
+    expect(request.data[0]).toMatchObject({
+      datum: '2026-11-11',
+      mietmonat: '2026-02',
+      betrag: 250,
+      art: 'Miete'
+    });
+  });
+
   it('hält Kaution außerhalb der Monatsmiete und berechnet den Kautionsstatus', () => {
     const service = loadPaymentService(baseState({
       vertraege: [{ ...baseState().vertraege[0], kaution_soll: 2000 }],
@@ -83,6 +106,24 @@ describe('paymentUiService Monatsstatus', () => {
     expect(summary.paid).toBe(-100);
     expect(summary.status).toBe('überfällig');
     expect(summary.remaining).toBe(750);
+  });
+
+  it('speichert eine Erstattung auch bei positiver Eingabe als negativen Betrag', async () => {
+    const fields = {
+      'payment-amount': { value: '100' },
+      'payment-date': { value: '2026-11-11' },
+      'payment-art': { value: 'Erstattung' }
+    };
+    let request;
+    const service = loadPaymentService(
+      baseState(),
+      { getElementById: id => fields[id] || null },
+      { saveTransaction: async transaction => { request = transaction; return { status: 'success', angelegt: 1 }; } }
+    );
+
+    await service.savePayment('V1', '2026-03');
+
+    expect(request.data[0]).toMatchObject({ mietmonat: '2026-03', betrag: -100, art: 'Erstattung' });
   });
 
   it('baut eine Matrix nur für aktive Verträge', () => {
@@ -143,6 +184,24 @@ describe('paymentUiService CSV-Import', () => {
     expect(output.innerHTML).toContain('Überfällig');
     expect(output.innerHTML).toContain('Guthaben / Überzahlungen');
     expect(output.innerHTML).toContain('Kontoauszug als CSV');
+  });
+
+  it('zeigt den Kautionsstatus prominent in der Vertragsübersicht', () => {
+    const output = { innerHTML: '' };
+    const service = loadPaymentService(baseState({
+      vertraege: [{ ...baseState().vertraege[0], kaution_soll: 2000 }],
+      zahlungen: [{ zahlung_id: 'K1', vertrag_id: 'V1', art: 'Kaution', datum: '2026-01-02', betrag: 1200 }]
+    }), {
+      getElementById(id) {
+        return id === 'payments-output' ? output : null;
+      }
+    });
+    service.selectedObject = 'O1';
+    service.selectedYear = '2026';
+    service.render();
+    expect(output.innerHTML).toContain('Vertragsstatus');
+    expect(output.innerHTML).toContain('Kaution: 1.200,00 / 2.000,00 EUR');
+    expect(output.innerHTML).toContain('800,00 EUR offen');
   });
 
   it('zeigt eine vorgemerkte Offline-Zahlung nicht vorzeitig als gespeichert an', async () => {

@@ -515,7 +515,7 @@ input[type="text"] {
     color: #1e3a8a;
     line-height: 1.45;
 }
-.payment-overview { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:16px 0; }
+.payment-overview { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; margin:16px 0; }
 .payment-overview > div { display:grid; gap:4px; min-height:92px; padding:14px 16px; border:1px solid #dbe4ee; border-radius:8px; background:#fff; }
 .payment-overview strong { color:#40516a; font-size:.9rem; }
 .payment-overview b { color:#18263d; font-size:1.35rem; }
@@ -563,8 +563,15 @@ input[type="text"] {
 .payment-status-offen { color: #475569; background: #f8fafc; border-color: #cbd5e1 !important; }
 .payment-status-ueberfaellig { color: #991b1b; background: #fee2e2; border-color: #fca5a5 !important; }
 .payment-status-zukuenftig { color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe !important; }
-.payment-status-leerstand { color: #64748b; background: #f1f5f9; border-color: #cbd5e1 !important; }
+.payment-status-leerstand { color: #64748b; background: #fff; border-color: #e2e8f0 !important; }
 .payment-deposit-nicht_vereinbart { color:#64748b; }
+.payment-contract-summary { margin: 0 0 14px; padding: 14px; border: 1px solid #dbe4ee; border-radius: 8px; background: #fff; }
+.payment-contract-summary h3 { margin: 0 0 10px; color:#334155; font-size:1rem; }
+.payment-contract-summary-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.payment-contract-summary-item { display:grid; gap:3px; padding:10px 12px; border:1px solid #e2e8f0; border-radius:7px; background:#f8fafc; }
+.payment-contract-summary-item strong { color:#1e293b; }
+.payment-contract-summary-item > span:not(.payment-deposit-summary) { color:#64748b; font-size:.86rem; }
+.payment-deposit-summary { font-size:.84rem; font-weight:800; }
 .payment-empty { padding: 18px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; color: #64748b; }
 .payment-import-section { margin-top: 16px; padding: 14px; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; }
 .payment-section-heading { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
@@ -602,6 +609,7 @@ input[type="text"] {
 .payment-history > div { display:flex; justify-content:space-between; gap:10px; align-items:center; padding:7px 0; border-top:1px solid #f1f5f9; color:#475569; }
 @media (max-width: 700px) {
     .payment-overview { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .payment-contract-summary-grid { grid-template-columns:1fr; }
     .payments-toolbar { grid-template-columns: 1fr; }
     .payment-import-row { grid-template-columns: 1fr; }
     .payment-import-row button { width:100%; }

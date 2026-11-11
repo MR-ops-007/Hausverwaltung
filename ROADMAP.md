@@ -294,7 +294,9 @@ Erfassungsmodul, kein Mahnwesen und keine Nebenkostenabrechnung.
 - Umsetzung im aktuellen Branch: Monatsmatrix für aktive Verträge, Status je Monat,
   Teilzahlungen, fachlicher `mietmonat` unabhängig vom Eingangsdatum, Gesamtstatus,
   Kautionsstatus, Storno als negative Gegenbuchung und keine doppelte Speicherung bei
-  gleicher `zahlung_id`.
+  gleicher `zahlung_id`. Der Dialog übernimmt den angeklickten Mietmonat unveränderbar,
+  zeigt den Kautionsstatus prominent und markiert verspätete Teil- oder Vollzahlungen
+  zusätzlich zum eigentlichen Zahlungsstatus.
 - Der Backend-Schreibweg wird dafür auf 4.8.6 angehoben. Die produktive 4.8.5 bleibt
   unverändert, bis die neue Apps-Script-Version manuell bereitgestellt und geprüft ist.
 
