@@ -60,7 +60,7 @@ werden, bevor ein neues Feature darauf aufgebaut wird.
 ### Z1 Zähler-Speichern-Feedback
 
 - Status: abgeschlossen in PR #29. Die gemeinsame Prüfung mit dem Heizöl-Speicherablauf
-  und die Regressionstests sind in `main` enthalten; aktuell 389 Tests grün.
+  und die Regressionstests sind in `main` enthalten; aktuell 403 Tests grün.
 
 ### Z2 Heizöl-Verbrauch
 
