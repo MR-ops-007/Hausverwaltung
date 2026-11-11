@@ -607,13 +607,21 @@ const paymentUiService = {
     if (!modal || !body) return;
     this.pendingAllocation = pending;
     const rows = pending.plan.allocations.map(item => `<label class="payment-allocation-row"><span><strong>${this.escape(item.month)}</strong><small>${this.formatMoney(item.remaining)} EUR offen${item.verspaetet ? ' · überfällig' : ''}</small></span><input type="number" min="0" step="0.01" data-payment-allocation-month="${this.escape(item.month)}" value="${this.escape(item.amount.toFixed(2))}"></label>`).join('');
-    body.innerHTML = `<div class="payment-dialog payment-allocation-dialog"><div class="payment-dialog-heading"><div><h2>Zahlung verteilen</h2><p>${this.escape(this.unitName(pending.contract))} · ${this.escape(this.tenantName(pending.contract))}</p></div><button type="button" class="payment-dialog-close" onclick="uiService.closeModal()" aria-label="Schließen">×</button></div><p class="payment-dialog-context">${this.formatMoney(pending.plan.amount)} EUR Eingang für ${this.escape(pending.plan.selectedMonth)}. Der angeklickte Monat wird zuerst vorgeschlagen, danach die ältesten offenen Monate.</p><div class="payment-allocation-list">${rows || '<p class="payment-dialog-hint">Für diesen Vertrag sind keine weiteren offenen Mietmonate vorhanden.</p>'}<label class="payment-allocation-row payment-allocation-credit"><span><strong>Als Guthaben stehen lassen</strong><small>Wird keinem Mietmonat zugeordnet und später in der Übersicht als Guthaben gezeigt.</small></span><input type="number" min="0" step="0.01" data-payment-allocation-month="" value="${this.escape(pending.plan.unassigned.toFixed(2))}"></label></div><p class="payment-allocation-total">Verteilt: <strong data-payment-allocation-total>0,00 EUR</strong> · Eingang: <strong>${this.formatMoney(pending.plan.amount)} EUR</strong></p><p class="payment-dialog-hint">Die Summe muss exakt dem Zahlungseingang entsprechen. Es wird nichts automatisch in einen anderen Monat verschoben.</p><div class="payment-dialog-actions"><button class="btn-primary" type="button" onclick="paymentUiService.confirmPaymentAllocation()">Verteilung speichern</button><button class="btn-secondary" type="button" onclick="uiService.closeModal()">Abbrechen</button></div></div>`;
+    body.innerHTML = `<div class="payment-dialog payment-allocation-dialog"><div class="payment-dialog-heading"><div><h2>Zahlung verteilen</h2><p>${this.escape(this.unitName(pending.contract))} · ${this.escape(this.tenantName(pending.contract))}</p></div><button type="button" class="payment-dialog-close" onclick="uiService.closeModal()" aria-label="Schließen">×</button></div><p class="payment-dialog-context">${this.formatMoney(pending.plan.amount)} EUR Eingang für ${this.escape(pending.plan.selectedMonth)}. Der angeklickte Monat wird zuerst vorgeschlagen, danach die ältesten offenen Monate.</p><div class="payment-allocation-list">${rows || '<p class="payment-dialog-hint">Für diesen Vertrag sind keine weiteren offenen Mietmonate vorhanden.</p>'}<label class="payment-allocation-row payment-allocation-credit"><span><strong>Als Guthaben stehen lassen</strong><small>Wird keinem Mietmonat zugeordnet und später in der Übersicht als Guthaben gezeigt.</small></span><input type="number" min="0" step="0.01" data-payment-allocation-month="" value="${this.escape(pending.plan.unassigned.toFixed(2))}"></label></div><p class="payment-allocation-total">Verteilt: <strong data-payment-allocation-total>0,00 EUR</strong> · Eingang: <strong>${this.formatMoney(pending.plan.amount)} EUR</strong></p><p class="payment-allocation-message" data-payment-allocation-message role="status" aria-live="polite" hidden></p><p class="payment-dialog-hint">Die Summe muss exakt dem Zahlungseingang entsprechen. Es wird nichts automatisch in einen anderen Monat verschoben.</p><div class="payment-dialog-actions"><button class="btn-primary" type="button" data-payment-allocation-save onclick="paymentUiService.confirmPaymentAllocation()">Verteilung speichern</button><button class="btn-secondary" type="button" onclick="uiService.closeModal()">Abbrechen</button></div></div>`;
     modal.style.display = 'flex';
     const inputs = body.querySelectorAll('[data-payment-allocation-month]');
     const updateTotal = () => {
       const total = Array.from(inputs).reduce((sum, input) => sum + (this.parseNumber(input.value) || 0), 0);
       const output = body.querySelector('[data-payment-allocation-total]');
       if (output) output.textContent = `${this.formatMoney(total)} EUR`;
+      const message = body.querySelector('[data-payment-allocation-message]');
+      const save = body.querySelector('[data-payment-allocation-save]');
+      const matches = Math.abs(total - pending.plan.amount) <= 0.009;
+      if (message) {
+        message.textContent = matches ? '' : `Bitte Summe prüfen: verteilt sind ${this.formatMoney(total)} EUR, der Zahlungseingang beträgt ${this.formatMoney(pending.plan.amount)} EUR.`;
+        message.hidden = matches;
+      }
+      if (save) save.disabled = !matches;
     };
     inputs.forEach(input => input.addEventListener('input', updateTotal));
     updateTotal();
@@ -625,14 +633,25 @@ const paymentUiService = {
     if (!pending || !body) return null;
     const inputs = Array.from(body.querySelectorAll('[data-payment-allocation-month]'));
     const rows = inputs.map(input => ({ month: input.getAttribute('data-payment-allocation-month') || '', amount: this.parseNumber(input.value) || 0 }));
-    if (rows.some(row => row.amount < 0)) return this.showMessage('Bitte nur positive Teilbeträge eingeben.', 'error');
+    if (rows.some(row => row.amount < 0)) return this.setAllocationMessage('Bitte Summe prüfen: Teilbeträge dürfen nicht negativ sein.', 'error');
     const total = rows.reduce((sum, row) => sum + row.amount, 0);
-    if (Math.abs(total - pending.plan.amount) > 0.009) return this.showMessage(`Die Verteilung muss ${this.formatMoney(pending.plan.amount)} EUR ergeben. Aktuell sind es ${this.formatMoney(total)} EUR.`, 'error');
+    if (Math.abs(total - pending.plan.amount) > 0.009) return this.setAllocationMessage(`Bitte Summe prüfen: verteilt sind ${this.formatMoney(total)} EUR, der Zahlungseingang beträgt ${this.formatMoney(pending.plan.amount)} EUR.`, 'error');
     const plan = { ...pending.plan, allocations: rows.filter(row => row.month), unassigned: rows.find(row => !row.month)?.amount || 0 };
     const payments = this.buildAllocationRows(plan, pending.date);
     if (!payments.length) return this.showMessage('Bitte mindestens einen Teilbetrag verteilen oder als Guthaben stehen lassen.', 'error');
     this.pendingAllocation = null;
     return this.persistPayment(payments, 'Zahlung verteilt und gespeichert.');
+  },
+
+  setAllocationMessage(message, kind = 'error') {
+    const output = document.getElementById('modal-body')?.querySelector('[data-payment-allocation-message]');
+    if (output) {
+      output.textContent = message;
+      output.hidden = !message;
+      output.className = `payment-allocation-message payment-message-${kind}`;
+      return;
+    }
+    this.showMessage(message, kind);
   },
 
   async savePayment(contractId, month) {

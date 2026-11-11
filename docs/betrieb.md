@@ -39,6 +39,9 @@ Guthaben ohne `mietmonat` stehen bleiben. Jede Teilbuchung besitzt eine eigene
 `zahlung_id`, alle Teilbuchungen teilen eine `zahlungsgruppe_id`. Zugeordnete Teilbeträge
 senken den offenen Gesamtbetrag der jeweiligen Monate; ein nicht zugeordneter Rest
 erscheint oben als Guthaben.
+Die Summe wird während der Eingabe laufend gegen den tatsächlichen Eingang geprüft.
+Bei einer Abweichung erscheint direkt im Dialog „Bitte Summe prüfen“ und die Speicherung
+bleibt deaktiviert, bis beide Beträge übereinstimmen.
 Für die Speicherung der beiden neuen Vertragsfelder muss einmalig die ausdrücklich
 manuell aufzurufende Funktion `prepareContractSchema()` ausgeführt werden. Für die
 Zahlungsaufteilung muss zusätzlich einmalig `preparePaymentSchema()` ausgeführt werden.

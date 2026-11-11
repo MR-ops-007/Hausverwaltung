@@ -170,6 +170,51 @@ describe('paymentUiService Monatsstatus', () => {
     expect(request).toBe(false);
   });
 
+  it('zeigt bei einer falschen Verteilung direkt im Dialog „Bitte Summe prüfen“', () => {
+    const inputs = [
+      { value: '500', addEventListener(_event, handler) { this.handler = handler; } },
+      { value: '400', addEventListener(_event, handler) { this.handler = handler; } },
+      { value: '0', addEventListener(_event, handler) { this.handler = handler; } }
+    ];
+    const total = { textContent: '' };
+    const message = { textContent: '', hidden: true, className: '' };
+    const save = { disabled: false };
+    const body = {
+      innerHTML: '',
+      querySelectorAll: () => inputs,
+      querySelector(selector) {
+        if (selector === '[data-payment-allocation-total]') return total;
+        if (selector === '[data-payment-allocation-message]') return message;
+        if (selector === '[data-payment-allocation-save]') return save;
+        return null;
+      }
+    };
+    const service = loadPaymentService(baseState(), {
+      getElementById: id => id === 'modal-body' ? body : id === 'modal-container' ? { style: {} } : null
+    });
+    const contract = service.getContracts()[0];
+
+    service.showAllocationDialog({
+      contract,
+      date: '2026-11-11',
+      plan: {
+        contractId: 'V1', selectedMonth: '2026-02', amount: 900, art: 'Miete', unassigned: 0,
+        allocations: [
+          { month: '2026-02', remaining: 500, amount: 500, verspaetet: true },
+          { month: '2026-11', remaining: 650, amount: 400, verspaetet: true }
+        ]
+      }
+    });
+
+    expect(save.disabled).toBe(false);
+    inputs[0].value = '499';
+    inputs[0].handler();
+    expect(save.disabled).toBe(true);
+    expect(message.hidden).toBe(false);
+    expect(message.textContent).toContain('Bitte Summe prüfen');
+    expect(message.textContent).toContain('899,00 EUR');
+  });
+
   it('hält Kaution außerhalb der Monatsmiete und berechnet den Kautionsstatus', () => {
     const service = loadPaymentService(baseState({
       vertraege: [{ ...baseState().vertraege[0], kaution_soll: 2000 }],

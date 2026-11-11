@@ -46,7 +46,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 - P6/P7 laufen auf `codex/p6-mieteingaenge`: Die neue Mieteingangsansicht bietet eine
   Monatsmatrix, Teilzahlungen, fachliche Mietmonate, Kautionen, Überfälligkeit,
   Storno-Gegenbuchungen und einen lokalen CSV-Import mit manueller Vertragszuordnung.
-  Der Branch umfasst aktuell 438 Tests. Der lokale Mock enthält wiederverwendbare
+  Der Branch umfasst aktuell 439 Tests. Der lokale Mock enthält wiederverwendbare
   synthetische Verbrauchsviews für Strom, Kaltwasser, Warmwasser und Heizöl sowie
   mehrere aktive Verträge,
   Leerstand, Teilzahlungen, Nachzahlungen, Erstattungen, wiederholte Verspätungen,
