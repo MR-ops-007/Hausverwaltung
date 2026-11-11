@@ -91,7 +91,7 @@ const state = {
     rent('TICK_KAUTION', 'TEST_V6', '', 1000, '2026-01-02', 'Kaution')
   ],
   Haustechnik: [],
-  _view_aktive_mieter: [1, 2, 3, 4, 5, 6, 7].map(index => ({ objekt_id: 'TEST', einheit_id: `TEST_WE_0${index}`, vertrag_id: `TEST_V${index}`, mieter_name: index === 7 ? 'Leerstand' : 'Testmieter', soll_gesamt: [650, 900, 750, 1450, 500, 800, 0][index - 1] })),
+  _view_aktive_mieter: [1, 2, 3, 4, 5, 6, 7].map(index => ({ objekt_id: 'TEST', einheit_id: `TEST_WE_0${index}`, vertrag_id: `TEST_V${index}`, mieter_name: ['Donald Duck', 'Mickey Mouse', 'Daisy Duck', 'Dagobert Duck', 'Gustav Gans', 'Tick Duck / Trick Duck', 'Leerstand'][index - 1], soll_gesamt: [650, 900, 750, 1450, 500, 800, 0][index - 1] })),
   _view_verbrauch_monat: [],
   _view_verbrauch_jahr: [],
   _view_verbrauch_audit: [],
