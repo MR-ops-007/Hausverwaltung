@@ -19,4 +19,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - run: npm run check:frontend-assets
+      - name: Check JavaScript syntax
+        run: for file in *.js; do node --check "$file"; done
       - run: npm test
+      - run: git diff --check
