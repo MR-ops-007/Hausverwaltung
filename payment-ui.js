@@ -223,6 +223,13 @@ const paymentUiService = {
         && this.getPaymentMonth(payment) === month);
   },
 
+  getPaymentsEnteredInMonth(contractId, month) {
+    return (dataService.state.zahlungen || [])
+      .filter(payment => String(payment.vertrag_id) === String(contractId))
+      .filter(payment => this.isRentSettlementPayment(payment) || this.isRefundPayment(payment))
+      .filter(payment => this.monthKey(payment.datum || payment.buchungsdatum || payment.zahlungsdatum) === month);
+  },
+
   getDepositPayments(contractId) {
     return (dataService.state.zahlungen || [])
       .filter(payment => String(payment.vertrag_id) === String(contractId) && this.isDepositPayment(payment));
@@ -469,7 +476,13 @@ const paymentUiService = {
     const body = document.getElementById('modal-body');
     if (!modal || !body) return;
     const historyMonth = isDeposit ? '' : month;
-    const history = summary.payments.length ? `<div class="payment-history"><h3>Bereits erfasst</h3>${summary.payments.map(payment => {
+    const assignedPayments = summary.payments;
+    const assignedIds = new Set(assignedPayments.map(payment => String(payment.zahlung_id)));
+    const enteredPayments = isDeposit ? [] : this.getPaymentsEnteredInMonth(contractId, month)
+      .filter(payment => !assignedIds.has(String(payment.zahlung_id)));
+    const historyPayments = [...assignedPayments, ...enteredPayments]
+      .sort((a, b) => String(a.datum || '').localeCompare(String(b.datum || '')));
+    const history = historyPayments.length ? `<div class="payment-history"><h3>Bereits erfasst</h3><p class="payment-history-note">Fachlich zugeordnete Zahlungen und Zahlungen, die in diesem Monat eingegangen sind.</p>${historyPayments.map(payment => {
       const originalArt = payment.gegen_art || payment.art || 'Miete';
       const assignedMonth = payment.mietmonat || (isDeposit ? '' : this.getPaymentMonth(payment));
       const undo = this.paymentArt(payment) === 'storno' ? '' : `<button class="btn-link-danger" type="button" onclick="paymentUiService.saveStorno('${this.escape(contractId)}','${this.escape(historyMonth)}','${this.escape(payment.zahlung_id)}',${this.parseNumber(payment.betrag) || 0},'${this.escape(originalArt)}','${this.escape(assignedMonth)}')">Rückgängig</button>`;

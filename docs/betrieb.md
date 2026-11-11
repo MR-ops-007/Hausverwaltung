@@ -28,6 +28,9 @@ Die Mieteingangsansicht zeigt die konkrete Frist im Zell-Tooltip und im Erfassun
 ausgewählten Mietmonat. `Erstattung` ist eine negative Rückzahlung an den Mieter und
 wird separat geführt; sie macht einen zuvor vollständig bezahlten Monat nicht wieder
 zu einer Teilzahlung. Eine Kaution hat keinen Mietmonat und wird separat ausgewertet.
+Im Dialog „Bereits erfasst“ wird eine Zahlung zusätzlich im tatsächlichen Eingangsmonat
+angezeigt, auch wenn sie fachlich einem anderen Mietmonat zugeordnet ist. Die Zeile zeigt
+dann ausdrücklich `Monat YYYY-MM`.
 Für die Speicherung der beiden neuen Vertragsfelder muss einmalig die ausdrücklich
 manuell aufzurufende Funktion `prepareContractSchema()` im Backend 4.8.7 ausgeführt
 werden. Sie ergänzt nur fehlende Spalten; sie wird nicht automatisch durch einen

@@ -575,7 +575,10 @@ input[type="text"] {
 .payment-status-nach_mietende { color: #64748b; background: #f8fafc; border-color: #cbd5e1 !important; }
 .payment-deposit-nicht_vereinbart { color:#64748b; }
 .payment-contract-summary { margin: 0 0 14px; padding: 14px; border: 1px solid #dbe4ee; border-radius: 8px; background: #fff; }
-.payment-contract-summary > summary { display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; color:#334155; }
+.payment-contract-summary > summary { display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; color:#334155; list-style:none; }
+.payment-contract-summary > summary::-webkit-details-marker { display:none; }
+.payment-contract-summary > summary::before { content:'▸'; color:#64748b; font-size:1rem; transition:transform .12s ease; }
+.payment-contract-summary[open] > summary::before { transform:rotate(90deg); }
 .payment-contract-summary-overall { color:#166534; font-size:.86rem; }
 .payment-contract-summary-overall::first-letter { color:#ca8a04; }
 .payment-contract-summary h3 { margin: 0 0 10px; color:#334155; font-size:1rem; }
@@ -612,12 +615,14 @@ input[type="text"] {
 .payment-dialog-close { border:0; background:transparent; color:#475569; cursor:pointer; font-size:2rem !important; line-height:1; padding:0 4px; }
 .payment-dialog-context { padding:10px 12px; border-radius:8px; background:#f8fafc; color:#475569; }
 .payment-dialog-hint { margin:8px 0 0; color:#68758a; font-size:.86rem; }
+.payment-art-hint { margin:0; color:#68758a; font-size:.8rem; line-height:1.4; }
 .payment-dialog form { display:grid; gap:12px; }
 .payment-dialog-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
 .btn-secondary { padding:10px 14px; border:1px solid #94a3b8; border-radius:8px !important; background:#fff; color:#334155; cursor:pointer; }
 .btn-link-danger { padding:4px 7px; border:0; background:transparent; color:#b91c1c; cursor:pointer; font-size:.78rem !important; font-weight:700 !important; }
 .payment-history { margin-top:18px; padding-top:12px; border-top:1px solid #e2e8f0; }
 .payment-history h3 { margin:0 0 7px; color:#334155; font-size:1rem; }
+.payment-history-note { margin:0 0 7px; color:#68758a; font-size:.78rem; line-height:1.35; }
 .payment-history > div { display:flex; justify-content:space-between; gap:10px; align-items:center; padding:7px 0; border-top:1px solid #f1f5f9; color:#475569; }
 @media (max-width: 700px) {
     .payment-overview { grid-template-columns:repeat(2,minmax(0,1fr)); }

@@ -80,6 +80,14 @@ describe('paymentUiService Monatsstatus', () => {
     expect(november.paid).toBe(0);
   });
 
+  it('findet eine fachlich zugeordnete Zahlung zusätzlich im Eingangsmonat', () => {
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'FEB_NACHZAHLUNG', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-03', betrag: 100, art: 'Miete' }
+    ] }));
+    expect(service.getPaymentsEnteredInMonth('V1', '2026-11').map(row => row.zahlung_id)).toEqual(['FEB_NACHZAHLUNG']);
+    expect(service.getPaymentsFor('V1', '2026-11')).toEqual([]);
+  });
+
   it('speichert beim Februar-Dialog den angeklickten Mietmonat statt des Eingangsmonats', async () => {
     const fields = {
       'payment-amount': { value: '250' },
@@ -217,6 +225,8 @@ describe('paymentUiService CSV-Import', () => {
     service.selectedYear = '2026';
     service.render();
     expect(output.innerHTML).toContain('Vertragsstatus');
+    expect(output.innerHTML).toContain('payment-contract-summary-overall');
+    expect(output.innerHTML).toContain('onclick="paymentUiService.toggleLegend(this)"');
     expect(output.innerHTML).toContain('Kaution: 1.200,00 / 2.000,00 EUR');
     expect(output.innerHTML).toContain('800,00 EUR offen');
   });

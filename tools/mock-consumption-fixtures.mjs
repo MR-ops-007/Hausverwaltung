@@ -14,13 +14,17 @@ const monthKey = (year, month) => `${year}-${String(month).padStart(2, '0')}`;
 function monthlyValue(meter, year, month) {
   const seasonal = [1.18, 1.08, 1.02, 0.96, 0.9, 0.86, 0.82, 0.86, 0.94, 1.02, 1.1, 1.18][month - 1];
   const yearFactor = year === 2025 ? 0.96 : 1;
+  const unitNumber = Number(String(meter.einheit_id).match(/(\d+)/)?.[1] || 1);
+  const meterSeed = [...meter.zaehler_id].reduce((sum, character) => sum + character.charCodeAt(0), 0);
+  const apartmentFactor = 0.9 + ((unitNumber * 17 + meterSeed) % 23) / 100;
+  const monthlyVariation = 0.96 + ((month * 13 + unitNumber * 7 + meterSeed) % 9) / 100;
   const base = meter.zaehler_id.includes('STROM_1') ? 320
     : meter.zaehler_id.includes('STROM_2') ? 285
       : meter.zaehler_id.includes('STROM_3') ? 260
         : meter.zaehler_id.includes('KW_1') ? 5.2
           : meter.zaehler_id.includes('WW_1') ? 3.6
             : 210;
-  return Math.round(base * seasonal * yearFactor * 100) / 100;
+  return Math.round(base * seasonal * yearFactor * apartmentFactor * monthlyVariation * 100) / 100;
 }
 
 export function createMockConsumptionData() {
