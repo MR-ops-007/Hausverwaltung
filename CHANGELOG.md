@@ -45,6 +45,8 @@ P6-Hardening-Follow-up für historische Stornos und vorübergehende Netzfehler.
   abweichenden Client-Metadaten als bereits vorhanden erkannt.
 - Ein transienter Fehler beim Capability-Preflight blockiert den bestehenden Queue-fähigen
   Schreibweg nicht mehr.
+- Die lokale UI-Anzeige ordnet ein Storno einer historischen Zahlung ohne `mietmonat` sofort
+  dem effektiven Originalmonat zu; ein Reload ist dafür nicht mehr erforderlich.
 - Die Version ist noch nicht in Apps Script bereitgestellt.
 
 ## 4.8.10 · 2026-11-12 · lokal

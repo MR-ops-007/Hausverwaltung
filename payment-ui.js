@@ -757,8 +757,8 @@ const paymentUiService = {
     if (!confirm(`Zahlung ${this.formatMoney(amount)} EUR wirklich stornieren? Es wird eine Gegenbuchung angelegt.`)) return;
     const stornoAmount = amount >= 0 ? -Math.abs(amount) : Math.abs(amount);
     const original = (dataService.state.zahlungen || []).find(payment => String(payment.zahlung_id) === String(paymentId));
-    const originalMonth = original && Object.prototype.hasOwnProperty.call(original, 'mietmonat')
-      ? this.getPaymentMonth(original)
+    const originalMonth = original
+      ? (this.isDepositPayment(original) || this.isExplicitCredit(original) ? '' : this.getEffectivePaymentMonth(original))
       : originalArt === 'Kaution' ? '' : assignedMonth || month;
     const payload = { zahlung_id: this.makeStornoId(paymentId), vertrag_id: contractId, datum: this.todayInput(), mietmonat: originalMonth, betrag: stornoAmount, art: 'Storno', storno_von: paymentId, gegen_art: originalArt };
     if (original && Object.prototype.hasOwnProperty.call(original, 'zahlungsgruppe_id')) payload.zahlungsgruppe_id = String(original.zahlungsgruppe_id || '');

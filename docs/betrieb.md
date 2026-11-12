@@ -67,6 +67,17 @@ nicht zweimal storniert werden. Die UI verwendet dafür `Storno_<zahlung_id>` al
 idempotente Kennung. Neue Zahlungen und Zahlungsgruppen erhalten pro Benutzeraktion
 neue IDs, damit zwei gleiche Eingänge nicht versehentlich als Duplikat gelten.
 
+Bei historischen Zahlungen ohne `mietmonat` wird der Monat des ursprünglichen Eingangsdatums
+auch für die sofortige Anzeige nach einem Storno verwendet. Dadurch steht das Storno bereits
+ohne Neuladen im fachlich richtigen Monat; Kautionen und bewusst nicht zugeordnete Guthaben
+bleiben ohne Mietmonat.
+
+Bei einem TEST-Bestand, der noch mit Backend 4.8.10 erzeugte Stornos enthält, sind vor einem
+erneuten Abnahmetest Stornozeilen mit leerem `mietmonat` zu prüfen. Solche Zeilen müssen entweder
+fachlich korrigiert oder aus dem synthetischen TEST-Bestand entfernt werden. Beim erneuten Senden
+derselben `zahlung_id` meldet Backend 4.8.11 sonst absichtlich `PAYMENT_ID_CONFLICT`, weil der
+korrekt abgeleitete Originalmonat nicht zur alten Zeile passt.
+
 Der Hardening-Stand ist Backend 4.8.11 lokal und noch nicht produktiv bereitgestellt.
 Für die Speicherung der beiden neuen Vertragsfelder muss einmalig die ausdrücklich
 manuell aufzurufende Funktion `prepareContractSchema()` ausgeführt werden. Für die

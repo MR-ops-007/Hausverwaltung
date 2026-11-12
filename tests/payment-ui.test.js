@@ -113,6 +113,26 @@ describe('paymentUiService Monatsstatus', () => {
     expect(service.getEffectivePaymentMonth({ mietmonat: new Date(2026, 1, 1), datum: '2026-11-11' })).toBe('2026-02');
   });
 
+  it('ordnet ein Altzahlungs-Storno im lokalen State sofort dem Originalmonat zu', async () => {
+    let request;
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'LEGACY', vertrag_id: 'V1', datum: '2026-03-05', mietmonat: '', betrag: 650, art: 'Miete' }
+    ] }), { getElementById: () => null }, {
+      saveTransaction: async transaction => {
+        request = transaction;
+        return { status: 'success', angelegt: 1 };
+      }
+    });
+    service.render = () => {};
+    service.showMessage = () => {};
+
+    await service.saveStorno('V1', '2026-11', 'LEGACY', 650, 'Miete', '');
+
+    expect(request.data[0]).toMatchObject({ mietmonat: '2026-03', storno_von: 'LEGACY' });
+    expect(service.getPaymentsFor('V1', '2026-03').map(row => row.zahlung_id)).toContain('Storno_LEGACY');
+    expect(service.getPaymentsFor('V1', '2026-11').map(row => row.zahlung_id)).not.toContain('Storno_LEGACY');
+  });
+
   it('erzeugt für gleiche Buchungen unterschiedliche Aktions-IDs', () => {
     const service = loadPaymentService(baseState());
     const first = service.makePaymentId('V1', '2026-11', '', 'Miete');
