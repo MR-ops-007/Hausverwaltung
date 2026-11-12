@@ -172,6 +172,9 @@ function writePayments(items) {
       if (String(original.vertrag_id || '') !== String(item.vertrag_id || '')) return { status: 'error', code: 'STORNO_CONTRACT_MISMATCH', message: 'Originalzahlung und Storno müssen zum selben Vertrag gehören.' };
       if (Math.abs(Number(original.betrag || 0) + Number(item.betrag || 0)) > 0.009) return { status: 'error', code: 'STORNO_AMOUNT_MISMATCH', message: 'Das Storno muss den Originalbetrag mit umgekehrtem Vorzeichen ausgleichen.' };
       if (stornoByOriginal.has(originalId)) return { status: 'error', code: 'PAYMENT_ALREADY_STORNOED', message: 'Diese Zahlung wurde bereits storniert.' };
+      item.mietmonat = normalizeMonth(original.mietmonat);
+      item.gegen_art = String(original.gegen_art || original.art || '').trim();
+      item.zahlungsgruppe_id = String(original.zahlungsgruppe_id || '').trim();
       stornoByOriginal.set(originalId, item.zahlung_id);
     }
     append.push(item);

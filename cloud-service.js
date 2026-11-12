@@ -18,6 +18,8 @@ const cloudService = {
     processingQueue: false,
     retryAttempt: 0,
     retryTimer: null,
+    paymentCapabilitiesCache: null,
+    PAYMENT_CAPABILITIES_CACHE_MS: 5 * 60 * 1000,
 
     // --- Zugangsschlüssel -------------------------------------------------
     getAccessKeyStorage() {
@@ -47,6 +49,7 @@ const cloudService = {
 
     clearAccessKey() {
         try { localStorage.removeItem(this.getAccessKeyStorage()); } catch (e) { /* Speicher nicht verfügbar */ }
+        this.paymentCapabilitiesCache = null;
     },
 
     accessError(message) {
@@ -129,7 +132,11 @@ const cloudService = {
 
     loadCapabilities() { return this.read('vertrag_capabilities'); },
 
-    async loadPaymentCapabilities() {
+    async loadPaymentCapabilities(force = false) {
+        if (!force && this.paymentCapabilitiesCache
+            && Date.now() - this.paymentCapabilitiesCache.loadedAt < this.PAYMENT_CAPABILITIES_CACHE_MS) {
+            return this.paymentCapabilitiesCache.value;
+        }
         const capabilities = await this.loadCapabilities();
         if (capabilities.payment_writes !== true || capabilities.payment_schema_ready !== true) {
             const missing = Array.isArray(capabilities.payment_schema_missing) && capabilities.payment_schema_missing.length
@@ -139,6 +146,7 @@ const cloudService = {
             error.code = 'PAYMENT_SCHEMA_NOT_READY';
             throw error;
         }
+        this.paymentCapabilitiesCache = { loadedAt: Date.now(), value: capabilities };
         return capabilities;
     },
 

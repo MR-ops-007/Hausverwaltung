@@ -202,6 +202,22 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     })).toMatchObject({ status: 'error', code: 'PAYMENT_ALREADY_STORNOED' });
   });
 
+  it('übernimmt Mietmonat und Zahlungsgruppe beim Storno aus dem Original', () => {
+    const api = backend({
+      key: KEY,
+      paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id'],
+        ['ORIGINAL_1', 'V1', '2026-11-10', 250, 'Miete', '2026-02', '', '', 'ZG_1']]
+    });
+
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'STORNO_1', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-11', betrag: -250, art: 'Storno', storno_von: 'ORIGINAL_1', gegen_art: 'Kaution', zahlungsgruppe_id: 'WRONG_GROUP' }]
+    })).toMatchObject({ status: 'success', angelegt: 1 });
+
+    expect(api.rows.Zahlungen[2]).toEqual(['STORNO_1', 'V1', '2026-11-11', -250, 'Storno', '2026-02', 'ORIGINAL_1', 'Miete', 'ZG_1']);
+  });
+
   it('validiert den fachlichen Mietmonat und den Originalbetrag eines Stornos', () => {
     const api = backend({
       key: KEY,

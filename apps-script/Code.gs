@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.9
+ * Version: 4.8.10
  * Stand: 2026-11-12
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
@@ -112,8 +112,12 @@
  *   Guthaben wird nur über eine Zahlungsgruppe erkannt
  * - Stornos prüfen Originalzahlung, Vertrag, Betrag und Einmaligkeit serverseitig
  * - Zahlungs-Capability meldet den vorbereiteten Zahlungen-Schema-Stand explizit
+ *
+ * Änderungen seit v4.8.9:
+ * - Storno-Metadaten werden serverseitig aus der Originalzahlung übernommen
+ * - Zahlungs-Schema und Mietmonat bleiben auch bei leeren Tabellenzeilen stabil
  */
-const BACKEND_VERSION = "4.8.9";
+const BACKEND_VERSION = "4.8.10";
 
 function sendJSON(obj) {
   return ContentService
@@ -735,6 +739,15 @@ function writePayments(ss, payloadData) {
       }
       if (stornoByOriginal[originalId]) {
         return paymentError('PAYMENT_ALREADY_STORNOED', 'Diese Zahlung wurde bereits storniert.', { storno_von: originalId });
+      }
+      // Storno-Metadaten stammen fachlich immer aus dem Original. Dadurch kann
+      // ein fehlerhafter Client das Storno nicht einem anderen Mietmonat oder
+      // einer anderen Zahlungsgruppe zuordnen.
+      ['mietmonat', 'gegen_art', 'zahlungsgruppe_id'].forEach(field => {
+        if (headers.indexOf(field) >= 0) item[field] = original[field] === undefined || original[field] === null ? '' : original[field];
+      });
+      if (headers.indexOf('gegen_art') >= 0 && isBlankValue(item.gegen_art)) {
+        item.gegen_art = normalizePaymentArt(original.art) || '';
       }
       stornoByOriginal[originalId] = item.zahlung_id;
     }

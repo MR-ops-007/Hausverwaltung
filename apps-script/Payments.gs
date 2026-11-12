@@ -18,8 +18,9 @@ function preparePaymentSchema() {
     : addedMonthIndex >= 0
       ? headers.length + addedMonthIndex
       : -1;
-  if (monthColumn >= 0 && typeof sheet.getLastRow === 'function' && sheet.getLastRow() > 1) {
-    const monthRange = sheet.getRange(2, monthColumn + 1, sheet.getLastRow() - 1, 1);
+  const rowCount = Math.max(0, Number(sheet.getMaxRows ? sheet.getMaxRows() : 0) - 1);
+  if (monthColumn >= 0 && rowCount > 0) {
+    const monthRange = sheet.getRange(2, monthColumn + 1, rowCount, 1);
     if (monthRange && typeof monthRange.setNumberFormat === 'function') monthRange.setNumberFormat('@');
   }
   return { addedHeaders: missing };

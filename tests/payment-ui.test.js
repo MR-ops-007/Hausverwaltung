@@ -107,6 +107,12 @@ describe('paymentUiService Monatsstatus', () => {
     expect(service.getEffectivePaymentMonth({ zahlung_id: 'CREDIT', mietmonat: '', zahlungsgruppe_id: 'ZG_1', datum: '2026-11-11' })).toBe('');
   });
 
+  it('normalisiert einen als Date gelieferten Mietmonat aus Google Sheets', () => {
+    const service = loadPaymentService(baseState());
+    expect(service.getPaymentMonth({ mietmonat: new Date(2026, 1, 1) })).toBe('2026-02');
+    expect(service.getEffectivePaymentMonth({ mietmonat: new Date(2026, 1, 1), datum: '2026-11-11' })).toBe('2026-02');
+  });
+
   it('erzeugt für gleiche Buchungen unterschiedliche Aktions-IDs', () => {
     const service = loadPaymentService(baseState());
     const first = service.makePaymentId('V1', '2026-11', '', 'Miete');
@@ -175,6 +181,31 @@ describe('paymentUiService Monatsstatus', () => {
     });
   });
 
+  it('verwendet bei einem Timeout und erneutem Speichern dieselbe Zahlungs-ID', async () => {
+    const fields = {
+      'payment-amount': { value: '250' },
+      'payment-date': { value: '2026-11-11' },
+      'payment-art': { value: 'Miete' }
+    };
+    const ids = [];
+    let attempts = 0;
+    const service = loadPaymentService(
+      baseState(),
+      { getElementById: id => fields[id] || null },
+      { saveTransaction: async transaction => {
+        ids.push(transaction.data[0].zahlung_id);
+        if (attempts++ === 0) throw new Error('Zeitüberschreitung');
+        return { status: 'success', angelegt: 1 };
+      } }
+    );
+    service.showMessage = () => {};
+
+    expect(await service.savePayment('V1', '2026-02')).toBeNull();
+    expect(await service.savePayment('V1', '2026-02')).toMatchObject({ status: 'success' });
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).toBe(ids[1]);
+  });
+
   it('öffnet bei einer Überzahlung zuerst die explizite Verteilung statt still zu buchen', async () => {
     const fields = {
       'payment-amount': { value: '900' },
@@ -240,6 +271,35 @@ describe('paymentUiService Monatsstatus', () => {
     expect(message.hidden).toBe(false);
     expect(message.textContent).toContain('Bitte Summe prüfen');
     expect(message.textContent).toContain('899,00 EUR');
+  });
+
+  it('behält die Aufteilung nach einem fehlgeschlagenen Speichern zur Wiederholung', async () => {
+    const inputs = [
+      { value: '650', getAttribute: () => '2026-02' },
+      { value: '250', getAttribute: () => '2026-01' },
+      { value: '0', getAttribute: () => '' }
+    ];
+    const body = {
+      innerHTML: '',
+      querySelectorAll: () => inputs,
+      querySelector: () => null
+    };
+    const service = loadPaymentService(baseState(), {
+      getElementById: id => id === 'modal-body' ? body : id === 'modal-container' ? { style: {} } : null
+    });
+    service.pendingAllocation = {
+      contract: service.getContracts()[0],
+      date: '2026-11-11',
+      intentId: 'zahlung_RETRY',
+      plan: {
+        contractId: 'V1', selectedMonth: '2026-02', amount: 900, art: 'Miete', unassigned: 0,
+        allocations: [{ month: '2026-02', remaining: 650, amount: 650 }]
+      }
+    };
+    service.persistPayment = async () => null;
+
+    expect(await service.confirmPaymentAllocation()).toBeNull();
+    expect(service.pendingAllocation).not.toBeNull();
   });
 
   it('hält Kaution außerhalb der Monatsmiete und berechnet den Kautionsstatus', () => {

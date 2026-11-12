@@ -74,6 +74,16 @@ describe('Lesen per POST mit Zugangsschlüssel', () => {
     expect(bodyOf(fetch, 0)).toMatchObject({ typ: 'LESEN', view: 'vertrag_capabilities', key: 'k1' });
   });
 
+  it('cached die Zahlungsfähigkeit kurzzeitig für Wiederholungen', async () => {
+    const { cloud, fetch } = loadCloud({ key: 'k1' });
+    fetch.mockResolvedValue(reply({ payment_writes: true, payment_schema_ready: true, payment_schema_missing: [] }));
+
+    await cloud.loadPaymentCapabilities();
+    await cloud.loadPaymentCapabilities();
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('lehnt den Zahlungs-Schreibweg bei fehlendem Backend-Schema verständlich ab', async () => {
     const { cloud, fetch } = loadCloud({ key: 'k1' });
     fetch.mockResolvedValue(reply({

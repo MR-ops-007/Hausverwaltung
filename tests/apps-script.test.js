@@ -57,6 +57,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
       getLastColumn: () => headers.length,
       getLastRow: () => 3,
       getMaxColumns: () => headers.length,
+      getMaxRows: () => 10,
       insertColumnsAfter: (_after, count) => { insertedColumns = count; },
       getRange: (_row, column) => column === 6 ? monthRange : range
     };
@@ -84,8 +85,9 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     const monthRange = { setNumberFormat: value => { numberFormat = value; } };
     const sheet = {
       getLastColumn: () => headers.length,
-      getLastRow: () => 2,
+      getLastRow: () => 1,
       getMaxColumns: () => headers.length,
+      getMaxRows: () => 10,
       insertColumnsAfter: (_after, count) => { insertedColumns = count; },
       getRange: row => row === 1 ? headerRange : monthRange
     };

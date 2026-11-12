@@ -32,7 +32,22 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
   in CI ergänzt.
 
 Diese Einträge ändern die produktive Apps-Script-Version nicht. PROD bleibt bei 4.8.5;
-die lokalen Backend-Erweiterungen 4.8.6 bis 4.8.9 stehen deshalb als eigene Versionseinträge oben.
+die lokalen Backend-Erweiterungen 4.8.6 bis 4.8.10 stehen deshalb als eigene Versionseinträge oben.
+
+## 4.8.10 · 2026-11-12 · lokal
+
+P6-Hardening-Follow-up für wiederholbare Zahlungsaktionen.
+
+- Storno-Metadaten werden im Backend aus der Originalzahlung übernommen, damit Mietmonat,
+  Zahlungsgruppe und Gegenart nicht durch einen fehlerhaften Client abweichen.
+- `mietmonat` wird auch im Frontend bei Google-Sheets-Datumswerten zu `YYYY-MM` normalisiert.
+- Die Schema-Vorbereitung formatiert die gesamte vorhandene Spalte als Text, auch wenn das
+  Blatt noch keine Datenzeile enthält.
+- Zahlungsabsichten behalten ihre IDs bei einem fehlgeschlagenen Retry; Aufteilungen bleiben
+  nach einem Fehler im Dialog erhalten.
+- Capability-Abfragen werden kurzzeitig gecacht, damit ein vorübergehender Netzfehler nicht
+  vorzeitig den Offline-Schreibweg verhindert.
+- Die Version ist noch nicht in Apps Script bereitgestellt.
 
 ## 4.8.9 · 2026-11-12 · lokal
 

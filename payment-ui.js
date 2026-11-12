@@ -12,6 +12,7 @@ const paymentUiService = {
   busy: false,
   importRows: [],
   actionSequence: 0,
+  pendingPaymentIntent: null,
   DEFAULT_PAYMENT_DEADLINE_TYPE: 'WERKTAG',
   DEFAULT_PAYMENT_DEADLINE_VALUE: 3,
   MONTH_NAMES: ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'],
@@ -200,7 +201,18 @@ const paymentUiService = {
   },
 
   getPaymentMonth(payment) {
-    return String(payment.mietmonat || '').trim();
+    return this.normalizePaymentMonth(payment && payment.mietmonat);
+  },
+
+  normalizePaymentMonth(value) {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return this.monthKey(value);
+    const text = String(value ?? '').trim();
+    if (!text) return '';
+    const iso = text.match(/^(\d{4})-(\d{2})(?:-\d{2})?/);
+    if (iso && Number(iso[2]) >= 1 && Number(iso[2]) <= 12) return `${iso[1]}-${iso[2]}`;
+    const german = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+    if (german && Number(german[2]) >= 1 && Number(german[2]) <= 12) return `${german[3]}-${String(german[2]).padStart(2, '0')}`;
+    return '';
   },
 
   isExplicitCredit(payment) {
@@ -514,6 +526,12 @@ const paymentUiService = {
     const contract = (dataService.state.vertraege || []).find(row => String(row.vertrag_id) === String(contractId));
     if (!contract) return;
     this.pendingAllocation = null;
+    this.pendingPaymentIntent = {
+      id: this.makeActionId('zahlung'),
+      contractId: String(contractId),
+      month: initialArt === 'Kaution' ? '' : String(month || ''),
+      art: initialArt
+    };
     const isDeposit = initialArt === 'Kaution';
     const summary = isDeposit ? this.summarizeDeposit(contract) : this.summarizeMonth(contract, month);
     const remaining = summary.remaining;
@@ -529,7 +547,7 @@ const paymentUiService = {
       .sort((a, b) => String(a.datum || '').localeCompare(String(b.datum || '')));
     const history = historyPayments.length ? `<div class="payment-history"><h3>Bereits erfasst</h3><p class="payment-history-note">Fachlich zugeordnete Zahlungen und Zahlungen, die in diesem Monat eingegangen sind.</p>${historyPayments.map(payment => {
       const originalArt = payment.gegen_art || payment.art || 'Miete';
-      const assignedMonth = payment.mietmonat || (isDeposit ? '' : this.getEffectivePaymentMonth(payment));
+      const assignedMonth = this.getPaymentMonth(payment) || (isDeposit ? '' : this.getEffectivePaymentMonth(payment));
       const reversed = this.isPaymentReversed(payment.zahlung_id);
       const undo = this.paymentArt(payment) === 'storno'
         ? ''
@@ -546,7 +564,7 @@ const paymentUiService = {
     const dialogHint = isDeposit
       ? 'Die Kaution wird separat vom Mietmonat geführt. Das Eingangsdatum dokumentiert den tatsächlichen Geldfluss.'
       : 'Eingangsdatum und fachlicher Mietmonat werden getrennt gespeichert. Für einen anderen Mietmonat bitte die entsprechende Monatsspalte öffnen.';
-    body.innerHTML = `<div class="payment-dialog"><div class="payment-dialog-heading"><div><h2>${title}</h2><p>${this.escape(this.unitName(contract))} · ${this.escape(this.tenantName(contract))}</p></div><button type="button" class="payment-dialog-close" onclick="uiService.closeModal()" aria-label="Schließen">×</button></div><p class="payment-dialog-context">${context}</p><form onsubmit="event.preventDefault(); paymentUiService.savePayment('${this.escape(contractId)}','${this.escape(month)}')"><label>Betrag (EUR)<input id="payment-amount" type="number" min="-1000000" step="0.01" value="${this.escape(remaining.toFixed(2))}" required></label><label>Eingangsdatum<input id="payment-date" type="date" value="${this.todayInput()}" required></label>${monthField}<label>Art<select id="payment-art"><option value="Miete" ${initialArt === 'Miete' ? 'selected' : ''}>Miete</option><option value="Kaution" ${initialArt === 'Kaution' ? 'selected' : ''}>Kaution</option><option value="Nachzahlung" ${initialArt === 'Nachzahlung' ? 'selected' : ''}>Nachzahlung</option><option value="Erstattung" ${initialArt === 'Erstattung' ? 'selected' : ''}>Erstattung (wird negativ gespeichert)</option></select></label><p class="payment-dialog-hint">${dialogHint}</p><p class="payment-art-hint">Miete = regulärer Monatsbetrag · Nachzahlung = zusätzlicher Betrag für den ausgewählten Mietmonat · Erstattung = Rückzahlung an den Mieter und keine offene Miete.</p><div class="payment-dialog-actions"><button class="btn-primary" type="submit">Zahlung speichern</button><button class="btn-secondary" type="button" onclick="uiService.closeModal()">Abbrechen</button></div></form>${history}</div>`;
+    body.innerHTML = `<div class="payment-dialog"><div class="payment-dialog-heading"><div><h2>${title}</h2><p>${this.escape(this.unitName(contract))} · ${this.escape(this.tenantName(contract))}</p></div><button type="button" class="payment-dialog-close" onclick="uiService.closeModal()" aria-label="Schließen">×</button></div><p class="payment-dialog-context">${context}</p><form onsubmit="event.preventDefault(); paymentUiService.savePayment('${this.escape(contractId)}','${this.escape(month)}')"><label>Betrag (EUR)<input id="payment-amount" type="number" min="-1000000" step="0.01" value="${this.escape(remaining.toFixed(2))}" required></label><label>Eingangsdatum<input id="payment-date" type="date" value="${this.todayInput()}" required></label>${monthField}<label>Art<select id="payment-art"><option value="Miete" ${initialArt === 'Miete' ? 'selected' : ''}>Miete</option><option value="Kaution" ${initialArt === 'Kaution' ? 'selected' : ''}>Kaution</option><option value="Nachzahlung" ${initialArt === 'Nachzahlung' ? 'selected' : ''}>Nachzahlung</option><option value="Erstattung" ${initialArt === 'Erstattung' ? 'selected' : ''}>Erstattung (wird negativ gespeichert)</option></select></label><p class="payment-dialog-hint">${dialogHint}</p><p class="payment-art-hint">Miete = regulärer Monatsbetrag · Nachzahlung = zusätzlicher Betrag für den ausgewählten Mietmonat · Erstattung = Rückzahlung an den Mieter und keine offene Miete.</p><p data-payment-dialog-message class="payment-message payment-message-error" role="alert" hidden></p><div class="payment-dialog-actions"><button class="btn-primary" type="submit">Zahlung speichern</button><button class="btn-secondary" type="button" onclick="uiService.closeModal()">Abbrechen</button></div></form>${history}</div>`;
     modal.style.display = 'flex';
   },
 
@@ -562,6 +580,25 @@ const paymentUiService = {
       ? crypto.randomUUID().replace(/-/g, '')
       : `${Date.now()}_${this.actionSequence}_${Math.random().toString(36).slice(2, 10)}`;
     return `${prefix}_${randomId}`;
+  },
+
+  clearPaymentIntent() {
+    this.pendingPaymentIntent = null;
+  },
+
+  getPaymentIntent(contractId, month, art) {
+    const expectedMonth = art === 'Kaution' ? '' : String(month || '');
+    if (!this.pendingPaymentIntent
+      || this.pendingPaymentIntent.contractId !== String(contractId)
+      || this.pendingPaymentIntent.month !== expectedMonth) {
+      this.pendingPaymentIntent = {
+        id: this.makeActionId('zahlung'),
+        contractId: String(contractId),
+        month: expectedMonth,
+        art
+      };
+    }
+    return this.pendingPaymentIntent;
   },
 
   makeStornoId(paymentId) {
@@ -615,16 +652,16 @@ const paymentUiService = {
     };
   },
 
-  makePaymentGroupId(contractId, date, amount, art, allocations) {
-    return `ZG_${contractId}_${this.makeActionId('gruppe')}`;
+  makePaymentGroupId(contractId, date, amount, art, allocations, intentId = '') {
+    return `ZG_${contractId}_${intentId || this.makeActionId('gruppe')}`;
   },
 
-  buildAllocationRows(plan, date) {
+  buildAllocationRows(plan, date, intentId = '') {
     const rows = plan.allocations
       .filter(item => Number(item.amount) > 0)
       .map(item => ({ month: item.month, amount: Number(item.amount) }));
     if (Number(plan.unassigned) > 0) rows.push({ month: '', amount: Number(plan.unassigned) });
-    const groupId = this.makePaymentGroupId(plan.contractId, date, plan.amount, plan.art, rows);
+    const groupId = this.makePaymentGroupId(plan.contractId, date, plan.amount, plan.art, rows, intentId);
     return rows.map((item, index) => ({
       zahlung_id: this.makePaymentId(plan.contractId, item.month || date, `gruppe_${groupId}_${index + 1}`, plan.art),
       vertrag_id: plan.contractId,
@@ -642,7 +679,7 @@ const paymentUiService = {
     if (!modal || !body) return;
     this.pendingAllocation = pending;
     const rows = pending.plan.allocations.map(item => `<label class="payment-allocation-row"><span><strong>${this.escape(item.month)}</strong><small>${this.formatMoney(item.remaining)} EUR offen${item.verspaetet ? ' · überfällig' : ''}</small></span><input type="number" min="0" step="0.01" data-payment-allocation-month="${this.escape(item.month)}" value="${this.escape(item.amount.toFixed(2))}"></label>`).join('');
-    body.innerHTML = `<div class="payment-dialog payment-allocation-dialog"><div class="payment-dialog-heading"><div><h2>Zahlung verteilen</h2><p>${this.escape(this.unitName(pending.contract))} · ${this.escape(this.tenantName(pending.contract))}</p></div><button type="button" class="payment-dialog-close" onclick="uiService.closeModal()" aria-label="Schließen">×</button></div><p class="payment-dialog-context">${this.formatMoney(pending.plan.amount)} EUR Eingang für ${this.escape(pending.plan.selectedMonth)}. Der angeklickte Monat wird zuerst vorgeschlagen, danach die ältesten offenen Monate.</p><div class="payment-allocation-list">${rows || '<p class="payment-dialog-hint">Für diesen Vertrag sind keine weiteren offenen Mietmonate vorhanden.</p>'}<label class="payment-allocation-row payment-allocation-credit"><span><strong>Als Guthaben stehen lassen</strong><small>Wird keinem Mietmonat zugeordnet und später in der Übersicht als Guthaben gezeigt.</small></span><input type="number" min="0" step="0.01" data-payment-allocation-month="" value="${this.escape(pending.plan.unassigned.toFixed(2))}"></label></div><p class="payment-allocation-total">Verteilt: <strong data-payment-allocation-total>0,00 EUR</strong> · Eingang: <strong>${this.formatMoney(pending.plan.amount)} EUR</strong></p><p class="payment-allocation-message" data-payment-allocation-message role="status" aria-live="polite" hidden></p><p class="payment-dialog-hint">Die Summe muss exakt dem Zahlungseingang entsprechen. Es wird nichts automatisch in einen anderen Monat verschoben.</p><div class="payment-dialog-actions"><button class="btn-primary" type="button" data-payment-allocation-save onclick="paymentUiService.confirmPaymentAllocation()">Verteilung speichern</button><button class="btn-secondary" type="button" onclick="uiService.closeModal()">Abbrechen</button></div></div>`;
+    body.innerHTML = `<div class="payment-dialog payment-allocation-dialog"><div class="payment-dialog-heading"><div><h2>Zahlung verteilen</h2><p>${this.escape(this.unitName(pending.contract))} · ${this.escape(this.tenantName(pending.contract))}</p></div><button type="button" class="payment-dialog-close" onclick="uiService.closeModal()" aria-label="Schließen">×</button></div><p class="payment-dialog-context">${this.formatMoney(pending.plan.amount)} EUR Eingang für ${this.escape(pending.plan.selectedMonth)}. Der angeklickte Monat wird zuerst vorgeschlagen, danach die ältesten offenen Monate.</p><div class="payment-allocation-list">${rows || '<p class="payment-dialog-hint">Für diesen Vertrag sind keine weiteren offenen Mietmonate vorhanden.</p>'}<label class="payment-allocation-row payment-allocation-credit"><span><strong>Als Guthaben stehen lassen</strong><small>Wird keinem Mietmonat zugeordnet und später in der Übersicht als Guthaben gezeigt.</small></span><input type="number" min="0" step="0.01" data-payment-allocation-month="" value="${this.escape(pending.plan.unassigned.toFixed(2))}"></label></div><p class="payment-allocation-total">Verteilt: <strong data-payment-allocation-total>0,00 EUR</strong> · Eingang: <strong>${this.formatMoney(pending.plan.amount)} EUR</strong></p><p class="payment-allocation-message" data-payment-allocation-message role="status" aria-live="polite" hidden></p><p data-payment-dialog-message class="payment-message payment-message-error" role="alert" hidden></p><p class="payment-dialog-hint">Die Summe muss exakt dem Zahlungseingang entsprechen. Es wird nichts automatisch in einen anderen Monat verschoben.</p><div class="payment-dialog-actions"><button class="btn-primary" type="button" data-payment-allocation-save onclick="paymentUiService.confirmPaymentAllocation()">Verteilung speichern</button><button class="btn-secondary" type="button" onclick="uiService.closeModal()">Abbrechen</button></div></div>`;
     modal.style.display = 'flex';
     const inputs = body.querySelectorAll('[data-payment-allocation-month]');
     const updateTotal = () => {
@@ -672,10 +709,14 @@ const paymentUiService = {
     const total = rows.reduce((sum, row) => sum + row.amount, 0);
     if (Math.abs(total - pending.plan.amount) > 0.009) return this.setAllocationMessage(`Bitte Summe prüfen: verteilt sind ${this.formatMoney(total)} EUR, der Zahlungseingang beträgt ${this.formatMoney(pending.plan.amount)} EUR.`, 'error');
     const plan = { ...pending.plan, allocations: rows.filter(row => row.month), unassigned: rows.find(row => !row.month)?.amount || 0 };
-    const payments = this.buildAllocationRows(plan, pending.date);
+    const payments = this.buildAllocationRows(plan, pending.date, pending.intentId);
     if (!payments.length) return this.showMessage('Bitte mindestens einen Teilbetrag verteilen oder als Guthaben stehen lassen.', 'error');
-    this.pendingAllocation = null;
-    return this.persistPayment(payments, 'Zahlung verteilt und gespeichert.');
+    const result = await this.persistPayment(payments, 'Zahlung verteilt und gespeichert.');
+    if (result) {
+      this.pendingAllocation = null;
+      this.clearPaymentIntent();
+    }
+    return result;
   },
 
   setAllocationMessage(message, kind = 'error') {
@@ -701,17 +742,27 @@ const paymentUiService = {
     const remaining = contract ? (art === 'Kaution' ? this.summarizeDeposit(contract).remaining : this.summarizeMonth(contract, assignedMonth).remaining) : Math.abs(amount);
     if (contract && ['Miete', 'Nachzahlung'].includes(art) && amount > remaining + 0.009) {
       const plan = this.planPaymentAllocation(contractId, assignedMonth, amount, art);
-      return this.showAllocationDialog({ contract, date, plan });
+      const intent = this.getPaymentIntent(contractId, assignedMonth, art);
+      return this.showAllocationDialog({ contract, date, plan, intentId: intent.id });
     }
-    const suffix = amount >= remaining - 0.009 ? this.makeActionId('voll') : this.makeActionId('teil');
+    const intent = this.getPaymentIntent(contractId, assignedMonth, art);
+    const suffix = `${intent.id}_${amount >= remaining - 0.009 ? 'voll' : 'teil'}`;
     const id = this.makePaymentId(contractId, assignedMonth || date, suffix, art);
-    await this.persistPayment({ zahlung_id: id, vertrag_id: contractId, datum: date, mietmonat: assignedMonth, betrag: amount, art });
+    const result = await this.persistPayment({ zahlung_id: id, vertrag_id: contractId, datum: date, mietmonat: assignedMonth, betrag: amount, art });
+    if (result) this.clearPaymentIntent();
+    return result;
   },
 
   async saveStorno(contractId, month, paymentId, amount, originalArt = 'Miete', assignedMonth = '') {
     if (!confirm(`Zahlung ${this.formatMoney(amount)} EUR wirklich stornieren? Es wird eine Gegenbuchung angelegt.`)) return;
     const stornoAmount = amount >= 0 ? -Math.abs(amount) : Math.abs(amount);
-    await this.persistPayment({ zahlung_id: this.makeStornoId(paymentId), vertrag_id: contractId, datum: this.todayInput(), mietmonat: originalArt === 'Kaution' ? '' : assignedMonth || month, betrag: stornoAmount, art: 'Storno', storno_von: paymentId, gegen_art: originalArt });
+    const original = (dataService.state.zahlungen || []).find(payment => String(payment.zahlung_id) === String(paymentId));
+    const originalMonth = original && Object.prototype.hasOwnProperty.call(original, 'mietmonat')
+      ? this.getPaymentMonth(original)
+      : originalArt === 'Kaution' ? '' : assignedMonth || month;
+    const payload = { zahlung_id: this.makeStornoId(paymentId), vertrag_id: contractId, datum: this.todayInput(), mietmonat: originalMonth, betrag: stornoAmount, art: 'Storno', storno_von: paymentId, gegen_art: originalArt };
+    if (original && Object.prototype.hasOwnProperty.call(original, 'zahlungsgruppe_id')) payload.zahlungsgruppe_id = String(original.zahlungsgruppe_id || '');
+    await this.persistPayment(payload);
   },
 
   async persistPayment(paymentOrPayments, successMessage = '') {
@@ -751,6 +802,14 @@ const paymentUiService = {
   },
 
   showMessage(message, kind = 'info') {
+    const modal = document.getElementById('modal-container');
+    const modalOutput = document.getElementById('modal-body')?.querySelector('[data-payment-dialog-message]');
+    if (modal && modal.style && modal.style.display !== 'none' && modalOutput) {
+      modalOutput.textContent = message;
+      modalOutput.className = `payment-message payment-message-${kind}`;
+      modalOutput.hidden = !message;
+      return;
+    }
     const output = document.getElementById('payment-import-output');
     if (output) output.innerHTML = `<p class="payment-message payment-message-${kind}" role="status">${this.escape(message)}</p>`;
   },
