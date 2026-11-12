@@ -131,10 +131,13 @@ Der aktuelle TEST-Datensatz enthält zusätzlich einen dauerhaft reproduzierbare
 Donald Duck (Vertrag 29) hat eine gruppierte Zahlung über Oktober und November mit einem
 bewusst nicht zugeordneten Rest als Guthaben. Vertrag 32 für TEST_WE_02 ist Mickey und Minnie
 gemeinsam zugeordnet und enthält verspätete Vollzahlungen, eine Teilzahlung, eine teilweise
-gezahlte Kaution und eine negative Erstattung. Damit lassen sich die Statusfarben, verspätete
-Zahlungen, die Kautionsanzeige, Guthaben und mehrere Vertragsparteien direkt im echten TEST-
-Backend prüfen. Die Buchungen sind Testdaten und dürfen bei Bedarf zurückgesetzt oder durch
-neue Fixture-IDs ergänzt werden.
+gezahlte Kaution und eine negative Erstattung. Daisy (Vertrag 33) bleibt ohne Zahlung, Dagobert
+(Vertrag 34) hat wiederholte Verspätungen und eine Teilzahlung, Gustav (Vertrag 35) eine
+Überzahlung mit Erstattung, Tick und Trick (Vertrag 36) getrennte Teilzahlungen und Vertrag 37
+bildet einen Leerstand ohne Sollmiete ab. Damit lassen sich die Statusfarben, verspätete
+Zahlungen, die Kautionsanzeige, Guthaben, Erstattungen und mehrere Vertragsparteien direkt im
+echten TEST-Backend prüfen. Die Buchungen sind Testdaten und dürfen bei Bedarf zurückgesetzt
+oder durch neue Fixture-IDs ergänzt werden.
 
 Für die Vertragsmaske wurden im TEST-Blatt `Vertraege` die Felder `zahlungsziel_typ` und
 `zahlungsziel_wert` ergänzt. Das entspricht dem Ergebnis von `prepareContractSchema()`; nach
