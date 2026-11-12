@@ -365,7 +365,9 @@ describe('contract view', () => {
     const fields = {};
     const getElementById = id => fields[id] ||= { innerHTML: '', textContent: '', value: '', addEventListener() {} };
     const escape = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    const dataService = { state: { vertraege: [{ ...current, vertragsdokument_url: input.erklaerung_url, vertrag_hinweis: '<script>bad</script>' }],
+    const dataService = { state: { vertraege: [{ ...current,
+      vertragsdokument_url: input.erklaerung_url, sondervereinbarungen_url: 'https://drive.google.com/file/d/fictional/addendum',
+      vertrag_hinweis: '<script>bad</script>' }],
       einheiten: [unit], personen: [], vertragsparteien: [], mietanpassungen: [
         { vertrag_id: current.vertrag_id, art: 'INDEX', vorher_json: JSON.stringify(current), nachher_json: JSON.stringify({ ...current, soll_kaltmiete: 660 }) }
       ] } };
@@ -377,6 +379,15 @@ describe('contract view', () => {
     expect(html).toContain('rel="noopener noreferrer"');
     expect(html).toContain('&lt;script&gt;bad&lt;/script&gt;');
     expect(html).toContain('contract-soll_nebenkosten');
+    expect(html).toContain('Mietvertrag öffnen');
+    expect(html).toContain('Sondervereinbarungen öffnen');
+    expect(html).toContain('Erhöhungstyp');
+    expect(html).toContain('Zugang der Erklärung');
+    expect(html).toContain('Erklärung (HTTPS-Link)');
+    expect(html).toContain('Änderungsverlauf');
+    expect(html).not.toContain('Aenderungsverlauf');
+    expect(html).not.toContain('Aenderungen');
+    expect(html).not.toContain('oeffnen');
     expect(html).toContain('Mieteingang spätestens am');
     expect(html).toContain('Werktag oder Kalendertag');
     expect(html).toContain('600 → 660 EUR');

@@ -86,7 +86,7 @@ const contractUiService = {
     const output = document.getElementById('contracts-output');
     const contracts = (dataService.state.vertraege || []).filter(row => row.vertrag_id !== '' && row.vertrag_id != null && row.einheit_id);
     if (!contracts.length) {
-      output.innerHTML = '<p>Vertragsdaten noch nicht geladen. Bitte nach dem Laden erneut oeffnen.</p>';
+      output.innerHTML = '<p>Vertragsdaten noch nicht geladen. Bitte nach dem Laden erneut öffnen.</p>';
       return;
     }
     const contract = this.current() || contracts.find(row => this.objectId(row) === 'Ra-HS-29') || contracts[0];
@@ -103,7 +103,7 @@ const contractUiService = {
       try {
         const url = contractService.documentUrl(contract[name]);
         return url ? `<a href="${this.escape(url)}" target="_blank" rel="noopener noreferrer">${label}</a>` : '';
-      } catch (error) { return `<span>${label}: ungueltiger Link</span>`; }
+      } catch (error) { return `<span>${label}: ungültiger Link</span>`; }
     };
     const history = (dataService.state.mietanpassungen || []).filter(row => String(row.vertrag_id) === this.selectedId);
     const schemaReady = contractService.fields.every(field => Object.prototype.hasOwnProperty.call(contract, field));
@@ -128,12 +128,12 @@ const contractUiService = {
       </div>
       ${!this.unit(contract) ? '<p role="status">Dieser Vertrag verweist auf eine nicht mehr vorhandene Einheit. Bitte die Zuordnung in den Stammdaten klären.</p>' : ''}
       <p><strong>${this.escape(tenant)}</strong> · ${uiService.isTrueValue(contract.aktiv) ? 'Aktiv' : 'Inaktiv'}</p>
-      <div class="contract-documents">${link('vertragsdokument_url', 'Mietvertrag oeffnen')} ${link('sondervereinbarungen_url', 'Sondervereinbarungen oeffnen')}</div>
+      <div class="contract-documents">${link('vertragsdokument_url', 'Mietvertrag öffnen')} ${link('sondervereinbarungen_url', 'Sondervereinbarungen öffnen')}</div>
       ${!schemaReady ? '<p class="contract-notice">Speichern ist noch nicht freigeschaltet: Die Vertrags-Erweiterung muss zuerst im Backend eingerichtet werden. Die Indexvorschau kannst du bereits ausprobieren.</p>' : ''}
       <form id="contract-form" onsubmit="event.preventDefault(); contractUiService.save(false)">
         <div class="contract-fields">
           ${select('mietmodell', 'Mietmodell', ['Pauschal', 'Warmmiete', 'Kalt+NK'])}
-          ${select('erhoehungs_typ', 'Erhoehungstyp', ['Normal', 'Staffel', 'Index'])}
+          ${select('erhoehungs_typ', 'Erhöhungstyp', ['Normal', 'Staffel', 'Index'])}
           <label>Mieteingang spätestens am<select id="contract-zahlungsziel_typ">
             <option value="WERKTAG" ${deadlineType === 'WERKTAG' ? 'selected' : ''}>${deadlineValue}. Werktag des Monats</option>
             <option value="KALENDERTAG" ${deadlineType === 'KALENDERTAG' ? 'selected' : ''}>Kalendertag des Monats</option>
@@ -173,9 +173,9 @@ const contractUiService = {
         <div class="contract-fields">
           <label>Neuer Indexmonat<input id="contract-index_neu_monat" type="month"></label>
           <label>Neuer Indexstand<input id="contract-index_neu_wert" type="number" min="0" step="0.01"></label>
-          <label>Zugang der Erklaerung<input id="contract-zugang_datum" type="date"></label>
+          <label>Zugang der Erklärung<input id="contract-zugang_datum" type="date"></label>
           <label>Wirksam ab<input id="contract-wirksam_ab" type="date"></label>
-          <label>Erklaerung (HTTPS-Link)<input id="contract-erklaerung_url" type="url"></label>
+          <label>Erklärung (HTTPS-Link)<input id="contract-erklaerung_url" type="url"></label>
         </div>
         <button class="contract-button-secondary" type="button" onclick="contractUiService.loadIndexValue('neu', true)">Neuen Indexwert abrufen</button>
         <p id="contract-index-neu-source" class="contract-field-note" aria-live="polite"></p>
@@ -187,11 +187,11 @@ const contractUiService = {
         <button class="contract-button-primary" type="button" onclick="contractUiService.save(true)" ${!schemaReady ? 'disabled' : ''}>Dokumentierte Anpassung übernehmen</button>
       </section>
       <p id="contract-message" class="contract-status" role="status" title="Zum Schließen klicken" onclick="this.textContent=''"></p>
-      <section><h3>Aenderungsverlauf</h3>${history.length ? history.map(row => {
+      <section><h3>Änderungsverlauf</h3>${history.length ? history.map(row => {
         let before = {}, after = {};
         try { before = JSON.parse(row.vorher_json); after = JSON.parse(row.nachher_json); } catch (error) { /* Preserve legacy history display. */ }
         return `<details><summary>${this.escape(row.art)} · ${this.escape(row.wirksam_ab || row.erfasst_am)}</summary><p>Nettokaltmiete: ${this.escape(before.soll_kaltmiete)} → ${this.escape(after.soll_kaltmiete)} EUR</p><p>Nebenkosten: ${this.escape(after.soll_nebenkosten)} EUR · Gesamt: ${this.escape(after.soll_gesamt)} EUR</p></details>`;
-      }).join('') : '<p>Noch keine dokumentierten Aenderungen.</p>'}</section>`;
+      }).join('') : '<p>Noch keine dokumentierten Änderungen.</p>'}</section>`;
     ['soll_kaltmiete', 'soll_nebenkosten', 'nk_betriebskosten', 'nk_heizung_warmwasser'].forEach(name => {
       this.field(name).addEventListener('input', () => this.updateTotals());
     });
@@ -269,8 +269,8 @@ const contractUiService = {
       const operating = this.field('nk_betriebskosten').value;
       const heating = this.field('nk_heizung_warmwasser').value;
       document.getElementById('contract-nk-hint').textContent = operating !== '' && heating !== '' &&
-        Math.abs(Number(operating) + Number(heating) - costs) > 0.009 ? ' · Aufschluesselung weicht von Nebenkosten gesamt ab.' : '';
-    } catch (error) { document.getElementById('contract-total').textContent = 'Unvollstaendig'; }
+        Math.abs(Number(operating) + Number(heating) - costs) > 0.009 ? ' · Aufschlüsselung weicht von Nebenkosten gesamt ab.' : '';
+    } catch (error) { document.getElementById('contract-total').textContent = 'Unvollständig'; }
   },
 
   indexInput() {
@@ -290,7 +290,7 @@ const contractUiService = {
       const input = { ...this.indexInput(), index_reihe: draft.index_reihe };
       const result = contractService.previewIndex(draft, input, this.unit(this.current()));
       document.getElementById('contract-index-preview').textContent =
-        `${uiService.formatDashboardNumber(result.prozent)} % · Nettokaltmiete ${uiService.formatDashboardNumber(result.kalt_neu)} EUR · Gesamt ${uiService.formatDashboardNumber(result.gesamt_neu)} EUR · fruehestens ${result.fruehestens_ab}${result.zugang_angenommen ? ' (bei Zugang heute)' : ''}`;
+        `${uiService.formatDashboardNumber(result.prozent)} % · Nettokaltmiete ${uiService.formatDashboardNumber(result.kalt_neu)} EUR · Gesamt ${uiService.formatDashboardNumber(result.gesamt_neu)} EUR · frühestens ${result.fruehestens_ab}${result.zugang_angenommen ? ' (bei Zugang heute)' : ''}`;
     } catch (error) { document.getElementById('contract-index-preview').textContent = error.message; }
   },
 

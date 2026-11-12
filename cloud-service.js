@@ -185,10 +185,10 @@ const cloudService = {
     async saveContract(payload) {
         // Financial changes must receive an explicit server acknowledgement; never queue them.
         const capabilities = await this.loadCapabilities();
-        if (capabilities.contract_writes !== true) throw new Error('Backend unterstuetzt Vertragsaenderungen noch nicht.');
+        if (capabilities.contract_writes !== true) throw new Error('Backend unterstützt Vertragsänderungen noch nicht.');
         const result = await this.post(payload);
         if (!result || result.status !== 'success' || !result.vertrag || !result.anpassung) {
-            throw new Error(result && result.message || 'Vertragsaenderung nicht bestaetigt.');
+            throw new Error(result && result.message || 'Vertragsänderung nicht bestätigt.');
         }
         return result;
     },
