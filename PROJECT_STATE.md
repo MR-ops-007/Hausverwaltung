@@ -1,6 +1,6 @@
 # PROJECT_STATE - Hausverwaltung
 
-## Stand: 2026-11-11
+## Stand: 2026-11-12
 
 `main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz 4.8.5 ist in TEST und PROD produktiv aktiviert.
 
@@ -43,10 +43,12 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Ablesungen, veraltete Ablesungen und dauerhafte Nullwerte. Leerstände werden bei der
   Dauernullprüfung nicht als Fehler markiert; die Hinweise blockieren keine Eingabe.
   Apps Script und Google-Sheet-Daten blieben unverändert.
-- P6/P7 laufen auf `codex/p6-mieteingaenge`: Die neue Mieteingangsansicht bietet eine
+- P6/P7 laufen auf `codex/p6-payment-hardening`: Die neue Mieteingangsansicht bietet eine
   Monatsmatrix, Teilzahlungen, fachliche Mietmonate, Kautionen, Überfälligkeit,
   Storno-Gegenbuchungen und einen lokalen CSV-Import mit manueller Vertragszuordnung.
-  Der Branch umfasst aktuell 439 Tests. Der lokale Mock enthält wiederverwendbare
+  Der Hardening-Branch umfasst aktuell 451 Tests. Altzahlungen, explizites Guthaben,
+  stabile Zahlungs- und Storno-IDs, serverseitige Storno-Prüfungen und das
+  `payment_schema_ready`-Capability-Gate sind ergänzt. Der lokale Mock enthält wiederverwendbare
   synthetische Verbrauchsviews für Strom, Kaltwasser, Warmwasser und Heizöl sowie
   mehrere aktive Verträge,
   Leerstand, Teilzahlungen, Nachzahlungen, Erstattungen, wiederholte Verspätungen,
@@ -54,7 +56,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Mitmieter, unterschiedliche Kautionsstände und individuelle Zahlungsfristen ab.
   Erstattungen beeinflussen den Mietstatus nicht; Nachzahlungen
   werden dem gewählten Mietmonat zugerechnet. Der Vertrags-Schreibweg kennt ab
-  Apps Script 4.8.8 Zahlungsziele als Werktag oder Kalendertag sowie Zahlungsgruppen
+  Apps Script 4.8.9 Zahlungsziele als Werktag oder Kalendertag sowie Zahlungsgruppen
   für aufgeteilte Eingänge; diese Version ist noch
   nicht produktiv bereitgestellt. Für den Zahlungsweg ist mindestens Apps Script 4.8.6 erforderlich; die
   produktive 4.8.5 wurde nicht verändert.

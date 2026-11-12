@@ -100,6 +100,25 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     expect(api.post({ typ: 'LESEN', view: 'vertrag_capabilities', key: KEY })).toMatchObject({ access_protected: true, access_role: 'admin' });
   });
 
+  it('meldet die Zahlungsfähigkeit und fehlende Zahlungsspalten explizit', () => {
+    const incomplete = backend({ key: KEY, paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art']] });
+    expect(incomplete.post({ typ: 'LESEN', view: 'vertrag_capabilities', key: KEY })).toMatchObject({
+      payment_writes: true,
+      payment_schema_ready: false,
+      payment_schema_missing: ['mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id']
+    });
+
+    const ready = backend({
+      key: KEY,
+      paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id']]
+    });
+    expect(ready.post({ typ: 'LESEN', view: 'vertrag_capabilities', key: KEY })).toMatchObject({
+      payment_writes: true,
+      payment_schema_ready: true,
+      payment_schema_missing: []
+    });
+  });
+
   it('lehnt Schreibzugriffe ohne Schlüssel ab, ohne zu schreiben, zu sperren oder Views zu aktualisieren', () => {
     const api = backend({ key: KEY });
     for (const payload of [
@@ -150,8 +169,12 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     expect(api.rows.Zahlungen).toHaveLength(2);
   });
 
-  it('akzeptiert negative Zahlungsbeträge nur als Storno', () => {
-    const api = backend({ key: KEY });
+  it('akzeptiert negative Zahlungsbeträge nur als gültiges Storno', () => {
+    const api = backend({
+      key: KEY,
+      paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art'],
+        ['ORIGINAL_1', 'V1', '2026-11-10', 650, 'Miete', '2026-11', '', '']]
+    });
     expect(api.post({
       typ: 'ZAHLUNG',
       key: KEY,
@@ -161,8 +184,38 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     expect(api.post({
       typ: 'ZAHLUNG',
       key: KEY,
-      data: [{ zahlung_id: 'STORNO_1', vertrag_id: 'V1', datum: '2026-11-11', betrag: -650, art: 'Storno' }]
+      data: [{ zahlung_id: 'STORNO_1', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-11', betrag: -650, art: 'Storno', storno_von: 'ORIGINAL_1', gegen_art: 'Miete' }]
     })).toMatchObject({ status: 'success', angelegt: 1 });
+  });
+
+  it('verhindert ein zweites Storno derselben Originalzahlung', () => {
+    const api = backend({
+      key: KEY,
+      paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art'],
+        ['ORIGINAL_1', 'V1', '2026-11-10', 650, 'Miete', '2026-11', '', ''],
+        ['STORNO_1', 'V1', '2026-11-11', -650, 'Storno', '2026-11', 'ORIGINAL_1', 'Miete']]
+    });
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'STORNO_2', vertrag_id: 'V1', datum: '2026-11-12', mietmonat: '2026-11', betrag: -650, art: 'Storno', storno_von: 'ORIGINAL_1', gegen_art: 'Miete' }]
+    })).toMatchObject({ status: 'error', code: 'PAYMENT_ALREADY_STORNOED' });
+  });
+
+  it('validiert den fachlichen Mietmonat und den Originalbetrag eines Stornos', () => {
+    const api = backend({
+      key: KEY,
+      paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art'],
+        ['ORIGINAL_1', 'V1', '2026-11-10', 650, 'Miete', '2026-11', '', '']]
+    });
+    expect(api.post({
+      typ: 'ZAHLUNG', key: KEY,
+      data: [{ zahlung_id: 'BAD_MONTH', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: 'November', betrag: 10, art: 'Miete' }]
+    })).toMatchObject({ status: 'error', code: 'PAYMENT_MONTH_INVALID' });
+    expect(api.post({
+      typ: 'ZAHLUNG', key: KEY,
+      data: [{ zahlung_id: 'BAD_STORNO', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-11', betrag: -100, art: 'Storno', storno_von: 'ORIGINAL_1', gegen_art: 'Miete' }]
+    })).toMatchObject({ status: 'error', code: 'STORNO_AMOUNT_MISMATCH' });
   });
 
   it('speichert fachlichen Mietmonat und negative Erstattung nur mit erweitertem Zahlungen-Schema', () => {

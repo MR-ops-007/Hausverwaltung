@@ -62,6 +62,29 @@ describe('Lesen per POST mit Zugangsschlüssel', () => {
     expect(bodyOf(fetch, 0)).toEqual({ typ: 'VERBRAUCH_VIEWS_AKTUALISIEREN', key: 'k1' });
   });
 
+  it('prüft die Zahlungsfähigkeit des Backends vor dem Zahlungs-Schreibweg', async () => {
+    const { cloud, fetch } = loadCloud({ key: 'k1' });
+    fetch.mockResolvedValue(reply({
+      backend_version: '4.8.8',
+      payment_writes: true,
+      payment_schema_ready: true,
+      payment_schema_missing: []
+    }));
+    await expect(cloud.loadPaymentCapabilities()).resolves.toMatchObject({ payment_schema_ready: true });
+    expect(bodyOf(fetch, 0)).toMatchObject({ typ: 'LESEN', view: 'vertrag_capabilities', key: 'k1' });
+  });
+
+  it('lehnt den Zahlungs-Schreibweg bei fehlendem Backend-Schema verständlich ab', async () => {
+    const { cloud, fetch } = loadCloud({ key: 'k1' });
+    fetch.mockResolvedValue(reply({
+      payment_writes: true,
+      payment_schema_ready: false,
+      payment_schema_missing: ['mietmonat']
+    }));
+    await expect(cloud.loadPaymentCapabilities()).rejects.toMatchObject({ code: 'PAYMENT_SCHEMA_NOT_READY' });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('meldet einen Fehler beim Aktualisieren der Verbrauchsviews', async () => {
     const { cloud, fetch } = loadCloud({ key: 'k1' });
     fetch.mockResolvedValue(reply({ status: 'error', message: 'Nicht erlaubt' }));

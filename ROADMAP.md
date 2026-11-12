@@ -3,7 +3,7 @@
 Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklungspakete.
 `PROJECT_STATE.md` beschreibt den aktuellen Systemstand, `CHANGELOG.md` die Releases.
 
-**Stand: 2026-11-11**
+**Stand: 2026-11-12**
 
 ## Arbeitsregeln
 
@@ -281,7 +281,7 @@ Ziel ist Kostenkontrolle bei Pauschalen, ausdrücklich kein Nebenkostenabrechnun
 
 ### P6 Mieteingänge manuell
 
-**Status:** in Arbeit auf `codex/p6-mieteingaenge`.
+**Status:** fachlich umgesetzt, Release-Hardening auf `codex/p6-payment-hardening` vor dem Merge.
 
 **Ziel:** Zahlungseingänge im Alltag schnell und nachvollziehbar erfassen. Das ist ein
 Erfassungsmodul, kein Mahnwesen und keine Nebenkostenabrechnung.
@@ -302,7 +302,14 @@ Erfassungsmodul, kein Mahnwesen und keine Nebenkostenabrechnung.
   fachliche Gesamtprüfung. Überzahlungen werden vor dem Speichern ausdrücklich auf den
   angeklickten und weitere offene Mietmonate verteilt oder als Guthaben belassen. Die
   Teilbuchungen tragen eine gemeinsame `zahlungsgruppe_id`.
-- Der Backend-Schreibweg wird dafür auf 4.8.8 angehoben. Die produktive 4.8.5 bleibt
+- Historische Zahlungen mit leerem `mietmonat` bleiben dem Eingangsmonat zugeordnet;
+  bewusstes Guthaben wird nur über eine Zahlungsgruppe erkannt. Neue Nutzeraktionen
+  erhalten eigene Zahlungs- und Gruppen-IDs; ein Storno ist über `Storno_<zahlung_id>`
+  idempotent und wird serverseitig gegen Originalzahlung, Vertrag und Betrag geprüft.
+- `vertrag_capabilities` meldet, ob das Zahlungsschema vollständig vorbereitet ist;
+  die UI schreibt nicht, wenn `payment_schema_ready` fehlt. Mock und Apps-Script prüfen
+  die gleichen Zahlungsarten, Mietmonate, Konflikte und Storno-Regeln.
+- Der Backend-Schreibweg wird dafür auf 4.8.9 angehoben. Die produktive 4.8.5 bleibt
   unverändert, bis die neue Apps-Script-Version manuell bereitgestellt und geprüft ist.
 
 **Voraussetzung:** P1.1/P1.2 Rollen und Geräteeinrichtung sind produktiv geprüft.
@@ -318,7 +325,9 @@ Erfassungsmodul, kein Mahnwesen und keine Nebenkostenabrechnung.
 - Unklare Buchungen bleiben offen und werden manuell bestätigt.
 - Keine direkte Bankanbindung und keine automatische externe KI-Verarbeitung in der ersten Version.
 - Der CSV-MVP liest die Datei lokal im Browser, schlägt Verträge anhand von Namen,
-  Vertrags-ID und Sollbetrag vor und speichert erst nach manueller Bestätigung.
+  Vertrags-ID und Sollbetrag vor und speichert erst nach manueller Bestätigung. Der
+  fachliche Mietmonat wird aus `YYYY-MM` im Verwendungszweck vorgeschlagen oder fällt
+  auf den Eingangsmonat zurück und bleibt vor der Übernahme editierbar.
 - Unklare oder negative CSV-Buchungen werden nicht automatisch übernommen.
 
 Für die fachliche Abnahme stehen im keyfreien lokalen Mock mehrere synthetische Personas

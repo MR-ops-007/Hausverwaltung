@@ -1,17 +1,20 @@
 # Betrieb, Testumgebungen und Wiederherstellung
 
-Stand: 2026-11-11
+Stand: 2026-11-12
 
-## Mieteingänge und Backend 4.8.8
+## Mieteingänge und Backend 4.8.9
 
-Der Branch `codex/p6-mieteingaenge` enthält den ersten Mieteingangs- und CSV-Import-
-Ausbau. Vor einer Bereitstellung muss `apps-script/Code.gs` als neue Version 4.8.8
+Der Branch `codex/p6-payment-hardening` baut auf `codex/p6-mieteingaenge` auf und enthält
+den gehärteten Mieteingangs- und CSV-Import-Ausbau. Vor einer Bereitstellung muss
+`apps-script/Code.gs` als neue Version 4.8.9
 in der bestehenden TEST-Bereitstellung veröffentlicht und mit einem Erfassungs-
 Schlüssel geprüft werden. Danach folgt derselbe Ablauf für PROD. Eine alte 4.8.5-
 Bereitstellung bleibt als Rollback erhalten.
 
 Der CSV-Import ist absichtlich lokal und bestätigungspflichtig: Datei auswählen,
-Vorschläge prüfen, einzelne Buchung übernehmen. Unklare Zeilen bleiben offen. Die
+Vertrag und fachlichen Mietmonat prüfen, einzelne Buchung übernehmen. Ein Mietmonat
+im Verwendungszweck (`YYYY-MM`) wird vorgeschlagen, sonst der Monat des Eingangsdatums;
+beides kann vor der Übernahme korrigiert werden. Unklare Zeilen bleiben offen. Die
 Version enthält keine direkte Bankanbindung und keine OCR-Verarbeitung.
 
 ### Zahlungsfristen
@@ -22,6 +25,9 @@ bundesweite Feiertage übersprungen. Für eine Vereinbarung wie „zum 15.“ wi
 `KALENDERTAG` mit dem Wert `15` verwendet. Der erste Vertragsmonat beginnt nicht vor
 dem tatsächlichen Mietbeginn. Die Anwendung errät keinen Gehaltseingang; abweichende
 Vereinbarungen müssen am Vertrag eingetragen werden.
+Die Prüfung erfolgt auf Kalendertagesebene: Am Fälligkeitstag bleibt ein offener
+Monat bis zum Tageswechsel offen und wird nicht wegen der aktuellen Uhrzeit vorzeitig
+als überfällig markiert.
 
 Die Mieteingangsansicht zeigt die konkrete Frist im Zell-Tooltip und im Erfassungsdialog.
 `Miete` ist der reguläre Monatsbetrag, `Nachzahlung` ein zusätzlicher Ausgleich für den
@@ -42,6 +48,26 @@ erscheint oben als Guthaben.
 Die Summe wird während der Eingabe laufend gegen den tatsächlichen Eingang geprüft.
 Bei einer Abweichung erscheint direkt im Dialog „Bitte Summe prüfen“ und die Speicherung
 bleibt deaktiviert, bis beide Beträge übereinstimmen.
+
+### Zahlungsweg vor dem ersten Schreiben prüfen
+
+Vor einem Zahlungs-Schreibvorgang liest die App `vertrag_capabilities`. Das Backend muss
+`payment_writes: true` und `payment_schema_ready: true` liefern. Bei einem alten GAS oder
+fehlenden Spalten wird der Schreibvorgang abgebrochen und die fehlenden Spalten werden
+angezeigt; es wird keine Zahlung vorgemerkt oder geschrieben.
+
+Historische Zahlungen mit leerem `mietmonat` werden weiterhin über das Eingangsdatum dem
+Eingangsmonat zugeordnet. Ein bewusst nicht zugeordnetes Guthaben wird nur an einer
+`zahlungsgruppe_id` erkannt. Dadurch wird eine nachträglich ergänzte, leere Spalte nicht
+mit Guthaben verwechselt.
+
+Stornos sind append-only und benötigen eine vorhandene Originalzahlung. Vertrag und
+Betrag müssen übereinstimmen, das Vorzeichen muss umgekehrt sein, und eine Zahlung kann
+nicht zweimal storniert werden. Die UI verwendet dafür `Storno_<zahlung_id>` als stabile
+idempotente Kennung. Neue Zahlungen und Zahlungsgruppen erhalten pro Benutzeraktion
+neue IDs, damit zwei gleiche Eingänge nicht versehentlich als Duplikat gelten.
+
+Der Hardening-Stand ist Backend 4.8.9 lokal und noch nicht produktiv bereitgestellt.
 Für die Speicherung der beiden neuen Vertragsfelder muss einmalig die ausdrücklich
 manuell aufzurufende Funktion `prepareContractSchema()` ausgeführt werden. Für die
 Zahlungsaufteilung muss zusätzlich einmalig `preparePaymentSchema()` ausgeführt werden.
@@ -93,7 +119,7 @@ Der Mock enthält außerdem Strom-, Kaltwasser-, Warmwasser- und Heizöl-Verbrau
 für 2025 und 2026 sowie Audit- und Bilanzzeilen. Die Fixture-Quelle liegt in
 `tools/mock-consumption-fixtures.mjs` und wird beim Neustart reproduzierbar neu geladen.
 Für den produktiven Schreibweg müssen die optionalen Spalten `mietmonat`, `storno_von`,
-`gegen_art` und `zahlungsgruppe_id` im Blatt `Zahlungen` vorhanden sein; fehlen sie, lehnt Backend 4.8.8 den
+`gegen_art` und `zahlungsgruppe_id` im Blatt `Zahlungen` vorhanden sein; fehlen sie, lehnt Backend 4.8.9 den
 erweiterten Datensatz verständlich mit `PAYMENT_SCHEMA_MISSING` ab, statt die Zuordnung
 still zu verlieren.
 

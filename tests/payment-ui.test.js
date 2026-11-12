@@ -45,6 +45,14 @@ describe('paymentUiService Monatsstatus', () => {
     expect(service.paymentDeadlineLabel(contract, '2026-05')).toContain('3. Werktag');
   });
 
+  it('markiert einen offenen Monat am Fälligkeitstag noch nicht als überfällig', () => {
+    const service = loadPaymentService(baseState());
+    const summary = service.summarizeMonth(service.getContracts()[0], '2026-11', new Date(2026, 10, 4, 18, 30));
+    expect(service.formatDate(summary.dueDate)).toBe('04.11.2026');
+    expect(summary.status).toBe('offen');
+    expect(summary.verspaetet).toBe(false);
+  });
+
   it('berücksichtigt individuellen Kalendertag und Mietbeginn im ersten Monat', () => {
     const service = loadPaymentService(baseState({ vertraege: [{ ...baseState().vertraege[0], start_datum: '2026-01-15', zahlungsziel_typ: 'KALENDERTAG', zahlungsziel_wert: 15 }] }));
     const contract = service.getContracts()[0];
@@ -86,6 +94,25 @@ describe('paymentUiService Monatsstatus', () => {
     ] }));
     expect(service.getPaymentsEnteredInMonth('V1', '2026-11').map(row => row.zahlung_id)).toEqual(['FEB_NACHZAHLUNG']);
     expect(service.getPaymentsFor('V1', '2026-11')).toEqual([]);
+  });
+
+  it('behandelt alte Zahlungen mit leerer optionaler Spalte weiter nach Eingangsmonat', () => {
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'LEGACY', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '', betrag: 650, art: 'Miete' },
+      { zahlung_id: 'CREDIT', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '', betrag: 100, art: 'Miete', zahlungsgruppe_id: 'ZG_1' }
+    ] }));
+    expect(service.getPaymentsFor('V1', '2026-11')).toHaveLength(1);
+    expect(service.getPaymentsFor('V1', '2026-11')[0].zahlung_id).toBe('LEGACY');
+    expect(service.getEffectivePaymentMonth(service.getPaymentsFor('V1', '2026-11')[0])).toBe('2026-11');
+    expect(service.getEffectivePaymentMonth({ zahlung_id: 'CREDIT', mietmonat: '', zahlungsgruppe_id: 'ZG_1', datum: '2026-11-11' })).toBe('');
+  });
+
+  it('erzeugt für gleiche Buchungen unterschiedliche Aktions-IDs', () => {
+    const service = loadPaymentService(baseState());
+    const first = service.makePaymentId('V1', '2026-11', '', 'Miete');
+    const second = service.makePaymentId('V1', '2026-11', '', 'Miete');
+    expect(first).not.toBe(second);
+    expect(service.makeStornoId('PAYMENT_1')).toBe('Storno_PAYMENT_1');
   });
 
   it('plant eine Überzahlung zuerst im angeklickten und danach im ältesten offenen Mietmonat', () => {
@@ -291,11 +318,34 @@ describe('paymentUiService CSV-Import', () => {
     expect(rows[1].matchReason).toContain('Keine eindeutige Zuordnung');
   });
 
-  it('erzeugt für identische Importzeilen dieselbe idempotente ID', () => {
+  it('übernimmt den fachlichen Mietmonat aus Verwendungszweck oder Eingangsdatum', () => {
     const service = loadPaymentService(baseState());
-    const key = '01.11.2026|650|Donald Duck|Miete|V1';
-    expect(service.hash(key)).toBe(service.hash(key));
-    expect(service.makePaymentId('V1', '2026-11', 'voll')).toBe('Miete_V1_2026-11_voll');
+    const rows = service.suggestImportRows([
+      { datum: '30.01.2026', betrag: 650, name: 'Donald Duck', verwendungszweck: 'Miete 2026-02' },
+      { datum: '05.03.2026', betrag: 650, name: 'Donald Duck', verwendungszweck: 'Miete' }
+    ]);
+    expect(rows.map(row => row.mietmonat)).toEqual(['2026-02', '2026-03']);
+  });
+
+  it('sendet beim CSV-Import den geprüften fachlichen Mietmonat', async () => {
+    let request;
+    const service = loadPaymentService(baseState(), { getElementById: () => null }, {
+      saveTransaction: async transaction => { request = transaction; return { status: 'success', angelegt: 1 }; }
+    });
+    service.renderImportRows = () => {};
+    service.importRows = [{ datum: '30.01.2026', mietmonat: '2026-02', betrag: 650, vertrag_id: 'V1', name: 'Donald Duck' }];
+    await service.importPayment(0);
+    expect(request.data[0]).toMatchObject({ mietmonat: '2026-02', vertrag_id: 'V1', betrag: 650 });
+  });
+
+  it('vergibt Importzeilen individuelle IDs und behält sie bei Wiederholung', () => {
+    const service = loadPaymentService(baseState());
+    service.importRows = [{ datum: '01.11.2026', betrag: 650, name: 'Donald Duck', verwendungszweck: 'Miete', vertrag_id: 'V1' }];
+    const first = service.importRows[0].zahlung_id || (service.importRows[0].zahlung_id = service.makeActionId('Import'));
+    const second = service.importRows[0].zahlung_id || (service.importRows[0].zahlung_id = service.makeActionId('Import'));
+    expect(first).toBe(second);
+    expect(first).toMatch(/^Import_/);
+    expect(service.makePaymentId('V1', '2026-11', 'voll')).toMatch(/^Miete_V1_2026-11_voll$/);
   });
 
   it('rendert die Monatsmatrix mit Status, Sollbetrag und Importbereich', () => {
@@ -357,6 +407,25 @@ describe('paymentUiService CSV-Import', () => {
     expect(result.queued).toBe(true);
     expect(state.zahlungen).toHaveLength(0);
     expect(messages.at(-1)).toContain('vorgemerkt');
+  });
+
+  it('schreibt keine Zahlung, wenn das Backend das Zahlungsschema nicht freigibt', async () => {
+    const messages = [];
+    let wrote = false;
+    const service = loadPaymentService(
+      baseState(),
+      { getElementById: () => null },
+      {
+        loadPaymentCapabilities: async () => { throw new Error('Der Zahlungsbereich ist im Backend noch nicht freigegeben.'); },
+        saveTransaction: async () => { wrote = true; return { status: 'success' }; }
+      }
+    );
+    service.showMessage = message => messages.push(message);
+
+    await service.persistPayment({ zahlung_id: 'PAYMENT_1', vertrag_id: 'V1', datum: '2026-11-12', mietmonat: '2026-11', betrag: 650, art: 'Miete' });
+
+    expect(wrote).toBe(false);
+    expect(messages.at(-1)).toContain('Zahlungsbereich');
   });
 
   it('sendet eine aufgeteilte Zahlung als mehrere Zeilen an den Schreibweg', async () => {

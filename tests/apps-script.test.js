@@ -47,15 +47,18 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     const headers = ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art'];
     let writtenHeaders;
     let insertedColumns = 0;
+    let numberFormat;
     const range = {
       getValues: () => [headers],
       setValues: values => { writtenHeaders = values[0]; }
     };
+    const monthRange = { setNumberFormat: value => { numberFormat = value; } };
     const sheet = {
       getLastColumn: () => headers.length,
+      getLastRow: () => 3,
       getMaxColumns: () => headers.length,
       insertColumnsAfter: (_after, count) => { insertedColumns = count; },
-      getRange: () => range
+      getRange: (_row, column) => column === 6 ? monthRange : range
     };
     const SpreadsheetApp = { getActiveSpreadsheet: () => ({ getSheetByName: () => sheet }) };
     const preparePaymentSchema = new Function('SpreadsheetApp', `${paymentCode}; return preparePaymentSchema;`)(SpreadsheetApp);
@@ -65,6 +68,36 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     expect(result).toEqual({ addedHeaders: ['zahlungsgruppe_id'] });
     expect(insertedColumns).toBe(1);
     expect(writtenHeaders).toEqual(['zahlungsgruppe_id']);
+    expect(numberFormat).toBe('@');
+  });
+
+  it('formats mietmonat when the column is added for the first time', () => {
+    const paymentCode = readFileSync(new URL('../apps-script/Payments.gs', import.meta.url), 'utf8');
+    const headers = ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'storno_von', 'gegen_art', 'zahlungsgruppe_id'];
+    let writtenHeaders;
+    let insertedColumns = 0;
+    let numberFormat;
+    const headerRange = {
+      getValues: () => [headers],
+      setValues: values => { writtenHeaders = values[0]; }
+    };
+    const monthRange = { setNumberFormat: value => { numberFormat = value; } };
+    const sheet = {
+      getLastColumn: () => headers.length,
+      getLastRow: () => 2,
+      getMaxColumns: () => headers.length,
+      insertColumnsAfter: (_after, count) => { insertedColumns = count; },
+      getRange: row => row === 1 ? headerRange : monthRange
+    };
+    const SpreadsheetApp = { getActiveSpreadsheet: () => ({ getSheetByName: () => sheet }) };
+    const preparePaymentSchema = new Function('SpreadsheetApp', `${paymentCode}; return preparePaymentSchema;`)(SpreadsheetApp);
+
+    const result = preparePaymentSchema();
+
+    expect(result).toEqual({ addedHeaders: ['mietmonat'] });
+    expect(insertedColumns).toBe(1);
+    expect(writtenHeaders).toEqual(['mietmonat']);
+    expect(numberFormat).toBe('@');
   });
 
   it('formats German timestamps for stand_id values', () => {

@@ -32,7 +32,27 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
   in CI ergänzt.
 
 Diese Einträge ändern die produktive Apps-Script-Version nicht. PROD bleibt bei 4.8.5;
-die lokalen Backend-Erweiterungen 4.8.6 bis 4.8.8 stehen deshalb als eigene Versionseinträge oben.
+die lokalen Backend-Erweiterungen 4.8.6 bis 4.8.9 stehen deshalb als eigene Versionseinträge oben.
+
+## 4.8.9 · 2026-11-12 · lokal
+
+P6-Hardening für den Zahlungsweg.
+
+- Historische Zahlungen mit leerem `mietmonat` bleiben dem Eingangsmonat zugeordnet;
+  bewusstes Guthaben wird nur über eine vorhandene `zahlungsgruppe_id` erkannt.
+- Stornos benötigen eine vorhandene Originalzahlung, denselben Vertrag und den exakt
+  umgekehrten Betrag. Eine Originalzahlung kann nur einmal storniert werden.
+- Zahlungsarten und Mietmonate werden serverseitig validiert und Mietmonate als
+  `YYYY-MM` normalisiert.
+- `vertrag_capabilities` meldet `payment_schema_ready` und fehlende Spalten, bevor die
+  UI einen Zahlungs-Schreibvorgang startet.
+- Die UI verwendet pro Nutzeraktion neue Zahlungs- und Gruppen-IDs; ein Storno bleibt
+  über `Storno_<zahlung_id>` idempotent.
+- Der lokale CSV-Import übernimmt den fachlichen Mietmonat aus `YYYY-MM` im
+  Verwendungszweck oder schlägt den Eingangsmonat vor; vor der Übernahme bleibt er editierbar.
+- Die Fristprüfung vergleicht Kalendertage statt Uhrzeiten; am Fälligkeitstag bleibt ein
+  offener Monat bis zum Tageswechsel offen.
+- Die Version ist noch nicht in Apps Script bereitgestellt.
 
 ## 4.8.8 · 2026-11-11 · lokal
 

@@ -128,6 +128,20 @@ const cloudService = {
     },
 
     loadCapabilities() { return this.read('vertrag_capabilities'); },
+
+    async loadPaymentCapabilities() {
+        const capabilities = await this.loadCapabilities();
+        if (capabilities.payment_writes !== true || capabilities.payment_schema_ready !== true) {
+            const missing = Array.isArray(capabilities.payment_schema_missing) && capabilities.payment_schema_missing.length
+                ? ` Fehlende Spalten: ${capabilities.payment_schema_missing.join(', ')}.`
+                : '';
+            const error = new Error(`Der Zahlungsbereich ist im Backend noch nicht freigegeben.${missing}`);
+            error.code = 'PAYMENT_SCHEMA_NOT_READY';
+            throw error;
+        }
+        return capabilities;
+    },
+
     loadDashboardData() { return this.read('dashboard'); },
     loadConsumptionData() { return this.read('verbrauch'); },
     loadZaehlerstaende() { return this.read('zaehlerstaende'); },

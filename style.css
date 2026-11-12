@@ -632,6 +632,9 @@ input[type="text"] {
 .payment-allocation-message.payment-message-error { color:#991b1b; background:#fee2e2; border:1px solid #fca5a5; }
 .payment-allocation-message.payment-message-success { color:#166534; background:#dcfce7; border:1px solid #86efac; }
 .payment-allocation-dialog button:disabled { opacity:.55; cursor:not-allowed; }
+.payment-reversed-label { color:#64748b; font-size:.78rem; font-weight:700; }
+.payment-import-month { display:flex; flex-direction:column; gap:3px; color:#475569; font-size:.78rem; font-weight:700; }
+.payment-import-month input { min-width:128px; }
 .btn-secondary { padding:10px 14px; border:1px solid #94a3b8; border-radius:8px !important; background:#fff; color:#334155; cursor:pointer; }
 .btn-link-danger { padding:4px 7px; border:0; background:transparent; color:#b91c1c; cursor:pointer; font-size:.78rem !important; font-weight:700 !important; }
 .payment-history { margin-top:18px; padding-top:12px; border-top:1px solid #e2e8f0; }

@@ -1,7 +1,7 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.8
- * Stand: 2026-11-11
+ * Version: 4.8.9
+ * Stand: 2026-11-12
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
  * Änderungen seit v4.1:
@@ -106,8 +106,14 @@
  * Änderungen seit v4.8.7:
  * - Überzahlungen können als mehrere append-only Zahlungszeilen mit gemeinsamer
  *   zahlungsgruppe_id auf Mietmonate verteilt oder als Guthaben offen gelassen werden
+ *
+ * Änderungen seit v4.8.8:
+ * - Altzahlungen mit leerem Mietmonat bleiben dem Eingangsmonat zugeordnet; bewusstes
+ *   Guthaben wird nur über eine Zahlungsgruppe erkannt
+ * - Stornos prüfen Originalzahlung, Vertrag, Betrag und Einmaligkeit serverseitig
+ * - Zahlungs-Capability meldet den vorbereiteten Zahlungen-Schema-Stand explizit
  */
-const BACKEND_VERSION = "4.8.8";
+const BACKEND_VERSION = "4.8.9";
 
 function sendJSON(obj) {
   return ContentService
@@ -202,9 +208,13 @@ function sendUnauthorized() {
 /** Lesezugriff auf Views; produktiv nur per POST mit validiertem Geräteschlüssel. */
 function readView(ss, view, principal) {
   if (view === 'vertrag_capabilities') {
+    const paymentSchema = getPaymentSchemaStatus(ss);
     return {
       backend_version: BACKEND_VERSION,
       contract_writes: Boolean(principal && principal.role === 'admin'),
+      payment_writes: Boolean(principal && (principal.role === 'admin' || principal.role === 'erfassen')),
+      payment_schema_ready: paymentSchema.ready,
+      payment_schema_missing: paymentSchema.missing,
       access_protected: true,
       access_role: principal ? principal.role : ''
     };
@@ -239,6 +249,16 @@ function readView(ss, view, principal) {
     }
   });
   return data;
+}
+
+function getPaymentSchemaStatus(ss) {
+  const required = ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id'];
+  const sheet = ss && ss.getSheetByName ? ss.getSheetByName('Zahlungen') : null;
+  if (!sheet) return { ready: false, missing: required.slice() };
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+    .map(header => String(header).trim().toLowerCase());
+  const missing = required.filter(field => !headers.includes(field));
+  return { ready: missing.length === 0, missing };
 }
 
 const KORREKTUR_SHEET_NAME = 'Zaehlerstand_Korrekturen';
@@ -592,64 +612,96 @@ function doPost(e) {
 function writePayments(ss, payloadData) {
   const sheet = ss.getSheetByName('Zahlungen');
   if (!sheet) {
-    return { status: 'error', code: 'PAYMENT_SHEET_MISSING', message: 'Das Blatt Zahlungen fehlt.' };
+    return paymentError('PAYMENT_SHEET_MISSING', 'Das Blatt Zahlungen fehlt.');
   }
 
   const items = Array.isArray(payloadData) ? payloadData : [payloadData];
   if (items.length === 0 || items.some(item => !item || isBlankValue(item.zahlung_id))) {
-    return { status: 'error', code: 'PAYMENT_ID_MISSING', message: 'Jede Zahlung benötigt eine eindeutige zahlung_id.' };
+    return paymentError('PAYMENT_ID_MISSING', 'Jede Zahlung benötigt eine eindeutige zahlung_id.');
   }
 
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
     .map(h => String(h).trim().toLowerCase());
   const idColumn = headers.indexOf('zahlung_id');
   if (idColumn < 0) {
-    return { status: 'error', code: 'PAYMENT_SCHEMA_MISSING', message: 'Im Blatt Zahlungen fehlt die Spalte zahlung_id.' };
+    return paymentError('PAYMENT_SCHEMA_MISSING', 'Im Blatt Zahlungen fehlt die Spalte zahlung_id.');
   }
 
   const optionalPaymentFields = ['mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id'];
   const requestedFields = optionalPaymentFields.filter(field => items.some(item => Object.prototype.hasOwnProperty.call(item || {}, field)));
   const missingFields = requestedFields.filter(field => headers.indexOf(field) < 0);
   if (missingFields.length > 0) {
-    return {
-      status: 'error',
-      code: 'PAYMENT_SCHEMA_MISSING',
-      message: `Im Blatt Zahlungen fehlen die Spalten: ${missingFields.join(', ')}.`
-    };
+    return paymentError('PAYMENT_SCHEMA_MISSING', `Im Blatt Zahlungen fehlen die Spalten: ${missingFields.join(', ')}.`);
   }
 
   const values = sheet.getDataRange().getValues();
   const existingById = {};
+  const recordsById = {};
+  const stornoByOriginal = {};
+  const recordFromRow = row => headers.reduce((record, header, index) => {
+    record[header] = row[index];
+    return record;
+  }, {});
   values.slice(1).forEach(row => {
     const id = row[idColumn];
-    if (!isBlankValue(id)) existingById[String(id)] = row;
+    if (isBlankValue(id)) return;
+    const key = String(id).trim();
+    existingById[key] = row;
+    const record = recordFromRow(row);
+    recordsById[key] = record;
+    if (normalizePaymentArt(record.art) === 'Storno' && !isBlankValue(record.storno_von)) {
+      stornoByOriginal[String(record.storno_von).trim()] = key;
+    }
   });
 
-  const normalized = items.map(item => {
+  const normalized = [];
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index];
     const result = Object.assign({}, item);
     result.zahlung_id = String(item.zahlung_id).trim();
-    result.art = isBlankValue(item.art) ? 'Miete' : String(item.art).trim();
+    result.art = normalizePaymentArt(item.art);
+    if (!result.art) {
+      return paymentError('PAYMENT_ART_INVALID', `Unbekannte Zahlungsart in Zeile ${index + 1}.`);
+    }
     const amount = Number(String(item.betrag === undefined ? '' : item.betrag).replace(',', '.'));
     const normalizedArt = result.art.toLowerCase();
     if (!isFinite(amount) || amount === 0 || (amount < 0 && ['storno', 'erstattung'].indexOf(normalizedArt) < 0) || (normalizedArt === 'erstattung' && amount > 0)) {
-      throw new Error('Zahlungsbetrag muss ungleich 0 sein; Erstattungen müssen negativ sein, andere Zahlungsarten dürfen nicht negativ sein.');
+      return paymentError('PAYMENT_AMOUNT_INVALID', 'Zahlungsbetrag muss ungleich 0 sein; Erstattungen müssen negativ sein, andere Zahlungsarten dürfen nicht negativ sein.');
     }
-    result.betrag = amount;
-    return result;
-  });
+    result.betrag = Math.round(amount * 100) / 100;
+    if (Object.prototype.hasOwnProperty.call(item, 'mietmonat')) {
+      const month = normalizePaymentMonth(item.mietmonat);
+      if (month === null) return paymentError('PAYMENT_MONTH_INVALID', 'Der fachliche Mietmonat muss leer oder im Format YYYY-MM angegeben werden.');
+      result.mietmonat = month;
+    }
+    ['storno_von', 'gegen_art', 'zahlungsgruppe_id'].forEach(field => {
+      if (Object.prototype.hasOwnProperty.call(item, field)) {
+        result[field] = isBlankValue(item[field]) ? '' : String(item[field]).trim();
+      }
+    });
+    normalized.push(result);
+  }
 
   const getComparable = (item, header) => {
-    if (header === 'betrag') return Number(item.betrag);
-    if (header === 'art') return String(item.art || 'Miete').trim();
+    if (header === 'betrag') return Math.round(Number(item.betrag) * 100) / 100;
+    if (header === 'art') return normalizePaymentArt(item.art) || 'Miete';
     if (header === 'zahlung_id') return String(item.zahlung_id).trim();
     if (header === 'datum') return normalizePaymentDate(item.datum);
+    if (header === 'mietmonat') return normalizePaymentMonth(item.mietmonat) || '';
     return String(item[header] === undefined || item[header] === null ? '' : item[header]).trim();
   };
   const rowComparable = (row, header) => {
-    if (header === 'betrag') return Number(row[headers.indexOf(header)]);
-    if (header === 'datum') return normalizePaymentDate(row[headers.indexOf(header)]);
-    return String(row[headers.indexOf(header)] === undefined || row[headers.indexOf(header)] === null ? '' : row[headers.indexOf(header)]).trim();
+    const value = row[headers.indexOf(header)];
+    if (header === 'betrag') return Math.round(Number(value) * 100) / 100;
+    if (header === 'datum') return normalizePaymentDate(value);
+    if (header === 'mietmonat') return normalizePaymentMonth(value) || '';
+    if (header === 'art') return normalizePaymentArt(value) || 'Miete';
+    return String(value === undefined || value === null ? '' : value).trim();
   };
+
+  normalized.forEach(item => {
+    recordsById[item.zahlung_id] = item;
+  });
 
   const append = [];
   let alreadyPresent = 0;
@@ -660,15 +712,31 @@ function writePayments(ss, payloadData) {
       const equivalent = ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id']
         .every(header => getComparable(item, header) === rowComparable(existing, header));
       if (!equivalent) {
-        return {
-          status: 'error',
-          code: 'PAYMENT_ID_CONFLICT',
-          message: `Die zahlung_id ${item.zahlung_id} ist bereits mit anderen Daten gespeichert.`,
-          zahlung_id: item.zahlung_id
-        };
+        return paymentError('PAYMENT_ID_CONFLICT', `Die zahlung_id ${item.zahlung_id} ist bereits mit anderen Daten gespeichert.`, { zahlung_id: item.zahlung_id });
       }
       alreadyPresent++;
       continue;
+    }
+
+    if (item.art === 'Storno') {
+      const originalId = String(item.storno_von || '').trim();
+      const original = recordsById[originalId];
+      if (!originalId || !original) {
+        return paymentError('STORNO_ORIGINAL_NOT_FOUND', 'Ein Storno muss auf eine vorhandene Originalzahlung verweisen.', { storno_von: originalId });
+      }
+      if (normalizePaymentArt(original.art) === 'Storno') {
+        return paymentError('STORNO_ORIGINAL_INVALID', 'Ein Storno kann nicht erneut storniert werden.');
+      }
+      if (String(original.vertrag_id || '').trim() !== String(item.vertrag_id || '').trim()) {
+        return paymentError('STORNO_CONTRACT_MISMATCH', 'Originalzahlung und Storno müssen zum selben Vertrag gehören.');
+      }
+      if (Math.abs(Number(original.betrag || 0) + Number(item.betrag || 0)) > 0.009) {
+        return paymentError('STORNO_AMOUNT_MISMATCH', 'Das Storno muss den Originalbetrag mit umgekehrtem Vorzeichen ausgleichen.');
+      }
+      if (stornoByOriginal[originalId]) {
+        return paymentError('PAYMENT_ALREADY_STORNOED', 'Diese Zahlung wurde bereits storniert.', { storno_von: originalId });
+      }
+      stornoByOriginal[originalId] = item.zahlung_id;
     }
     append.push(item);
     existingById[item.zahlung_id] = headers.map(header => getItemValueForHeader(item, header));
@@ -683,6 +751,29 @@ function writePayments(ss, payloadData) {
     angelegt: append.length,
     bereits_vorhanden: alreadyPresent
   };
+}
+
+function paymentError(code, message, extra) {
+  return Object.assign({ status: 'error', code, message }, extra || {});
+}
+
+function normalizePaymentArt(value) {
+  const text = isBlankValue(value) ? 'miete' : String(value).trim().toLowerCase();
+  const values = { miete: 'Miete', kaution: 'Kaution', nachzahlung: 'Nachzahlung', erstattung: 'Erstattung', storno: 'Storno' };
+  return values[text] || '';
+}
+
+function normalizePaymentMonth(value) {
+  if (isBlankValue(value)) return '';
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, 'Europe/Berlin', 'yyyy-MM');
+  }
+  const text = String(value).trim();
+  const iso = text.match(/^(\d{4})-(\d{2})(?:-\d{2})?/);
+  if (iso && Number(iso[2]) >= 1 && Number(iso[2]) <= 12) return `${iso[1]}-${pad2(iso[2])}`;
+  const german = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if (german && Number(german[2]) >= 1 && Number(german[2]) <= 12) return `${german[3]}-${pad2(german[2])}`;
+  return null;
 }
 
 function normalizePaymentDate(value) {

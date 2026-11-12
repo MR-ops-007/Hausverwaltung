@@ -11,6 +11,7 @@ const paymentUiService = {
   selectedYear: '',
   busy: false,
   importRows: [],
+  actionSequence: 0,
   DEFAULT_PAYMENT_DEADLINE_TYPE: 'WERKTAG',
   DEFAULT_PAYMENT_DEADLINE_VALUE: 3,
   MONTH_NAMES: ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'],
@@ -55,6 +56,12 @@ const paymentUiService = {
     const date = this.parseDate(value);
     if (!date) return '';
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  },
+
+  extractPaymentMonth(text) {
+    const value = String(text || '');
+    const match = value.match(/\b(20\d{2})[-/.](0?[1-9]|1[0-2])(?:[-/.]\d{1,2})?\b/);
+    return match ? `${match[1]}-${String(match[2]).padStart(2, '0')}` : '';
   },
 
   todayInput(now = new Date()) {
@@ -134,6 +141,11 @@ const paymentUiService = {
     return date ? `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}.${date.getFullYear()}` : '-';
   },
 
+  startOfDay(value) {
+    const date = this.parseDate(value);
+    return date ? new Date(date.getFullYear(), date.getMonth(), date.getDate()) : null;
+  },
+
   paymentDeadlineLabel(contract, month) {
     const date = this.paymentDeadlineDate(contract, month);
     if (!date) return 'Frist unbekannt';
@@ -191,14 +203,18 @@ const paymentUiService = {
     return String(payment.mietmonat || '').trim();
   },
 
+  isExplicitCredit(payment) {
+    return !this.getPaymentMonth(payment)
+      && Boolean(String(payment && payment.zahlungsgruppe_id || '').trim());
+  },
+
   getEffectivePaymentMonth(payment) {
     const assigned = this.getPaymentMonth(payment);
     if (assigned) return assigned;
-    // Legacy rows without the optional field were historically assigned by receipt
-    // month. New explicit credit rows carry a group ID and remain unassigned.
-    return Object.prototype.hasOwnProperty.call(payment || {}, 'zahlungsgruppe_id')
-      ? ''
-      : this.getReceiptMonth(payment);
+    // Legacy rows may now contain an empty optional column after the schema
+    // migration. Only an explicit allocation row with a group ID represents
+    // intentional, unassigned credit; legacy rows retain their receipt month.
+    return this.isExplicitCredit(payment) ? '' : this.getReceiptMonth(payment);
   },
 
   getReceiptMonth(payment) {
@@ -288,16 +304,18 @@ const paymentUiService = {
     const due = outsidePeriod ? 0 : this.monthlyDue(contract);
     const dueDate = this.paymentDeadlineDate(contract, month);
     const current = this.parseDate(now) || new Date();
+    const currentDay = this.startOfDay(current);
+    const dueDay = this.startOfDay(dueDate);
     const settled = this.settledDate(payments, due);
     let status = outsidePeriod || (due <= 0 ? 'leerstand' : 'offen');
     if (due > 0) {
       if (paid >= due - 0.009) status = 'bezahlt';
       else if (paid > 0) status = 'teilbezahlt';
-      else if (dueDate && current > dueDate) status = 'überfällig';
-      else if (dueDate && dueDate > current) status = 'zukünftig';
+      else if (dueDay && currentDay > dueDay) status = 'überfällig';
+      else if (dueDay && dueDay > currentDay) status = 'zukünftig';
     }
-    const settledLate = settled && dueDate && this.parseDate(settled) > dueDate;
-    const stillOpenLate = dueDate && current > dueDate && ['offen', 'teilbezahlt', 'überfällig'].includes(status);
+    const settledLate = settled && dueDay && this.startOfDay(settled) > dueDay;
+    const stillOpenLate = dueDay && currentDay > dueDay && ['offen', 'teilbezahlt', 'überfällig'].includes(status);
     const verspaetet = due > 0 && (settledLate || stillOpenLate);
     return {
       month,
@@ -512,7 +530,12 @@ const paymentUiService = {
     const history = historyPayments.length ? `<div class="payment-history"><h3>Bereits erfasst</h3><p class="payment-history-note">Fachlich zugeordnete Zahlungen und Zahlungen, die in diesem Monat eingegangen sind.</p>${historyPayments.map(payment => {
       const originalArt = payment.gegen_art || payment.art || 'Miete';
       const assignedMonth = payment.mietmonat || (isDeposit ? '' : this.getEffectivePaymentMonth(payment));
-      const undo = this.paymentArt(payment) === 'storno' ? '' : `<button class="btn-link-danger" type="button" onclick="paymentUiService.saveStorno('${this.escape(contractId)}','${this.escape(historyMonth)}','${this.escape(payment.zahlung_id)}',${this.parseNumber(payment.betrag) || 0},'${this.escape(originalArt)}','${this.escape(assignedMonth)}')">Rückgängig</button>`;
+      const reversed = this.isPaymentReversed(payment.zahlung_id);
+      const undo = this.paymentArt(payment) === 'storno'
+        ? ''
+        : reversed
+          ? '<span class="payment-reversed-label">storniert</span>'
+          : `<button class="btn-link-danger" type="button" onclick="paymentUiService.saveStorno('${this.escape(contractId)}','${this.escape(historyMonth)}','${this.escape(payment.zahlung_id)}',${this.parseNumber(payment.betrag) || 0},'${this.escape(originalArt)}','${this.escape(assignedMonth)}')">Rückgängig</button>`;
       return `<div><span>${this.escape(payment.datum || '')}${assignedMonth ? ` · Monat ${this.escape(assignedMonth)}` : ''} · ${this.formatMoney(payment.betrag)} EUR · ${this.escape(payment.art || 'Zahlung')}</span>${undo}</div>`;
     }).join('')}</div>` : '';
     const title = isDeposit ? 'Kaution erfassen' : 'Mieteingang erfassen';
@@ -530,11 +553,24 @@ const paymentUiService = {
   makePaymentId(contractId, month, suffix = '', art = 'Miete') {
     const prefix = art === 'Miete' ? 'Miete' : String(art || 'Zahlung').replace(/[^a-zA-Z0-9_-]/g, '_');
     const assignment = month || 'ohne_monat';
-    return `${prefix}_${contractId}_${assignment}${suffix ? '_' + suffix : ''}`;
+    return `${prefix}_${contractId}_${assignment}_${suffix || this.makeActionId('zahlung')}`;
+  },
+
+  makeActionId(prefix = 'aktion') {
+    this.actionSequence += 1;
+    const randomId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID().replace(/-/g, '')
+      : `${Date.now()}_${this.actionSequence}_${Math.random().toString(36).slice(2, 10)}`;
+    return `${prefix}_${randomId}`;
   },
 
   makeStornoId(paymentId) {
-    return `Storno_${paymentId}_${Date.now()}`;
+    return `Storno_${paymentId}`;
+  },
+
+  isPaymentReversed(paymentId) {
+    return (dataService.state.zahlungen || []).some(payment => this.paymentArt(payment) === 'storno'
+      && String(payment.storno_von || '') === String(paymentId));
   },
 
   getAllocationCandidates(contractId, selectedMonth, year = String(selectedMonth || '').slice(0, 4), now = new Date()) {
@@ -580,8 +616,7 @@ const paymentUiService = {
   },
 
   makePaymentGroupId(contractId, date, amount, art, allocations) {
-    const detail = allocations.map(item => `${item.month || 'guthaben'}:${Number(item.amount).toFixed(2)}`).join('|');
-    return `ZG_${contractId}_${this.hash(`${date}|${amount}|${art}|${detail}`)}`;
+    return `ZG_${contractId}_${this.makeActionId('gruppe')}`;
   },
 
   buildAllocationRows(plan, date) {
@@ -668,7 +703,7 @@ const paymentUiService = {
       const plan = this.planPaymentAllocation(contractId, assignedMonth, amount, art);
       return this.showAllocationDialog({ contract, date, plan });
     }
-    const suffix = amount >= remaining - 0.009 ? 'voll' : `teil_${this.hash(`${date}|${amount}`)}`;
+    const suffix = amount >= remaining - 0.009 ? this.makeActionId('voll') : this.makeActionId('teil');
     const id = this.makePaymentId(contractId, assignedMonth || date, suffix, art);
     await this.persistPayment({ zahlung_id: id, vertrag_id: contractId, datum: date, mietmonat: assignedMonth, betrag: amount, art });
   },
@@ -684,6 +719,10 @@ const paymentUiService = {
     this.busy = true;
     const payments = Array.isArray(paymentOrPayments) ? paymentOrPayments : [paymentOrPayments];
     try {
+      if (typeof cloudService.loadPaymentCapabilities === 'function'
+        && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
+        await cloudService.loadPaymentCapabilities();
+      }
       const result = await cloudService.saveTransaction({ typ: 'ZAHLUNG', data: payments });
       if (!result || result.status !== 'success') throw new Error(result && result.message || 'Zahlung wurde nicht bestätigt.');
       if (result.queued === true) {
@@ -767,7 +806,8 @@ const paymentUiService = {
         return { contract, score };
       }).sort((a, b) => b.score - a.score);
       const best = scored[0];
-      return { ...row, vertrag_id: best && best.score >= 2 ? String(best.contract.vertrag_id) : '', matchReason: best && best.score >= 2 ? `Vorschlag: ${this.tenantName(best.contract)} (${best.score} Punkte)` : 'Keine eindeutige Zuordnung' };
+      const detectedMonth = row.mietmonat || this.extractPaymentMonth(`${row.name} ${row.verwendungszweck}`) || this.monthKey(row.datum);
+      return { ...row, mietmonat: detectedMonth, vertrag_id: best && best.score >= 2 ? String(best.contract.vertrag_id) : '', matchReason: best && best.score >= 2 ? `Vorschlag: ${this.tenantName(best.contract)} (${best.score} Punkte)` : 'Keine eindeutige Zuordnung' };
     });
   },
 
@@ -787,16 +827,15 @@ const paymentUiService = {
     if (!output) return;
     const contracts = this.getContracts();
     if (!this.importRows.length) { output.innerHTML = '<p class="payment-message payment-message-info">Keine verwertbaren CSV-Zeilen gefunden.</p>'; return; }
-    output.innerHTML = `<div class="payment-import-actions"><strong>${this.importRows.length} Buchungen gefunden</strong><span>Bitte Vorschläge prüfen und einzeln übernehmen.</span></div><div class="payment-import-list">${this.importRows.map((row, index) => `<div class="payment-import-row"><div><strong>${this.escape(row.datum)} · ${this.formatMoney(row.betrag)} EUR</strong><span>${this.escape(row.name || row.verwendungszweck || 'Ohne Buchungstext')}</span><small>${this.escape(row.matchReason)}</small></div><select onchange="paymentUiService.importRows[${index}].vertrag_id=this.value; paymentUiService.importRows[${index}].matchReason=this.value ? 'Manuell zugeordnet' : 'Keine Zuordnung'; paymentUiService.renderImportRows()"><option value="">Nicht zugeordnet</option>${contracts.map(contract => `<option value="${this.escape(contract.vertrag_id)}" ${String(contract.vertrag_id) === String(row.vertrag_id) ? 'selected' : ''}>${this.escape(this.unitName(contract))} · ${this.escape(this.tenantName(contract))}</option>`).join('')}</select><button class="btn-primary" type="button" ${row.vertrag_id ? '' : 'disabled'} onclick="paymentUiService.importPayment(${index})">Übernehmen</button></div>`).join('')}</div>`;
+    output.innerHTML = `<div class="payment-import-actions"><strong>${this.importRows.length} Buchungen gefunden</strong><span>Bitte Vertrag und fachlichen Mietmonat prüfen, dann einzelne Buchungen übernehmen.</span></div><div class="payment-import-list">${this.importRows.map((row, index) => `<div class="payment-import-row"><div><strong>${this.escape(row.datum)} · ${this.formatMoney(row.betrag)} EUR</strong><span>${this.escape(row.name || row.verwendungszweck || 'Ohne Buchungstext')}</span><small>${this.escape(row.matchReason)}</small></div><select onchange="paymentUiService.importRows[${index}].vertrag_id=this.value; paymentUiService.importRows[${index}].matchReason=this.value ? 'Manuell zugeordnet' : 'Keine Zuordnung'; paymentUiService.renderImportRows()"><option value="">Nicht zugeordnet</option>${contracts.map(contract => `<option value="${this.escape(contract.vertrag_id)}" ${String(contract.vertrag_id) === String(row.vertrag_id) ? 'selected' : ''}>${this.escape(this.unitName(contract))} · ${this.escape(this.tenantName(contract))}</option>`).join('')}</select><label class="payment-import-month">Mietmonat<input type="month" value="${this.escape(row.mietmonat || '')}" onchange="paymentUiService.importRows[${index}].mietmonat=this.value"></label><button class="btn-primary" type="button" ${row.vertrag_id && row.mietmonat ? '' : 'disabled'} onclick="paymentUiService.importPayment(${index})">Übernehmen</button></div>`).join('')}</div>`;
   },
 
   async importPayment(index) {
     const row = this.importRows[index];
     if (!row || !row.vertrag_id) return;
-    const month = this.monthKey(row.datum);
-    const key = `${row.datum}|${row.betrag}|${row.name}|${row.verwendungszweck}|${row.vertrag_id}`;
-    const id = `Import_${this.hash(key)}`;
-    const result = await this.persistPayment({ zahlung_id: id, vertrag_id: row.vertrag_id, datum: row.datum, betrag: row.betrag, art: 'Miete' });
+    const month = row.mietmonat || this.monthKey(row.datum);
+    const id = row.zahlung_id || (row.zahlung_id = this.makeActionId('Import'));
+    const result = await this.persistPayment({ zahlung_id: id, vertrag_id: row.vertrag_id, datum: row.datum, mietmonat: month, betrag: row.betrag, art: 'Miete' });
     if (result && result.queued !== true) {
       this.importRows.splice(index, 1);
       this.renderImportRows();
