@@ -126,6 +126,22 @@ angezeigt; für einen anderen Monat wird die entsprechende Spalte geöffnet. Ein
 ausgeglichene verspätete Zahlung ist grün und trägt zusätzlich den Hinweis „verspätet“.
 Eine Kaution wird ohne Mietmonat gespeichert und separat gegen `Vertraege.kaution_soll`
 ausgewertet.
+
+Der aktuelle TEST-Datensatz enthält zusätzlich einen dauerhaft reproduzierbaren Abnahmesatz:
+Donald Duck (Vertrag 29) hat eine gruppierte Zahlung über Oktober und November mit einem
+bewusst nicht zugeordneten Rest als Guthaben. Vertrag 32 für TEST_WE_02 ist Mickey und Minnie
+gemeinsam zugeordnet und enthält verspätete Vollzahlungen, eine Teilzahlung, eine teilweise
+gezahlte Kaution und eine negative Erstattung. Damit lassen sich die Statusfarben, verspätete
+Zahlungen, die Kautionsanzeige, Guthaben und mehrere Vertragsparteien direkt im echten TEST-
+Backend prüfen. Die Buchungen sind Testdaten und dürfen bei Bedarf zurückgesetzt oder durch
+neue Fixture-IDs ergänzt werden.
+
+Für die Vertragsmaske wurden im TEST-Blatt `Vertraege` die Felder `zahlungsziel_typ` und
+`zahlungsziel_wert` ergänzt. Das entspricht dem Ergebnis von `prepareContractSchema()`; nach
+einem vollständigen Neuladen sollte der Button „Vertragsdaten speichern“ dort nicht mehr wegen
+eines unvollständigen Schemas deaktiviert sein. Die Rolle `admin` und ein gültiger
+`CONTRACT_WRITE_TOKEN` bleiben für tatsächliche Vertragsänderungen erforderlich.
+
 Der Mock enthält außerdem Strom-, Kaltwasser-, Warmwasser- und Heizöl-Verbrauchsdaten
 für 2025 und 2026 sowie Audit- und Bilanzzeilen. Die Fixture-Quelle liegt in
 `tools/mock-consumption-fixtures.mjs` und wird beim Neustart reproduzierbar neu geladen.
