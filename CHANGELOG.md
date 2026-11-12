@@ -34,7 +34,7 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 Diese Einträge ändern die produktive Apps-Script-Version nicht. PROD bleibt bei 4.8.5;
 die lokalen Backend-Erweiterungen 4.8.6 bis 4.8.11 stehen deshalb als eigene Versionseinträge oben.
 
-## 4.8.11 · 2026-11-12 · lokal
+## 4.8.11 · 2026-11-12 · TEST
 
 P6-Hardening-Follow-up für historische Stornos und vorübergehende Netzfehler.
 
@@ -47,7 +47,8 @@ P6-Hardening-Follow-up für historische Stornos und vorübergehende Netzfehler.
   Schreibweg nicht mehr.
 - Die lokale UI-Anzeige ordnet ein Storno einer historischen Zahlung ohne `mietmonat` sofort
   dem effektiven Originalmonat zu; ein Reload ist dafür nicht mehr erforderlich.
-- Die Version ist noch nicht in Apps Script bereitgestellt.
+- Die Version ist in der bestehenden TEST-Bereitstellung veröffentlicht. PROD bleibt bis zur
+  fachlichen TEST-Abnahme auf 4.8.5.
 
 ## 4.8.10 · 2026-11-12 · lokal
 

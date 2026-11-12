@@ -57,8 +57,8 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Erstattungen beeinflussen den Mietstatus nicht; Nachzahlungen
   werden dem gewählten Mietmonat zugerechnet. Der Vertrags-Schreibweg kennt ab
   Apps Script 4.8.11 Zahlungsziele als Werktag oder Kalendertag sowie Zahlungsgruppen
-  für aufgeteilte Eingänge; diese Version ist noch
-  nicht produktiv bereitgestellt. Für den Zahlungsweg ist mindestens Apps Script 4.8.6 erforderlich; die
+  für aufgeteilte Eingänge; Backend 4.8.11 ist in TEST bereitgestellt, PROD bleibt bis zur
+  fachlichen Abnahme auf 4.8.5. Für den Zahlungsweg ist mindestens Apps Script 4.8.6 erforderlich; die
   produktive 4.8.5 wurde nicht verändert.
 - P1.1 ist mit PR #32 abgeschlossen: Zugriff ist fail-closed, `GET` liefert nie Daten und
   `APP_ACCESS_KEYS_JSON` unterstützt die Rollen `admin` und `erfassen`. Die produktiven und
