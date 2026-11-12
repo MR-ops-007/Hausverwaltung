@@ -290,3 +290,9 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
   nicht ausreichend, um Daten zu lesen; die Schutzwirkung wird mit einem echten
   `UNAUTHORIZED`-Test bestätigt.
 - Eine Testumgebung mit einer kopierten Produktivdatei ist nicht automatisch anonymisiert.
+- Für lokale Tests mit der echten TEST-API kann einmalig `runtime-secrets.example.js` nach
+  `runtime-secrets.js` kopiert und dort ausschließlich der TEST-`APP_ACCESS_KEY` eingetragen
+  werden. `runtime-secrets.js` ist in `.gitignore`, wird nicht in das GitHub-Pages-Artefakt
+  kopiert und enthält keinen PROD-Schlüssel. Beim ersten Abruf übernimmt `cloud-service.js`
+  den lokalen TEST-Schlüssel automatisch in den umgebungsbezogenen Browser-Speicher. Danach
+  ist keine erneute Eingabe bei neuen Cache-Busting-URLs oder lokalen Ports erforderlich.

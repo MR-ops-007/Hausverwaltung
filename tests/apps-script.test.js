@@ -23,7 +23,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
     const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
     const changelog = readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8');
-    const entries = [...changelog.matchAll(/^## (\d+\.\d+\.\d+) · (\d{4}-\d{2}-\d{2}) · (lokal|main|produktiv|ersetzt)$/gm)];
+    const entries = [...changelog.matchAll(/^## (\d+\.\d+\.\d+) · (\d{4}-\d{2}-\d{2}) · (lokal|main|test|produktiv|ersetzt)$/gm)];
 
     expect(BACKEND_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
     expect(code.match(/^ \* Version: (\S+)$/m)[1]).toBe(BACKEND_VERSION);
@@ -34,11 +34,11 @@ describe('Apps Script Zaehlerstaende helpers', () => {
 
   it('keeps the deploy status history in order: lokal/main above the productive version, ersetzt below', () => {
     const changelog = readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8');
-    const statuses = [...changelog.matchAll(/^## \d+\.\d+\.\d+ · \d{4}-\d{2}-\d{2} · (lokal|main|produktiv|ersetzt)$/gm)].map(entry => entry[1]);
+    const statuses = [...changelog.matchAll(/^## \d+\.\d+\.\d+ · \d{4}-\d{2}-\d{2} · (lokal|main|test|produktiv|ersetzt)$/gm)].map(entry => entry[1]);
     const productive = statuses.indexOf('produktiv');
 
     expect(productive).toBeGreaterThanOrEqual(0);
-    expect(statuses.slice(0, productive).every(status => status === 'lokal' || status === 'main')).toBe(true);
+    expect(statuses.slice(0, productive).every(status => status === 'lokal' || status === 'main' || status === 'test')).toBe(true);
     expect(statuses.slice(productive + 1).every(status => status === 'ersetzt')).toBe(true);
   });
 

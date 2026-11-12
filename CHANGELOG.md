@@ -13,6 +13,7 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - Status:
   - `lokal` – nur in einem Branch, nicht gemergt/deployt
   - `main` – gemergt, Deploy noch nicht bestätigt
+  - `test` – in der TEST-Bereitstellung veröffentlicht, PROD bleibt unverändert
   - `produktiv` – im Apps-Script-Projekt deployt (genau eine Version)
   - `ersetzt` – war produktiv oder gemergt, inzwischen überholt
 - **Beim Deploy:** neue Version auf `produktiv` setzen, die bisherige auf `ersetzt`.
@@ -32,9 +33,10 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
   in CI ergänzt.
 
 Diese Einträge ändern die produktive Apps-Script-Version nicht. PROD bleibt bei 4.8.5;
-die lokalen Backend-Erweiterungen 4.8.6 bis 4.8.11 stehen deshalb als eigene Versionseinträge oben.
+die lokalen Backend-Erweiterungen 4.8.6 bis 4.8.10 sowie der TEST-Stand 4.8.11 stehen deshalb
+als eigene Versionseinträge oben.
 
-## 4.8.11 · 2026-11-12 · TEST
+## 4.8.11 · 2026-11-12 · test
 
 P6-Hardening-Follow-up für historische Stornos und vorübergehende Netzfehler.
 
@@ -47,6 +49,8 @@ P6-Hardening-Follow-up für historische Stornos und vorübergehende Netzfehler.
   Schreibweg nicht mehr.
 - Die lokale UI-Anzeige ordnet ein Storno einer historischen Zahlung ohne `mietmonat` sofort
   dem effektiven Originalmonat zu; ein Reload ist dafür nicht mehr erforderlich.
+- Für lokale TEST-Abnahmen kann ein ignoriertes `runtime-secrets.js` den TEST-Schlüssel
+  bereitstellen; GitHub Pages übernimmt diese Datei nicht und PROD bleibt ohne lokalen Schlüssel.
 - Die Version ist in der bestehenden TEST-Bereitstellung veröffentlicht. PROD bleibt bis zur
   fachlichen TEST-Abnahme auf 4.8.5.
 

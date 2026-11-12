@@ -8,3 +8,4 @@ dist/
 .clasprc.json
 config.local.js
 runtime-config.js
+runtime-secrets.js

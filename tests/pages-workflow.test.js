@@ -6,7 +6,7 @@ const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
 const staticScripts = [...index.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)]
   .map((match) => match[1].split(/[?#]/, 1)[0])
-  .filter((source) => source && source !== 'runtime-config.js');
+  .filter((source) => source && !['runtime-config.js', 'runtime-secrets.js'].includes(source));
 
 describe('GitHub-Pages-Build', () => {
   it('baut und veröffentlicht nur aus main', () => {
@@ -19,7 +19,7 @@ describe('GitHub-Pages-Build', () => {
     const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
     const requiredScripts = [...html.matchAll(/<script src="([^"]+\.js)(?:\?[^" ]+)?"><\/script>/g)]
       .map(match => match[1])
-      .filter(src => !['runtime-config.js', 'apps-script/ContractService.js'].includes(src));
+      .filter(src => !['runtime-config.js', 'runtime-secrets.js', 'apps-script/ContractService.js'].includes(src));
     for (const script of requiredScripts) expect(workflow).toContain(script);
   });
 

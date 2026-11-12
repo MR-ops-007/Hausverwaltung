@@ -39,7 +39,7 @@ if (!existsSync(indexPath)) {
 }
 
 const references = collectLocalReferences(readFileSync(indexPath, 'utf8'));
-const generatedInPagesBuild = new Set(['runtime-config.js']);
+const generatedInPagesBuild = new Set(['runtime-config.js', 'runtime-secrets.js']);
 const missing = references.filter((reference) => {
   if (root === repositoryRoot && generatedInPagesBuild.has(reference)) return false;
   return !existsSync(join(root, normalize(reference)));

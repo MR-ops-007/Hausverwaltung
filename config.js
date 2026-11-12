@@ -9,6 +9,10 @@ const configRuntimeHost = typeof window !== 'undefined'
 const runtimeConfig = configRuntimeHost.HV_RUNTIME_CONFIG
     ? configRuntimeHost.HV_RUNTIME_CONFIG
     : {};
+const runtimeSecrets = configRuntimeHost.HV_RUNTIME_SECRETS
+    && typeof configRuntimeHost.HV_RUNTIME_SECRETS === 'object'
+    ? configRuntimeHost.HV_RUNTIME_SECRETS
+    : {};
 const normalizeEnvironment = value => {
     const normalized = String(value || 'production').trim().toLowerCase();
     return normalized === 'test' ? 'test' : 'production';
@@ -40,6 +44,7 @@ const CONFIG = {
     ENVIRONMENT: effectiveEnvironment,
     ENVIRONMENT_LABEL: effectiveEnvironmentLabel,
     ENVIRONMENT_PROFILES: runtimeProfiles,
+    LOCAL_ACCESS_KEYS: runtimeSecrets,
     // Die Backend-URL kommt ausschließlich aus der lokalen Laufzeitkonfiguration.
     // Dadurch landet weder die produktive noch die Test-URL im öffentlichen Quellcode.
     API_URL: runtimeApiUrl,

@@ -20,6 +20,21 @@ function loadConfig(runtimeConfig, location) {
   }
 }
 
+function loadConfigWithSecrets(runtimeConfig, secrets) {
+  const previous = globalThis.HV_RUNTIME_CONFIG;
+  const previousSecrets = globalThis.HV_RUNTIME_SECRETS;
+  try {
+    globalThis.HV_RUNTIME_CONFIG = runtimeConfig;
+    globalThis.HV_RUNTIME_SECRETS = secrets;
+    return new Function(`${source}; return CONFIG;`)();
+  } finally {
+    if (previous === undefined) delete globalThis.HV_RUNTIME_CONFIG;
+    else globalThis.HV_RUNTIME_CONFIG = previous;
+    if (previousSecrets === undefined) delete globalThis.HV_RUNTIME_SECRETS;
+    else globalThis.HV_RUNTIME_SECRETS = previousSecrets;
+  }
+}
+
 function loadLocalConfig(runtimeConfig, host = {}) {
   const localSource = readFileSync(new URL('../config.local.example.js', import.meta.url), 'utf8');
   const localStorage = { getItem: () => null };
@@ -39,6 +54,11 @@ describe('Laufzeitkonfiguration', () => {
     expect(config.ENVIRONMENT).toBe('test');
     expect(config.API_URL).toBe('https://test.example.invalid/exec');
     expect(config.API_CONFIGURED).toBe(true);
+  });
+
+  it('übernimmt lokale Zugangsschlüssel getrennt von den Laufzeitprofilen', () => {
+    const config = loadConfigWithSecrets({ environment: 'test', apiUrl: 'https://test.example.invalid/exec' }, { test: 'local-test-key', production: '' });
+    expect(config.LOCAL_ACCESS_KEYS).toEqual({ test: 'local-test-key', production: '' });
   });
 
   it('wählt die API des aktiven Profils aus', () => {

@@ -5,7 +5,7 @@ const reply = body => ({ ok: true, text: async () => JSON.stringify(body) });
 const unauthorized = () => reply({ status: 'error', code: 'UNAUTHORIZED', message: 'Zugangsschlüssel fehlt oder ist falsch.' });
 const bodyOf = (fetch, index) => JSON.parse(fetch.mock.calls[index][1].body);
 
-function loadCloud({ key = '', environment, online = true, accessUi, failSet = false, dropWrites = false, withDocument = false, failSetWhen = null, failRemoveWhen = null, apiUrl = 'https://example.test/api' } = {}) {
+function loadCloud({ key = '', environment, runtimeSecrets = {}, online = true, accessUi, failSet = false, dropWrites = false, withDocument = false, failSetWhen = null, failRemoveWhen = null, apiUrl = 'https://example.test/api' } = {}) {
   const source = readFileSync(new URL('../cloud-service.js', import.meta.url), 'utf8');
   const storageKey = environment ? `hv_access_key:${environment}` : 'hv_access_key';
   const store = key ? { [storageKey]: key } : {};
@@ -28,7 +28,7 @@ function loadCloud({ key = '', environment, online = true, accessUi, failSet = f
   const document = withDocument ? { dispatchEvent: event => events.push(event.type) } : undefined;
   const CustomEvent = withDocument ? class { constructor(type) { this.type = type; } } : undefined;
   const cloud = new Function('CONFIG', 'fetch', 'localStorage', 'navigator', 'accessUi', 'console', 'document', 'CustomEvent', `${source};return cloudService;`)(
-    { API_URL: apiUrl, ENVIRONMENT: environment }, fetch, localStorage, navigator, accessUi, console, document, CustomEvent);
+    { API_URL: apiUrl, ENVIRONMENT: environment, LOCAL_ACCESS_KEYS: runtimeSecrets }, fetch, localStorage, navigator, accessUi, console, document, CustomEvent);
   const queue = name => JSON.parse(store[name] || '[]');
   // Nutzdaten der Queue-Einträge (ohne id/status), in Reihenfolge.
   const payloads = () => queue('offline_queue').map(entry => entry.payload);
@@ -47,6 +47,12 @@ describe('Lesen per POST mit Zugangsschlüssel', () => {
     expect(productionCloud.cloud.getAccessKeyStorage()).toBe('hv_access_key:production');
     expect(testCloud.store).toEqual({ 'hv_access_key:test': 'test-key' });
     expect(productionCloud.store).toEqual({ 'hv_access_key:production': 'prod-key' });
+  });
+
+  it('übernimmt einen lokalen TEST-Schlüssel einmalig aus der Laufzeitkonfiguration', () => {
+    const { cloud, store } = loadCloud({ environment: 'test', runtimeSecrets: { test: 'local-test-key' } });
+    expect(cloud.getAccessKey()).toBe('local-test-key');
+    expect(store).toEqual({ 'hv_access_key:test': 'local-test-key' });
   });
 
   it('meldet eine fehlende Laufzeitkonfiguration vor dem Netzwerkzugriff', async () => {

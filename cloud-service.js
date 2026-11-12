@@ -27,6 +27,13 @@ const cloudService = {
         return environment ? `${this.ACCESS_KEY_STORAGE}:${environment}` : this.LEGACY_ACCESS_KEY_STORAGE;
     },
 
+    getLocalConfiguredAccessKey() {
+        const environment = CONFIG && CONFIG.ENVIRONMENT;
+        const keys = CONFIG && CONFIG.LOCAL_ACCESS_KEYS;
+        if (!environment || !keys || typeof keys !== 'object') return '';
+        return String(keys[environment] || '').trim();
+    },
+
     getAccessKey() {
         try {
             const scopedKey = localStorage.getItem(this.getAccessKeyStorage()) || '';
@@ -38,8 +45,14 @@ const cloudService = {
             if (legacyKey) {
                 localStorage.setItem(this.getAccessKeyStorage(), legacyKey);
                 localStorage.removeItem(this.LEGACY_ACCESS_KEY_STORAGE);
+                return legacyKey;
             }
-            return legacyKey;
+            const configuredKey = this.getLocalConfiguredAccessKey();
+            if (configuredKey) {
+                localStorage.setItem(this.getAccessKeyStorage(), configuredKey);
+                return configuredKey;
+            }
+            return '';
         } catch (e) { return ''; }
     },
 
