@@ -157,6 +157,22 @@ function writePayments(items) {
     return String(row?.[field] ?? '').trim();
   };
   for (const item of normalized) {
+    if (item.art === 'Storno') {
+      const originalId = String(item.storno_von || '').trim();
+      const original = recordsById.get(originalId);
+      if (!original) return { status: 'error', code: 'STORNO_ORIGINAL_NOT_FOUND', message: 'Ein Storno muss auf eine vorhandene Originalzahlung verweisen.' };
+      if (String(original.vertrag_id || '') !== String(item.vertrag_id || '')) return { status: 'error', code: 'STORNO_CONTRACT_MISMATCH', message: 'Originalzahlung und Storno müssen zum selben Vertrag gehören.' };
+      if (Math.abs(Number(original.betrag || 0) + Number(item.betrag || 0)) > 0.009) return { status: 'error', code: 'STORNO_AMOUNT_MISMATCH', message: 'Das Storno muss den Originalbetrag mit umgekehrtem Vorzeichen ausgleichen.' };
+      if (stornoByOriginal.has(originalId) && stornoByOriginal.get(originalId) !== item.zahlung_id) return { status: 'error', code: 'PAYMENT_ALREADY_STORNOED', message: 'Diese Zahlung wurde bereits storniert.' };
+      item.mietmonat = normalizeMonth(original.mietmonat);
+      if (!item.mietmonat && !String(original.zahlungsgruppe_id || '').trim() && String(original.art || '').trim().toLowerCase() !== 'kaution') {
+        const originalDate = String(original.datum || '').trim();
+        if (/^\d{4}-\d{2}-\d{2}/.test(originalDate)) item.mietmonat = originalDate.slice(0, 7);
+      }
+      item.gegen_art = String(original.gegen_art || original.art || '').trim();
+      item.zahlungsgruppe_id = String(original.zahlungsgruppe_id || '').trim();
+      stornoByOriginal.set(originalId, item.zahlung_id);
+    }
     const existing = existingById.get(item.zahlung_id);
     if (existing) {
       const equivalent = ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id']
@@ -164,18 +180,6 @@ function writePayments(items) {
       if (!equivalent) return { status: 'error', code: 'PAYMENT_ID_CONFLICT', message: `Die zahlung_id ${item.zahlung_id} ist bereits mit anderen Daten gespeichert.`, zahlung_id: item.zahlung_id };
       alreadyPresent++;
       continue;
-    }
-    if (item.art === 'Storno') {
-      const originalId = String(item.storno_von || '').trim();
-      const original = recordsById.get(originalId);
-      if (!original) return { status: 'error', code: 'STORNO_ORIGINAL_NOT_FOUND', message: 'Ein Storno muss auf eine vorhandene Originalzahlung verweisen.' };
-      if (String(original.vertrag_id || '') !== String(item.vertrag_id || '')) return { status: 'error', code: 'STORNO_CONTRACT_MISMATCH', message: 'Originalzahlung und Storno müssen zum selben Vertrag gehören.' };
-      if (Math.abs(Number(original.betrag || 0) + Number(item.betrag || 0)) > 0.009) return { status: 'error', code: 'STORNO_AMOUNT_MISMATCH', message: 'Das Storno muss den Originalbetrag mit umgekehrtem Vorzeichen ausgleichen.' };
-      if (stornoByOriginal.has(originalId)) return { status: 'error', code: 'PAYMENT_ALREADY_STORNOED', message: 'Diese Zahlung wurde bereits storniert.' };
-      item.mietmonat = normalizeMonth(original.mietmonat);
-      item.gegen_art = String(original.gegen_art || original.art || '').trim();
-      item.zahlungsgruppe_id = String(original.zahlungsgruppe_id || '').trim();
-      stornoByOriginal.set(originalId, item.zahlung_id);
     }
     append.push(item);
     existingById.set(item.zahlung_id, item);

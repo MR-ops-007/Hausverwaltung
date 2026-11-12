@@ -184,7 +184,7 @@ Einträge aus Frontend-Ständen vor 4.8.4 (rohe Payloads in `offline_queue`, abg
 - Mieteingänge verwenden ab dem P6/P7-Arbeitsstand denselben bestätigungspflichtigen
   Schreibweg wie andere Transaktionen. Bei einer vorübergehenden Netzwerkstörung darf
   eine Zahlung in die bestehende Offline-Queue gelangen; sie gilt erst nach Backend-
-  Bestätigung als gespeichert. Gleiche `zahlung_id`s sind im gehärteten Backend 4.8.10
+  Bestätigung als gespeichert. Gleiche `zahlung_id`s sind im gehärteten Backend 4.8.11
   idempotent; Stornos werden gegen die Originalzahlung geprüft.
   Das Eingangsdatum und der fachliche `mietmonat` werden getrennt gespeichert; dadurch
   kann eine verspätete Zahlung einem offenen Vormonat zugeordnet werden. Kautionen bleiben

@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.10
+ * Version: 4.8.11
  * Stand: 2026-11-12
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
@@ -116,8 +116,12 @@
  * Änderungen seit v4.8.9:
  * - Storno-Metadaten werden serverseitig aus der Originalzahlung übernommen
  * - Zahlungs-Schema und Mietmonat bleiben auch bei leeren Tabellenzeilen stabil
+ *
+ * Änderungen seit v4.8.10:
+ * - Legacy-Stornos übernehmen den effektiven Mietmonat aus dem Original-Eingangsdatum
+ * - Wiederholte Stornos werden nach serverseitiger Anreicherung idempotent verglichen
  */
-const BACKEND_VERSION = "4.8.10";
+const BACKEND_VERSION = "4.8.11";
 
 function sendJSON(obj) {
   return ContentService
@@ -711,17 +715,6 @@ function writePayments(ss, payloadData) {
   let alreadyPresent = 0;
   for (let index = 0; index < normalized.length; index++) {
     const item = normalized[index];
-    const existing = existingById[item.zahlung_id];
-    if (existing) {
-      const equivalent = ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id']
-        .every(header => getComparable(item, header) === rowComparable(existing, header));
-      if (!equivalent) {
-        return paymentError('PAYMENT_ID_CONFLICT', `Die zahlung_id ${item.zahlung_id} ist bereits mit anderen Daten gespeichert.`, { zahlung_id: item.zahlung_id });
-      }
-      alreadyPresent++;
-      continue;
-    }
-
     if (item.art === 'Storno') {
       const originalId = String(item.storno_von || '').trim();
       const original = recordsById[originalId];
@@ -737,20 +730,41 @@ function writePayments(ss, payloadData) {
       if (Math.abs(Number(original.betrag || 0) + Number(item.betrag || 0)) > 0.009) {
         return paymentError('STORNO_AMOUNT_MISMATCH', 'Das Storno muss den Originalbetrag mit umgekehrtem Vorzeichen ausgleichen.');
       }
-      if (stornoByOriginal[originalId]) {
+      if (stornoByOriginal[originalId] && stornoByOriginal[originalId] !== item.zahlung_id) {
         return paymentError('PAYMENT_ALREADY_STORNOED', 'Diese Zahlung wurde bereits storniert.', { storno_von: originalId });
       }
       // Storno-Metadaten stammen fachlich immer aus dem Original. Dadurch kann
       // ein fehlerhafter Client das Storno nicht einem anderen Mietmonat oder
       // einer anderen Zahlungsgruppe zuordnen.
-      ['mietmonat', 'gegen_art', 'zahlungsgruppe_id'].forEach(field => {
-        if (headers.indexOf(field) >= 0) item[field] = original[field] === undefined || original[field] === null ? '' : original[field];
-      });
-      if (headers.indexOf('gegen_art') >= 0 && isBlankValue(item.gegen_art)) {
-        item.gegen_art = normalizePaymentArt(original.art) || '';
+      if (headers.indexOf('mietmonat') >= 0) {
+        item.mietmonat = normalizePaymentMonth(original.mietmonat) || '';
+        const originalArt = normalizePaymentArt(original.art);
+        const originalGroup = String(original.zahlungsgruppe_id || '').trim();
+        if (!item.mietmonat && !originalGroup && originalArt !== 'Kaution') {
+          const originalDate = normalizePaymentDate(original.datum);
+          if (/^\d{4}-\d{2}-\d{2}$/.test(originalDate)) item.mietmonat = originalDate.slice(0, 7);
+        }
+      }
+      if (headers.indexOf('gegen_art') >= 0) {
+        item.gegen_art = normalizePaymentArt(original.gegen_art) || normalizePaymentArt(original.art) || '';
+      }
+      if (headers.indexOf('zahlungsgruppe_id') >= 0) {
+        item.zahlungsgruppe_id = String(original.zahlungsgruppe_id || '').trim();
       }
       stornoByOriginal[originalId] = item.zahlung_id;
     }
+
+    const existing = existingById[item.zahlung_id];
+    if (existing) {
+      const equivalent = ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id']
+        .every(header => getComparable(item, header) === rowComparable(existing, header));
+      if (!equivalent) {
+        return paymentError('PAYMENT_ID_CONFLICT', `Die zahlung_id ${item.zahlung_id} ist bereits mit anderen Daten gespeichert.`, { zahlung_id: item.zahlung_id });
+      }
+      alreadyPresent++;
+      continue;
+    }
+
     append.push(item);
     existingById[item.zahlung_id] = headers.map(header => getItemValueForHeader(item, header));
   }

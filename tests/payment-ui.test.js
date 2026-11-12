@@ -488,6 +488,26 @@ describe('paymentUiService CSV-Import', () => {
     expect(messages.at(-1)).toContain('Zahlungsbereich');
   });
 
+  it('lässt einen vorübergehenden Capability-Netzfehler in den Queue-fähigen Schreibweg durch', async () => {
+    let wrote = false;
+    const service = loadPaymentService(
+      baseState(),
+      { getElementById: () => null },
+      {
+        loadPaymentCapabilities: async () => { const error = new TypeError('Netzwerk getrennt'); throw error; },
+        isTransient: error => error instanceof TypeError,
+        saveTransaction: async () => { wrote = true; return { status: 'success', queued: true }; }
+      }
+    );
+    service.render = () => {};
+    service.showMessage = () => {};
+
+    const result = await service.persistPayment({ zahlung_id: 'QUEUE_AFTER_PREFLIGHT', vertrag_id: 'V1', datum: '2026-11-12', mietmonat: '2026-11', betrag: 650, art: 'Miete' });
+
+    expect(wrote).toBe(true);
+    expect(result).toMatchObject({ status: 'success', queued: true });
+  });
+
   it('sendet eine aufgeteilte Zahlung als mehrere Zeilen an den Schreibweg', async () => {
     let request;
     const state = baseState();

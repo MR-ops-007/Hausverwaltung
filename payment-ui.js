@@ -772,7 +772,14 @@ const paymentUiService = {
     try {
       if (typeof cloudService.loadPaymentCapabilities === 'function'
         && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
-        await cloudService.loadPaymentCapabilities();
+        try {
+          await cloudService.loadPaymentCapabilities();
+        } catch (error) {
+          // Bei einem vorübergehenden Netzfehler muss der eigentliche Schreibweg
+          // weiterlaufen, damit saveTransaction die Zahlung in die Offline-Queue
+          // legen kann. Schema- und Berechtigungsfehler bleiben blockierend.
+          if (typeof cloudService.isTransient !== 'function' || !cloudService.isTransient(error)) throw error;
+        }
       }
       const result = await cloudService.saveTransaction({ typ: 'ZAHLUNG', data: payments });
       if (!result || result.status !== 'success') throw new Error(result && result.message || 'Zahlung wurde nicht bestätigt.');

@@ -218,6 +218,34 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     expect(api.rows.Zahlungen[2]).toEqual(['STORNO_1', 'V1', '2026-11-11', -250, 'Storno', '2026-02', 'ORIGINAL_1', 'Miete', 'ZG_1']);
   });
 
+  it('ordnet das Storno einer historischen Altzahlung dem Eingangsmonat zu', () => {
+    const api = backend({
+      key: KEY,
+      paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id'],
+        ['LEGACY_1', 'V1', '2026-03-05', 650, 'Miete', '', '', '', '']]
+    });
+
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'STORNO_LEGACY_1', vertrag_id: 'V1', datum: '2026-11-12', mietmonat: '2026-11', betrag: -650, art: 'Storno', storno_von: 'LEGACY_1', gegen_art: 'Kaution' }]
+    })).toMatchObject({ status: 'success', angelegt: 1 });
+
+    expect(api.rows.Zahlungen[2]).toEqual(['STORNO_LEGACY_1', 'V1', '2026-11-12', -650, 'Storno', '2026-03', 'LEGACY_1', 'Miete', '']);
+  });
+
+  it('akzeptiert einen Retry desselben Stornos auch mit ungeeigneten Client-Metadaten', () => {
+    const api = backend({
+      key: KEY,
+      paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id'],
+        ['ORIGINAL_1', 'V1', '2026-02-05', 250, 'Miete', '', '', '', '']]
+    });
+    const payload = { typ: 'ZAHLUNG', key: KEY, data: [{ zahlung_id: 'STORNO_1', vertrag_id: 'V1', datum: '2026-11-12', mietmonat: '2026-11', betrag: -250, art: 'Storno', storno_von: 'ORIGINAL_1', gegen_art: 'Kaution' }] };
+
+    expect(api.post(payload)).toMatchObject({ status: 'success', angelegt: 1 });
+    expect(api.post(payload)).toMatchObject({ status: 'success', angelegt: 0, bereits_vorhanden: 1 });
+  });
+
   it('validiert den fachlichen Mietmonat und den Originalbetrag eines Stornos', () => {
     const api = backend({
       key: KEY,

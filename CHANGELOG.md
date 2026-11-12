@@ -32,7 +32,20 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
   in CI ergänzt.
 
 Diese Einträge ändern die produktive Apps-Script-Version nicht. PROD bleibt bei 4.8.5;
-die lokalen Backend-Erweiterungen 4.8.6 bis 4.8.10 stehen deshalb als eigene Versionseinträge oben.
+die lokalen Backend-Erweiterungen 4.8.6 bis 4.8.11 stehen deshalb als eigene Versionseinträge oben.
+
+## 4.8.11 · 2026-11-12 · lokal
+
+P6-Hardening-Follow-up für historische Stornos und vorübergehende Netzfehler.
+
+- Ein Storno einer historischen Zahlung ohne `mietmonat` und ohne Zahlungsgruppe erhält
+  den fachlichen Monat aus dem ursprünglichen Eingangsdatum. Kautionen und bewusstes Guthaben
+  bleiben ohne Mietmonat.
+- Storno-Metadaten werden vor der Idempotenzprüfung normalisiert; derselbe Retry wird auch bei
+  abweichenden Client-Metadaten als bereits vorhanden erkannt.
+- Ein transienter Fehler beim Capability-Preflight blockiert den bestehenden Queue-fähigen
+  Schreibweg nicht mehr.
+- Die Version ist noch nicht in Apps Script bereitgestellt.
 
 ## 4.8.10 · 2026-11-12 · lokal
 

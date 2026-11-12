@@ -46,7 +46,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 - P6/P7 laufen auf `codex/p6-payment-hardening`: Die neue Mieteingangsansicht bietet eine
   Monatsmatrix, Teilzahlungen, fachliche Mietmonate, Kautionen, Überfälligkeit,
   Storno-Gegenbuchungen und einen lokalen CSV-Import mit manueller Vertragszuordnung.
-  Der Hardening-Branch umfasst aktuell 456 Tests. Altzahlungen, explizites Guthaben,
+  Der Hardening-Branch umfasst aktuell 459 Tests. Altzahlungen, explizites Guthaben,
   stabile Zahlungs- und Storno-IDs, serverseitige Storno-Prüfungen und das
   `payment_schema_ready`-Capability-Gate sind ergänzt. Der lokale Mock enthält wiederverwendbare
   synthetische Verbrauchsviews für Strom, Kaltwasser, Warmwasser und Heizöl sowie
@@ -56,7 +56,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Mitmieter, unterschiedliche Kautionsstände und individuelle Zahlungsfristen ab.
   Erstattungen beeinflussen den Mietstatus nicht; Nachzahlungen
   werden dem gewählten Mietmonat zugerechnet. Der Vertrags-Schreibweg kennt ab
-  Apps Script 4.8.10 Zahlungsziele als Werktag oder Kalendertag sowie Zahlungsgruppen
+  Apps Script 4.8.11 Zahlungsziele als Werktag oder Kalendertag sowie Zahlungsgruppen
   für aufgeteilte Eingänge; diese Version ist noch
   nicht produktiv bereitgestellt. Für den Zahlungsweg ist mindestens Apps Script 4.8.6 erforderlich; die
   produktive 4.8.5 wurde nicht verändert.

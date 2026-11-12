@@ -2,11 +2,11 @@
 
 Stand: 2026-11-12
 
-## Mieteingänge und Backend 4.8.10
+## Mieteingänge und Backend 4.8.11
 
 Der Branch `codex/p6-payment-hardening` baut auf `codex/p6-mieteingaenge` auf und enthält
 den gehärteten Mieteingangs- und CSV-Import-Ausbau. Vor einer Bereitstellung muss
-`apps-script/Code.gs` als neue Version 4.8.10
+`apps-script/Code.gs` als neue Version 4.8.11
 in der bestehenden TEST-Bereitstellung veröffentlicht und mit einem Erfassungs-
 Schlüssel geprüft werden. Danach folgt derselbe Ablauf für PROD. Eine alte 4.8.5-
 Bereitstellung bleibt als Rollback erhalten.
@@ -67,7 +67,7 @@ nicht zweimal storniert werden. Die UI verwendet dafür `Storno_<zahlung_id>` al
 idempotente Kennung. Neue Zahlungen und Zahlungsgruppen erhalten pro Benutzeraktion
 neue IDs, damit zwei gleiche Eingänge nicht versehentlich als Duplikat gelten.
 
-Der Hardening-Stand ist Backend 4.8.10 lokal und noch nicht produktiv bereitgestellt.
+Der Hardening-Stand ist Backend 4.8.11 lokal und noch nicht produktiv bereitgestellt.
 Für die Speicherung der beiden neuen Vertragsfelder muss einmalig die ausdrücklich
 manuell aufzurufende Funktion `prepareContractSchema()` ausgeführt werden. Für die
 Zahlungsaufteilung muss zusätzlich einmalig `preparePaymentSchema()` ausgeführt werden.
@@ -119,7 +119,7 @@ Der Mock enthält außerdem Strom-, Kaltwasser-, Warmwasser- und Heizöl-Verbrau
 für 2025 und 2026 sowie Audit- und Bilanzzeilen. Die Fixture-Quelle liegt in
 `tools/mock-consumption-fixtures.mjs` und wird beim Neustart reproduzierbar neu geladen.
 Für den produktiven Schreibweg müssen die optionalen Spalten `mietmonat`, `storno_von`,
-`gegen_art` und `zahlungsgruppe_id` im Blatt `Zahlungen` vorhanden sein; fehlen sie, lehnt Backend 4.8.10 den
+`gegen_art` und `zahlungsgruppe_id` im Blatt `Zahlungen` vorhanden sein; fehlen sie, lehnt Backend 4.8.11 den
 erweiterten Datensatz verständlich mit `PAYMENT_SCHEMA_MISSING` ab, statt die Zuordnung
 still zu verlieren.
 
