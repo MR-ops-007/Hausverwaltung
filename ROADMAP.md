@@ -338,6 +338,36 @@ zwei Hauptmieter in einer Einheit. Der Mock schreibt ausschließlich in seinen P
 **Voraussetzung:** P6 läuft im Alltag und das Zahlungsdatenmodell ist erprobt. Die konkrete
 Bank und das verfügbare Exportformat werden erst vor Beginn von P7 geprüft.
 
+### Folgepakete für P6/P7
+
+Die folgenden Punkte sind bewusst als kleine, voneinander trennbare Pakete vorgemerkt. Sie
+werden erst nach der TEST-Abnahme des Hardening-Stands begonnen. Ziel bleibt ein pragmatischer
+Arbeitsablauf; keine automatische Nebenkostenabrechnung, kein Mahnwesen und keine direkte
+Bankanbindung werden daraus abgeleitet.
+
+**Reihenfolge:**
+
+1. **P6.1 Dublettenwarnung:** Weiche Warnung bei gleicher Vertrags-ID, gleichem Eingangsdatum,
+   Betrag und fachlichem Mietmonat. Die Buchung bleibt nach Bestätigung möglich; bestehende
+   idempotente IDs und Storno-Regeln werden nicht verändert. Für CSV und manuelle Erfassung
+   müssen dieselben Vergleichsregeln gelten.
+2. **P6.2 Gemeinsame Zahlungsregeln:** Die fachlichen Pure Functions für Mietmonat, Guthaben,
+   Erstattung, Storno und Statusberechnung zwischen Backend und Mock vereinheitlichen oder
+   aus einer gemeinsamen testbaren Quelle ableiten. Ziel ist, Copy-Paste-Abweichungen zu
+   vermeiden, ohne die Apps-Script-Architektur unnötig umzubauen.
+3. **P7.1 CSV-Monatsparser:** Verwendungszwecke wie `Miete Februar 2026` und `02/2026`
+   erkennen, Datumsangaben nicht fälschlich als Mietmonat interpretieren und die Quelle des
+   Vorschlags anzeigen. Unklare Fälle bleiben bestätigungspflichtig.
+4. **P6.3 Zahlungsfachlichkeit:** Soll-Historie bei Mieterhöhungen ergänzen und die offenen
+   Fachregeln für Nachforderungen, Guthabenumbuchungen sowie Erstattungen im Saldo festlegen.
+   Erst danach werden diese Fälle in die Status- und Übersichtsberechnung aufgenommen.
+5. **P6.4 Zahlungsfristen:** Werktagsregeln belastbar machen. Samstag und Sonntag bleiben
+   ausgeschlossen; gesetzliche Feiertage werden nur für das relevante Bundesland und Objekt
+   berücksichtigt. Individuelle Vertragsvereinbarungen bleiben vorrangig.
+6. **P6.5 Kautionslebenszyklus:** Kaution nach Auszug, Rückzahlung und teilweise einbehaltene
+   Beträge separat abbilden. Die bestehende Kautionsübersicht bleibt von Mietstatus und
+   Mietmonaten getrennt.
+
 ## Zurückgestellt
 
 - LOK-/TEST-Smoke-Test mit Live-Daten, bis für diese Objekte echte Verbrauchsdaten vorliegen.
