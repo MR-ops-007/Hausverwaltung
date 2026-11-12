@@ -485,6 +485,8 @@ const paymentUiService = {
     const section = document.getElementById('payments-section');
     if (section) section.style.display = 'block';
     if (typeof uiService !== 'undefined' && typeof uiService.setNavigationState === 'function') uiService.setNavigationState('payments');
+    const currentObject = typeof uiService !== 'undefined' ? String(uiService.currentSelection || '') : '';
+    if (currentObject) this.selectedObject = currentObject;
     this.render();
   },
 
@@ -494,7 +496,10 @@ const paymentUiService = {
     const years = this.getYears();
     if (!this.selectedYear || !years.includes(String(this.selectedYear))) this.selectedYear = years[0];
     const objectIds = Array.from(new Set(this.getContracts().map(contract => this.objectId(contract))));
-    if (!this.selectedObject || !objectIds.includes(this.selectedObject)) this.selectedObject = objectIds[0] || '';
+    const currentObject = typeof uiService !== 'undefined' ? String(uiService.currentSelection || '') : '';
+    if (!this.selectedObject || !objectIds.includes(this.selectedObject)) {
+      this.selectedObject = objectIds.includes(currentObject) ? currentObject : (objectIds[0] || '');
+    }
     const contracts = this.getContracts(this.selectedObject);
     const matrix = this.buildMatrix({ contracts, payments: dataService.state.zahlungen || [], year: this.selectedYear });
     const overview = this.summarizeOverview(matrix, this.selectedYear);

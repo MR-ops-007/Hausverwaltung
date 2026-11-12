@@ -166,6 +166,18 @@
             if (fullData) {
                 dataService.setInitialData(fullData);
 
+                // A view opened while the background request was running may have
+                // rendered with the fast dashboard data. Refresh it after the full
+                // contract/payment state has arrived.
+                if (document.getElementById('contracts-section')?.style.display === 'block'
+                    && typeof contractUiService !== 'undefined') {
+                    contractUiService.render();
+                }
+                if (document.getElementById('payments-section')?.style.display === 'block'
+                    && typeof paymentUiService !== 'undefined') {
+                    paymentUiService.render();
+                }
+
                 if (statusEl) {
                     statusEl.textContent = "✅ System vollständig geladen (" + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ")";
                     statusEl.style.color = "green";

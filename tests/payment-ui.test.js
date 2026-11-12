@@ -3,9 +3,9 @@ import { readFileSync } from 'node:fs';
 
 const paymentCode = readFileSync(new URL('../payment-ui.js', import.meta.url), 'utf8');
 
-function loadPaymentService(state, document = {}, cloudService = {}) {
+function loadPaymentService(state, document = {}, cloudService = {}, uiOptions = {}) {
   const dataService = { state: { ...state } };
-  const uiService = { escapeHtml: value => String(value ?? ''), setNavigationState() {}, closeModal() {} };
+  const uiService = { escapeHtml: value => String(value ?? ''), setNavigationState() {}, closeModal() {}, ...uiOptions };
   const confirm = () => true;
   const factory = new Function('dataService', 'uiService', 'document', 'cloudService', 'confirm', `${paymentCode}; return paymentUiService;`);
   return factory(dataService, uiService, document, cloudService, confirm);
@@ -443,6 +443,38 @@ describe('paymentUiService CSV-Import', () => {
     expect(output.innerHTML).toContain('Überfällig');
     expect(output.innerHTML).toContain('Guthaben / Überzahlungen');
     expect(output.innerHTML).toContain('Kontoauszug als CSV');
+  });
+
+  it('übernimmt beim Öffnen den zuvor gewählten Objektkontext', () => {
+    const output = { innerHTML: '' };
+    const service = loadPaymentService(baseState({
+      objekte: [
+        { objekt_id: 'O1', bezeichnung: 'Hauptstraße 29' },
+        { objekt_id: 'O2', bezeichnung: 'TEST · Entenhausen' }
+      ],
+      einheiten: [
+        { einheit_id: 'O1_WE_01', objekt_id: 'O1', nummer: 'Wohnung 1' },
+        { einheit_id: 'O2_WE_01', objekt_id: 'O2', nummer: 'Wohnung 2' }
+      ],
+      vertraege: [
+        { vertrag_id: 'V1', einheit_id: 'O1_WE_01', hauptperson_id: 'P1', aktiv: true, soll_gesamt: 650 },
+        { vertrag_id: 'V2', einheit_id: 'O2_WE_01', hauptperson_id: 'P1', aktiv: true, soll_gesamt: 800 }
+      ],
+      zahlungen: [{ zahlung_id: 'P2', vertrag_id: 'V2', datum: '2026-11-11', mietmonat: '2026-11', betrag: 800, art: 'Miete' }]
+    }), {
+      getElementById(id) {
+        if (id === 'payments-output') return output;
+        return { style: {} };
+      }
+    }, {}, { currentSelection: 'O2' });
+
+    service.selectedObject = 'O1';
+    service.show();
+
+    expect(service.selectedObject).toBe('O2');
+    expect(output.innerHTML).toContain('Wohnung 2');
+    expect(output.innerHTML).toContain('800,00 EUR / Monat');
+    expect(output.innerHTML).not.toContain('Wohnung 1');
   });
 
   it('zeigt den Kautionsstatus prominent in der Vertragsübersicht', () => {

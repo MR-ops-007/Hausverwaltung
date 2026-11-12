@@ -38,4 +38,14 @@ describe('GitHub-Pages-Build', () => {
     }
     expect(workflow).toContain('node tools/check-frontend-assets.mjs --root=dist-site');
   });
+
+  it('aktualisiert sichtbare Verträge und Mieteingänge nach dem Hintergrundladen', () => {
+    const fullDataIndex = index.indexOf('dataService.setInitialData(fullData)');
+    const contractRefreshIndex = index.indexOf('contractUiService.render()', fullDataIndex);
+    const paymentRefreshIndex = index.indexOf('paymentUiService.render()', fullDataIndex);
+
+    expect(fullDataIndex).toBeGreaterThan(-1);
+    expect(contractRefreshIndex).toBeGreaterThan(fullDataIndex);
+    expect(paymentRefreshIndex).toBeGreaterThan(fullDataIndex);
+  });
 });

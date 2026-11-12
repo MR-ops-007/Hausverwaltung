@@ -29,6 +29,8 @@ Monat bis zum Tageswechsel offen und wird nicht wegen der aktuellen Uhrzeit vorz
 als überfällig markiert.
 
 Die Mieteingangsansicht zeigt die konkrete Frist im Zell-Tooltip und im Erfassungsdialog.
+Beim Wechsel aus der Objektauswahl übernimmt die Ansicht automatisch dieses Objekt; die
+fachliche Verknüpfung der Zeilen erfolgt weiterhin ausschließlich über `vertrag_id`.
 `Miete` ist der reguläre Monatsbetrag, `Nachzahlung` ein zusätzlicher Ausgleich für den
 ausgewählten Mietmonat. `Erstattung` ist eine negative Rückzahlung an den Mieter und
 wird separat geführt; sie macht einen zuvor vollständig bezahlten Monat nicht wieder

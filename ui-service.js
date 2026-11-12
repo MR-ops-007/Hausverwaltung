@@ -2044,6 +2044,7 @@ const uiService = {
   },
 
   selectObject(objId) {
+    this.currentSelection = String(objId || '');
     const tenantList = document.getElementById('tenant-list');
     const selectorSection = document.getElementById('object-selector-section');
     const unitSection = document.getElementById('unit-list-section');
