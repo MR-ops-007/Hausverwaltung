@@ -281,7 +281,7 @@ Ziel ist Kostenkontrolle bei Pauschalen, ausdrücklich kein Nebenkostenabrechnun
 
 ### P6 Mieteingänge manuell
 
-**Status:** fachlich umgesetzt, Release-Hardening auf `codex/p6-payment-hardening` vor dem Merge.
+**Status:** fachlich umgesetzt, Release-Hardening auf `codex/p6-payment-hardening`; Backend 4.8.12 ist im TEST-Deployment veröffentlicht und fachlich abgenommen.
 Die aktuelle Einzelprüfung von Matrix, Mietmonat, Status, Kaution und Objektverknüpfung ist in
 [`docs/p6-testprotokoll-20261113.md`](docs/p6-testprotokoll-20261113.md) dokumentiert.
 
@@ -311,7 +311,7 @@ Erfassungsmodul, kein Mahnwesen und keine Nebenkostenabrechnung.
 - `vertrag_capabilities` meldet, ob das Zahlungsschema vollständig vorbereitet ist;
   die UI schreibt nicht, wenn `payment_schema_ready` fehlt. Mock und Apps-Script prüfen
   die gleichen Zahlungsarten, Mietmonate, Konflikte und Storno-Regeln.
-- Der Backend-Schreibweg wird dafür auf 4.8.11 angehoben. Die produktive 4.8.5 bleibt
+- Der Backend-Schreibweg ist dafür auf 4.8.12 angehoben. Die produktive 4.8.5 bleibt
   unverändert, bis die neue Apps-Script-Version manuell bereitgestellt und geprüft ist.
 
 **Voraussetzung:** P1.1/P1.2 Rollen und Geräteeinrichtung sind produktiv geprüft.

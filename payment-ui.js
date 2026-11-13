@@ -46,6 +46,13 @@ const paymentUiService = {
     if (value instanceof Date && !Number.isNaN(value.getTime())) return new Date(value.getTime());
     if (value === null || value === undefined || String(value).trim() === '') return null;
     const text = String(value).trim();
+    // Google Sheets kann ein als Datum interpretiertes mietmonat als ISO-Zeitstempel
+    // liefern. Den Offset muss die Laufzeit berücksichtigen, sonst wird z. B.
+    // 2026-08-31T22:00:00Z fälschlich als August statt als September gelesen.
+    if (/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:?\d{2})$/.test(text)) {
+      const timestamp = new Date(text);
+      if (!Number.isNaN(timestamp.getTime())) return timestamp;
+    }
     let match = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/);
     if (match) return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4] || 0), Number(match[5] || 0), Number(match[6] || 0));
     match = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
@@ -209,6 +216,10 @@ const paymentUiService = {
     if (value instanceof Date && !Number.isNaN(value.getTime())) return this.monthKey(value);
     const text = String(value ?? '').trim();
     if (!text) return '';
+    if (/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:?\d{2})$/.test(text)) {
+      const timestamp = this.parseDate(text);
+      return timestamp ? this.monthKey(timestamp) : '';
+    }
     const iso = text.match(/^(\d{4})-(\d{2})(?:-\d{2})?/);
     if (iso && Number(iso[2]) >= 1 && Number(iso[2]) <= 12) return `${iso[1]}-${iso[2]}`;
     const german = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);

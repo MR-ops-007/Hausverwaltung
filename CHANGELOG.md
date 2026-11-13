@@ -33,8 +33,19 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
   in CI ergänzt.
 
 Diese Einträge ändern die produktive Apps-Script-Version nicht. PROD bleibt bei 4.8.5;
-die lokalen Backend-Erweiterungen 4.8.6 bis 4.8.10 sowie der TEST-Stand 4.8.11 stehen deshalb
+die lokalen Backend-Erweiterungen 4.8.6 bis 4.8.10 sowie die TEST-Stände 4.8.11 und 4.8.12 stehen deshalb
 als eigene Versionseinträge oben.
+
+## 4.8.12 · 2026-11-13 · test
+
+Korrektur der fachlichen Mietmonate im Zahlungs-Schreibweg.
+
+- Neue `mietmonat`-Werte werden im Apps Script nach dem Anhängen nochmals als Text
+  im Format `YYYY-MM` geschrieben.
+- Die UI interpretiert aus Google Sheets gelieferte ISO-Datumswerte in der Zeitzone
+  `Europe/Berlin`, damit ein Monatswechsel um Mitternacht nicht falsch zugeordnet wird.
+- Die bestehende TEST-Bereitstellung wurde aktualisiert; `vertrag_capabilities` liefert
+  `payment_schema_ready: true`, PROD bleibt unverändert auf 4.8.5.
 
 ## 4.8.11 · 2026-11-12 · test
 

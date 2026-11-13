@@ -1,7 +1,7 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.11
- * Stand: 2026-11-12
+ * Version: 4.8.12
+ * Stand: 2026-11-13
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
  * Änderungen seit v4.1:
@@ -120,8 +120,11 @@
  * Änderungen seit v4.8.10:
  * - Legacy-Stornos übernehmen den effektiven Mietmonat aus dem Original-Eingangsdatum
  * - Wiederholte Stornos werden nach serverseitiger Anreicherung idempotent verglichen
+ *
+ * Änderungen seit v4.8.11:
+ * - Neue mietmonat-Werte werden beim Schreiben ausdrücklich als Text YYYY-MM gespeichert
  */
-const BACKEND_VERSION = "4.8.11";
+const BACKEND_VERSION = "4.8.12";
 
 function sendJSON(obj) {
   return ContentService
@@ -769,7 +772,7 @@ function writePayments(ss, payloadData) {
     existingById[item.zahlung_id] = headers.map(header => getItemValueForHeader(item, header));
   }
 
-  append.forEach(item => sheet.appendRow(headers.map(header => getItemValueForHeader(item, header))));
+  append.forEach(item => appendPaymentRow(sheet, headers, item));
   if (append.length > 0) updateAktiveMieterView();
 
   return {
@@ -778,6 +781,16 @@ function writePayments(ss, payloadData) {
     angelegt: append.length,
     bereits_vorhanden: alreadyPresent
   };
+}
+
+function appendPaymentRow(sheet, headers, item) {
+  sheet.appendRow(headers.map(header => getItemValueForHeader(item, header)));
+  const monthColumn = headers.indexOf('mietmonat');
+  if (monthColumn < 0 || typeof sheet.getLastRow !== 'function' || typeof sheet.getRange !== 'function') return;
+
+  const monthCell = sheet.getRange(sheet.getLastRow(), monthColumn + 1);
+  if (monthCell && typeof monthCell.setNumberFormat === 'function') monthCell.setNumberFormat('@');
+  if (monthCell && typeof monthCell.setValue === 'function') monthCell.setValue(String(item.mietmonat || ''));
 }
 
 function paymentError(code, message, extra) {

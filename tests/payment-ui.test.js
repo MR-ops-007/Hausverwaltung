@@ -116,6 +116,12 @@ describe('paymentUiService Monatsstatus', () => {
     expect(service.getEffectivePaymentMonth({ mietmonat: new Date(2026, 1, 1), datum: '2026-11-11' })).toBe('2026-02');
   });
 
+  it('normalisiert ISO-Datumswerte aus Google Sheets in deutscher Zeitzone', () => {
+    const service = loadPaymentService(baseState());
+    expect(service.getPaymentMonth({ mietmonat: '2026-08-31T22:00:00.000Z' })).toBe('2026-09');
+    expect(service.formatDate('2026-11-12T23:00:00.000Z')).toBe('13.11.2026');
+  });
+
   it('ordnet ein Altzahlungs-Storno im lokalen State sofort dem Originalmonat zu', async () => {
     let request;
     const service = loadPaymentService(baseState({ zahlungen: [

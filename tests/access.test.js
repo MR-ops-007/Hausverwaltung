@@ -14,7 +14,20 @@ function backend({ key, accessKeys, paymentRows } = {}) {
     getName: () => name,
     getDataRange: () => ({ getValues: () => values.map(row => row.slice()) }),
     getLastColumn: () => values[0].length,
-    getRange: () => ({ getValues: () => [values[0].slice()] }),
+    getLastRow: () => values.length,
+    getRange: (...args) => {
+      if (args.length === 0) return { getValues: () => [values[0].slice()] };
+      const row = args[0] || 1;
+      const column = args[1] || 1;
+      const rowCount = args[2] || 1;
+      const columnCount = args[3] || 1;
+      return {
+        getValues: () => values.slice(row - 1, row - 1 + rowCount)
+          .map(currentRow => currentRow.slice(column - 1, column - 1 + columnCount)),
+        setNumberFormat: () => {},
+        setValue: value => { values[row - 1][column - 1] = value; }
+      };
+    },
     appendRow: row => { values.push(row); }
   });
   const sheets = {
@@ -285,6 +298,19 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
       key: KEY,
       data: [{ zahlung_id: 'REFUND_2', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-02', betrag: 25, art: 'Erstattung' }]
     })).toMatchObject({ status: 'error' });
+  });
+
+  it('speichert neue Mietmonate als Text und nicht als Sheet-Datum', () => {
+    const api = backend({
+      key: KEY,
+      paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id']]
+    });
+
+    expect(api.post({
+      typ: 'ZAHLUNG', key: KEY,
+      data: [{ zahlung_id: 'TEXT_MONTH', vertrag_id: 'V1', datum: '2026-11-13', mietmonat: '2026-09', betrag: 150, art: 'Miete' }]
+    })).toMatchObject({ status: 'success', angelegt: 1 });
+    expect(api.rows.Zahlungen[1][5]).toBe('2026-09');
   });
 
   it('aktualisiert Verbrauchsviews nur mit richtigem Schlüssel', () => {
