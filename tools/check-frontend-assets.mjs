@@ -39,10 +39,12 @@ if (!existsSync(indexPath)) {
 }
 
 const references = collectLocalReferences(readFileSync(indexPath, 'utf8'));
-// Nur runtime-config.js wird im Pages-Build erzeugt. runtime-secrets.js ist
-// bewusst eine lokale Datei und darf niemals ins öffentliche Artefakt gelangen.
+// runtime-secrets.js ist bewusst lokal und darf im Repository-Root wie im
+// Pages-Artefakt fehlen. Nur runtime-config.js wird im Pages-Build erzeugt.
+const optionalLocalFiles = new Set(['runtime-secrets.js']);
 const generatedInPagesBuild = new Set(['runtime-config.js']);
 const missing = references.filter((reference) => {
+  if (optionalLocalFiles.has(reference)) return false;
   if (root === repositoryRoot && generatedInPagesBuild.has(reference)) return false;
   return !existsSync(join(root, normalize(reference)));
 });
