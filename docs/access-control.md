@@ -74,6 +74,10 @@ Zeilen) und meldet „Version 4.8.0 erforderlich“, liefert aber keine Daten.
 - Ein neuer Schlüssel muss pro Gerät einmal hinterlegt werden. Er liegt pro Browser im
   `localStorage` (`hv_access_key:test` beziehungsweise `hv_access_key:production`). Entfernen über die
   Browserdaten der Seite.
+- Eine lokale Schlüsseldatei (`runtime-secrets.js`) ist ausschließlich für die TEST-Abnahme vorgesehen.
+  Das Frontend ignoriert dort hinterlegte Werte außerhalb der TEST-Umgebung. Der GitHub-Pages-Workflow
+  erzeugt nur `runtime-config.js` und kopiert `runtime-secrets.js` weder ins öffentliche Artefakt noch
+  aus Repository-Variablen hinein.
 
 ## Offline-Queue
 

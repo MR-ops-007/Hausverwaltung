@@ -55,6 +55,13 @@ describe('Lesen per POST mit Zugangsschlüssel', () => {
     expect(store).toEqual({ 'hv_access_key:test': 'local-test-key' });
   });
 
+  it('ignoriert lokale Zugangsschlüssel außerhalb der TEST-Umgebung', () => {
+    const { cloud, store } = loadCloud({ environment: 'production', runtimeSecrets: { production: 'should-not-be-used' } });
+    expect(cloud.getLocalConfiguredAccessKey()).toBe('');
+    expect(cloud.getAccessKey()).toBe('');
+    expect(store).toEqual({});
+  });
+
   it('meldet eine fehlende Laufzeitkonfiguration vor dem Netzwerkzugriff', async () => {
     const { cloud, fetch } = loadCloud({ apiUrl: '' });
     await expect(cloud.loadDashboardData()).rejects.toMatchObject({ code: 'CONFIGURATION_ERROR' });

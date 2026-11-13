@@ -39,7 +39,9 @@ if (!existsSync(indexPath)) {
 }
 
 const references = collectLocalReferences(readFileSync(indexPath, 'utf8'));
-const generatedInPagesBuild = new Set(['runtime-config.js', 'runtime-secrets.js']);
+// Nur runtime-config.js wird im Pages-Build erzeugt. runtime-secrets.js ist
+// bewusst eine lokale Datei und darf niemals ins öffentliche Artefakt gelangen.
+const generatedInPagesBuild = new Set(['runtime-config.js']);
 const missing = references.filter((reference) => {
   if (root === repositoryRoot && generatedInPagesBuild.has(reference)) return false;
   return !existsSync(join(root, normalize(reference)));

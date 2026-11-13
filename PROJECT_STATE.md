@@ -1,6 +1,6 @@
 # PROJECT_STATE - Hausverwaltung
 
-## Stand: 2026-11-12
+## Stand: 2026-11-13
 
 `main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz 4.8.5 ist in TEST und PROD produktiv aktiviert.
 
@@ -46,7 +46,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 - P6/P7 laufen auf `codex/p6-payment-hardening`: Die neue Mieteingangsansicht bietet eine
   Monatsmatrix, Teilzahlungen, fachliche Mietmonate, Kautionen, Überfälligkeit,
   Storno-Gegenbuchungen und einen lokalen CSV-Import mit manueller Vertragszuordnung.
-  Der Hardening-Branch umfasst aktuell 464 Tests. Das Testprotokoll vom 2026-11-13 dokumentiert
+  Der Hardening-Branch umfasst aktuell 466 Tests. Das Testprotokoll vom 2026-11-13 dokumentiert
   zusätzlich die Browserprüfung der TEST-Vertrags- und Zahlungszuordnung. Altzahlungen, explizites Guthaben,
   stabile Zahlungs- und Storno-IDs, serverseitige Storno-Prüfungen und das
   `payment_schema_ready`-Capability-Gate sind ergänzt. Der lokale Mock enthält wiederverwendbare
@@ -61,6 +61,9 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   für aufgeteilte Eingänge; Backend 4.8.11 ist in TEST bereitgestellt, PROD bleibt bis zur
   fachlichen Abnahme auf 4.8.5. Für den Zahlungsweg ist mindestens Apps Script 4.8.6 erforderlich; die
   produktive 4.8.5 wurde nicht verändert.
+- Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
+  erzeugt und veröffentlicht ausschließlich `runtime-config.js`; `runtime-secrets.js` bleibt lokal und
+  wird durch einen negativen Workflow-Test gegen versehentliche Veröffentlichung geschützt.
 - P1.1 ist mit PR #32 abgeschlossen: Zugriff ist fail-closed, `GET` liefert nie Daten und
   `APP_ACCESS_KEYS_JSON` unterstützt die Rollen `admin` und `erfassen`. Die produktiven und
   synthetischen Bereitstellungen verwenden getrennte Script Properties.

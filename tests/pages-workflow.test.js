@@ -32,6 +32,12 @@ describe('GitHub-Pages-Build', () => {
     expect(workflow).not.toContain('CONTRACT_WRITE_TOKEN');
   });
 
+  it('kopiert oder erzeugt keine lokalen Zugangsschlüssel im Pages-Artefakt', () => {
+    expect(workflow).not.toContain('runtime-secrets.js');
+    expect(workflow).not.toContain('HV_TEST_ACCESS_KEY');
+    expect(workflow).not.toContain('HV_PROD_ACCESS_KEY');
+  });
+
   it('kopiert jedes statische Script aus index.html in das Pages-Artefakt', () => {
     for (const source of staticScripts) {
       expect(workflow, `Pages-Workflow kopiert ${source} nicht`).toContain(source);

@@ -29,6 +29,9 @@ const cloudService = {
 
     getLocalConfiguredAccessKey() {
         const environment = CONFIG && CONFIG.ENVIRONMENT;
+        // Lokale Schlüssel sind ausschließlich für die TEST-Abnahme zulässig.
+        // Ein versehentlich befüllter Produktionswert darf niemals verwendet werden.
+        if (environment !== 'test') return '';
         const keys = CONFIG && CONFIG.LOCAL_ACCESS_KEYS;
         if (!environment || !keys || typeof keys !== 'object') return '';
         return String(keys[environment] || '').trim();
