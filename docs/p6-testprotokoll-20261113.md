@@ -12,9 +12,9 @@ Sortierung der Google-Sheets sind dafür nicht relevant.
 
 ## Ergebnisübersicht
 
-- `npm test`: **20 Testdateien, 471 Tests grün**.
+- `npm test`: **20 Testdateien, 472 Tests grün**.
 - `git diff --check`: **grün**.
-- `tests/payment-ui.test.js`: **40 Tests grün**.
+- `tests/payment-ui.test.js`: **41 Tests grün**.
 - Browserprüfung: **TEST-Daten sichtbar und fachlich zugeordnet**.
 - Kein fachlicher Blocker im geprüften Umfang.
 

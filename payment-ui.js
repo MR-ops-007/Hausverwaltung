@@ -11,6 +11,7 @@ const paymentUiService = {
   selectedYear: '',
   busy: false,
   importRows: [],
+  retryingFullData: false,
   actionSequence: 0,
   pendingPaymentIntent: null,
   DEFAULT_PAYMENT_DEADLINE_TYPE: 'WERKTAG',
@@ -501,9 +502,26 @@ const paymentUiService = {
   renderLoadingState() {
     const output = document.getElementById('payments-output');
     if (output) {
+      const accessHint = dataService.state.fullDataErrorCode === 'UNAUTHORIZED'
+        ? '<span>Bitte den Zugangsschlüssel prüfen und anschließend erneut laden.</span>'
+        : '<span>Die Zahlungserfassung ist deshalb gesperrt.</span>';
       output.innerHTML = dataService.state.fullDataError
-        ? '<div class="payment-loading payment-loading-error" role="alert"><strong>Zahlungsdaten konnten nicht vollständig geladen werden.</strong><span>Die Zahlungserfassung ist deshalb gesperrt.</span><button class="btn-primary" type="button" onclick="initApp()">Erneut laden</button></div>'
+        ? `<div class="payment-loading payment-loading-error" role="alert"><strong>Zahlungsdaten konnten nicht vollständig geladen werden.</strong>${accessHint}<button class="btn-primary" type="button" onclick="paymentUiService.retryFullDataLoad()">Erneut laden</button></div>`
         : '<div class="payment-loading" role="status">Zahlungsdaten werden noch vollständig geladen. Die Erfassung wird gleich freigeschaltet.</div>';
+    }
+  },
+
+  async retryFullDataLoad() {
+    if (this.retryingFullData) return null;
+    this.retryingFullData = true;
+    dataService.state.fullDataError = false;
+    dataService.state.fullDataErrorCode = '';
+    this.renderLoadingState();
+    try {
+      if (typeof initApp === 'function') return await initApp();
+      return null;
+    } finally {
+      this.retryingFullData = false;
     }
   },
 

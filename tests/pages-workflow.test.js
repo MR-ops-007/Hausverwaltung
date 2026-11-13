@@ -53,5 +53,7 @@ describe('GitHub-Pages-Build', () => {
     expect(fullDataIndex).toBeGreaterThan(-1);
     expect(contractRefreshIndex).toBeGreaterThan(fullDataIndex);
     expect(paymentRefreshIndex).toBeGreaterThan(fullDataIndex);
+    expect(index).toContain('FULL_DATA_EMPTY');
+    expect(index).toContain('dataService.state.fullDataError = true');
   });
 });

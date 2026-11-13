@@ -21,6 +21,7 @@ function baseState(overrides = {}) {
     zahlungen: [],
     fullDataLoaded: true,
     fullDataError: false,
+    fullDataErrorCode: '',
     ...overrides
   };
 }
@@ -495,6 +496,20 @@ describe('paymentUiService CSV-Import', () => {
     expect(output.innerHTML).toContain('Zahlungserfassung ist deshalb gesperrt');
     expect(output.innerHTML).toContain('Erneut laden');
     expect(output.innerHTML).not.toContain('gleich freigeschaltet');
+  });
+
+  it('weist bei abgelehntem Schlüssel auf die Zugangsdaten hin', () => {
+    const output = { innerHTML: '' };
+    const service = loadPaymentService(baseState({ fullDataLoaded: false, fullDataError: true, fullDataErrorCode: 'UNAUTHORIZED' }), {
+      getElementById(id) {
+        return id === 'payments-output' ? output : null;
+      }
+    });
+
+    service.render();
+
+    expect(output.innerHTML).toContain('Zugangsschlüssel prüfen');
+    expect(output.innerHTML).toContain('retryFullDataLoad');
   });
 
   it('übernimmt beim Öffnen den zuvor gewählten Objektkontext', () => {

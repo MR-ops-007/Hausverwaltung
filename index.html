@@ -163,7 +163,8 @@
 
             // STUFE 2: Hintergrund-Ladevorgang (der schwere Rest)
             const fullData = await cloudService.loadBackgroundData();
-            if (fullData) {
+            if (fullData && typeof fullData === 'object' && !Array.isArray(fullData)
+                && Object.keys(fullData).length > 0) {
                 dataService.setInitialData(fullData);
 
                 // A view opened while the background request was running may have
@@ -182,6 +183,10 @@
                     statusEl.textContent = "✅ System vollständig geladen (" + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ")";
                     statusEl.style.color = "green";
                 }
+            } else {
+                const error = new Error('Leere oder ungültige Hintergrunddaten empfangen.');
+                error.code = 'FULL_DATA_EMPTY';
+                throw error;
             }
 
             // Hinweis, solange das Backend nicht durch einen Zugangsschlüssel geschützt ist (Übergangsmodus)
@@ -198,6 +203,7 @@
             console.error("KRITISCHER FEHLER:", error);
             if (typeof paymentUiService !== 'undefined' && typeof dataService !== 'undefined' && dataService.state) {
                 dataService.state.fullDataError = true;
+                dataService.state.fullDataErrorCode = error && error.code ? error.code : '';
                 if (document.getElementById('payments-section')?.style.display === 'block'
                     && typeof paymentUiService.render === 'function') {
                     paymentUiService.render();
@@ -216,6 +222,9 @@
                 } else if (error && error.code === 'CONFIGURATION_ERROR') {
                     statusEl.textContent = "⚠️ Backend-Umgebung ist nicht konfiguriert";
                     statusEl.style.color = "darkorange";
+                } else if (error && error.code === 'FULL_DATA_EMPTY') {
+                    statusEl.textContent = "❌ Zahlungsdaten konnten nicht vollständig geladen werden";
+                    statusEl.style.color = "red";
                 } else {
                     statusEl.textContent = "❌ Fehler beim Laden der Daten";
                     statusEl.style.color = "red";
