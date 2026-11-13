@@ -19,6 +19,8 @@ function baseState(overrides = {}) {
     vertraege: [{ vertrag_id: 'V1', einheit_id: 'O1_WE_01', hauptperson_id: 'P1', aktiv: true, soll_gesamt: 650 }],
     vertragsparteien: [],
     zahlungen: [],
+    fullDataLoaded: true,
+    fullDataError: false,
     ...overrides
   };
 }
@@ -477,6 +479,22 @@ describe('paymentUiService CSV-Import', () => {
     service.render();
 
     expect(output.innerHTML).toContain('Zahlungsdaten werden noch vollständig geladen');
+  });
+
+  it('zeigt nach einem fehlgeschlagenen Hintergrundladen einen Retry-Hinweis', () => {
+    const output = { innerHTML: '' };
+    const service = loadPaymentService(baseState({ fullDataLoaded: false, fullDataError: true }), {
+      getElementById(id) {
+        return id === 'payments-output' ? output : null;
+      }
+    });
+
+    service.render();
+
+    expect(output.innerHTML).toContain('Zahlungsdaten konnten nicht vollständig geladen werden');
+    expect(output.innerHTML).toContain('Zahlungserfassung ist deshalb gesperrt');
+    expect(output.innerHTML).toContain('Erneut laden');
+    expect(output.innerHTML).not.toContain('gleich freigeschaltet');
   });
 
   it('übernimmt beim Öffnen den zuvor gewählten Objektkontext', () => {

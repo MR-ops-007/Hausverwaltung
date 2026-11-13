@@ -196,6 +196,13 @@
             }).catch(() => {});
         } catch (error) {
             console.error("KRITISCHER FEHLER:", error);
+            if (typeof paymentUiService !== 'undefined' && typeof dataService !== 'undefined' && dataService.state) {
+                dataService.state.fullDataError = true;
+                if (document.getElementById('payments-section')?.style.display === 'block'
+                    && typeof paymentUiService.render === 'function') {
+                    paymentUiService.render();
+                }
+            }
             if (statusEl) {
                 if (error && error.code === 'UNAUTHORIZED') {
                     statusEl.textContent = "🔒 Zugangsschlüssel erforderlich – hier tippen zum Eingeben";

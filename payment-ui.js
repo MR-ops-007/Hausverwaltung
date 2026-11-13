@@ -487,24 +487,30 @@ const paymentUiService = {
     if (typeof uiService !== 'undefined' && typeof uiService.setNavigationState === 'function') uiService.setNavigationState('payments');
     const currentObject = typeof uiService !== 'undefined' ? String(uiService.currentSelection || '') : '';
     if (currentObject) this.selectedObject = currentObject;
-    if (dataService.state.fullDataLoaded === false) {
+    if (!this.isPaymentDataReady()) {
       this.renderLoadingState();
       return;
     }
     this.render();
   },
 
+  isPaymentDataReady() {
+    return dataService.state.fullDataLoaded === true;
+  },
+
   renderLoadingState() {
     const output = document.getElementById('payments-output');
     if (output) {
-      output.innerHTML = '<div class="payment-loading" role="status">Zahlungsdaten werden noch vollständig geladen. Die Erfassung wird gleich freigeschaltet.</div>';
+      output.innerHTML = dataService.state.fullDataError
+        ? '<div class="payment-loading payment-loading-error" role="alert"><strong>Zahlungsdaten konnten nicht vollständig geladen werden.</strong><span>Die Zahlungserfassung ist deshalb gesperrt.</span><button class="btn-primary" type="button" onclick="initApp()">Erneut laden</button></div>'
+        : '<div class="payment-loading" role="status">Zahlungsdaten werden noch vollständig geladen. Die Erfassung wird gleich freigeschaltet.</div>';
     }
   },
 
   render() {
     const output = document.getElementById('payments-output');
     if (!output) return;
-    if (dataService.state.fullDataLoaded === false) {
+    if (!this.isPaymentDataReady()) {
       this.renderLoadingState();
       return;
     }
@@ -544,7 +550,7 @@ const paymentUiService = {
   },
 
   openPaymentDialog(contractId, month, initialArt = 'Miete') {
-    if (dataService.state.fullDataLoaded === false) {
+    if (!this.isPaymentDataReady()) {
       this.renderLoadingState();
       return;
     }
