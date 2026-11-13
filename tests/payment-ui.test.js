@@ -445,6 +445,22 @@ describe('paymentUiService CSV-Import', () => {
     expect(output.innerHTML).toContain('Kontoauszug als CSV');
   });
 
+  it('überschreibt keinen offenen Zahlungsdialog oder CSV-Import beim Hintergrund-Refresh', () => {
+    const modal = { style: { display: 'flex' } };
+    const service = loadPaymentService(baseState(), {
+      getElementById(id) {
+        return id === 'modal-container' ? modal : null;
+      }
+    });
+
+    expect(service.hasOpenInteraction()).toBe(true);
+    modal.style.display = 'none';
+    service.importRows = [{ datum: '11.11.2026', betrag: 650 }];
+    expect(service.hasOpenInteraction()).toBe(true);
+    service.importRows = [];
+    expect(service.hasOpenInteraction()).toBe(false);
+  });
+
   it('übernimmt beim Öffnen den zuvor gewählten Objektkontext', () => {
     const output = { innerHTML: '' };
     const service = loadPaymentService(baseState({

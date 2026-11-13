@@ -2,7 +2,7 @@
  * UI-SERVICE (v2.8.2 - Zähler-Plausibilitätsprüfung integriert)
  */
 const uiService = {
-  currentSelection: null,
+  currentSelection: '',
   currentActiveMetersObjects: [],
   saveSuccessDisplayMs: 900,
   CONSUMPTION_STALE_READING_DAYS: 365,

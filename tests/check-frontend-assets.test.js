@@ -38,6 +38,11 @@ describe('Frontend-Asset-Prüfung', () => {
   it('meldet weiterhin fehlende Pflichtdateien', () => {
     const root = createRoot('<script src="config.js"></script>');
 
-    expect(() => runChecker(root)).toThrow();
+    try {
+      runChecker(root);
+      throw new Error('Der Checker hätte die fehlende Pflichtdatei melden müssen.');
+    } catch (error) {
+      expect(String(error.stderr)).toContain('config.js');
+    }
   });
 });

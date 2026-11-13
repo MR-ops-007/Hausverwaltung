@@ -174,7 +174,8 @@
                     contractUiService.render();
                 }
                 if (document.getElementById('payments-section')?.style.display === 'block'
-                    && typeof paymentUiService !== 'undefined') {
+                    && typeof paymentUiService !== 'undefined'
+                    && (!paymentUiService.hasOpenInteraction || !paymentUiService.hasOpenInteraction())) {
                     paymentUiService.render();
                 }
 

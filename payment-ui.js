@@ -490,6 +490,14 @@ const paymentUiService = {
     this.render();
   },
 
+  hasOpenInteraction() {
+    const modal = typeof document?.getElementById === 'function'
+      ? document.getElementById('modal-container')
+      : null;
+    const modalOpen = Boolean(modal && modal.style && modal.style.display !== 'none');
+    return modalOpen || (Array.isArray(this.importRows) && this.importRows.length > 0);
+  },
+
   render() {
     const output = document.getElementById('payments-output');
     if (!output) return;

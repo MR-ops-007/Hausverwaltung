@@ -46,7 +46,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 - P6/P7 laufen auf `codex/p6-payment-hardening`: Die neue Mieteingangsansicht bietet eine
   Monatsmatrix, Teilzahlungen, fachliche Mietmonate, Kautionen, Überfälligkeit,
   Storno-Gegenbuchungen und einen lokalen CSV-Import mit manueller Vertragszuordnung.
-  Der Hardening-Branch umfasst aktuell 466 Tests. Das Testprotokoll vom 2026-11-13 dokumentiert
+  Der Hardening-Branch umfasst aktuell 469 Tests. Das Testprotokoll vom 2026-11-13 dokumentiert
   zusätzlich die Browserprüfung der TEST-Vertrags- und Zahlungszuordnung. Altzahlungen, explizites Guthaben,
   stabile Zahlungs- und Storno-IDs, serverseitige Storno-Prüfungen und das
   `payment_schema_ready`-Capability-Gate sind ergänzt. Der lokale Mock enthält wiederverwendbare

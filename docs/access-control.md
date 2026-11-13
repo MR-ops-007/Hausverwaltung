@@ -1,6 +1,6 @@
 # Zugriffsschutz (Backend 4.8.5)
 
-Stand: 2026-11-11
+Stand: 2026-11-13
 
 ## Ziel
 
