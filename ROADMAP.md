@@ -282,6 +282,8 @@ Ziel ist Kostenkontrolle bei Pauschalen, ausdrücklich kein Nebenkostenabrechnun
 ### P6 Mieteingänge manuell
 
 **Status:** fachlich umgesetzt, Release-Hardening auf `codex/p6-payment-hardening` vor dem Merge.
+Die aktuelle Einzelprüfung von Matrix, Mietmonat, Status, Kaution und Objektverknüpfung ist in
+[`docs/p6-testprotokoll-20261113.md`](docs/p6-testprotokoll-20261113.md) dokumentiert.
 
 **Ziel:** Zahlungseingänge im Alltag schnell und nachvollziehbar erfassen. Das ist ein
 Erfassungsmodul, kein Mahnwesen und keine Nebenkostenabrechnung.

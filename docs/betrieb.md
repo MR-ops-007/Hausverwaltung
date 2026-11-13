@@ -1,6 +1,6 @@
 # Betrieb, Testumgebungen und Wiederherstellung
 
-Stand: 2026-11-12
+Stand: 2026-11-13
 
 ## Mieteingänge und Backend 4.8.11
 
@@ -140,6 +140,10 @@ bildet einen Leerstand ohne Sollmiete ab. Damit lassen sich die Statusfarben, ve
 Zahlungen, die Kautionsanzeige, Guthaben, Erstattungen und mehrere Vertragsparteien direkt im
 echten TEST-Backend prüfen. Die Buchungen sind Testdaten und dürfen bei Bedarf zurückgesetzt
 oder durch neue Fixture-IDs ergänzt werden.
+
+Das detaillierte Testprotokoll mit getrennten automatisierten und visuellen Ergebnissen steht
+in [`docs/p6-testprotokoll-20261113.md`](p6-testprotokoll-20261113.md). Es dokumentiert auch
+die Prüfung des Objektkontexts und der Verknüpfung über `vertrag_id`.
 
 Für die Vertragsmaske wurden im TEST-Blatt `Vertraege` die Felder `zahlungsziel_typ` und
 `zahlungsziel_wert` ergänzt. Das entspricht dem Ergebnis von `prepareContractSchema()`; nach
