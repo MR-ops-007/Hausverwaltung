@@ -445,20 +445,38 @@ describe('paymentUiService CSV-Import', () => {
     expect(output.innerHTML).toContain('Kontoauszug als CSV');
   });
 
-  it('überschreibt keinen offenen Zahlungsdialog oder CSV-Import beim Hintergrund-Refresh', () => {
-    const modal = { style: { display: 'flex' } };
+  it('stellt eine offene CSV-Importliste nach einem Hintergrund-Refresh wieder her', () => {
+    const output = { innerHTML: '' };
+    const importOutput = { innerHTML: '' };
     const service = loadPaymentService(baseState(), {
       getElementById(id) {
-        return id === 'modal-container' ? modal : null;
+        if (id === 'payments-output') return output;
+        if (id === 'payment-import-output') return importOutput;
+        return null;
+      }
+    });
+    service.selectedObject = 'O1';
+    service.selectedYear = '2026';
+    service.importRows = [{ datum: '11.11.2026', betrag: 650, name: 'Donald Duck', vertrag_id: 'V1', mietmonat: '2026-11', matchReason: 'Manuell zugeordnet' }];
+
+    service.render();
+
+    expect(output.innerHTML).toContain('payment-import-output');
+    expect(importOutput.innerHTML).toContain('1 Buchungen gefunden');
+    expect(importOutput.innerHTML).toContain('Donald Duck');
+  });
+
+  it('sperrt die Zahlungserfassung bis zum vollständigen Hintergrundladen', () => {
+    const output = { innerHTML: '' };
+    const service = loadPaymentService(baseState({ fullDataLoaded: false }), {
+      getElementById(id) {
+        return id === 'payments-output' ? output : null;
       }
     });
 
-    expect(service.hasOpenInteraction()).toBe(true);
-    modal.style.display = 'none';
-    service.importRows = [{ datum: '11.11.2026', betrag: 650 }];
-    expect(service.hasOpenInteraction()).toBe(true);
-    service.importRows = [];
-    expect(service.hasOpenInteraction()).toBe(false);
+    service.render();
+
+    expect(output.innerHTML).toContain('Zahlungsdaten werden noch vollständig geladen');
   });
 
   it('übernimmt beim Öffnen den zuvor gewählten Objektkontext', () => {

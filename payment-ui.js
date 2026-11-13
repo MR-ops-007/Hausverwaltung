@@ -487,20 +487,27 @@ const paymentUiService = {
     if (typeof uiService !== 'undefined' && typeof uiService.setNavigationState === 'function') uiService.setNavigationState('payments');
     const currentObject = typeof uiService !== 'undefined' ? String(uiService.currentSelection || '') : '';
     if (currentObject) this.selectedObject = currentObject;
+    if (dataService.state.fullDataLoaded === false) {
+      this.renderLoadingState();
+      return;
+    }
     this.render();
   },
 
-  hasOpenInteraction() {
-    const modal = typeof document?.getElementById === 'function'
-      ? document.getElementById('modal-container')
-      : null;
-    const modalOpen = Boolean(modal && modal.style && modal.style.display !== 'none');
-    return modalOpen || (Array.isArray(this.importRows) && this.importRows.length > 0);
+  renderLoadingState() {
+    const output = document.getElementById('payments-output');
+    if (output) {
+      output.innerHTML = '<div class="payment-loading" role="status">Zahlungsdaten werden noch vollständig geladen. Die Erfassung wird gleich freigeschaltet.</div>';
+    }
   },
 
   render() {
     const output = document.getElementById('payments-output');
     if (!output) return;
+    if (dataService.state.fullDataLoaded === false) {
+      this.renderLoadingState();
+      return;
+    }
     const years = this.getYears();
     if (!this.selectedYear || !years.includes(String(this.selectedYear))) this.selectedYear = years[0];
     const objectIds = Array.from(new Set(this.getContracts().map(contract => this.objectId(contract))));
@@ -533,9 +540,14 @@ const paymentUiService = {
       ${this.legendHtml()}
       ${matrix.length ? `<div class="payment-table-wrap"><table class="payment-table"><thead><tr><th scope="col">Mieter / Einheit</th>${monthHeaders}</tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="payment-empty">Keine aktiven Verträge für diese Auswahl vorhanden.</p>'}
       <section class="payment-import-section"><div class="payment-section-heading"><div><h3>Kontoauszug als CSV</h3><p>Die Datei wird lokal gelesen. Buchungen werden erst nach deiner Zuordnung gespeichert.</p></div><label class="payment-file-button">CSV auswählen<input type="file" accept=".csv,text/csv,text/plain" onchange="paymentUiService.handleImportFile(this.files && this.files[0])"></label></div><div id="payment-import-output"></div></section>`;
+    if (this.importRows.length > 0) this.renderImportRows();
   },
 
   openPaymentDialog(contractId, month, initialArt = 'Miete') {
+    if (dataService.state.fullDataLoaded === false) {
+      this.renderLoadingState();
+      return;
+    }
     const contract = (dataService.state.vertraege || []).find(row => String(row.vertrag_id) === String(contractId));
     if (!contract) return;
     this.pendingAllocation = null;

@@ -19,7 +19,8 @@ const dataService = {
         view_verbrauch_monat: [],
         view_verbrauch_jahr: [],
         view_verbrauch_audit: [],
-        view_verbrauch_bilanz_jahr: []
+        view_verbrauch_bilanz_jahr: [],
+        fullDataLoaded: false
     },
 
     setDashboardData(data) {
@@ -30,6 +31,7 @@ const dataService = {
         }
 
         this.state.view_aktive_mieter = data["_view_aktive_mieter"] || [];
+        this.state.fullDataLoaded = false;
 
         // Sichere Generierung aus CONFIG
         if (typeof CONFIG !== 'undefined') {
@@ -102,6 +104,7 @@ const dataService = {
         this.state.parameter = data.Parameter || [];
         this.state.fixkosten = data.Fixkosten || [];
         this.state.haustechnik = data.Haustechnik || [];
+        this.state.fullDataLoaded = true;
         
         console.log("DataService: Stufe 2 (Hintergrund-State) sicher übernommen.");
     },
