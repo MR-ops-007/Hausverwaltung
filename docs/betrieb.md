@@ -1,14 +1,15 @@
 # Betrieb, Testumgebungen und Wiederherstellung
 
-Stand: 2026-11-13
+Stand: 2026-11-14
 
 ## Mieteingänge und Backend 4.8.12
 
-Der Branch `codex/p6-payment-hardening` baut auf `codex/p6-mieteingaenge` auf und enthält
-den gehärteten Mieteingangs- und CSV-Import-Ausbau. Backend 4.8.12 ist in der bestehenden
-TEST-Bereitstellung veröffentlicht und wurde dort mit einem Erfassungs-Schlüssel fachlich
-abgenommen. Danach folgt derselbe Ablauf für PROD. Eine alte 4.8.5-Bereitstellung bleibt
-als Rollback erhalten.
+PR #39 enthält den gehärteten Mieteingangs- und CSV-Import-Ausbau. Backend 4.8.12 ist in
+der bestehenden TEST-Bereitstellung veröffentlicht und wurde dort mit einem
+Erfassungs-Schlüssel fachlich abgenommen. Anschließend wurde die bestehende PROD-
+Bereitstellung auf 4.8.12 (Deployment-Version `@42`) aktualisiert; die URL blieb unverändert.
+Der PROD-Endpunkt wurde lesend geprüft, ein produktiver Zahlungseingang wurde nicht geschrieben.
+Die frühere 4.8.5-Bereitstellung bleibt als Rollback-Stand erhalten.
 
 Der CSV-Import ist absichtlich lokal und bestätigungspflichtig: Datei auswählen,
 Vertrag und fachlichen Mietmonat prüfen, einzelne Buchung übernehmen. Ein Mietmonat
@@ -79,8 +80,8 @@ fachlich korrigiert oder aus dem synthetischen TEST-Bestand entfernt werden. Bei
 derselben `zahlung_id` meldet Backend 4.8.12 sonst absichtlich `PAYMENT_ID_CONFLICT`, weil der
 korrekt abgeleitete Originalmonat nicht zur alten Zeile passt.
 
-Der Hardening-Stand ist Backend 4.8.12 in TEST bereitgestellt; PROD bleibt bis zur
-fachlichen Abnahme auf 4.8.5.
+Der Hardening-Stand ist Backend 4.8.12 in TEST und PROD bereitgestellt. Die fachliche
+Schreibabnahme erfolgte in TEST; PROD wurde nach dem Deploy bewusst nur lesend geprüft.
 Für die Speicherung der beiden neuen Vertragsfelder muss einmalig die ausdrücklich
 manuell aufzurufende Funktion `prepareContractSchema()` ausgeführt werden. Für die
 Zahlungsaufteilung muss zusätzlich einmalig `preparePaymentSchema()` ausgeführt werden.

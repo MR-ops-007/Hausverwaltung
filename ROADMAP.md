@@ -3,7 +3,7 @@
 Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklungspakete.
 `PROJECT_STATE.md` beschreibt den aktuellen Systemstand, `CHANGELOG.md` die Releases.
 
-**Stand: 2026-11-12**
+**Stand: 2026-11-14**
 
 ## Arbeitsregeln
 
@@ -20,7 +20,7 @@ Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklun
 
 ## Erledigt auf `main`
 
-Remote `origin/main` enthält aktuell PR #38 und den produktiven Backend-Stand 4.8.5.
+Remote `origin/main` enthält aktuell PR #39 und den produktiven Backend-Stand 4.8.12.
 
 | PR | Inhalt |
 | --- | --- |
@@ -39,6 +39,7 @@ Remote `origin/main` enthält aktuell PR #38 und den produktiven Backend-Stand 4
 | #36 | Pages-Laufzeitdatei `environment-service.js` in das veröffentlichte Artefakt aufnehmen |
 | #37 | Pages-Build- und CI-Prüfungen gegen fehlende Frontend-Assets härten |
 | #38 | Dashboard-Datenqualität: fehlende, veraltete und dauerhafte Null-Ablesungen sichtbar machen |
+| #39 | P6/P7 Mieteingänge, CSV-MVP, Backend-Hardening und fachliche TEST-Abnahme |
 
 Der lokale Branch `main` muss nach einem Merge weiterhin mit `origin/main` synchronisiert
 werden, bevor ein neues Feature darauf aufgebaut wird.
@@ -281,7 +282,8 @@ Ziel ist Kostenkontrolle bei Pauschalen, ausdrücklich kein Nebenkostenabrechnun
 
 ### P6 Mieteingänge manuell
 
-**Status:** fachlich umgesetzt, Release-Hardening auf `codex/p6-payment-hardening`; Backend 4.8.12 ist im TEST-Deployment veröffentlicht und fachlich abgenommen.
+**Status:** abgeschlossen in PR #39; Backend 4.8.12 ist in TEST und PROD veröffentlicht und der
+fachliche TEST-Durchlauf ist dokumentiert.
 Die aktuelle Einzelprüfung von Matrix, Mietmonat, Status, Kaution und Objektverknüpfung ist in
 [`docs/p6-testprotokoll-20261113.md`](docs/p6-testprotokoll-20261113.md) dokumentiert.
 
@@ -311,8 +313,8 @@ Erfassungsmodul, kein Mahnwesen und keine Nebenkostenabrechnung.
 - `vertrag_capabilities` meldet, ob das Zahlungsschema vollständig vorbereitet ist;
   die UI schreibt nicht, wenn `payment_schema_ready` fehlt. Mock und Apps-Script prüfen
   die gleichen Zahlungsarten, Mietmonate, Konflikte und Storno-Regeln.
-- Der Backend-Schreibweg ist dafür auf 4.8.12 angehoben. Die produktive 4.8.5 bleibt
-  unverändert, bis die neue Apps-Script-Version manuell bereitgestellt und geprüft ist.
+- Der Backend-Schreibweg läuft auf 4.8.12. Die frühere produktive 4.8.5 bleibt als
+  Rollback-Stand erhalten.
 
 **Voraussetzung:** P1.1/P1.2 Rollen und Geräteeinrichtung sind produktiv geprüft.
 
@@ -391,6 +393,7 @@ Bankanbindung werden daraus abgeleitet.
 | 2026-11-10 | Zwei Geräteschlüssel: Admin für Verträge, Erfassen für Zählerstände und Zahlungen. |
 | 2026-11-10 | Mieteingänge zuerst manuell, strukturierter Kontoauszug-Import erst danach; OCR/PSD2 sind kein Startpunkt. |
 | 2026-11-11 | P6/P7 bleiben pragmatisch: CSV lokal importieren, Vorschläge bestätigen, keine direkte Bankanbindung. |
+| 2026-11-14 | PR #39 gemergt; P6/P7 und Apps Script 4.8.12 sind nach TEST-Abnahme produktiv dokumentiert. |
 
 ## Definition of Done
 
