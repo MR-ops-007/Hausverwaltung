@@ -181,6 +181,14 @@ Einträge aus Frontend-Ständen vor 4.8.4 (rohe Payloads in `offline_queue`, abg
 - Die Queue liegt im Browser-Speicher des jeweiligen Geräts. Löscht der Browser Websitedaten (manuell oder bei längerer Nichtnutzung, z. B. Safari auf iOS), gehen offene Einträge verloren. Offene Einträge deshalb zeitnah übertragen.
 - Korrigieren lässt sich nur innerhalb von **15 Minuten** nach dem letzten Wert des Zählers. Später entsteht ein zweiter Wert am Tag (ein späteres Überschreiben ist nicht vorgesehen).
 - Zwei echte Ablesungen desselben Zählers innerhalb von 15 Minuten lösen jedes Mal die Warnung aus; „Als neue Ablesung speichern“ bestätigt das.
-- Zahlungen werden nicht idempotent behandelt und nicht offline erwartet. Die UI sendet derzeit keine `ZAHLUNG`-Anfragen; unklare Antworten auf andere Typen als Zählerstände werden als nicht bestätigt gemeldet und nicht in die Queue gelegt.
+- Mieteingänge verwenden ab dem P6/P7-Arbeitsstand denselben bestätigungspflichtigen
+  Schreibweg wie andere Transaktionen. Bei einer vorübergehenden Netzwerkstörung darf
+  eine Zahlung in die bestehende Offline-Queue gelangen; sie gilt erst nach Backend-
+  Bestätigung als gespeichert. Gleiche `zahlung_id`s sind im gehärteten Backend 4.8.11
+  idempotent; Stornos werden gegen die Originalzahlung geprüft.
+  Das Eingangsdatum und der fachliche `mietmonat` werden getrennt gespeichert; dadurch
+  kann eine verspätete Zahlung einem offenen Vormonat zugeordnet werden. Kautionen bleiben
+  außerhalb der Monatsmiete, Erstattungen werden negativ erfasst.
+  CAMT/MT940 und automatische Bankanbindung sind nicht Teil des CSV-MVP.
 - Es gibt keine Benutzerverwaltung: Im Protokoll steht kein Name, nur die Quelle. Gleichzeitige Änderungen mehrerer Personen sind nicht Teil des Szenarios.
 - **Anforderung an die spätere Verbrauchs-Plausibilität („Sprung“):** Mehrere Werte desselben Zählers am selben Tag dürfen nicht allein deshalb auffallen, weil ein Zahlendreher korrigiert wurde. Die Prüfung sollte pro Zähler und Tag den jeweils letzten Wert bewerten. Noch nicht umgesetzt.

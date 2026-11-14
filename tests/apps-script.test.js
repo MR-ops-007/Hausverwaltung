@@ -23,7 +23,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     const { BACKEND_VERSION } = loadAppsScriptHelpers();
     const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
     const changelog = readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8');
-    const entries = [...changelog.matchAll(/^## (\d+\.\d+\.\d+) · (\d{4}-\d{2}-\d{2}) · (lokal|main|produktiv|ersetzt)$/gm)];
+    const entries = [...changelog.matchAll(/^## (\d+\.\d+\.\d+) · (\d{4}-\d{2}-\d{2}) · (lokal|main|test|produktiv|ersetzt)$/gm)];
 
     expect(BACKEND_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
     expect(code.match(/^ \* Version: (\S+)$/m)[1]).toBe(BACKEND_VERSION);
@@ -34,12 +34,72 @@ describe('Apps Script Zaehlerstaende helpers', () => {
 
   it('keeps the deploy status history in order: lokal/main above the productive version, ersetzt below', () => {
     const changelog = readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8');
-    const statuses = [...changelog.matchAll(/^## \d+\.\d+\.\d+ · \d{4}-\d{2}-\d{2} · (lokal|main|produktiv|ersetzt)$/gm)].map(entry => entry[1]);
+    const statuses = [...changelog.matchAll(/^## \d+\.\d+\.\d+ · \d{4}-\d{2}-\d{2} · (lokal|main|test|produktiv|ersetzt)$/gm)].map(entry => entry[1]);
     const productive = statuses.indexOf('produktiv');
 
     expect(productive).toBeGreaterThanOrEqual(0);
-    expect(statuses.slice(0, productive).every(status => status === 'lokal' || status === 'main')).toBe(true);
+    expect(statuses.slice(0, productive).every(status => status === 'lokal' || status === 'main' || status === 'test')).toBe(true);
     expect(statuses.slice(productive + 1).every(status => status === 'ersetzt')).toBe(true);
+  });
+
+  it('prepares the payment schema without changing existing rows', () => {
+    const paymentCode = readFileSync(new URL('../apps-script/Payments.gs', import.meta.url), 'utf8');
+    const headers = ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art'];
+    let writtenHeaders;
+    let insertedColumns = 0;
+    let numberFormat;
+    const range = {
+      getValues: () => [headers],
+      setValues: values => { writtenHeaders = values[0]; }
+    };
+    const monthRange = { setNumberFormat: value => { numberFormat = value; } };
+    const sheet = {
+      getLastColumn: () => headers.length,
+      getLastRow: () => 3,
+      getMaxColumns: () => headers.length,
+      getMaxRows: () => 10,
+      insertColumnsAfter: (_after, count) => { insertedColumns = count; },
+      getRange: (_row, column) => column === 6 ? monthRange : range
+    };
+    const SpreadsheetApp = { getActiveSpreadsheet: () => ({ getSheetByName: () => sheet }) };
+    const preparePaymentSchema = new Function('SpreadsheetApp', `${paymentCode}; return preparePaymentSchema;`)(SpreadsheetApp);
+
+    const result = preparePaymentSchema();
+
+    expect(result).toEqual({ addedHeaders: ['zahlungsgruppe_id'] });
+    expect(insertedColumns).toBe(1);
+    expect(writtenHeaders).toEqual(['zahlungsgruppe_id']);
+    expect(numberFormat).toBe('@');
+  });
+
+  it('formats mietmonat when the column is added for the first time', () => {
+    const paymentCode = readFileSync(new URL('../apps-script/Payments.gs', import.meta.url), 'utf8');
+    const headers = ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'storno_von', 'gegen_art', 'zahlungsgruppe_id'];
+    let writtenHeaders;
+    let insertedColumns = 0;
+    let numberFormat;
+    const headerRange = {
+      getValues: () => [headers],
+      setValues: values => { writtenHeaders = values[0]; }
+    };
+    const monthRange = { setNumberFormat: value => { numberFormat = value; } };
+    const sheet = {
+      getLastColumn: () => headers.length,
+      getLastRow: () => 1,
+      getMaxColumns: () => headers.length,
+      getMaxRows: () => 10,
+      insertColumnsAfter: (_after, count) => { insertedColumns = count; },
+      getRange: row => row === 1 ? headerRange : monthRange
+    };
+    const SpreadsheetApp = { getActiveSpreadsheet: () => ({ getSheetByName: () => sheet }) };
+    const preparePaymentSchema = new Function('SpreadsheetApp', `${paymentCode}; return preparePaymentSchema;`)(SpreadsheetApp);
+
+    const result = preparePaymentSchema();
+
+    expect(result).toEqual({ addedHeaders: ['mietmonat'] });
+    expect(insertedColumns).toBe(1);
+    expect(writtenHeaders).toEqual(['mietmonat']);
+    expect(numberFormat).toBe('@');
   });
 
   it('formats German timestamps for stand_id values', () => {

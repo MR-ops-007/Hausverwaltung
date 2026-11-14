@@ -1,6 +1,163 @@
 # Betrieb, Testumgebungen und Wiederherstellung
 
-Stand: 2026-11-11
+Stand: 2026-11-13
+
+## Mieteingänge und Backend 4.8.12
+
+Der Branch `codex/p6-payment-hardening` baut auf `codex/p6-mieteingaenge` auf und enthält
+den gehärteten Mieteingangs- und CSV-Import-Ausbau. Backend 4.8.12 ist in der bestehenden
+TEST-Bereitstellung veröffentlicht und wurde dort mit einem Erfassungs-Schlüssel fachlich
+abgenommen. Danach folgt derselbe Ablauf für PROD. Eine alte 4.8.5-Bereitstellung bleibt
+als Rollback erhalten.
+
+Der CSV-Import ist absichtlich lokal und bestätigungspflichtig: Datei auswählen,
+Vertrag und fachlichen Mietmonat prüfen, einzelne Buchung übernehmen. Ein Mietmonat
+im Verwendungszweck (`YYYY-MM`) wird vorgeschlagen, sonst der Monat des Eingangsdatums;
+beides kann vor der Übernahme korrigiert werden. Unklare Zeilen bleiben offen. Die
+Version enthält keine direkte Bankanbindung und keine OCR-Verarbeitung.
+
+### Zahlungsfristen
+
+Die Frist steht am Vertrag in `zahlungsziel_typ` und `zahlungsziel_wert`. Ohne
+individuelle Angabe gilt der 3. Werktag. Bei `WERKTAG` werden Samstag, Sonntag und
+bundesweite Feiertage übersprungen. Für eine Vereinbarung wie „zum 15.“ wird
+`KALENDERTAG` mit dem Wert `15` verwendet. Der erste Vertragsmonat beginnt nicht vor
+dem tatsächlichen Mietbeginn. Die Anwendung errät keinen Gehaltseingang; abweichende
+Vereinbarungen müssen am Vertrag eingetragen werden.
+Die Prüfung erfolgt auf Kalendertagesebene: Am Fälligkeitstag bleibt ein offener
+Monat bis zum Tageswechsel offen und wird nicht wegen der aktuellen Uhrzeit vorzeitig
+als überfällig markiert.
+
+Die Mieteingangsansicht zeigt die konkrete Frist im Zell-Tooltip und im Erfassungsdialog.
+Beim Wechsel aus der Objektauswahl übernimmt die Ansicht automatisch dieses Objekt; die
+fachliche Verknüpfung der Zeilen erfolgt weiterhin ausschließlich über `vertrag_id`.
+`Miete` ist der reguläre Monatsbetrag, `Nachzahlung` ein zusätzlicher Ausgleich für den
+ausgewählten Mietmonat. `Erstattung` ist eine negative Rückzahlung an den Mieter und
+wird separat geführt; sie macht einen zuvor vollständig bezahlten Monat nicht wieder
+zu einer Teilzahlung. Eine Kaution hat keinen Mietmonat und wird separat ausgewertet.
+Im Dialog „Bereits erfasst“ wird eine Zahlung zusätzlich im tatsächlichen Eingangsmonat
+angezeigt, auch wenn sie fachlich einem anderen Mietmonat zugeordnet ist. Die Zeile zeigt
+dann ausdrücklich `Monat YYYY-MM`.
+Eine Zahlung, die den offenen Betrag des angeklickten Mietmonats übersteigt, wird nicht
+still einem anderen Monat gutgeschrieben. Die App öffnet stattdessen „Zahlung verteilen“:
+Der angeklickte Monat wird zuerst vorgeschlagen, danach die ältesten offenen Monate.
+Die Beträge können vor dem Speichern angepasst werden; der Rest kann ausdrücklich als
+Guthaben ohne `mietmonat` stehen bleiben. Jede Teilbuchung besitzt eine eigene
+`zahlung_id`, alle Teilbuchungen teilen eine `zahlungsgruppe_id`. Zugeordnete Teilbeträge
+senken den offenen Gesamtbetrag der jeweiligen Monate; ein nicht zugeordneter Rest
+erscheint oben als Guthaben.
+Die Summe wird während der Eingabe laufend gegen den tatsächlichen Eingang geprüft.
+Bei einer Abweichung erscheint direkt im Dialog „Bitte Summe prüfen“ und die Speicherung
+bleibt deaktiviert, bis beide Beträge übereinstimmen.
+
+### Zahlungsweg vor dem ersten Schreiben prüfen
+
+Vor einem Zahlungs-Schreibvorgang liest die App `vertrag_capabilities`. Das Backend muss
+`payment_writes: true` und `payment_schema_ready: true` liefern. Bei einem alten GAS oder
+fehlenden Spalten wird der Schreibvorgang abgebrochen und die fehlenden Spalten werden
+angezeigt; es wird keine Zahlung vorgemerkt oder geschrieben.
+
+Historische Zahlungen mit leerem `mietmonat` werden weiterhin über das Eingangsdatum dem
+Eingangsmonat zugeordnet. Ein bewusst nicht zugeordnetes Guthaben wird nur an einer
+`zahlungsgruppe_id` erkannt. Dadurch wird eine nachträglich ergänzte, leere Spalte nicht
+mit Guthaben verwechselt.
+
+Stornos sind append-only und benötigen eine vorhandene Originalzahlung. Vertrag und
+Betrag müssen übereinstimmen, das Vorzeichen muss umgekehrt sein, und eine Zahlung kann
+nicht zweimal storniert werden. Die UI verwendet dafür `Storno_<zahlung_id>` als stabile
+idempotente Kennung. Neue Zahlungen und Zahlungsgruppen erhalten pro Benutzeraktion
+neue IDs, damit zwei gleiche Eingänge nicht versehentlich als Duplikat gelten.
+
+Bei historischen Zahlungen ohne `mietmonat` wird der Monat des ursprünglichen Eingangsdatums
+auch für die sofortige Anzeige nach einem Storno verwendet. Dadurch steht das Storno bereits
+ohne Neuladen im fachlich richtigen Monat; Kautionen und bewusst nicht zugeordnete Guthaben
+bleiben ohne Mietmonat.
+
+Bei einem TEST-Bestand, der noch mit Backend 4.8.10 erzeugte Stornos enthält, sind vor einem
+erneuten Abnahmetest Stornozeilen mit leerem `mietmonat` zu prüfen. Solche Zeilen müssen entweder
+fachlich korrigiert oder aus dem synthetischen TEST-Bestand entfernt werden. Beim erneuten Senden
+derselben `zahlung_id` meldet Backend 4.8.12 sonst absichtlich `PAYMENT_ID_CONFLICT`, weil der
+korrekt abgeleitete Originalmonat nicht zur alten Zeile passt.
+
+Der Hardening-Stand ist Backend 4.8.12 in TEST bereitgestellt; PROD bleibt bis zur
+fachlichen Abnahme auf 4.8.5.
+Für die Speicherung der beiden neuen Vertragsfelder muss einmalig die ausdrücklich
+manuell aufzurufende Funktion `prepareContractSchema()` ausgeführt werden. Für die
+Zahlungsaufteilung muss zusätzlich einmalig `preparePaymentSchema()` ausgeführt werden.
+Beide Funktionen ergänzen nur fehlende Spalten; sie werden nicht automatisch durch
+einen Lese- oder Schreibvorgang gestartet.
+
+## Keyfreie lokale Systemprüfung
+
+Für reproduzierbare UI- und Schreibtests ohne PROD-/TEST-Schlüssel steht ein lokaler
+Mock bereit. Er verwendet ausschließlich synthetische Entenhausen-Daten und schreibt
+nichts in Google Sheets:
+
+```bash
+npm run dev:mock-backend
+npx vite --host 127.0.0.1 --port 5193
+```
+
+Die App kann dafür auf `http://127.0.0.1:5193/?mock=1` geöffnet werden. Der Query-Schalter
+greift ausschließlich auf `localhost`/`127.0.0.1` und setzt die API-URL auf
+`http://127.0.0.1:8787`; eine `runtime-config.js` muss für diesen Lauf nicht geändert
+werden. Die App lädt danach die Mock-Daten, die Mieteingangs-Matrix kann ohne Schlüssel
+bedient werden, und Schreibvorgänge bleiben im Prozessspeicher des Mock-Servers. Der
+produktive TEST-/PROD-Ablauf wird dadurch nicht verändert. Unit- und Backend-Regressionstests
+verwenden denselben Grundsatz: künstliche Daten und Mock-Services, niemals echte Schlüssel
+im Testlauf.
+
+### Zahlungstestfälle im Mock
+
+Die Testmatrix enthält bewusst unterschiedliche Fälle:
+
+| Persona | Fachlicher Fall |
+| --- | --- |
+| Donald Duck | Februar-Teilzahlung, die erst am 11.11. eingeht; Kaution teilweise hinterlegt |
+| Mickey Mouse | überwiegend pünktliche Zahlungen; Kaution vollständig hinterlegt |
+| Daisy Duck | keine Zahlungen; offene und überfällige Monate |
+| Dagobert Duck | mehrere verspätete Monate und eine Teilzahlung; wiederholte Verspätung sichtbar |
+| Gustav Gans | Überzahlung, Nachzahlung und negative Erstattung |
+| Tick und Trick Duck | zwei Hauptmieter in einer Wohnung; getrennte Teilzahlungen |
+| Wohnung 7 | Leerstand ohne Zahlung; wird sichtbar geführt, aber nicht als offene Miete gezählt |
+
+Im Dialog ist `datum` das tatsächliche Eingangsdatum. `mietmonat` ist die fachliche
+Zuordnung. Eine Zahlung vom 11.11.2026 kann dadurch den Februar ausgleichen. Im manuellen
+Dialog ist der fachliche Mietmonat die angeklickte Monatsspalte und wird dort nur lesbar
+angezeigt; für einen anderen Monat wird die entsprechende Spalte geöffnet. Eine vollständig
+ausgeglichene verspätete Zahlung ist grün und trägt zusätzlich den Hinweis „verspätet“.
+Eine Kaution wird ohne Mietmonat gespeichert und separat gegen `Vertraege.kaution_soll`
+ausgewertet.
+
+Der aktuelle TEST-Datensatz enthält zusätzlich einen dauerhaft reproduzierbaren Abnahmesatz:
+Donald Duck (Vertrag 29) hat eine gruppierte Zahlung über Oktober und November mit einem
+bewusst nicht zugeordneten Rest als Guthaben. Vertrag 32 für TEST_WE_02 ist Mickey und Minnie
+gemeinsam zugeordnet und enthält verspätete Vollzahlungen, eine Teilzahlung, eine teilweise
+gezahlte Kaution und eine negative Erstattung. Daisy (Vertrag 33) bleibt ohne Zahlung, Dagobert
+(Vertrag 34) hat wiederholte Verspätungen und eine Teilzahlung, Gustav (Vertrag 35) eine
+Überzahlung mit Erstattung, Tick und Trick (Vertrag 36) getrennte Teilzahlungen und Vertrag 37
+bildet einen Leerstand ohne Sollmiete ab. Damit lassen sich die Statusfarben, verspätete
+Zahlungen, die Kautionsanzeige, Guthaben, Erstattungen und mehrere Vertragsparteien direkt im
+echten TEST-Backend prüfen. Die Buchungen sind Testdaten und dürfen bei Bedarf zurückgesetzt
+oder durch neue Fixture-IDs ergänzt werden.
+
+Das detaillierte Testprotokoll mit getrennten automatisierten und visuellen Ergebnissen steht
+in [`docs/p6-testprotokoll-20261113.md`](p6-testprotokoll-20261113.md). Es dokumentiert auch
+die Prüfung des Objektkontexts und der Verknüpfung über `vertrag_id`.
+
+Für die Vertragsmaske wurden im TEST-Blatt `Vertraege` die Felder `zahlungsziel_typ` und
+`zahlungsziel_wert` ergänzt. Das entspricht dem Ergebnis von `prepareContractSchema()`; nach
+einem vollständigen Neuladen sollte der Button „Vertragsdaten speichern“ dort nicht mehr wegen
+eines unvollständigen Schemas deaktiviert sein. Die Rolle `admin` und ein gültiger
+`CONTRACT_WRITE_TOKEN` bleiben für tatsächliche Vertragsänderungen erforderlich.
+
+Der Mock enthält außerdem Strom-, Kaltwasser-, Warmwasser- und Heizöl-Verbrauchsdaten
+für 2025 und 2026 sowie Audit- und Bilanzzeilen. Die Fixture-Quelle liegt in
+`tools/mock-consumption-fixtures.mjs` und wird beim Neustart reproduzierbar neu geladen.
+Für den produktiven Schreibweg müssen die optionalen Spalten `mietmonat`, `storno_von`,
+`gegen_art` und `zahlungsgruppe_id` im Blatt `Zahlungen` vorhanden sein; fehlen sie, lehnt Backend 4.8.12 den
+erweiterten Datensatz verständlich mit `PAYMENT_SCHEMA_MISSING` ab, statt die Zuordnung
+still zu verlieren.
 
 Dieses Dokument beschreibt den sicheren Betrieb der Hausverwaltung mit getrennten
 Test- und Produktivdaten. Die verbindliche Aufgabenpriorisierung steht in
@@ -158,3 +315,9 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
   nicht ausreichend, um Daten zu lesen; die Schutzwirkung wird mit einem echten
   `UNAUTHORIZED`-Test bestätigt.
 - Eine Testumgebung mit einer kopierten Produktivdatei ist nicht automatisch anonymisiert.
+- Für lokale Tests mit der echten TEST-API kann einmalig `runtime-secrets.example.js` nach
+  `runtime-secrets.js` kopiert und dort ausschließlich der TEST-`APP_ACCESS_KEY` eingetragen
+  werden. `runtime-secrets.js` ist in `.gitignore`, wird nicht in das GitHub-Pages-Artefakt
+  kopiert und enthält keinen PROD-Schlüssel. Beim ersten Abruf übernimmt `cloud-service.js`
+  den lokalen TEST-Schlüssel automatisch in den umgebungsbezogenen Browser-Speicher. Danach
+  ist keine erneute Eingabe bei neuen Cache-Busting-URLs oder lokalen Ports erforderlich.

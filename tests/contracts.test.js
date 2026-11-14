@@ -94,6 +94,14 @@ describe('contract domain rules', () => {
     expect(service.diff(current, { ...form, vertrag_hinweis: 'Neu', soll_nebenkosten: '210' }))
       .toEqual({ vertrag_hinweis: 'Neu', soll_nebenkosten: '210' });
   });
+
+  it('validiert das Zahlungsziel als Werktag oder Kalendertag', () => {
+    expect(service.preparePatch(current, { zahlungsziel_typ: 'KALENDERTAG', zahlungsziel_wert: '15' }))
+      .toMatchObject({ zahlungsziel_typ: 'KALENDERTAG', zahlungsziel_wert: 15 });
+    expect(service.preparePatch(current, { zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: '3' }))
+      .toMatchObject({ zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: 3 });
+    expect(() => service.preparePatch(current, { zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: 0 })).toThrow(/Zahlungsziel/);
+  });
   it('lets an empty index series be completed but never changes a stored index basis', () => {
     const legacy = { ...current, index_reihe: '' };
     expect(service.preparePatch(legacy, { index_basis_wert: '100', index_basis_monat: '2024-03', index_reihe: 'VPI Deutschland 2020=100' }))
@@ -357,7 +365,9 @@ describe('contract view', () => {
     const fields = {};
     const getElementById = id => fields[id] ||= { innerHTML: '', textContent: '', value: '', addEventListener() {} };
     const escape = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    const dataService = { state: { vertraege: [{ ...current, vertragsdokument_url: input.erklaerung_url, vertrag_hinweis: '<script>bad</script>' }],
+    const dataService = { state: { vertraege: [{ ...current,
+      vertragsdokument_url: input.erklaerung_url, sondervereinbarungen_url: 'https://drive.google.com/file/d/fictional/addendum',
+      vertrag_hinweis: '<script>bad</script>' }],
       einheiten: [unit], personen: [], vertragsparteien: [], mietanpassungen: [
         { vertrag_id: current.vertrag_id, art: 'INDEX', vorher_json: JSON.stringify(current), nachher_json: JSON.stringify({ ...current, soll_kaltmiete: 660 }) }
       ] } };
@@ -369,6 +379,17 @@ describe('contract view', () => {
     expect(html).toContain('rel="noopener noreferrer"');
     expect(html).toContain('&lt;script&gt;bad&lt;/script&gt;');
     expect(html).toContain('contract-soll_nebenkosten');
+    expect(html).toContain('Mietvertrag öffnen');
+    expect(html).toContain('Sondervereinbarungen öffnen');
+    expect(html).toContain('Erhöhungstyp');
+    expect(html).toContain('Zugang der Erklärung');
+    expect(html).toContain('Erklärung (HTTPS-Link)');
+    expect(html).toContain('Änderungsverlauf');
+    expect(html).not.toContain('Aenderungsverlauf');
+    expect(html).not.toContain('Aenderungen');
+    expect(html).not.toContain('oeffnen');
+    expect(html).toContain('Mieteingang spätestens am');
+    expect(html).toContain('Werktag oder Kalendertag');
     expect(html).toContain('600 → 660 EUR');
     expect(html).toContain('noch nicht freigeschaltet');
   });

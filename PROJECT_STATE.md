@@ -1,18 +1,18 @@
 # PROJECT_STATE - Hausverwaltung
 
-## Stand: 2026-11-11
+## Stand: 2026-11-13
 
 `main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz 4.8.5 ist in TEST und PROD produktiv aktiviert.
 
 Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die nächsten sinnvollen Arbeitspakete.
 
-### Aktueller Stand nach PR #37
+### Aktueller Stand nach PR #38
 
-- `main` steht auf dem Stand nach PR #37 und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
+- `main` steht auf dem Stand nach PR #38 und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
   Z1 Speicherrückmeldung und Z2 Heizöl-Verbrauch.
 - Die Überlaufklassifikation, die Diagramm-Fehlerbehandlung, die Heizöl-Tankbilanz und
   der Speichervorgang sind gemeinsam regressionsgetestet.
-- Der vollständige Testlauf umfasst aktuell 403 Tests in 17 Testdateien. Apps Script 4.8.5
+- Der vollständige Testlauf auf `main` umfasst aktuell 406 Tests in 17 Testdateien. Apps Script 4.8.5
   ist in PROD (bestehende Bereitstellung, Deployment-Version 41) und TEST (Deployment-Version 5)
   veröffentlicht; die jeweiligen URLs blieben unverändert.
 - Die lokale Auswahl von TEST und PROD sowie die GitHub-Pages-/Home-Screen-Grundlage sind in PR #35
@@ -39,10 +39,34 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Der konkrete Auslöser war ein fehlendes `environment-service.js`, das sonst zu einem
   dauerhaft stehenden „Prüfe Verbindung…“ führte. Die Prüfung steht in
   `tools/check-frontend-assets.mjs`.
-- P2 läuft auf `codex/p2-datenqualitaet`: Das Dashboard unterscheidet fehlende bestätigte
+- P2 ist in PR #38 abgeschlossen: Das Dashboard unterscheidet fehlende bestätigte
   Ablesungen, veraltete Ablesungen und dauerhafte Nullwerte. Leerstände werden bei der
-  Dauernullprüfung nicht als Fehler markiert; die Hinweise blockieren keine Eingabe. Der
-  Branch läuft mit 406 Tests; Apps Script und Google-Sheet-Daten bleiben unverändert.
+  Dauernullprüfung nicht als Fehler markiert; die Hinweise blockieren keine Eingabe.
+  Apps Script und Google-Sheet-Daten blieben unverändert.
+- P6/P7 laufen auf `codex/p6-payment-hardening`: Die neue Mieteingangsansicht bietet eine
+  Monatsmatrix, Teilzahlungen, fachliche Mietmonate, Kautionen, Überfälligkeit,
+  Storno-Gegenbuchungen und einen lokalen CSV-Import mit manueller Vertragszuordnung.
+  Der Hardening-Branch umfasst aktuell 474 Tests. Backend 4.8.12 ist im TEST-Deployment bereitgestellt;
+  das Testprotokoll vom 2026-11-13 dokumentiert
+  zusätzlich die Browserprüfung der TEST-Vertrags- und Zahlungszuordnung. Altzahlungen, explizites Guthaben,
+  stabile Zahlungs- und Storno-IDs, serverseitige Storno-Prüfungen und das
+  `payment_schema_ready`-Capability-Gate sind ergänzt. Die echte TEST-Abnahme hat Teilzahlung,
+  Reload, Storno, Kaution, Erstattung und Überzahlung mit Aufteilung im Backend verifiziert.
+  Der lokale Mock enthält wiederverwendbare
+  synthetische Verbrauchsviews für Strom, Kaltwasser, Warmwasser und Heizöl sowie
+  mehrere aktive Verträge,
+  Leerstand, Teilzahlungen, Nachzahlungen, Erstattungen, wiederholte Verspätungen,
+  Überzahlungen mit expliziter Verteilung auf offene Mietmonate oder Guthaben,
+  Mitmieter, unterschiedliche Kautionsstände und individuelle Zahlungsfristen ab.
+  Erstattungen beeinflussen den Mietstatus nicht; Nachzahlungen
+  werden dem gewählten Mietmonat zugerechnet. Der Vertrags-Schreibweg kennt ab
+  Apps Script 4.8.12 Zahlungsziele als Werktag oder Kalendertag sowie Zahlungsgruppen
+  für aufgeteilte Eingänge; Backend 4.8.12 ist in TEST bereitgestellt, PROD bleibt bis zur
+  fachlichen Abnahme auf 4.8.5. Für den Zahlungsweg ist mindestens Apps Script 4.8.6 erforderlich; die
+  produktive 4.8.5 wurde nicht verändert.
+- Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
+  erzeugt und veröffentlicht ausschließlich `runtime-config.js`; `runtime-secrets.js` bleibt lokal und
+  wird durch einen negativen Workflow-Test gegen versehentliche Veröffentlichung geschützt.
 - P1.1 ist mit PR #32 abgeschlossen: Zugriff ist fail-closed, `GET` liefert nie Daten und
   `APP_ACCESS_KEYS_JSON` unterstützt die Rollen `admin` und `erfassen`. Die produktiven und
   synthetischen Bereitstellungen verwenden getrennte Script Properties.

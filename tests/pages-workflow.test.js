@@ -6,7 +6,7 @@ const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
 const staticScripts = [...index.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)]
   .map((match) => match[1].split(/[?#]/, 1)[0])
-  .filter((source) => source && source !== 'runtime-config.js');
+  .filter((source) => source && !['runtime-config.js', 'runtime-secrets.js'].includes(source));
 
 describe('GitHub-Pages-Build', () => {
   it('baut und veröffentlicht nur aus main', () => {
@@ -19,7 +19,7 @@ describe('GitHub-Pages-Build', () => {
     const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
     const requiredScripts = [...html.matchAll(/<script src="([^"]+\.js)(?:\?[^" ]+)?"><\/script>/g)]
       .map(match => match[1])
-      .filter(src => !['runtime-config.js', 'apps-script/ContractService.js'].includes(src));
+      .filter(src => !['runtime-config.js', 'runtime-secrets.js', 'apps-script/ContractService.js'].includes(src));
     for (const script of requiredScripts) expect(workflow).toContain(script);
   });
 
@@ -32,10 +32,28 @@ describe('GitHub-Pages-Build', () => {
     expect(workflow).not.toContain('CONTRACT_WRITE_TOKEN');
   });
 
+  it('kopiert oder erzeugt keine lokalen Zugangsschlüssel im Pages-Artefakt', () => {
+    expect(workflow).not.toContain('runtime-secrets.js');
+    expect(workflow).not.toContain('HV_TEST_ACCESS_KEY');
+    expect(workflow).not.toContain('HV_PROD_ACCESS_KEY');
+  });
+
   it('kopiert jedes statische Script aus index.html in das Pages-Artefakt', () => {
     for (const source of staticScripts) {
       expect(workflow, `Pages-Workflow kopiert ${source} nicht`).toContain(source);
     }
     expect(workflow).toContain('node tools/check-frontend-assets.mjs --root=dist-site');
+  });
+
+  it('aktualisiert sichtbare Verträge und Mieteingänge nach dem Hintergrundladen', () => {
+    const fullDataIndex = index.indexOf('dataService.setInitialData(fullData)');
+    const contractRefreshIndex = index.indexOf('contractUiService.render()', fullDataIndex);
+    const paymentRefreshIndex = index.indexOf('paymentUiService.render()', fullDataIndex);
+
+    expect(fullDataIndex).toBeGreaterThan(-1);
+    expect(contractRefreshIndex).toBeGreaterThan(fullDataIndex);
+    expect(paymentRefreshIndex).toBeGreaterThan(fullDataIndex);
+    expect(index).toContain('FULL_DATA_EMPTY');
+    expect(index).toContain('dataService.state.fullDataError = true');
   });
 });

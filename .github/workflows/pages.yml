@@ -47,7 +47,7 @@ jobs:
           mkdir -p dist-site/apps-script dist-site/assets
           cp index.html style.css config.js cloud-service.js data-service.js \
             access-ui.js calc-service.js contract-ui.js consumption-charts.js \
-            environment-service.js heating-oil-service.js ui-service.js \
+             environment-service.js heating-oil-service.js payment-ui.js ui-service.js \
             validation-service.js vpi-service.js \
             favicon.png manifest.webmanifest dist-site/
           cp apps-script/ContractService.js dist-site/apps-script/

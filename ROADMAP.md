@@ -3,7 +3,7 @@
 Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklungspakete.
 `PROJECT_STATE.md` beschreibt den aktuellen Systemstand, `CHANGELOG.md` die Releases.
 
-**Stand: 2026-11-11**
+**Stand: 2026-11-12**
 
 ## Arbeitsregeln
 
@@ -20,7 +20,7 @@ Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklun
 
 ## Erledigt auf `main`
 
-Remote `origin/main` enthält aktuell PR #37 und den produktiven Backend-Stand 4.8.5.
+Remote `origin/main` enthält aktuell PR #38 und den produktiven Backend-Stand 4.8.5.
 
 | PR | Inhalt |
 | --- | --- |
@@ -38,6 +38,7 @@ Remote `origin/main` enthält aktuell PR #37 und den produktiven Backend-Stand 4
 | #35 | GitHub-Pages-Bereitstellung, Umgebungsprofile und PWA/Home-Screen-Grundlage |
 | #36 | Pages-Laufzeitdatei `environment-service.js` in das veröffentlichte Artefakt aufnehmen |
 | #37 | Pages-Build- und CI-Prüfungen gegen fehlende Frontend-Assets härten |
+| #38 | Dashboard-Datenqualität: fehlende, veraltete und dauerhafte Null-Ablesungen sichtbar machen |
 
 Der lokale Branch `main` muss nach einem Merge weiterhin mit `origin/main` synchronisiert
 werden, bevor ein neues Feature darauf aufgebaut wird.
@@ -227,7 +228,7 @@ beim erneuten Öffnen keine Anmeldung.
 
 ### P2 Datenqualität bei der Erfassung
 
-**Status:** in Arbeit auf `codex/p2-datenqualitaet`.
+**Status:** abgeschlossen in PR #38.
 
 - Auffällige Sprünge je Medium konfigurierbar warnen, aber niemals das Speichern blockieren.
 - Zwei Werte am selben Tag oder innerhalb des Korrekturfensters als mögliche Korrektur
@@ -236,8 +237,8 @@ beim erneuten Öffnen keine Anmeldung.
 - Im aktuellen Paket werden fehlende bestätigte Ablesungen, Ablesungen älter als 365 Tage
   und dauerhafte Nullwerte im Dashboard getrennt ausgewiesen. Leerstände werden bei der
   Dauernullprüfung nicht als Fehler markiert.
-- Die Regressionen für Klassifikation und Dashboard-Darstellung laufen im Branch mit
-  406 Tests; das Paket ändert weder Apps Script noch Google-Sheet-Daten.
+- Die Regressionen für Klassifikation und Dashboard-Darstellung liefen im Branch mit
+  406 Tests; das Paket änderte weder Apps Script noch Google-Sheet-Daten.
 - Leerstand und Defekt als unterschiedliche fachliche Zustände vorbereiten.
 - LOK-/TEST-Smoke-Tests erst mit echten, gepflegten Live-Daten ergänzen; bis dahin bleibt
   die Objekttrennung automatisiert getestet.
@@ -280,18 +281,44 @@ Ziel ist Kostenkontrolle bei Pauschalen, ausdrücklich kein Nebenkostenabrechnun
 
 ### P6 Mieteingänge manuell
 
+**Status:** fachlich umgesetzt, Release-Hardening auf `codex/p6-payment-hardening`; Backend 4.8.12 ist im TEST-Deployment veröffentlicht und fachlich abgenommen.
+Die aktuelle Einzelprüfung von Matrix, Mietmonat, Status, Kaution und Objektverknüpfung ist in
+[`docs/p6-testprotokoll-20261113.md`](docs/p6-testprotokoll-20261113.md) dokumentiert.
+
 **Ziel:** Zahlungseingänge im Alltag schnell und nachvollziehbar erfassen. Das ist ein
 Erfassungsmodul, kein Mahnwesen und keine Nebenkostenabrechnung.
 
 - Matrix Mieter × Monat mit Sollbetrag aus dem aktiven Vertrag.
 - Schnelle Aktion `voll bezahlt`, vorbelegtes Eingangsdatum und Rückgängig-Funktion.
-- Status `bezahlt`, `teilbezahlt`, `offen` und `überfällig` mit konfigurierbaren Karenztagen.
+- Status `bezahlt`, `teilbezahlt`, `offen` und `überfällig` mit vertragsspezifischer Frist.
 - Zahlungen append-only speichern; Korrekturen als Storno oder Gegenbuchung statt Überschreiben.
 - Offline-Queue und idempotente Zahlungs-ID wiederverwenden.
+- Umsetzung im aktuellen Branch: Monatsmatrix für aktive Verträge, Status je Monat,
+  Teilzahlungen, fachlicher `mietmonat` unabhängig vom Eingangsdatum, Gesamtstatus,
+  Kautionsstatus, Storno als negative Gegenbuchung und keine doppelte Speicherung bei
+  gleicher `zahlung_id`. Der Dialog übernimmt den angeklickten Mietmonat unveränderbar,
+  zeigt den Kautionsstatus einklappbar und markiert verspätete Teil- oder Vollzahlungen
+  zusätzlich zum eigentlichen Zahlungsstatus. Erstattungen werden separat geführt und
+  ändern den Mietstatus nicht. Zahlungsfristen können als 3. Werktag oder individueller
+  Kalendertag hinterlegt werden; der lokale Mock enthält Verbrauchsviews für die
+  fachliche Gesamtprüfung. Überzahlungen werden vor dem Speichern ausdrücklich auf den
+  angeklickten und weitere offene Mietmonate verteilt oder als Guthaben belassen. Die
+  Teilbuchungen tragen eine gemeinsame `zahlungsgruppe_id`.
+- Historische Zahlungen mit leerem `mietmonat` bleiben dem Eingangsmonat zugeordnet;
+  bewusstes Guthaben wird nur über eine Zahlungsgruppe erkannt. Neue Nutzeraktionen
+  erhalten eigene Zahlungs- und Gruppen-IDs; ein Storno ist über `Storno_<zahlung_id>`
+  idempotent und wird serverseitig gegen Originalzahlung, Vertrag und Betrag geprüft.
+- `vertrag_capabilities` meldet, ob das Zahlungsschema vollständig vorbereitet ist;
+  die UI schreibt nicht, wenn `payment_schema_ready` fehlt. Mock und Apps-Script prüfen
+  die gleichen Zahlungsarten, Mietmonate, Konflikte und Storno-Regeln.
+- Der Backend-Schreibweg ist dafür auf 4.8.12 angehoben. Die produktive 4.8.5 bleibt
+  unverändert, bis die neue Apps-Script-Version manuell bereitgestellt und geprüft ist.
 
 **Voraussetzung:** P1.1/P1.2 Rollen und Geräteeinrichtung sind produktiv geprüft.
 
 ### P7 Kontoauszug-Import
+
+**Status:** CSV-MVP im selben Arbeitsstand vorbereitet; CAMT.053/MT940 bleiben Folgeausbau.
 
 **Ziel:** Manuelle Zahlungserfassung durch Vorschläge aus strukturierten Bankexporten reduzieren.
 
@@ -299,9 +326,49 @@ Erfassungsmodul, kein Mahnwesen und keine Nebenkostenabrechnung.
 - Vorschläge über IBAN, Namen, Verwendungszweck, Vertragsnummer und Betrag erzeugen.
 - Unklare Buchungen bleiben offen und werden manuell bestätigt.
 - Keine direkte Bankanbindung und keine automatische externe KI-Verarbeitung in der ersten Version.
+- Der CSV-MVP liest die Datei lokal im Browser, schlägt Verträge anhand von Namen,
+  Vertrags-ID und Sollbetrag vor und speichert erst nach manueller Bestätigung. Der
+  fachliche Mietmonat wird aus `YYYY-MM` im Verwendungszweck vorgeschlagen oder fällt
+  auf den Eingangsmonat zurück und bleibt vor der Übernahme editierbar.
+- Unklare oder negative CSV-Buchungen werden nicht automatisch übernommen.
+
+Für die fachliche Abnahme stehen im keyfreien lokalen Mock mehrere synthetische Personas
+bereit: Teilzahlung und späte Nachzahlung, pünktliche Zahlung mit vollständiger Kaution,
+Leerstand ohne Zahlung, wiederholte Verspätungen, Nachzahlung/Erstattung, Überzahlung und
+zwei Hauptmieter in einer Einheit. Der Mock schreibt ausschließlich in seinen Prozessspeicher.
 
 **Voraussetzung:** P6 läuft im Alltag und das Zahlungsdatenmodell ist erprobt. Die konkrete
 Bank und das verfügbare Exportformat werden erst vor Beginn von P7 geprüft.
+
+### Folgepakete für P6/P7
+
+Die folgenden Punkte sind bewusst als kleine, voneinander trennbare Pakete vorgemerkt. Sie
+werden erst nach der TEST-Abnahme des Hardening-Stands begonnen. Ziel bleibt ein pragmatischer
+Arbeitsablauf; keine automatische Nebenkostenabrechnung, kein Mahnwesen und keine direkte
+Bankanbindung werden daraus abgeleitet.
+
+**Reihenfolge:**
+
+1. **P6.1 Dublettenwarnung:** Weiche Warnung bei gleicher Vertrags-ID, gleichem Eingangsdatum,
+   Betrag und fachlichem Mietmonat. Die Buchung bleibt nach Bestätigung möglich; bestehende
+   idempotente IDs und Storno-Regeln werden nicht verändert. Für CSV und manuelle Erfassung
+   müssen dieselben Vergleichsregeln gelten.
+2. **P6.2 Gemeinsame Zahlungsregeln:** Die fachlichen Pure Functions für Mietmonat, Guthaben,
+   Erstattung, Storno und Statusberechnung zwischen Backend und Mock vereinheitlichen oder
+   aus einer gemeinsamen testbaren Quelle ableiten. Ziel ist, Copy-Paste-Abweichungen zu
+   vermeiden, ohne die Apps-Script-Architektur unnötig umzubauen.
+3. **P7.1 CSV-Monatsparser:** Verwendungszwecke wie `Miete Februar 2026` und `02/2026`
+   erkennen, Datumsangaben nicht fälschlich als Mietmonat interpretieren und die Quelle des
+   Vorschlags anzeigen. Unklare Fälle bleiben bestätigungspflichtig.
+4. **P6.3 Zahlungsfachlichkeit:** Soll-Historie bei Mieterhöhungen ergänzen und die offenen
+   Fachregeln für Nachforderungen, Guthabenumbuchungen sowie Erstattungen im Saldo festlegen.
+   Erst danach werden diese Fälle in die Status- und Übersichtsberechnung aufgenommen.
+5. **P6.4 Zahlungsfristen:** Werktagsregeln belastbar machen. Samstag und Sonntag bleiben
+   ausgeschlossen; gesetzliche Feiertage werden nur für das relevante Bundesland und Objekt
+   berücksichtigt. Individuelle Vertragsvereinbarungen bleiben vorrangig.
+6. **P6.5 Kautionslebenszyklus:** Kaution nach Auszug, Rückzahlung und teilweise einbehaltene
+   Beträge separat abbilden. Die bestehende Kautionsübersicht bleibt von Mietstatus und
+   Mietmonaten getrennt.
 
 ## Zurückgestellt
 
@@ -323,6 +390,7 @@ Bank und das verfügbare Exportformat werden erst vor Beginn von P7 geprüft.
 | 2026-11-06 | Security, Backup und Release-Nachvollziehbarkeit gehen vor neuen Auswertungsfeatures. |
 | 2026-11-10 | Zwei Geräteschlüssel: Admin für Verträge, Erfassen für Zählerstände und Zahlungen. |
 | 2026-11-10 | Mieteingänge zuerst manuell, strukturierter Kontoauszug-Import erst danach; OCR/PSD2 sind kein Startpunkt. |
+| 2026-11-11 | P6/P7 bleiben pragmatisch: CSV lokal importieren, Vorschläge bestätigen, keine direkte Bankanbindung. |
 
 ## Definition of Done
 

@@ -13,6 +13,7 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - Status:
   - `lokal` – nur in einem Branch, nicht gemergt/deployt
   - `main` – gemergt, Deploy noch nicht bestätigt
+  - `test` – in der TEST-Bereitstellung veröffentlicht, PROD bleibt unverändert
   - `produktiv` – im Apps-Script-Projekt deployt (genau eine Version)
   - `ersetzt` – war produktiv oder gemergt, inzwischen überholt
 - **Beim Deploy:** neue Version auf `produktiv` setzen, die bisherige auf `ersetzt`.
@@ -31,8 +32,110 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - PR #37 (2026-11-11): Pages-Asset-Prüfung, JavaScript-Syntaxprüfung und `git diff --check`
   in CI ergänzt.
 
-Diese Einträge ändern die Apps-Script-Version nicht. Die Backend-Version bleibt 4.8.5;
-neue Backend-Logik benötigt weiterhin einen eigenen Versionseintrag nach den Regeln oben.
+Diese Einträge ändern die produktive Apps-Script-Version nicht. PROD bleibt bei 4.8.5;
+die lokalen Backend-Erweiterungen 4.8.6 bis 4.8.10 sowie die TEST-Stände 4.8.11 und 4.8.12 stehen deshalb
+als eigene Versionseinträge oben.
+
+## 4.8.12 · 2026-11-13 · test
+
+Korrektur der fachlichen Mietmonate im Zahlungs-Schreibweg.
+
+- Neue `mietmonat`-Werte werden im Apps Script nach dem Anhängen nochmals als Text
+  im Format `YYYY-MM` geschrieben.
+- Die UI interpretiert aus Google Sheets gelieferte ISO-Datumswerte in der Zeitzone
+  `Europe/Berlin`, damit ein Monatswechsel um Mitternacht nicht falsch zugeordnet wird.
+- Die bestehende TEST-Bereitstellung wurde aktualisiert; `vertrag_capabilities` liefert
+  `payment_schema_ready: true`, PROD bleibt unverändert auf 4.8.5.
+
+## 4.8.11 · 2026-11-12 · test
+
+P6-Hardening-Follow-up für historische Stornos und vorübergehende Netzfehler.
+
+- Ein Storno einer historischen Zahlung ohne `mietmonat` und ohne Zahlungsgruppe erhält
+  den fachlichen Monat aus dem ursprünglichen Eingangsdatum. Kautionen und bewusstes Guthaben
+  bleiben ohne Mietmonat.
+- Storno-Metadaten werden vor der Idempotenzprüfung normalisiert; derselbe Retry wird auch bei
+  abweichenden Client-Metadaten als bereits vorhanden erkannt.
+- Ein transienter Fehler beim Capability-Preflight blockiert den bestehenden Queue-fähigen
+  Schreibweg nicht mehr.
+- Die lokale UI-Anzeige ordnet ein Storno einer historischen Zahlung ohne `mietmonat` sofort
+  dem effektiven Originalmonat zu; ein Reload ist dafür nicht mehr erforderlich.
+- Für lokale TEST-Abnahmen kann ein ignoriertes `runtime-secrets.js` den TEST-Schlüssel
+  bereitstellen; GitHub Pages übernimmt diese Datei nicht und PROD bleibt ohne lokalen Schlüssel.
+- Die Version ist in der bestehenden TEST-Bereitstellung veröffentlicht. PROD bleibt bis zur
+  fachlichen TEST-Abnahme auf 4.8.5.
+
+## 4.8.10 · 2026-11-12 · lokal
+
+P6-Hardening-Follow-up für wiederholbare Zahlungsaktionen.
+
+- Storno-Metadaten werden im Backend aus der Originalzahlung übernommen, damit Mietmonat,
+  Zahlungsgruppe und Gegenart nicht durch einen fehlerhaften Client abweichen.
+- `mietmonat` wird auch im Frontend bei Google-Sheets-Datumswerten zu `YYYY-MM` normalisiert.
+- Die Schema-Vorbereitung formatiert die gesamte vorhandene Spalte als Text, auch wenn das
+  Blatt noch keine Datenzeile enthält.
+- Zahlungsabsichten behalten ihre IDs bei einem fehlgeschlagenen Retry; Aufteilungen bleiben
+  nach einem Fehler im Dialog erhalten.
+- Capability-Abfragen werden kurzzeitig gecacht, damit ein vorübergehender Netzfehler nicht
+  vorzeitig den Offline-Schreibweg verhindert.
+- Die Version ist noch nicht in Apps Script bereitgestellt.
+
+## 4.8.9 · 2026-11-12 · lokal
+
+P6-Hardening für den Zahlungsweg.
+
+- Historische Zahlungen mit leerem `mietmonat` bleiben dem Eingangsmonat zugeordnet;
+  bewusstes Guthaben wird nur über eine vorhandene `zahlungsgruppe_id` erkannt.
+- Stornos benötigen eine vorhandene Originalzahlung, denselben Vertrag und den exakt
+  umgekehrten Betrag. Eine Originalzahlung kann nur einmal storniert werden.
+- Zahlungsarten und Mietmonate werden serverseitig validiert und Mietmonate als
+  `YYYY-MM` normalisiert.
+- `vertrag_capabilities` meldet `payment_schema_ready` und fehlende Spalten, bevor die
+  UI einen Zahlungs-Schreibvorgang startet.
+- Die UI verwendet pro Nutzeraktion neue Zahlungs- und Gruppen-IDs; ein Storno bleibt
+  über `Storno_<zahlung_id>` idempotent.
+- Der lokale CSV-Import übernimmt den fachlichen Mietmonat aus `YYYY-MM` im
+  Verwendungszweck oder schlägt den Eingangsmonat vor; vor der Übernahme bleibt er editierbar.
+- Die Fristprüfung vergleicht Kalendertage statt Uhrzeiten; am Fälligkeitstag bleibt ein
+  offener Monat bis zum Tageswechsel offen.
+- Die Version ist noch nicht in Apps Script bereitgestellt.
+
+## 4.8.8 · 2026-11-11 · lokal
+
+Aufteilung von Überzahlungen auf Mietmonate.
+
+- Der Zahlungsweg akzeptiert `zahlungsgruppe_id` als gemeinsame Kennung für mehrere
+  append-only Teilbuchungen eines tatsächlichen Eingangs.
+- Ein nicht zugeordneter Rest kann als Guthaben ohne `mietmonat` gespeichert werden.
+- Die Version ist noch nicht in Apps Script bereitgestellt; die Spalte muss im Blatt
+  `Zahlungen` vorhanden sein.
+
+## 4.8.7 · 2026-11-11 · lokal
+
+Vertragsspezifische Zahlungsfristen für die Mieteingangsansicht.
+
+- `Vertraege` kann `zahlungsziel_typ` (`WERKTAG` oder `KALENDERTAG`) und
+  `zahlungsziel_wert` speichern.
+- Die bestehende Mieteingangslogik kann damit den 3. Werktag oder einen individuell
+  vereinbarten Kalendertag auswerten; Wochenenden und bundesweite Feiertage werden bei
+  Werktagen übersprungen.
+- Die Version ist noch nicht in Apps Script bereitgestellt. Die beiden neuen Spalten
+  werden ausschließlich über die explizite Schema-Vorbereitung ergänzt.
+
+## 4.8.6 · 2026-11-11 · lokal
+
+Manuelle Mieteingänge und der erste CSV-Import werden vorbereitet.
+
+- Der Schreibweg `ZAHLUNG` ist über `zahlung_id` idempotent: dieselbe Buchung wird
+  bestätigt, aber nicht doppelt angelegt; eine abweichende Wiederverwendung der ID
+  wird als Konflikt abgewiesen.
+- Stornos werden als negative append-only Gegenbuchungen mit eigener ID gespeichert.
+- Der Frontend-Paketstand enthält die Monatsmatrix, Teilzahlungen, Überfälligkeit,
+  Rückgängigmachen, fachliche Mietmonate und lokale CSV-Zuordnungsvorschläge.
+- Kautionen werden separat gegen `kaution_soll` ausgewertet; Erstattungen sind negative
+  Buchungen. Der keyfreie Mock enthält mehrere Entenhausen-Personas für die Abnahme.
+- Diese Version ist noch nicht in Apps Script bereitgestellt. Vor dem Merge und Deploy
+  laufen Backend- und UI-Regressionstests gegen Mock-Daten.
 
 ## 4.8.5 · 2026-11-10 · produktiv
 

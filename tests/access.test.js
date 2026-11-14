@@ -3,18 +3,31 @@ import { readFileSync } from 'node:fs';
 
 const KEY = 'test-only-key';
 
-function backend({ key, accessKeys } = {}) {
+function backend({ key, accessKeys, paymentRows } = {}) {
   const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
   const calls = { locks: 0, viewUpdates: 0, contractWrites: [] };
   const rows = {
     Zaehlerstaende: [['stand_id', 'zaehler_id', 'wert']],
-    Zahlungen: [['zahlung_id', 'betrag']]
+    Zahlungen: paymentRows || [['zahlung_id', 'betrag']]
   };
   const makeSheet = (name, values) => ({
     getName: () => name,
     getDataRange: () => ({ getValues: () => values.map(row => row.slice()) }),
     getLastColumn: () => values[0].length,
-    getRange: () => ({ getValues: () => [values[0].slice()] }),
+    getLastRow: () => values.length,
+    getRange: (...args) => {
+      if (args.length === 0) return { getValues: () => [values[0].slice()] };
+      const row = args[0] || 1;
+      const column = args[1] || 1;
+      const rowCount = args[2] || 1;
+      const columnCount = args[3] || 1;
+      return {
+        getValues: () => values.slice(row - 1, row - 1 + rowCount)
+          .map(currentRow => currentRow.slice(column - 1, column - 1 + columnCount)),
+        setNumberFormat: () => {},
+        setValue: value => { values[row - 1][column - 1] = value; }
+      };
+    },
     appendRow: row => { values.push(row); }
   });
   const sheets = {
@@ -100,6 +113,25 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     expect(api.post({ typ: 'LESEN', view: 'vertrag_capabilities', key: KEY })).toMatchObject({ access_protected: true, access_role: 'admin' });
   });
 
+  it('meldet die Zahlungsfähigkeit und fehlende Zahlungsspalten explizit', () => {
+    const incomplete = backend({ key: KEY, paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art']] });
+    expect(incomplete.post({ typ: 'LESEN', view: 'vertrag_capabilities', key: KEY })).toMatchObject({
+      payment_writes: true,
+      payment_schema_ready: false,
+      payment_schema_missing: ['mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id']
+    });
+
+    const ready = backend({
+      key: KEY,
+      paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id']]
+    });
+    expect(ready.post({ typ: 'LESEN', view: 'vertrag_capabilities', key: KEY })).toMatchObject({
+      payment_writes: true,
+      payment_schema_ready: true,
+      payment_schema_missing: []
+    });
+  });
+
   it('lehnt Schreibzugriffe ohne Schlüssel ab, ohne zu schreiben, zu sperren oder Views zu aktualisieren', () => {
     const api = backend({ key: KEY });
     for (const payload of [
@@ -124,6 +156,161 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     expect(api.calls.viewUpdates).toBe(2);
     api.post({ typ: 'INDEX_ANWENDEN', token: 'vertrag', data: {}, key: KEY });
     expect(api.calls.contractWrites).toHaveLength(1);
+  });
+
+  it('behandelt Zahlungen über zahlung_id idempotent und weist abweichende Wiederholungen ab', () => {
+    const api = backend({
+      key: KEY,
+      paymentRows: [
+        ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art'],
+        ['P_EXISTING', 'V1', '2026-11-01', 650, 'Miete']
+      ]
+    });
+
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'P_EXISTING', vertrag_id: 'V1', datum: '2026-11-01', betrag: 650, art: 'Miete' }]
+    })).toMatchObject({ status: 'success', angelegt: 0, bereits_vorhanden: 1 });
+    expect(api.rows.Zahlungen).toHaveLength(2);
+
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'P_EXISTING', vertrag_id: 'V1', datum: '2026-11-01', betrag: 700, art: 'Miete' }]
+    })).toMatchObject({ status: 'error', code: 'PAYMENT_ID_CONFLICT' });
+    expect(api.rows.Zahlungen).toHaveLength(2);
+  });
+
+  it('akzeptiert negative Zahlungsbeträge nur als gültiges Storno', () => {
+    const api = backend({
+      key: KEY,
+      paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art'],
+        ['ORIGINAL_1', 'V1', '2026-11-10', 650, 'Miete', '2026-11', '', '']]
+    });
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'NEGATIVE_Miete', vertrag_id: 'V1', datum: '2026-11-11', betrag: -650, art: 'Miete' }]
+    })).toMatchObject({ status: 'error' });
+
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'STORNO_1', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-11', betrag: -650, art: 'Storno', storno_von: 'ORIGINAL_1', gegen_art: 'Miete' }]
+    })).toMatchObject({ status: 'success', angelegt: 1 });
+  });
+
+  it('verhindert ein zweites Storno derselben Originalzahlung', () => {
+    const api = backend({
+      key: KEY,
+      paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art'],
+        ['ORIGINAL_1', 'V1', '2026-11-10', 650, 'Miete', '2026-11', '', ''],
+        ['STORNO_1', 'V1', '2026-11-11', -650, 'Storno', '2026-11', 'ORIGINAL_1', 'Miete']]
+    });
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'STORNO_2', vertrag_id: 'V1', datum: '2026-11-12', mietmonat: '2026-11', betrag: -650, art: 'Storno', storno_von: 'ORIGINAL_1', gegen_art: 'Miete' }]
+    })).toMatchObject({ status: 'error', code: 'PAYMENT_ALREADY_STORNOED' });
+  });
+
+  it('übernimmt Mietmonat und Zahlungsgruppe beim Storno aus dem Original', () => {
+    const api = backend({
+      key: KEY,
+      paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id'],
+        ['ORIGINAL_1', 'V1', '2026-11-10', 250, 'Miete', '2026-02', '', '', 'ZG_1']]
+    });
+
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'STORNO_1', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-11', betrag: -250, art: 'Storno', storno_von: 'ORIGINAL_1', gegen_art: 'Kaution', zahlungsgruppe_id: 'WRONG_GROUP' }]
+    })).toMatchObject({ status: 'success', angelegt: 1 });
+
+    expect(api.rows.Zahlungen[2]).toEqual(['STORNO_1', 'V1', '2026-11-11', -250, 'Storno', '2026-02', 'ORIGINAL_1', 'Miete', 'ZG_1']);
+  });
+
+  it('ordnet das Storno einer historischen Altzahlung dem Eingangsmonat zu', () => {
+    const api = backend({
+      key: KEY,
+      paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id'],
+        ['LEGACY_1', 'V1', '2026-03-05', 650, 'Miete', '', '', '', '']]
+    });
+
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'STORNO_LEGACY_1', vertrag_id: 'V1', datum: '2026-11-12', mietmonat: '2026-11', betrag: -650, art: 'Storno', storno_von: 'LEGACY_1', gegen_art: 'Kaution' }]
+    })).toMatchObject({ status: 'success', angelegt: 1 });
+
+    expect(api.rows.Zahlungen[2]).toEqual(['STORNO_LEGACY_1', 'V1', '2026-11-12', -650, 'Storno', '2026-03', 'LEGACY_1', 'Miete', '']);
+  });
+
+  it('akzeptiert einen Retry desselben Stornos auch mit ungeeigneten Client-Metadaten', () => {
+    const api = backend({
+      key: KEY,
+      paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id'],
+        ['ORIGINAL_1', 'V1', '2026-02-05', 250, 'Miete', '', '', '', '']]
+    });
+    const payload = { typ: 'ZAHLUNG', key: KEY, data: [{ zahlung_id: 'STORNO_1', vertrag_id: 'V1', datum: '2026-11-12', mietmonat: '2026-11', betrag: -250, art: 'Storno', storno_von: 'ORIGINAL_1', gegen_art: 'Kaution' }] };
+
+    expect(api.post(payload)).toMatchObject({ status: 'success', angelegt: 1 });
+    expect(api.post(payload)).toMatchObject({ status: 'success', angelegt: 0, bereits_vorhanden: 1 });
+  });
+
+  it('validiert den fachlichen Mietmonat und den Originalbetrag eines Stornos', () => {
+    const api = backend({
+      key: KEY,
+      paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art'],
+        ['ORIGINAL_1', 'V1', '2026-11-10', 650, 'Miete', '2026-11', '', '']]
+    });
+    expect(api.post({
+      typ: 'ZAHLUNG', key: KEY,
+      data: [{ zahlung_id: 'BAD_MONTH', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: 'November', betrag: 10, art: 'Miete' }]
+    })).toMatchObject({ status: 'error', code: 'PAYMENT_MONTH_INVALID' });
+    expect(api.post({
+      typ: 'ZAHLUNG', key: KEY,
+      data: [{ zahlung_id: 'BAD_STORNO', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-11', betrag: -100, art: 'Storno', storno_von: 'ORIGINAL_1', gegen_art: 'Miete' }]
+    })).toMatchObject({ status: 'error', code: 'STORNO_AMOUNT_MISMATCH' });
+  });
+
+  it('speichert fachlichen Mietmonat und negative Erstattung nur mit erweitertem Zahlungen-Schema', () => {
+    const api = backend({
+      key: KEY,
+      paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art']]
+    });
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'FEB_1', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-02', betrag: 150, art: 'Miete' }]
+    })).toMatchObject({ status: 'success', angelegt: 1 });
+    expect(api.rows.Zahlungen[1]).toEqual(['FEB_1', 'V1', '2026-11-11', 150, 'Miete', '2026-02', '', '']);
+
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'REFUND_1', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-02', betrag: -25, art: 'Erstattung' }]
+    })).toMatchObject({ status: 'success', angelegt: 1 });
+
+    expect(api.post({
+      typ: 'ZAHLUNG',
+      key: KEY,
+      data: [{ zahlung_id: 'REFUND_2', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-02', betrag: 25, art: 'Erstattung' }]
+    })).toMatchObject({ status: 'error' });
+  });
+
+  it('speichert neue Mietmonate als Text und nicht als Sheet-Datum', () => {
+    const api = backend({
+      key: KEY,
+      paymentRows: [['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id']]
+    });
+
+    expect(api.post({
+      typ: 'ZAHLUNG', key: KEY,
+      data: [{ zahlung_id: 'TEXT_MONTH', vertrag_id: 'V1', datum: '2026-11-13', mietmonat: '2026-09', betrag: 150, art: 'Miete' }]
+    })).toMatchObject({ status: 'success', angelegt: 1 });
+    expect(api.rows.Zahlungen[1][5]).toBe('2026-09');
   });
 
   it('aktualisiert Verbrauchsviews nur mit richtigem Schlüssel', () => {

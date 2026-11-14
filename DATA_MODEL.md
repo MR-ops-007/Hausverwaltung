@@ -61,6 +61,31 @@ Speichert jede Zahlung auf einen Vertrag.
 | **C** | `datum` | Datum | Buchungsdatum |
 | **D** | `betrag` | Zahl | Gezahlter Betrag |
 | **E** | `art` | String | `Miete`, `Kaution`, `Nachzahlung`, `Erstattung` |
+| **F** | `mietmonat` | Text, optional | Fachlicher Monat `YYYY-MM`; bei Kaution und ausdrücklich nicht zugeordnetem Guthaben leer |
+| **G** | `storno_von` | String, optional | `zahlung_id` der stornierten Buchung |
+| **H** | `gegen_art` | String, optional | Ursprüngliche Art bei `art = Storno`, insbesondere `Kaution` |
+| **I** | `zahlungsgruppe_id` | String, optional | Gemeinsame ID für Teilbuchungen aus einem tatsächlichen Zahlungseingang |
+
+`zahlung_id` ist der Idempotenzschlüssel des Schreibwegs. Ein erneuter Versand mit
+derselben ID und denselben Buchungsdaten wird als bereits vorhanden bestätigt und
+erzeugt keine zweite Zeile. Die Wiederverwendung einer ID mit abweichendem Vertrag,
+Datum, Betrag, Art oder fachlicher Zuordnung wird als Konflikt abgewiesen. `datum`
+ist das tatsächliche Eingangsdatum; `mietmonat` ist die fachliche Zuordnung. Dadurch
+kann eine Zahlung am 11.11.2026 den Mietmonat `2026-02` ausgleichen. Korrekturen werden
+append-only als eigene Gegenbuchung gespeichert: `art = Storno`, eigene `zahlung_id`,
+`storno_von` und ein gegenläufiger Betrag. Eine Erstattung vom Vermieter an den Mieter
+wird als `art = Erstattung` mit negativem `betrag` erfasst. Kautionen werden nicht in
+die Monatsmiete eingerechnet, sondern separat gegen `Vertraege.kaution_soll` ausgewertet.
+Die ursprüngliche Zahlung bleibt unverändert nachvollziehbar. Wird ein Eingang auf mehrere
+Mietmonate verteilt, erhält jede Teilbuchung eine eigene `zahlung_id` und dieselbe
+`zahlungsgruppe_id`. Die Summe aller Teilbuchungen dieser Gruppe entspricht exakt dem
+tatsächlichen Eingang. Ein Rest ohne `mietmonat` ist ein ausdrücklich bestätigtes
+Mietguthaben, nicht eine Kaution; er wird in der Übersicht separat als Guthaben geführt.
+
+Der erste Kontoauszug-Import unterstützt CSV-Dateien lokal im Browser. Die App liest
+keine Bankzugänge und sendet keine Datei an einen externen Dienst. Vertragsvorschläge
+werden aus Name, Verwendungszweck, Vertrags-ID und Sollbetrag gebildet und müssen vor
+dem Speichern bestätigt werden. CAMT.053 und MT940 sind ein späterer Importausbau.
 
 ---
 
@@ -164,6 +189,8 @@ Die Zuordnung wird in Apps Script zentral über `getLokEinheitEntranceMapping` g
 | **L** | `soll_gesamt` | Zahl | Summe aus soll_kaltmiete und soll_nebenkosten |
 | **M** | `kaution_soll` | Zahl | Vereinbarte Kautionssumme |
 | **N** | `kaution_ist` | Zahl | Tatsächlich bisher gezahlte Kaution |
+| **O** | `zahlungsziel_typ` | String | `WERKTAG` oder `KALENDERTAG`; Standard ist der 3. Werktag |
+| **P** | `zahlungsziel_wert` | Zahl | Anzahl des Werktags oder Kalendertag des Monats, z. B. `3` oder `15` |
 
 #### Lokale Erweiterung ab Backend 4.7.0 (noch nicht produktiv migriert)
 
@@ -185,6 +212,16 @@ Spaltenbuchstaben geschrieben:
 Nebenkostenabrechnung. `soll_nebenkosten` bleibt Pflicht beim Speichern und die
 verbindliche Rechengröße. Optionale Teilbeträge ändern sie nicht.
 `soll_gesamt = soll_kaltmiete + soll_nebenkosten`.
+
+Für die Mieteingangsansicht wird die Zahlungsfrist pro Vertrag geführt. Bei
+`zahlungsziel_typ = WERKTAG` zählt die Anwendung Montag bis Freitag und überspringt
+bundesweite Feiertage; `zahlungsziel_wert = 3` bedeutet also „3. Werktag des Monats“.
+Bei `KALENDERTAG` bezeichnet der Wert den vereinbarten Tag, zum Beispiel den 15.;
+fällt dieser auf ein Wochenende oder einen Feiertag, wird der nächste Werktag als
+Frist verwendet.
+Im ersten Vertragsmonat wird ein späterer Mietbeginn als frühester Zahlungstermin
+berücksichtigt. Ein individueller Zahlungstermin wird nicht aus dem Gehaltseingang
+erraten, sondern ausdrücklich im Vertrag hinterlegt.
 
 Neue Tabelle `Mietanpassungen` (append-only): `anpassung_id`, `vertrag_id` (FK),
 `art` (`INDEX`/`STAMMDATEN`), `erfasst_am`, `wirksam_ab`, `zugang_datum`,

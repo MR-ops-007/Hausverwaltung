@@ -18,7 +18,7 @@ Regel:
 
 ### Zugriffsschutz und Rollen
 
-Backend 4.8.5 arbeitet fail-closed: Ohne gültige Script-Property wird kein Datenzugriff
+Das Backend arbeitet fail-closed: Ohne gültige Script-Property wird kein Datenzugriff
 zugelassen. Für zwei Geräte kann `APP_ACCESS_KEYS_JSON` als JSON-Array mit `id`, `label`,
 `key`, `role` (`admin` oder `erfassen`) und optional `aktiv` gesetzt werden. `erfassen`
 darf Zählerstände und Zahlungen schreiben; `admin` darf zusätzlich Verträge und
@@ -35,6 +35,10 @@ die lokale Script Property `CONTRACT_WRITE_TOKEN`. Keine Freigabewerte committen
 Vor Push produktiven Stand in separater Arbeitskopie pullen und Diff prüfen.
 Details: [Vertragskonzept und Rollback](../docs/contracts-index-plan.md).
 
+`preparePaymentSchema()` ist die ebenfalls manuell aufzurufende Vorbereitung für das
+Blatt `Zahlungen`. Sie ergänzt unter anderem `zahlungsgruppe_id` für aufgeteilte
+Mieteingänge und verändert keine bestehenden Buchungen.
+
 Das produktive Backend liegt weiterhin im Google Apps Script Projekt. Die Synchronisierung über `clasp` ist vorbereitet.
 
 Dieses Verzeichnis dient dazu, den Apps-Script-Code im GitHub-Repository nachvollziehbar versionieren, per Git-Diff prüfen und künftig per `clasp` synchronisieren zu können.
@@ -44,6 +48,7 @@ Dieses Verzeichnis dient dazu, den Apps-Script-Code im GitHub-Repository nachvol
 | Datei | Zweck |
 | :--- | :--- |
 | `Code.gs` | Versionierte Kopie des produktiven Google Apps Script Backends |
+| `Payments.gs` | Explizite Vorbereitung der optionalen Zahlungsspalten, einschließlich Zahlungsgruppen |
 | `Migration.gs.gs` | Bestehende historische GAS-Migrationsfunktion aus dem produktiven Projekt |
 | `StandIdMigration.gs` | Preview-/Apply-Migration für `objekt_id`, `einheit_id` und neue `stand_id` in Bestandsdaten |
 | `appsscript.json` | Versioniertes Apps-Script-Manifest |

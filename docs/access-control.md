@@ -1,6 +1,6 @@
 # Zugriffsschutz (Backend 4.8.5)
 
-Stand: 2026-11-11
+Stand: 2026-11-13
 
 ## Ziel
 
@@ -37,6 +37,10 @@ Sie ist deshalb nicht geheim. Geschützt wird der Zugriff durch einen Zugangssch
   Geräteschlüssel.
 - Vertrags- und Indexänderungen werden anhand der Rolle mit `FORBIDDEN` abgewiesen, bevor ein Lock
   angefordert oder geschrieben wird.
+- Der Mieteingangsweg bleibt für die Rolle `erfassen` freigegeben. Ab Backend 4.8.11
+  verhindert `zahlung_id` doppelte Buchungen bei Wiederholungen; eine abweichende
+  Wiederverwendung derselben ID wird als `PAYMENT_ID_CONFLICT` abgewiesen. Das Backend
+  meldet zusätzlich `payment_schema_ready`, bevor der Zahlungs-Schreibweg verwendet wird.
 
 ## Einspielen (Reihenfolge einhalten)
 
@@ -70,6 +74,10 @@ Zeilen) und meldet „Version 4.8.0 erforderlich“, liefert aber keine Daten.
 - Ein neuer Schlüssel muss pro Gerät einmal hinterlegt werden. Er liegt pro Browser im
   `localStorage` (`hv_access_key:test` beziehungsweise `hv_access_key:production`). Entfernen über die
   Browserdaten der Seite.
+- Eine lokale Schlüsseldatei (`runtime-secrets.js`) ist ausschließlich für die TEST-Abnahme vorgesehen.
+  Das Frontend ignoriert dort hinterlegte Werte außerhalb der TEST-Umgebung. Der GitHub-Pages-Workflow
+  erzeugt nur `runtime-config.js` und kopiert `runtime-secrets.js` weder ins öffentliche Artefakt noch
+  aus Repository-Variablen hinein.
 
 ## Offline-Queue
 

@@ -5,7 +5,7 @@ const reply = body => ({ ok: true, text: async () => JSON.stringify(body) });
 const unauthorized = () => reply({ status: 'error', code: 'UNAUTHORIZED', message: 'Zugangsschlüssel fehlt oder ist falsch.' });
 const bodyOf = (fetch, index) => JSON.parse(fetch.mock.calls[index][1].body);
 
-function loadCloud({ key = '', environment, online = true, accessUi, failSet = false, dropWrites = false, withDocument = false, failSetWhen = null, failRemoveWhen = null, apiUrl = 'https://example.test/api' } = {}) {
+function loadCloud({ key = '', environment, runtimeSecrets = {}, online = true, accessUi, failSet = false, dropWrites = false, withDocument = false, failSetWhen = null, failRemoveWhen = null, apiUrl = 'https://example.test/api' } = {}) {
   const source = readFileSync(new URL('../cloud-service.js', import.meta.url), 'utf8');
   const storageKey = environment ? `hv_access_key:${environment}` : 'hv_access_key';
   const store = key ? { [storageKey]: key } : {};
@@ -28,7 +28,7 @@ function loadCloud({ key = '', environment, online = true, accessUi, failSet = f
   const document = withDocument ? { dispatchEvent: event => events.push(event.type) } : undefined;
   const CustomEvent = withDocument ? class { constructor(type) { this.type = type; } } : undefined;
   const cloud = new Function('CONFIG', 'fetch', 'localStorage', 'navigator', 'accessUi', 'console', 'document', 'CustomEvent', `${source};return cloudService;`)(
-    { API_URL: apiUrl, ENVIRONMENT: environment }, fetch, localStorage, navigator, accessUi, console, document, CustomEvent);
+    { API_URL: apiUrl, ENVIRONMENT: environment, LOCAL_ACCESS_KEYS: runtimeSecrets }, fetch, localStorage, navigator, accessUi, console, document, CustomEvent);
   const queue = name => JSON.parse(store[name] || '[]');
   // Nutzdaten der Queue-Einträge (ohne id/status), in Reihenfolge.
   const payloads = () => queue('offline_queue').map(entry => entry.payload);
@@ -49,6 +49,19 @@ describe('Lesen per POST mit Zugangsschlüssel', () => {
     expect(productionCloud.store).toEqual({ 'hv_access_key:production': 'prod-key' });
   });
 
+  it('übernimmt einen lokalen TEST-Schlüssel einmalig aus der Laufzeitkonfiguration', () => {
+    const { cloud, store } = loadCloud({ environment: 'test', runtimeSecrets: { test: 'local-test-key' } });
+    expect(cloud.getAccessKey()).toBe('local-test-key');
+    expect(store).toEqual({ 'hv_access_key:test': 'local-test-key' });
+  });
+
+  it('ignoriert lokale Zugangsschlüssel außerhalb der TEST-Umgebung', () => {
+    const { cloud, store } = loadCloud({ environment: 'production', runtimeSecrets: { production: 'should-not-be-used' } });
+    expect(cloud.getLocalConfiguredAccessKey()).toBe('');
+    expect(cloud.getAccessKey()).toBe('');
+    expect(store).toEqual({});
+  });
+
   it('meldet eine fehlende Laufzeitkonfiguration vor dem Netzwerkzugriff', async () => {
     const { cloud, fetch } = loadCloud({ apiUrl: '' });
     await expect(cloud.loadDashboardData()).rejects.toMatchObject({ code: 'CONFIGURATION_ERROR' });
@@ -60,6 +73,39 @@ describe('Lesen per POST mit Zugangsschlüssel', () => {
     fetch.mockResolvedValue(reply({ status: 'success', message: 'Verbrauchsviews aktualisiert' }));
     await expect(cloud.refreshConsumptionViews()).resolves.toMatchObject({ status: 'success' });
     expect(bodyOf(fetch, 0)).toEqual({ typ: 'VERBRAUCH_VIEWS_AKTUALISIEREN', key: 'k1' });
+  });
+
+  it('prüft die Zahlungsfähigkeit des Backends vor dem Zahlungs-Schreibweg', async () => {
+    const { cloud, fetch } = loadCloud({ key: 'k1' });
+    fetch.mockResolvedValue(reply({
+      backend_version: '4.8.8',
+      payment_writes: true,
+      payment_schema_ready: true,
+      payment_schema_missing: []
+    }));
+    await expect(cloud.loadPaymentCapabilities()).resolves.toMatchObject({ payment_schema_ready: true });
+    expect(bodyOf(fetch, 0)).toMatchObject({ typ: 'LESEN', view: 'vertrag_capabilities', key: 'k1' });
+  });
+
+  it('cached die Zahlungsfähigkeit kurzzeitig für Wiederholungen', async () => {
+    const { cloud, fetch } = loadCloud({ key: 'k1' });
+    fetch.mockResolvedValue(reply({ payment_writes: true, payment_schema_ready: true, payment_schema_missing: [] }));
+
+    await cloud.loadPaymentCapabilities();
+    await cloud.loadPaymentCapabilities();
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('lehnt den Zahlungs-Schreibweg bei fehlendem Backend-Schema verständlich ab', async () => {
+    const { cloud, fetch } = loadCloud({ key: 'k1' });
+    fetch.mockResolvedValue(reply({
+      payment_writes: true,
+      payment_schema_ready: false,
+      payment_schema_missing: ['mietmonat']
+    }));
+    await expect(cloud.loadPaymentCapabilities()).rejects.toMatchObject({ code: 'PAYMENT_SCHEMA_NOT_READY' });
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it('meldet einen Fehler beim Aktualisieren der Verbrauchsviews', async () => {

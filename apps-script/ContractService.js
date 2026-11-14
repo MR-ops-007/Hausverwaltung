@@ -1,10 +1,12 @@
 /** Shared contract rules for browser and Apps Script. No persistence or UI. */
 const contractService = {
   fields: ['vertragsdokument_url', 'sondervereinbarungen_url', 'vertrag_hinweis',
-    'nk_betriebskosten', 'nk_heizung_warmwasser', 'index_basis_monat', 'index_basis_wert', 'index_reihe'],
+    'nk_betriebskosten', 'nk_heizung_warmwasser', 'index_basis_monat', 'index_basis_wert', 'index_reihe',
+    'zahlungsziel_typ', 'zahlungsziel_wert'],
   editable: ['mietmodell', 'erhoehungs_typ', 'soll_kaltmiete', 'soll_nebenkosten',
     'vertragsdokument_url', 'sondervereinbarungen_url', 'vertrag_hinweis',
-    'nk_betriebskosten', 'nk_heizung_warmwasser', 'index_basis_monat', 'index_basis_wert', 'index_reihe'],
+    'nk_betriebskosten', 'nk_heizung_warmwasser', 'index_basis_monat', 'index_basis_wert', 'index_reihe',
+    'zahlungsziel_typ', 'zahlungsziel_wert'],
   historyHeaders: ['anpassung_id', 'vertrag_id', 'art', 'erfasst_am', 'wirksam_ab',
     'zugang_datum', 'erklaerung_url', 'index_neu_monat', 'index_neu_wert', 'index_reihe',
     'vorher_json', 'nachher_json'],
@@ -66,6 +68,20 @@ const contractService = {
 
   blank(value) { return value === undefined || value === null || String(value).trim() === ''; },
 
+  paymentDeadlineType(value) {
+    const type = this.blank(value) ? 'WERKTAG' : String(value).trim().toUpperCase();
+    if (!['WERKTAG', 'KALENDERTAG'].includes(type)) throw new Error('Zahlungszieltyp ungueltig.');
+    return type;
+  },
+
+  paymentDeadlineValue(value, type = 'WERKTAG') {
+    if (this.blank(value)) return type === 'WERKTAG' ? 3 : 1;
+    const number = Number(String(value).trim().replace(',', '.'));
+    const maximum = type === 'WERKTAG' ? 23 : 31;
+    if (!Number.isInteger(number) || number < 1 || number > maximum) throw new Error('Zahlungszielwert ungueltig.');
+    return number;
+  },
+
   /** Value equality for sheet values vs. form strings: '' == undefined, 600 == '600' == '600,00'. */
   same(a, b) {
     if (this.blank(a) || this.blank(b)) return this.blank(a) && this.blank(b);
@@ -109,6 +125,11 @@ const contractService = {
     ['vertragsdokument_url', 'sondervereinbarungen_url'].forEach(key => {
       if (Object.prototype.hasOwnProperty.call(patch, key)) result[key] = this.documentUrl(patch[key]);
     });
+    if (Object.prototype.hasOwnProperty.call(patch, 'zahlungsziel_typ') || Object.prototype.hasOwnProperty.call(patch, 'zahlungsziel_wert')) {
+      const type = this.paymentDeadlineType(next.zahlungsziel_typ);
+      result.zahlungsziel_typ = type;
+      result.zahlungsziel_wert = this.paymentDeadlineValue(next.zahlungsziel_wert, type);
+    }
     if (patch.index_basis_monat) result.index_basis_monat = this.month(patch.index_basis_monat);
     result.soll_gesamt = this.money(result.soll_kaltmiete + result.soll_nebenkosten);
     // Rent/index changes need the separate documented adjustment flow once a baseline exists.

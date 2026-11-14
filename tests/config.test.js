@@ -3,15 +3,35 @@ import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../config.js', import.meta.url), 'utf8');
 
-function loadConfig(runtimeConfig) {
+function loadConfig(runtimeConfig, location) {
   const previous = globalThis.HV_RUNTIME_CONFIG;
+  const previousLocation = globalThis.location;
   try {
     if (runtimeConfig === undefined) delete globalThis.HV_RUNTIME_CONFIG;
     else globalThis.HV_RUNTIME_CONFIG = runtimeConfig;
+    if (location === undefined) delete globalThis.location;
+    else globalThis.location = location;
     return new Function(`${source}; return CONFIG;`)();
   } finally {
     if (previous === undefined) delete globalThis.HV_RUNTIME_CONFIG;
     else globalThis.HV_RUNTIME_CONFIG = previous;
+    if (previousLocation === undefined) delete globalThis.location;
+    else globalThis.location = previousLocation;
+  }
+}
+
+function loadConfigWithSecrets(runtimeConfig, secrets) {
+  const previous = globalThis.HV_RUNTIME_CONFIG;
+  const previousSecrets = globalThis.HV_RUNTIME_SECRETS;
+  try {
+    globalThis.HV_RUNTIME_CONFIG = runtimeConfig;
+    globalThis.HV_RUNTIME_SECRETS = secrets;
+    return new Function(`${source}; return CONFIG;`)();
+  } finally {
+    if (previous === undefined) delete globalThis.HV_RUNTIME_CONFIG;
+    else globalThis.HV_RUNTIME_CONFIG = previous;
+    if (previousSecrets === undefined) delete globalThis.HV_RUNTIME_SECRETS;
+    else globalThis.HV_RUNTIME_SECRETS = previousSecrets;
   }
 }
 
@@ -36,6 +56,11 @@ describe('Laufzeitkonfiguration', () => {
     expect(config.API_CONFIGURED).toBe(true);
   });
 
+  it('übernimmt lokale Zugangsschlüssel getrennt von den Laufzeitprofilen', () => {
+    const config = loadConfigWithSecrets({ environment: 'test', apiUrl: 'https://test.example.invalid/exec' }, { test: 'local-test-key', production: '' });
+    expect(config.LOCAL_ACCESS_KEYS).toEqual({ test: 'local-test-key', production: '' });
+  });
+
   it('wählt die API des aktiven Profils aus', () => {
     const config = loadConfig({
       environment: 'test',
@@ -47,6 +72,19 @@ describe('Laufzeitkonfiguration', () => {
     expect(config.ENVIRONMENT_LABEL).toBe('TEST');
     expect(config.API_URL).toBe('https://test.example.invalid/exec');
     expect(Object.keys(config.ENVIRONMENT_PROFILES)).toEqual(['test', 'production']);
+  });
+
+  it('verwendet den keyfreien Mock nur über localhost mit explizitem Query-Schalter', () => {
+    const config = loadConfig(undefined, { hostname: '127.0.0.1', search: '?mock=1' });
+    expect(config.ENVIRONMENT).toBe('test');
+    expect(config.ENVIRONMENT_LABEL).toBe('LOKALER MOCK · Entenhausen');
+    expect(config.API_URL).toBe('http://127.0.0.1:8787');
+    expect(config.API_CONFIGURED).toBe(true);
+  });
+
+  it('aktiviert den Mock nicht auf fremden Hosts oder ohne Schalter', () => {
+    expect(loadConfig(undefined, { hostname: 'example.com', search: '?mock=1' }).API_URL).toBe('');
+    expect(loadConfig(undefined, { hostname: 'localhost', search: '' }).API_URL).toBe('');
   });
 
   it('übergibt lokale Profile an den Browser-Host', () => {

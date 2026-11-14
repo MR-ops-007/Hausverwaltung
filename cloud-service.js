@@ -18,11 +18,23 @@ const cloudService = {
     processingQueue: false,
     retryAttempt: 0,
     retryTimer: null,
+    paymentCapabilitiesCache: null,
+    PAYMENT_CAPABILITIES_CACHE_MS: 5 * 60 * 1000,
 
     // --- Zugangsschlüssel -------------------------------------------------
     getAccessKeyStorage() {
         const environment = CONFIG && CONFIG.ENVIRONMENT;
         return environment ? `${this.ACCESS_KEY_STORAGE}:${environment}` : this.LEGACY_ACCESS_KEY_STORAGE;
+    },
+
+    getLocalConfiguredAccessKey() {
+        const environment = CONFIG && CONFIG.ENVIRONMENT;
+        // Lokale Schlüssel sind ausschließlich für die TEST-Abnahme zulässig.
+        // Ein versehentlich befüllter Produktionswert darf niemals verwendet werden.
+        if (environment !== 'test') return '';
+        const keys = CONFIG && CONFIG.LOCAL_ACCESS_KEYS;
+        if (!environment || !keys || typeof keys !== 'object') return '';
+        return String(keys[environment] || '').trim();
     },
 
     getAccessKey() {
@@ -36,8 +48,14 @@ const cloudService = {
             if (legacyKey) {
                 localStorage.setItem(this.getAccessKeyStorage(), legacyKey);
                 localStorage.removeItem(this.LEGACY_ACCESS_KEY_STORAGE);
+                return legacyKey;
             }
-            return legacyKey;
+            const configuredKey = this.getLocalConfiguredAccessKey();
+            if (configuredKey) {
+                localStorage.setItem(this.getAccessKeyStorage(), configuredKey);
+                return configuredKey;
+            }
+            return '';
         } catch (e) { return ''; }
     },
 
@@ -47,6 +65,7 @@ const cloudService = {
 
     clearAccessKey() {
         try { localStorage.removeItem(this.getAccessKeyStorage()); } catch (e) { /* Speicher nicht verfügbar */ }
+        this.paymentCapabilitiesCache = null;
     },
 
     accessError(message) {
@@ -128,6 +147,25 @@ const cloudService = {
     },
 
     loadCapabilities() { return this.read('vertrag_capabilities'); },
+
+    async loadPaymentCapabilities(force = false) {
+        if (!force && this.paymentCapabilitiesCache
+            && Date.now() - this.paymentCapabilitiesCache.loadedAt < this.PAYMENT_CAPABILITIES_CACHE_MS) {
+            return this.paymentCapabilitiesCache.value;
+        }
+        const capabilities = await this.loadCapabilities();
+        if (capabilities.payment_writes !== true || capabilities.payment_schema_ready !== true) {
+            const missing = Array.isArray(capabilities.payment_schema_missing) && capabilities.payment_schema_missing.length
+                ? ` Fehlende Spalten: ${capabilities.payment_schema_missing.join(', ')}.`
+                : '';
+            const error = new Error(`Der Zahlungsbereich ist im Backend noch nicht freigegeben.${missing}`);
+            error.code = 'PAYMENT_SCHEMA_NOT_READY';
+            throw error;
+        }
+        this.paymentCapabilitiesCache = { loadedAt: Date.now(), value: capabilities };
+        return capabilities;
+    },
+
     loadDashboardData() { return this.read('dashboard'); },
     loadConsumptionData() { return this.read('verbrauch'); },
     loadZaehlerstaende() { return this.read('zaehlerstaende'); },
@@ -150,10 +188,10 @@ const cloudService = {
     async saveContract(payload) {
         // Financial changes must receive an explicit server acknowledgement; never queue them.
         const capabilities = await this.loadCapabilities();
-        if (capabilities.contract_writes !== true) throw new Error('Backend unterstuetzt Vertragsaenderungen noch nicht.');
+        if (capabilities.contract_writes !== true) throw new Error('Backend unterstützt Vertragsänderungen noch nicht.');
         const result = await this.post(payload);
         if (!result || result.status !== 'success' || !result.vertrag || !result.anpassung) {
-            throw new Error(result && result.message || 'Vertragsaenderung nicht bestaetigt.');
+            throw new Error(result && result.message || 'Vertragsänderung nicht bestätigt.');
         }
         return result;
     },

@@ -11,7 +11,7 @@
     <link rel="manifest" href="manifest.webmanifest?v=20261111-pwa-v1">
     <link rel="icon" type="image/png" href="favicon.png?v=20261022">
     <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20261111-pwa-v1">
-    <link rel="stylesheet" href="style.css?v=20261109-save-feedback-v1">
+    <link rel="stylesheet" href="style.css?v=20261113-payment-background-refresh-v1">
 </head>
 <body>
     <div class="container" style="max-width: 1180px; margin: 0 auto; padding: 20px; font-family: sans-serif;">
@@ -39,6 +39,7 @@
                 Verbrauch
             </button>
             <button id="nav-contracts" class="tab-btn-inactive" onclick="contractUiService.show()" style="padding:10px 14px; cursor:pointer;">Verträge</button>
+            <button id="nav-payments" class="tab-btn-inactive" onclick="paymentUiService.show()" style="padding:10px 14px; cursor:pointer;">Mieteingänge</button>
         </nav>
 
         <section id="contracts-section" style="display:none;">
@@ -91,6 +92,10 @@
             <div id="consumption-dashboard-output"></div>
         </section>
 
+        <section id="payments-section" style="display:none;">
+            <div id="payments-output"></div>
+        </section>
+
         <div id="modal-container" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; padding:16px; overflow:auto;">
             <div style="background:white; width:min(100%, 960px); max-height:calc(100vh - 32px); margin:0 auto; padding:24px 28px; border-radius:16px; position:relative; overflow:auto;">
                 <span style="position:absolute; top:10px; right:15px; font-size:24px; cursor:pointer;" onclick="uiService.closeModal()">&times;</span>
@@ -100,13 +105,14 @@
     </div>
     
     <!-- Optional: lokale Test-/Produktionsauswahl, niemals committen. -->
+    <script src="runtime-secrets.js?v=20261112-local-secrets-v1" onerror="this.remove()"></script>
     <script src="runtime-config.js?v=20261110-runtime-config-v1" onerror="this.remove()"></script>
     <script src="config.js?v=20260707-consumption-dashboard-controls-v1"></script>
     <script src="environment-service.js?v=20261110-environment-switch-v1"></script>
-    <script src="data-service.js?v=20261030-offline-queue-v2"></script>
+    <script src="data-service.js?v=20261113-full-data-gate-v1"></script>
     <script src="access-ui.js?v=20261028-access-v1"></script>
     <script src="cloud-service.js?v=20261030-offline-queue-v3"></script>
-    <script src="apps-script/ContractService.js?v=20261021-contracts-v1"></script>
+    <script src="apps-script/ContractService.js?v=20261111-payment-deadlines-v1"></script>
     <script src="vpi-service.js?v=20261021-vpi-v1"></script>
     <script src="calc-service.js?v=20261106-meter-overflow-v1"></script>
     <script src="heating-oil-service.js?v=20261106-heizoel-v3"></script>
@@ -124,6 +130,7 @@
     <script src="consumption-charts.js?v=20261106-heizoel-v3"></script>
     <script src="ui-service.js?v=20261109-save-feedback-v1"></script>
     <script src="contract-ui.js?v=20261022-contracts-v4"></script>
+    <script src="payment-ui.js?v=20261113-payment-background-refresh-v1"></script>
 
     <script>
     async function initApp() {
@@ -156,13 +163,30 @@
 
             // STUFE 2: Hintergrund-Ladevorgang (der schwere Rest)
             const fullData = await cloudService.loadBackgroundData();
-            if (fullData) {
+            if (fullData && typeof fullData === 'object' && !Array.isArray(fullData)
+                && Object.keys(fullData).length > 0) {
                 dataService.setInitialData(fullData);
+
+                // A view opened while the background request was running may have
+                // rendered with the fast dashboard data. Refresh it after the full
+                // contract/payment state has arrived.
+                if (document.getElementById('contracts-section')?.style.display === 'block'
+                    && typeof contractUiService !== 'undefined') {
+                    contractUiService.render();
+                }
+                if (document.getElementById('payments-section')?.style.display === 'block'
+                    && typeof paymentUiService !== 'undefined') {
+                    paymentUiService.render();
+                }
 
                 if (statusEl) {
                     statusEl.textContent = "✅ System vollständig geladen (" + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ")";
                     statusEl.style.color = "green";
                 }
+            } else {
+                const error = new Error('Leere oder ungültige Hintergrunddaten empfangen.');
+                error.code = 'FULL_DATA_EMPTY';
+                throw error;
             }
 
             // Hinweis, solange das Backend nicht durch einen Zugangsschlüssel geschützt ist (Übergangsmodus)
@@ -177,6 +201,14 @@
             }).catch(() => {});
         } catch (error) {
             console.error("KRITISCHER FEHLER:", error);
+            if (typeof paymentUiService !== 'undefined' && typeof dataService !== 'undefined' && dataService.state) {
+                dataService.state.fullDataError = true;
+                dataService.state.fullDataErrorCode = error && error.code ? error.code : '';
+                if (document.getElementById('payments-section')?.style.display === 'block'
+                    && typeof paymentUiService.render === 'function') {
+                    paymentUiService.render();
+                }
+            }
             if (statusEl) {
                 if (error && error.code === 'UNAUTHORIZED') {
                     statusEl.textContent = "🔒 Zugangsschlüssel erforderlich – hier tippen zum Eingeben";
@@ -190,6 +222,9 @@
                 } else if (error && error.code === 'CONFIGURATION_ERROR') {
                     statusEl.textContent = "⚠️ Backend-Umgebung ist nicht konfiguriert";
                     statusEl.style.color = "darkorange";
+                } else if (error && error.code === 'FULL_DATA_EMPTY') {
+                    statusEl.textContent = "❌ Zahlungsdaten konnten nicht vollständig geladen werden";
+                    statusEl.style.color = "red";
                 } else {
                     statusEl.textContent = "❌ Fehler beim Laden der Daten";
                     statusEl.style.color = "red";
