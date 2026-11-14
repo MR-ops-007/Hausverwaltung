@@ -182,6 +182,43 @@ describe('paymentUiService Monatsstatus', () => {
     expect(service.formatDate('2026-11-12T23:00:00.000Z')).toBe('13.11.2026');
   });
 
+  it('zeigt historische Zahlungsdaten im Dialog als deutsches Datum statt ISO-UTC-String', () => {
+    const modal = { style: {} };
+    const body = { innerHTML: '' };
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'ISO_DATE', vertrag_id: 'V1', datum: '2026-11-13T23:00:00.000Z', mietmonat: '2026-11', betrag: 1, art: 'Miete' }
+    ] }), {
+      getElementById(id) {
+        return id === 'modal-container' ? modal : id === 'modal-body' ? body : null;
+      }
+    });
+
+    service.openPaymentDialog('V1', '2026-11');
+
+    expect(body.innerHTML).toContain('14.11.2026 · Monat 2026-11 · 1,00 EUR · Miete');
+    expect(body.innerHTML).not.toContain('2026-11-13T23:00:00.000Z');
+  });
+
+  it('zeigt eine fachlich zugeordnete Erstattung im Mietmonat und lässt den Status bezahlt', () => {
+    const modal = { style: {} };
+    const body = { innerHTML: '' };
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'RENT_FEB', vertrag_id: 'V1', datum: '2026-02-04', mietmonat: '2026-02', betrag: 800, art: 'Miete' },
+      { zahlung_id: 'REFUND_FEB', vertrag_id: 'V1', datum: '2026-11-14', mietmonat: '2026-02', betrag: -1, art: 'Erstattung' }
+    ] }), {
+      getElementById(id) {
+        return id === 'modal-container' ? modal : id === 'modal-body' ? body : null;
+      }
+    });
+
+    service.openPaymentDialog('V1', '2026-02');
+    const contract = service.getContracts()[0];
+
+    expect(body.innerHTML).toContain('800,00 EUR · Miete');
+    expect(body.innerHTML).toContain('-1,00 EUR · Erstattung');
+    expect(service.summarizeMonth(contract, '2026-02').status).toBe('bezahlt');
+  });
+
   it('ordnet ein Altzahlungs-Storno im lokalen State sofort dem Originalmonat zu', async () => {
     let request;
     const service = loadPaymentService(baseState({ zahlungen: [

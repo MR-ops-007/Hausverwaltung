@@ -12,7 +12,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Z1 Speicherrückmeldung und Z2 Heizöl-Verbrauch.
 - Die Überlaufklassifikation, die Diagramm-Fehlerbehandlung, die Heizöl-Tankbilanz und
   der Speichervorgang sind gemeinsam regressionsgetestet.
-- Der vollständige Testlauf auf `main` umfasst aktuell 474 Tests in 20 Testdateien. Apps Script 4.8.12
+- Der vollständige Testlauf auf dem aktuellen P6.1-Branch umfasst aktuell 483 Tests in 20 Testdateien. Apps Script 4.8.12
   ist in PROD (bestehende Bereitstellung, Deployment-Version 42) und TEST (bestehende Bereitstellung)
   veröffentlicht; die jeweiligen URLs blieben unverändert. 4.8.5 bleibt als Rollback-Stand dokumentiert.
 - Die lokale Auswahl von TEST und PROD sowie die GitHub-Pages-/Home-Screen-Grundlage sind in PR #35
@@ -71,12 +71,13 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Stornos und die Zahlungsgruppenlogik bleiben unverändert. Stornierte Vorgänger und
   Wiederholungen mit derselben `zahlung_id` werden ausgenommen. Mock und echtes TEST-
   Backend (`objekt_id = TEST`) wurden am 2026-11-14 fachlich geprüft. Zusätzlich wurde
-  der echte PROD-Schreibweg ausschließlich im PROD-Testobjekt geprüft: eine 1,00-EUR-
-  Zahlung wurde mit `mietmonat = 2026-11` gespeichert, nach dem Schreiben angezeigt,
-  und eine identische Wiederholung löste die Dublettenwarnung aus, ohne eine zweite Zeile
-  anzulegen. Der aktuelle PROD-Testbereich enthält nur diesen Vertrag und keine Kaution;
-  weitere P6-Fälle bleiben deshalb durch die TEST-Abnahme abgedeckt. Der Branch ist noch
-  nicht nach `main` gemergt.
+  der echte PROD-Schreibweg im PROD-Testobjekt teilweise geprüft: fachlicher Mietmonat,
+  Überzahlung mit Aufteilung über `900,00 EUR` und eine negative Erstattung wurden
+  gespeichert und visuell nachvollzogen. Der ursprüngliche Dublettenlauf erzeugte wegen
+  einer nativen Bestätigungsabfrage synthetische Kleinstbuchungen; diese wurden durch
+  append-only Stornos neutralisiert. Der aktuelle PROD-Testbereich enthält nur Donald
+  Duck ohne Kaution; Mehrverträge, Kaution und der PROD-Storno bleiben offen. Der Branch
+  ist noch nicht nach `main` gemergt.
 - Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
   erzeugt und veröffentlicht ausschließlich `runtime-config.js`; `runtime-secrets.js` bleibt lokal und
   wird durch einen negativen Workflow-Test gegen versehentliche Veröffentlichung geschützt.

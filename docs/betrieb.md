@@ -9,11 +9,14 @@ der bestehenden TEST-Bereitstellung veröffentlicht und wurde dort mit einem
 Erfassungs-Schlüssel fachlich abgenommen. Anschließend wurde die bestehende PROD-
 Bereitstellung auf 4.8.12 (Deployment-Version `@42`) aktualisiert; die URL blieb unverändert.
 Der PROD-Endpunkt wurde zusätzlich am 2026-11-14 ausschließlich im dauerhaft getrennten
-Objekt `TEST` (`Test für Produktivsystem`) schreibend geprüft. Eine synthetische Zahlung
-über 1,00 EUR für Donald Duck wurde gespeichert und die anschließende identische Eingabe
-löste die Dublettenwarnung aus, ohne eine zweite Zeile anzulegen. Es wurden keine realen
-Objekte oder Mietverhältnisse beschrieben; Kaution, Überzahlung, Erstattung und Storno
-waren im aktuellen PROD-Testobjekt nicht vorhanden und wurden dort nicht künstlich ergänzt.
+Objekt `TEST` (`Test für Produktivsystem`) teilweise schreibend geprüft. Dabei wurden
+fachlicher Mietmonat, eine Überzahlung mit Aufteilung (`900,00 EUR`) und eine negative
+Erstattung geprüft. Die initiale Dublettenprüfung erzeugte wegen einer nicht sauber
+behandelten nativen Bestätigungsabfrage synthetische Kleinstbuchungen; diese wurden
+append-only neutralisiert. Der aktive TEST-Saldo wurde damit wieder auf den Stand vor
+dem Test gebracht, die Historie bleibt nachvollziehbar. Kaution, Mehrverträge und
+Mehrmieter konnten wegen des aktuellen PROD-Fixtures nicht geprüft werden; reale
+Objekte wurden nicht verändert.
 Die frühere 4.8.5-Bereitstellung bleibt als Rollback-Stand erhalten.
 
 Der CSV-Import ist absichtlich lokal und bestätigungspflichtig: Datei auswählen,
@@ -101,7 +104,9 @@ derselben `zahlung_id` meldet Backend 4.8.12 sonst absichtlich `PAYMENT_ID_CONFL
 korrekt abgeleitete Originalmonat nicht zur alten Zeile passt.
 
 Der Hardening-Stand ist Backend 4.8.12 in TEST und PROD bereitgestellt. Die fachliche
-Schreibabnahme erfolgte in TEST; PROD wurde nach dem Deploy bewusst nur lesend geprüft.
+Schreibabnahme ist in TEST vollständig für den dokumentierten Umfang erfolgt; PROD ist
+im Objekt `TEST` nur teilweise abgenommen, weil dort noch ein vollständiges
+Abnahme-Fixture einschließlich Kaution fehlt.
 Für die Speicherung der beiden neuen Vertragsfelder muss einmalig die ausdrücklich
 manuell aufzurufende Funktion `prepareContractSchema()` ausgeführt werden. Für die
 Zahlungsaufteilung muss zusätzlich einmalig `preparePaymentSchema()` ausgeführt werden.

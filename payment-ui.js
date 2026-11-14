@@ -647,7 +647,10 @@ const paymentUiService = {
     const assignedIds = new Set(assignedPayments.map(payment => String(payment.zahlung_id)));
     const enteredPayments = isDeposit ? [] : this.getPaymentsEnteredInMonth(contractId, month)
       .filter(payment => !assignedIds.has(String(payment.zahlung_id)));
-    const historyPayments = [...assignedPayments, ...enteredPayments]
+    const historyById = new Map();
+    [...assignedPayments, ...(isDeposit ? [] : this.getRefundPayments(contractId, month)), ...enteredPayments]
+      .forEach(payment => historyById.set(String(payment.zahlung_id), payment));
+    const historyPayments = Array.from(historyById.values())
       .sort((a, b) => String(a.datum || '').localeCompare(String(b.datum || '')));
     const history = historyPayments.length ? `<div class="payment-history"><h3>Bereits erfasst</h3><p class="payment-history-note">Fachlich zugeordnete Zahlungen und Zahlungen, die in diesem Monat eingegangen sind.</p>${historyPayments.map(payment => {
       const originalArt = payment.gegen_art || payment.art || 'Miete';
@@ -658,7 +661,7 @@ const paymentUiService = {
         : reversed
           ? '<span class="payment-reversed-label">storniert</span>'
           : `<button class="btn-link-danger" type="button" onclick="paymentUiService.saveStorno('${this.escape(contractId)}','${this.escape(historyMonth)}','${this.escape(payment.zahlung_id)}',${this.parseNumber(payment.betrag) || 0},'${this.escape(originalArt)}','${this.escape(assignedMonth)}')">Rückgängig</button>`;
-      return `<div><span>${this.escape(payment.datum || '')}${assignedMonth ? ` · Monat ${this.escape(assignedMonth)}` : ''} · ${this.formatMoney(payment.betrag)} EUR · ${this.escape(payment.art || 'Zahlung')}</span>${undo}</div>`;
+      return `<div><span>${this.escape(this.formatDate(payment.datum))}${assignedMonth ? ` · Monat ${this.escape(assignedMonth)}` : ''} · ${this.formatMoney(payment.betrag)} EUR · ${this.escape(payment.art || 'Zahlung')}</span>${undo}</div>`;
     }).join('')}</div>` : '';
     const title = isDeposit ? 'Kaution erfassen' : 'Mieteingang erfassen';
     const context = isDeposit

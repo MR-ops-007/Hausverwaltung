@@ -25,8 +25,8 @@ neue ID.
 
 ## Automatisierte Prüfung
 
-- `npm test`: **20 Testdateien, 481 Tests grün**.
-- `tests/payment-ui.test.js`: **49 Tests grün**.
+- `npm test`: **20 Testdateien, 483 Tests grün**.
+- `tests/payment-ui.test.js`: **51 Tests grün**.
 - `npm run check:frontend-assets`: **19 lokale Assets vorhanden**.
 - `git diff --check`: **grün**.
 
@@ -86,37 +86,47 @@ den Bestätigungsweg zu prüfen. Der TEST-Bestand enthält deshalb für diesen F
 Das ist ein beabsichtigter synthetischer TEST-Datenbestand und betrifft keine
 Produktivwohnung.
 
-## Abnahme im Produktiv-Backend
+## Teilabnahme im Produktiv-Backend
 
 Am 2026-11-14 wurde der Frontendstand mit Apps Script 4.8.12 gegen die bestehende
-PROD-Bereitstellung geprüft. Die Abnahme beschränkte sich ausschließlich auf
+PROD-Bereitstellung geprüft. Die Prüfung beschränkte sich ausschließlich auf
 `objekt_id = TEST` (`Test für Produktivsystem`). Andere produktive Objekte wurden
-nicht beschrieben; `Hauptstraße 29` war beim initialen Laden kurz sichtbar, es wurde
-dort aber keine Zahlung gespeichert.
+nicht beschrieben. Eine vollständige fachliche PROD-Abnahme ist mit dem aktuellen
+Fixture nicht möglich, weil dort nur ein Vertrag ohne Kautions-Sollbetrag vorhanden ist.
 
 Die PROD-Umgebung zeigte `PRODUKTION`, Backend 4.8.12 und den vollständig geladenen
 TEST-Bestand. Im geprüften PROD-Testbereich war `WE 01 TEST` mit Donald Duck vorhanden;
 der Monat November 2026 stand vor der Prüfung auf `40,00 / 800,00 EUR`.
 
-1. **Echter Schreibweg:** Für November wurden `1,00 EUR`, Eingangsdatum `14.11.2026`,
-   Zahlungsart `Miete` und fachlicher Mietmonat `2026-11` gespeichert. Die UI meldete
-   `Zahlung gespeichert.`, die Zelle aktualisierte sich von `40,00` auf `41,00 EUR`
-   und die offene Miete sank von `7.960,00` auf `7.959,00 EUR`.
-2. **Persistenz und Zuordnung:** Nach dem Öffnen des Dialogs war die neue Zeile als
-   `2026-11-14 · Monat 2026-11 · 1,00 EUR · Miete` sichtbar. Eingangsdatum und
-   fachlicher Mietmonat bleiben damit im PROD-Testfall getrennt nachvollziehbar.
-3. **Dublettenwarnung:** Dieselbe Buchung mit gleicher Vertrags-ID, gleichem
-   Eingangsdatum, Betrag, Mietmonat und Zahlungsart löste den nativen Hinweis aus:
-   `Mögliche Doppelbuchung: Am 14.11.2026 wurden bereits 1,00 EUR als Miete für
-   2026-11 für diesen Vertrag erfasst.` Die Warnung wurde abgebrochen. Die Liste
-   blieb bei drei vorhandenen Zeilen; es wurde keine zweite identische PROD-Testzeile
-   angelegt.
+1. **Persistenz und fachlicher Mietmonat:** Für November wurde eine Miete mit
+   Eingangsdatum `14.11.2026`, Zahlungsart `Miete` und `mietmonat = 2026-11`
+   gespeichert. Die Matrix und der Dialog zeigten den Eingang nach dem Speichern.
+2. **Überzahlung mit Verteilung:** Für Februar wurden `900,00 EUR` eingegeben. Der
+   Aufteilungsdialog verteilte exakt `800,00 EUR` auf Februar und `100,00 EUR` auf
+   März. Die Summe der Teilbeträge entsprach dem Eingang; die offene Miete sank um
+   exakt `900,00 EUR`.
+3. **Erstattung:** Für Februar wurde eine Erstattung über `1,00 EUR` erfasst. Die
+   Speicherung wurde bestätigt, der Wert als `-1,00 EUR` angezeigt und der bereits
+   bezahlte Monat blieb bezahlt.
+4. **Storno:** Der Storno-Dialog wurde für die März-Teilzahlung geöffnet. Die
+   anschließende native Sicherheitsabfrage wurde in diesem Lauf nicht verlässlich
+   abgeschlossen; deshalb wird der PROD-Storno nicht als bestanden gemeldet. Der
+   Fall bleibt durch die echte TEST-Abnahme und die automatisierten Backend-/UI-Tests
+   abgedeckt.
+5. **Dublettenwarnung:** Der ursprüngliche PROD-Dublettenversuch war wegen der
+   nativen Bestätigungsabfrage kein sauberer Abbruchtest. Dabei entstandene
+   synthetische Kleinstbuchungen wurden anschließend durch append-only Stornos
+   neutralisiert. Nach dem Aufräumen lag die aktive November-Summe wieder bei
+   `40,00 EUR`; die historischen Test- und Gegenbuchungen bleiben als Historie
+   erhalten. Der beobachtete Zwischenstand `40,00 -> 42,00 EUR` war daher ein
+   Testartefakt und keine fachliche Neuberechnung.
 
-Der PROD-Testbereich enthält aktuell nur den oben geprüften Vertrag und keine Kaution
-(`0,00 / 0,00 EUR`). Kautions-, Überzahlungs-, Erstattungs- und Storno-Fälle wurden
-daher nicht erneut in PROD geschrieben. Diese Fälle sind im echten TEST-Backend bereits
-fachlich und schreibend abgenommen und bleiben dort die maßgebliche Abdeckung für die
-entsprechenden P6-Funktionen.
+Der PROD-Testbereich enthält aktuell nur `WE 01 TEST` mit Donald Duck und keine Kaution
+(`0,00 / 0,00 EUR`). Die Vertragsmaske ist im aktuellen Backend nicht als Schreibweg
+für neue Verträge freigeschaltet. Deshalb konnten im PROD-Testobjekt keine Kautions-,
+Mehrvertrags- oder Mehrmieter-Fixtures angelegt werden. Diese Fälle sind im echten
+TEST-Backend bereits fachlich und schreibend abgenommen und bleiben dort die
+maßgebliche Abdeckung; für PROD fehlt noch ein kontrolliert angelegtes Test-Fixture.
 
 **Beobachtete Restunschönheit:** Ältere Sheet-Zeilen werden im Dialog teilweise als
 `2026-11-13T23:00:00.000Z` angezeigt, während die neue UI-Zeile als `2026-11-14`
@@ -136,6 +146,8 @@ separater Folgepunkt für die Timestamp-Normalisierung.
 
 ## Abnahmefazit
 
-Der Ablauf ist in Mock, echtem TEST-Backend und im PROD-Testobjekt beobachtet worden.
-Die automatisierten Tests und die reale PROD-Schreib-/Dublettenprüfung sind grün.
-P6.1 ist damit fachlich abnahmefähig; der Branch ist noch nicht in `main` gemergt.
+Der Ablauf ist im Mock, im echten TEST-Backend und teilweise im PROD-Testobjekt
+beobachtet worden. Die automatisierten Tests sind grün. Die PROD-Abnahme ist wegen
+des unvollständigen TEST-Fixtures und des nicht verlässlich abgeschlossenen Stornos
+noch **nicht vollständig**. Eine Freigabe als vollständige PROD-Abnahme wäre erst nach
+dem Nachholen dieser Fälle zulässig.
