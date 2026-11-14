@@ -304,7 +304,14 @@ const paymentUiService = {
   findPossibleDuplicatePayments(payment) {
     const key = this.paymentDuplicateKey(payment);
     if (!key) return [];
-    return (dataService.state.zahlungen || []).filter(existing => this.paymentDuplicateKey(existing) === key);
+    const paymentId = String(payment && payment.zahlung_id || '').trim();
+    return (dataService.state.zahlungen || []).filter(existing => {
+      const existingId = String(existing && existing.zahlung_id || '').trim();
+      if (paymentId && existingId === paymentId) return false;
+      if (this.paymentArt(existing) === 'storno') return false;
+      if (existingId && this.isPaymentReversed(existingId)) return false;
+      return this.paymentDuplicateKey(existing) === key;
+    });
   },
 
   duplicateWarningText(payment, duplicates) {

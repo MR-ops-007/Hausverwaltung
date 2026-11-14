@@ -45,6 +45,27 @@ describe('paymentUiService Monatsstatus', () => {
     expect(service.findPossibleDuplicatePayments({ vertrag_id: 'V1', datum: '05.02.2026', mietmonat: '2026-02', betrag: 650, art: 'Miete' })).toHaveLength(1);
   });
 
+  it('ignoriert eine bereits stornierte Zahlung bei der Dublettenprüfung', () => {
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'PAY', vertrag_id: 'V1', datum: '2026-02-05', mietmonat: '2026-02', betrag: 650, art: 'Miete' },
+      { zahlung_id: 'STORNO_PAY', vertrag_id: 'V1', datum: '2026-11-14', mietmonat: '2026-02', betrag: -650, art: 'Storno', storno_von: 'PAY' }
+    ] }));
+
+    expect(service.findPossibleDuplicatePayments({
+      vertrag_id: 'V1', datum: '2026-02-05', mietmonat: '2026-02', betrag: 650, art: 'Miete'
+    })).toEqual([]);
+  });
+
+  it('ignoriert beim Retry dieselbe zahlung_id als eigene Dublette', () => {
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'RETRY_PAY', vertrag_id: 'V1', datum: '2026-02-05', mietmonat: '2026-02', betrag: 650, art: 'Miete' }
+    ] }));
+
+    expect(service.findPossibleDuplicatePayments({
+      zahlung_id: 'RETRY_PAY', vertrag_id: 'V1', datum: '2026-02-05', mietmonat: '2026-02', betrag: 650, art: 'Miete'
+    })).toEqual([]);
+  });
+
   it('lässt eine mögliche Dublette abbrechen und speichert sie nach ausdrücklicher Bestätigung', async () => {
     const fields = {
       'payment-amount': { value: '250' },

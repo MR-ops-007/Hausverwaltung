@@ -68,7 +68,10 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Vertrags-ID, Eingangsdatum, Betrag, fachlichem Mietmonat und Zahlungsart. Die UI warnt
   konkret, lässt eine bewusste Bestätigung zu und blockiert bei Abbruch nicht die weitere
   Bearbeitung. Die Prüfung bleibt bewusst frontendseitig und weich; Backend-Idempotenz,
-  Stornos und die Zahlungsgruppenlogik bleiben unverändert.
+  Stornos und die Zahlungsgruppenlogik bleiben unverändert. Stornierte Vorgänger und
+  Wiederholungen mit derselben `zahlung_id` werden ausgenommen. Mock und echtes TEST-
+  Backend (`objekt_id = TEST`) wurden am 2026-11-14 fachlich geprüft; der produktive
+  TEST-Bereich im PROD-Backend wartet noch auf die explizite Schlüssel-Eingabe.
 - Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
   erzeugt und veröffentlicht ausschließlich `runtime-config.js`; `runtime-secrets.js` bleibt lokal und
   wird durch einen negativen Workflow-Test gegen versehentliche Veröffentlichung geschützt.

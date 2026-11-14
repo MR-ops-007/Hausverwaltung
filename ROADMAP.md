@@ -352,11 +352,13 @@ Bankanbindung werden daraus abgeleitet.
 **Reihenfolge:**
 
 1. **P6.1 Dublettenwarnung:** **Im Branch `codex/p6-1-payment-duplicate-warning` umgesetzt,
-   PR noch offen.** Weiche Warnung bei gleicher Vertrags-ID, gleichem Eingangsdatum,
+   Review-Nachbesserungen ergänzt, Abnahme in Mock und TEST durchgeführt.** Weiche Warnung bei gleicher Vertrags-ID, gleichem Eingangsdatum,
    Betrag, fachlichem Mietmonat und Zahlungsart. Die Buchung bleibt nach Bestätigung möglich;
    bestehende idempotente IDs und Storno-Regeln werden nicht verändert. Für CSV und manuelle
    Erfassung gelten dieselben Vergleichsregeln. Historische Zeilen ohne `mietmonat` werden
-   für die Prüfung ihrem Eingangsmonat zugeordnet.
+   für die Prüfung ihrem Eingangsmonat zugeordnet. Stornierte Vorgänger und ein Retry mit
+   identischer `zahlung_id` werden nicht als neue Dublette gewertet. Der Produktivtest auf
+   `objekt_id = TEST` steht nach Eingabe des PROD-Schlüssels noch aus.
 2. **P6.2 Gemeinsame Zahlungsregeln:** Die fachlichen Pure Functions für Mietmonat, Guthaben,
    Erstattung, Storno und Statusberechnung zwischen Backend und Mock vereinheitlichen oder
    aus einer gemeinsamen testbaren Quelle ableiten. Ziel ist, Copy-Paste-Abweichungen zu
