@@ -88,3 +88,22 @@ Regression abgesichert. Die technische Verknüpfung selbst bleibt ausschließlic
 über `vertrag_id`. Das Backend liefert neue `mietmonat`-Werte als Text `YYYY-MM`; die UI
 interpretiert ältere Google-Sheets-ISO-Werte zeitzonenrichtig für `Europe/Berlin`.
 
+## Ergänzende PROD-Abnahme am 2026-11-14
+
+Die PROD-Abnahme wurde ausschließlich im dauerhaft getrennten Objekt
+`objekt_id = TEST` (`Test für Produktivsystem`) durchgeführt. Die vollständige
+Fallliste und die Sheet-Nachweise stehen in
+[`docs/p6-1-dublettenwarnung-testprotokoll-20261114.md`](p6-1-dublettenwarnung-testprotokoll-20261114.md).
+
+Für die Abnahme wurde dort ein kontrolliertes Fixture ergänzt: `TEST_WE_03` mit Vertrag
+34, Mickey Mouse und Minnie Mouse, `900,00 EUR` Gesamtmiete und `2.000,00 EUR`
+Kautions-Soll. Dadurch konnten Kaution, Mehrparteien-Verknüpfung, Mietmonat,
+Überzahlung mit Verteilung, Erstattung, Nachzahlung, Storno, erneute Zahlung und
+Reload-Persistenz direkt in der PROD-GUI geprüft werden. Die Schreibvorgänge und
+anschließenden Sheet-Lesekontrollen betrafen ausschließlich `TEST`; reale Objekte
+wurden nicht verändert.
+
+Die fachliche PROD-Abnahme ist für die produktiven Schreib- und Statusfälle abgeschlossen.
+Der einzige nicht automatisiert abgenommene Teil ist das explizite Abbrechen der nativen
+Dublettenwarnung, weil die Browser-Automation den `confirm()`-Dialog automatisch bestätigt.
+

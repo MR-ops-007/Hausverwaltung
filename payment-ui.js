@@ -284,6 +284,50 @@ const paymentUiService = {
       .filter(payment => this.getReceiptMonth(payment) === month);
   },
 
+  normalizePaymentDate(value) {
+    const date = this.parseDate(value);
+    return date ? this.todayInput(date) : '';
+  },
+
+  paymentDuplicateKey(payment) {
+    const contractId = String(payment && payment.vertrag_id || '').trim();
+    const receiptDate = this.normalizePaymentDate(payment && (payment.datum || payment.buchungsdatum || payment.zahlungsdatum));
+    const amount = this.parseNumber(payment && payment.betrag);
+    const art = this.paymentArt(payment);
+    const month = art === 'kaution'
+      ? ''
+      : this.getPaymentMonth(payment) || this.getEffectivePaymentMonth(payment);
+    if (!contractId || !receiptDate || amount === null) return '';
+    return [contractId, receiptDate, Math.round(amount * 100), art, month].join('|');
+  },
+
+  findPossibleDuplicatePayments(payment) {
+    const key = this.paymentDuplicateKey(payment);
+    if (!key) return [];
+    const paymentId = String(payment && payment.zahlung_id || '').trim();
+    return (dataService.state.zahlungen || []).filter(existing => {
+      const existingId = String(existing && existing.zahlung_id || '').trim();
+      if (paymentId && existingId === paymentId) return false;
+      if (this.paymentArt(existing) === 'storno') return false;
+      if (existingId && this.isPaymentReversed(existingId)) return false;
+      return this.paymentDuplicateKey(existing) === key;
+    });
+  },
+
+  duplicateWarningText(payment, duplicates) {
+    const existing = duplicates[0];
+    const month = this.paymentArt(existing) === 'kaution'
+      ? ''
+      : this.getPaymentMonth(existing) || this.getEffectivePaymentMonth(existing);
+    const monthText = month ? ` für ${month}` : '';
+    return `Mögliche Doppelbuchung: Am ${this.formatDate(existing.datum)} wurden bereits ${this.formatMoney(existing.betrag)} EUR als ${existing.art || 'Zahlung'}${monthText} für diesen Vertrag erfasst. Bitte prüfen, ob der Eingang schon gespeichert ist.`;
+  },
+
+  confirmPossibleDuplicate(payment, duplicates = this.findPossibleDuplicatePayments(payment)) {
+    if (!duplicates.length || typeof confirm !== 'function') return true;
+    return confirm(`${this.duplicateWarningText(payment, duplicates)}\n\nTrotzdem speichern?`);
+  },
+
   getDepositPayments(contractId) {
     return (dataService.state.zahlungen || [])
       .filter(payment => String(payment.vertrag_id) === String(contractId) && this.isDepositPayment(payment));
@@ -603,7 +647,10 @@ const paymentUiService = {
     const assignedIds = new Set(assignedPayments.map(payment => String(payment.zahlung_id)));
     const enteredPayments = isDeposit ? [] : this.getPaymentsEnteredInMonth(contractId, month)
       .filter(payment => !assignedIds.has(String(payment.zahlung_id)));
-    const historyPayments = [...assignedPayments, ...enteredPayments]
+    const historyById = new Map();
+    [...assignedPayments, ...(isDeposit ? [] : this.getRefundPayments(contractId, month)), ...enteredPayments]
+      .forEach(payment => historyById.set(String(payment.zahlung_id), payment));
+    const historyPayments = Array.from(historyById.values())
       .sort((a, b) => String(a.datum || '').localeCompare(String(b.datum || '')));
     const history = historyPayments.length ? `<div class="payment-history"><h3>Bereits erfasst</h3><p class="payment-history-note">Fachlich zugeordnete Zahlungen und Zahlungen, die in diesem Monat eingegangen sind.</p>${historyPayments.map(payment => {
       const originalArt = payment.gegen_art || payment.art || 'Miete';
@@ -614,7 +661,7 @@ const paymentUiService = {
         : reversed
           ? '<span class="payment-reversed-label">storniert</span>'
           : `<button class="btn-link-danger" type="button" onclick="paymentUiService.saveStorno('${this.escape(contractId)}','${this.escape(historyMonth)}','${this.escape(payment.zahlung_id)}',${this.parseNumber(payment.betrag) || 0},'${this.escape(originalArt)}','${this.escape(assignedMonth)}')">Rückgängig</button>`;
-      return `<div><span>${this.escape(payment.datum || '')}${assignedMonth ? ` · Monat ${this.escape(assignedMonth)}` : ''} · ${this.formatMoney(payment.betrag)} EUR · ${this.escape(payment.art || 'Zahlung')}</span>${undo}</div>`;
+      return `<div><span>${this.escape(this.formatDate(payment.datum))}${assignedMonth ? ` · Monat ${this.escape(assignedMonth)}` : ''} · ${this.formatMoney(payment.betrag)} EUR · ${this.escape(payment.art || 'Zahlung')}</span>${undo}</div>`;
     }).join('')}</div>` : '';
     const title = isDeposit ? 'Kaution erfassen' : 'Mieteingang erfassen';
     const context = isDeposit
@@ -799,6 +846,9 @@ const paymentUiService = {
     const assignedMonth = art === 'Kaution' ? '' : String(month || '').trim();
     if (art !== 'Kaution' && !/^\d{4}-\d{2}$/.test(assignedMonth)) return this.showMessage('Bitte einen Mietmonat für diese Buchung auswählen.', 'error');
     const contract = (dataService.state.vertraege || []).find(row => String(row.vertrag_id) === String(contractId));
+    const candidate = { vertrag_id: contractId, datum: date, mietmonat: assignedMonth, betrag: amount, art };
+    const duplicates = this.findPossibleDuplicatePayments(candidate);
+    if (duplicates.length && !this.confirmPossibleDuplicate(candidate, duplicates)) return null;
     const remaining = contract ? (art === 'Kaution' ? this.summarizeDeposit(contract).remaining : this.summarizeMonth(contract, assignedMonth).remaining) : Math.abs(amount);
     if (contract && ['Miete', 'Nachzahlung'].includes(art) && amount > remaining + 0.009) {
       const plan = this.planPaymentAllocation(contractId, assignedMonth, amount, art);
@@ -953,7 +1003,12 @@ const paymentUiService = {
     if (!output) return;
     const contracts = this.getContracts();
     if (!this.importRows.length) { output.innerHTML = '<p class="payment-message payment-message-info">Keine verwertbaren CSV-Zeilen gefunden.</p>'; return; }
-    output.innerHTML = `<div class="payment-import-actions"><strong>${this.importRows.length} Buchungen gefunden</strong><span>Bitte Vertrag und fachlichen Mietmonat prüfen, dann einzelne Buchungen übernehmen.</span></div><div class="payment-import-list">${this.importRows.map((row, index) => `<div class="payment-import-row"><div><strong>${this.escape(row.datum)} · ${this.formatMoney(row.betrag)} EUR</strong><span>${this.escape(row.name || row.verwendungszweck || 'Ohne Buchungstext')}</span><small>${this.escape(row.matchReason)}</small></div><select onchange="paymentUiService.importRows[${index}].vertrag_id=this.value; paymentUiService.importRows[${index}].matchReason=this.value ? 'Manuell zugeordnet' : 'Keine Zuordnung'; paymentUiService.renderImportRows()"><option value="">Nicht zugeordnet</option>${contracts.map(contract => `<option value="${this.escape(contract.vertrag_id)}" ${String(contract.vertrag_id) === String(row.vertrag_id) ? 'selected' : ''}>${this.escape(this.unitName(contract))} · ${this.escape(this.tenantName(contract))}</option>`).join('')}</select><label class="payment-import-month">Mietmonat<input type="month" value="${this.escape(row.mietmonat || '')}" onchange="paymentUiService.importRows[${index}].mietmonat=this.value"></label><button class="btn-primary" type="button" ${row.vertrag_id && row.mietmonat ? '' : 'disabled'} onclick="paymentUiService.importPayment(${index})">Übernehmen</button></div>`).join('')}</div>`;
+    output.innerHTML = `<div class="payment-import-actions"><strong>${this.importRows.length} Buchungen gefunden</strong><span>Bitte Vertrag und fachlichen Mietmonat prüfen, dann einzelne Buchungen übernehmen.</span></div><div class="payment-import-list">${this.importRows.map((row, index) => {
+      const candidate = { vertrag_id: row.vertrag_id, datum: row.datum, mietmonat: row.mietmonat, betrag: row.betrag, art: 'Miete' };
+      const duplicates = row.vertrag_id && row.mietmonat ? this.findPossibleDuplicatePayments(candidate) : [];
+      const duplicateHint = duplicates.length ? `<small class="payment-import-duplicate-warning">${this.escape(this.duplicateWarningText(candidate, duplicates))}</small>` : '';
+      return `<div class="payment-import-row"><div><strong>${this.escape(row.datum)} · ${this.formatMoney(row.betrag)} EUR</strong><span>${this.escape(row.name || row.verwendungszweck || 'Ohne Buchungstext')}</span><small>${this.escape(row.matchReason)}</small>${duplicateHint}</div><select onchange="paymentUiService.importRows[${index}].vertrag_id=this.value; paymentUiService.importRows[${index}].matchReason=this.value ? 'Manuell zugeordnet' : 'Keine Zuordnung'; paymentUiService.renderImportRows()"><option value="">Nicht zugeordnet</option>${contracts.map(contract => `<option value="${this.escape(contract.vertrag_id)}" ${String(contract.vertrag_id) === String(row.vertrag_id) ? 'selected' : ''}>${this.escape(this.unitName(contract))} · ${this.escape(this.tenantName(contract))}</option>`).join('')}</select><label class="payment-import-month">Mietmonat<input type="month" value="${this.escape(row.mietmonat || '')}" onchange="paymentUiService.importRows[${index}].mietmonat=this.value"></label><button class="btn-primary" type="button" ${row.vertrag_id && row.mietmonat ? '' : 'disabled'} onclick="paymentUiService.importPayment(${index})">Übernehmen</button></div>`;
+    }).join('')}</div>`;
   },
 
   async importPayment(index) {
@@ -961,7 +1016,10 @@ const paymentUiService = {
     if (!row || !row.vertrag_id) return;
     const month = row.mietmonat || this.monthKey(row.datum);
     const id = row.zahlung_id || (row.zahlung_id = this.makeActionId('Import'));
-    const result = await this.persistPayment({ zahlung_id: id, vertrag_id: row.vertrag_id, datum: row.datum, mietmonat: month, betrag: row.betrag, art: 'Miete' });
+    const candidate = { zahlung_id: id, vertrag_id: row.vertrag_id, datum: row.datum, mietmonat: month, betrag: row.betrag, art: 'Miete' };
+    const duplicates = this.findPossibleDuplicatePayments(candidate);
+    if (duplicates.length && !this.confirmPossibleDuplicate(candidate, duplicates)) return null;
+    const result = await this.persistPayment(candidate);
     if (result && result.queued !== true) {
       this.importRows.splice(index, 1);
       this.renderImportRows();

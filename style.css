@@ -605,6 +605,7 @@ input[type="text"] {
 .payment-import-row small { display:block; }
 .payment-import-row span { margin-top:3px; color:#475569; }
 .payment-import-row small { margin-top:3px; color:#64748b; }
+.payment-import-row .payment-import-duplicate-warning { color:#9a3412; font-weight:800; }
 .payment-import-row select { min-width:0; }
 .payment-message { margin:12px 0 0; padding:9px 11px; border-radius:7px; font-weight:700; }
 .payment-message-info { color:#075985; background:#e0f2fe; }

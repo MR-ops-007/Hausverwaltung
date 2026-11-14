@@ -6,7 +6,7 @@ const paymentCode = readFileSync(new URL('../payment-ui.js', import.meta.url), '
 function loadPaymentService(state, document = {}, cloudService = {}, uiOptions = {}) {
   const dataService = { state: { ...state } };
   const uiService = { escapeHtml: value => String(value ?? ''), setNavigationState() {}, closeModal() {}, ...uiOptions };
-  const confirm = () => true;
+  const confirm = typeof uiOptions.confirm === 'function' ? uiOptions.confirm : () => true;
   const factory = new Function('dataService', 'uiService', 'document', 'cloudService', 'confirm', `${paymentCode}; return paymentUiService;`);
   return factory(dataService, uiService, document, cloudService, confirm);
 }
@@ -27,6 +27,66 @@ function baseState(overrides = {}) {
 }
 
 describe('paymentUiService Monatsstatus', () => {
+  it('erkennt mögliche Dubletten anhand Vertrag, Eingangstag, Betrag, Mietmonat und Zahlungsart', () => {
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'EXISTING', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-02', betrag: 650, art: 'Miete' }
+    ] }));
+
+    expect(service.findPossibleDuplicatePayments({ vertrag_id: 'V1', datum: '11.11.2026', mietmonat: '2026-02', betrag: '650,00', art: 'Miete' }).map(row => row.zahlung_id)).toEqual(['EXISTING']);
+    expect(service.findPossibleDuplicatePayments({ vertrag_id: 'V1', datum: '2026-11-12', mietmonat: '2026-02', betrag: 650, art: 'Miete' })).toEqual([]);
+    expect(service.findPossibleDuplicatePayments({ vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-02', betrag: 650, art: 'Nachzahlung' })).toEqual([]);
+  });
+
+  it('ordnet eine historische Zahlung ohne mietmonat für die Dublettenprüfung dem Eingangsmonat zu', () => {
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'LEGACY', vertrag_id: 'V1', datum: '2026-02-05', mietmonat: '', betrag: 650, art: 'Miete' }
+    ] }));
+
+    expect(service.findPossibleDuplicatePayments({ vertrag_id: 'V1', datum: '05.02.2026', mietmonat: '2026-02', betrag: 650, art: 'Miete' })).toHaveLength(1);
+  });
+
+  it('ignoriert eine bereits stornierte Zahlung bei der Dublettenprüfung', () => {
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'PAY', vertrag_id: 'V1', datum: '2026-02-05', mietmonat: '2026-02', betrag: 650, art: 'Miete' },
+      { zahlung_id: 'STORNO_PAY', vertrag_id: 'V1', datum: '2026-11-14', mietmonat: '2026-02', betrag: -650, art: 'Storno', storno_von: 'PAY' }
+    ] }));
+
+    expect(service.findPossibleDuplicatePayments({
+      vertrag_id: 'V1', datum: '2026-02-05', mietmonat: '2026-02', betrag: 650, art: 'Miete'
+    })).toEqual([]);
+  });
+
+  it('ignoriert beim Retry dieselbe zahlung_id als eigene Dublette', () => {
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'RETRY_PAY', vertrag_id: 'V1', datum: '2026-02-05', mietmonat: '2026-02', betrag: 650, art: 'Miete' }
+    ] }));
+
+    expect(service.findPossibleDuplicatePayments({
+      zahlung_id: 'RETRY_PAY', vertrag_id: 'V1', datum: '2026-02-05', mietmonat: '2026-02', betrag: 650, art: 'Miete'
+    })).toEqual([]);
+  });
+
+  it('lässt eine mögliche Dublette abbrechen und speichert sie nach ausdrücklicher Bestätigung', async () => {
+    const fields = {
+      'payment-amount': { value: '250' },
+      'payment-date': { value: '2026-11-11' },
+      'payment-art': { value: 'Miete' }
+    };
+    const requests = [];
+    let allowDuplicate = false;
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'EXISTING', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-02', betrag: 250, art: 'Miete' }
+    ] }), { getElementById: id => fields[id] || null }, {
+      saveTransaction: async transaction => { requests.push(transaction); return { status: 'success', angelegt: 1 }; }
+    }, { confirm: () => allowDuplicate });
+
+    expect(await service.savePayment('V1', '2026-02')).toBeNull();
+    expect(requests).toHaveLength(0);
+    allowDuplicate = true;
+    expect(await service.savePayment('V1', '2026-02')).toMatchObject({ status: 'success' });
+    expect(requests).toHaveLength(1);
+  });
+
   it('summiert Zahlungen und unterscheidet bezahlt, teilbezahlt, überfällig und zukünftig', () => {
     const service = loadPaymentService(baseState({ zahlungen: [
       { zahlung_id: 'JAN', vertrag_id: 'V1', datum: '2026-01-05', betrag: 650, art: 'Miete' },
@@ -120,6 +180,43 @@ describe('paymentUiService Monatsstatus', () => {
     const service = loadPaymentService(baseState());
     expect(service.getPaymentMonth({ mietmonat: '2026-08-31T22:00:00.000Z' })).toBe('2026-09');
     expect(service.formatDate('2026-11-12T23:00:00.000Z')).toBe('13.11.2026');
+  });
+
+  it('zeigt historische Zahlungsdaten im Dialog als deutsches Datum statt ISO-UTC-String', () => {
+    const modal = { style: {} };
+    const body = { innerHTML: '' };
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'ISO_DATE', vertrag_id: 'V1', datum: '2026-11-13T23:00:00.000Z', mietmonat: '2026-11', betrag: 1, art: 'Miete' }
+    ] }), {
+      getElementById(id) {
+        return id === 'modal-container' ? modal : id === 'modal-body' ? body : null;
+      }
+    });
+
+    service.openPaymentDialog('V1', '2026-11');
+
+    expect(body.innerHTML).toContain('14.11.2026 · Monat 2026-11 · 1,00 EUR · Miete');
+    expect(body.innerHTML).not.toContain('2026-11-13T23:00:00.000Z');
+  });
+
+  it('zeigt eine fachlich zugeordnete Erstattung im Mietmonat und lässt den Status bezahlt', () => {
+    const modal = { style: {} };
+    const body = { innerHTML: '' };
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'RENT_FEB', vertrag_id: 'V1', datum: '2026-02-04', mietmonat: '2026-02', betrag: 800, art: 'Miete' },
+      { zahlung_id: 'REFUND_FEB', vertrag_id: 'V1', datum: '2026-11-14', mietmonat: '2026-02', betrag: -1, art: 'Erstattung' }
+    ] }), {
+      getElementById(id) {
+        return id === 'modal-container' ? modal : id === 'modal-body' ? body : null;
+      }
+    });
+
+    service.openPaymentDialog('V1', '2026-02');
+    const contract = service.getContracts()[0];
+
+    expect(body.innerHTML).toContain('800,00 EUR · Miete');
+    expect(body.innerHTML).toContain('-1,00 EUR · Erstattung');
+    expect(service.summarizeMonth(contract, '2026-02').status).toBe('bezahlt');
   });
 
   it('ordnet ein Altzahlungs-Storno im lokalen State sofort dem Originalmonat zu', async () => {
@@ -383,6 +480,36 @@ describe('paymentUiService Monatsstatus', () => {
 });
 
 describe('paymentUiService CSV-Import', () => {
+  it('warnt beim CSV-Import vor einer möglichen Dublette und lässt den Import abbrechen', async () => {
+    let request = false;
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'EXISTING', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-02', betrag: 650, art: 'Miete' }
+    ] }), { getElementById: () => null }, {
+      saveTransaction: async () => { request = true; return { status: 'success' }; }
+    }, { confirm: () => false });
+    service.renderImportRows = () => {};
+    service.importRows = [{ datum: '11.11.2026', mietmonat: '2026-02', betrag: 650, vertrag_id: 'V1', name: 'Donald Duck' }];
+
+    expect(await service.importPayment(0)).toBeNull();
+    expect(request).toBe(false);
+    expect(service.importRows).toHaveLength(1);
+  });
+
+  it('zeigt eine mögliche CSV-Dublette bereits vor der Übernahme an', () => {
+    const output = { innerHTML: '' };
+    const service = loadPaymentService(baseState({ zahlungen: [
+      { zahlung_id: 'EXISTING', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-02', betrag: 650, art: 'Miete' }
+    ] }), {
+      getElementById: id => id === 'payment-import-output' ? output : null
+    });
+    service.importRows = [{ datum: '11.11.2026', mietmonat: '2026-02', betrag: 650, vertrag_id: 'V1', name: 'Donald Duck', matchReason: 'Vorschlag' }];
+
+    service.renderImportRows();
+
+    expect(output.innerHTML).toContain('Mögliche Doppelbuchung');
+    expect(output.innerHTML).toContain('Bitte prüfen, ob der Eingang schon gespeichert ist.');
+  });
+
   it('liest deutsche Semikolon-CSV mit Dezimalkomma und Anführungszeichen', () => {
     const service = loadPaymentService(baseState());
     const rows = service.parseCsv('Datum;Betrag;Name;Verwendungszweck\n01.11.2026;"1.234,50";"Duck, Donald";Miete Wohnung 1');

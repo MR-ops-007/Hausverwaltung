@@ -31,6 +31,9 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - PR #36 (2026-11-10): Fehlende `environment-service.js` in das Pages-Artefakt aufgenommen.
 - PR #37 (2026-11-11): Pages-Asset-Prüfung, JavaScript-Syntaxprüfung und `git diff --check`
   in CI ergänzt.
+- P6.1 (2026-11-14, Branch `codex/p6-1-payment-duplicate-warning`): weiche
+  Dublettenwarnung vor manueller und CSV-Zahlungsübernahme. Keine Backend- oder
+  Schemaänderung; Release-Status folgt mit dem PR-Merge.
 
 Diese Einträge ändern die produktive Apps-Script-Version nicht. Die produktive Version ist
 seit PR #39 und dem anschließenden Deployment 4.8.12; 4.8.5 bleibt als dokumentierter
