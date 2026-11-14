@@ -283,10 +283,12 @@ Ziel ist Kostenkontrolle bei Pauschalen, ausdrücklich kein Nebenkostenabrechnun
 ### P6 Mieteingänge manuell
 
 **Status:** Code und TEST-Abnahme abgeschlossen in PR #39; Backend 4.8.12 ist in TEST und PROD
-veröffentlicht. Die PROD-Abnahme im dauerhaft getrennten Objekt `TEST` ist nur teilweise erfolgt:
-Mietmonat, Überzahlung mit Aufteilung und Erstattung wurden geprüft. Ein vollständiges PROD-Fixture
-mit Kaution/Mehrverträgen fehlt noch; der PROD-Storno ist wegen der nativen Bestätigungsabfrage
-noch nicht verlässlich bestätigt. Details stehen im P6.1-Testprotokoll.
+veröffentlicht. Die fachliche PROD-Abnahme im dauerhaft getrennten Objekt `TEST` wurde am
+2026-11-14 mit einem kontrollierten Fixture für Kaution, zwei Vertragsparteien, Mietmonat,
+Überzahlung, Erstattung, Nachzahlung, Storno und Reload-Persistenz abgeschlossen. Details
+stehen im P6.1-Testprotokoll. Das explizite Abbrechen der nativen Dublettenwarnung bleibt
+als manueller QA-Schritt offen, weil die Browser-Automation native `confirm()`-Dialoge
+automatisch bestätigt.
 Die aktuelle Einzelprüfung von Matrix, Mietmonat, Status, Kaution und Objektverknüpfung ist in
 [`docs/p6-testprotokoll-20261113.md`](docs/p6-testprotokoll-20261113.md) dokumentiert.
 
@@ -355,19 +357,19 @@ Bankanbindung werden daraus abgeleitet.
 **Reihenfolge:**
 
 1. **P6.1 Dublettenwarnung:** **Im Branch `codex/p6-1-payment-duplicate-warning` umgesetzt,
-   Review-Nachbesserungen ergänzt, Abnahme in Mock und TEST sowie eine Teilabnahme im
-   PROD-Testobjekt am 2026-11-14 durchgeführt.** Weiche Warnung bei gleicher Vertrags-ID, gleichem Eingangsdatum,
+   Review-Nachbesserungen ergänzt, Abnahme in Mock, TEST und im PROD-Testobjekt am
+   2026-11-14 durchgeführt.** Weiche Warnung bei gleicher Vertrags-ID, gleichem Eingangsdatum,
    Betrag, fachlichem Mietmonat und Zahlungsart. Die Buchung bleibt nach Bestätigung möglich;
    bestehende idempotente IDs und Storno-Regeln werden nicht verändert. Für CSV und manuelle
    Erfassung gelten dieselben Vergleichsregeln. Historische Zeilen ohne `mietmonat` werden
    für die Prüfung ihrem Eingangsmonat zugeordnet. Stornierte Vorgänger und ein Retry mit
    identischer `zahlung_id` werden nicht als neue Dublette gewertet. Der PROD-Test schrieb
-   ausschließlich in `objekt_id = TEST`, bestätigte die persistierte Mietmonatszuordnung
-   und zeigte die Warnung bei einer identischen Wiederholung. Überzahlung mit Aufteilung und
-   Erstattung wurden im PROD-Testobjekt geprüft. Kautions-, Mehrvertrags- und Storno-Fälle
-   bleiben für PROD offen, weil der aktuelle PROD-Testbereich dafür keine passenden Verträge
-   enthält bzw. der Storno-Lauf nicht verlässlich bestätigt wurde; sie sind im TEST-Backend
-   abgenommen.
+   ausschließlich in `objekt_id = TEST` und bestätigte die persistierte Mietmonatszuordnung.
+   Das kontrollierte Fixture wurde um Vertrag 34 mit Mickey Mouse, Minnie Mouse, Kaution
+   und `900,00 EUR` Monatsmiete ergänzt. Kaution, Überzahlung mit Aufteilung, Erstattung,
+   Nachzahlung, Storno, erneute Zahlung, Statusdarstellung und Reload-Persistenz wurden
+   dort geprüft. Der native Dubletten-Confirm wird in der Browser-Automation automatisch
+   bestätigt; der explizite Abbruchpfad bleibt als manueller QA-Schritt offen.
 2. **P6.2 Gemeinsame Zahlungsregeln:** Die fachlichen Pure Functions für Mietmonat, Guthaben,
    Erstattung, Storno und Statusberechnung zwischen Backend und Mock vereinheitlichen oder
    aus einer gemeinsamen testbaren Quelle ableiten. Ziel ist, Copy-Paste-Abweichungen zu

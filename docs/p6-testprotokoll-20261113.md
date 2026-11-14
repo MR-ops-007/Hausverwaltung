@@ -90,17 +90,20 @@ interpretiert ältere Google-Sheets-ISO-Werte zeitzonenrichtig für `Europe/Berl
 
 ## Ergänzende PROD-Abnahme am 2026-11-14
 
-Die PROD-Prüfung wurde nach dem ursprünglichen TEST-Protokoll zunächst als Smoke-Test
-im dauerhaft getrennten Objekt `objekt_id = TEST` (`Test für Produktivsystem`) begonnen.
-Die ausführliche und korrigierte Teilabnahme steht in
+Die PROD-Abnahme wurde ausschließlich im dauerhaft getrennten Objekt
+`objekt_id = TEST` (`Test für Produktivsystem`) durchgeführt. Die vollständige
+Fallliste und die Sheet-Nachweise stehen in
 [`docs/p6-1-dublettenwarnung-testprotokoll-20261114.md`](p6-1-dublettenwarnung-testprotokoll-20261114.md).
-Sie dokumentiert zusätzlich die echte Überzahlung mit Aufteilung (`900,00 EUR`), die
-negative Erstattung und den noch offenen Storno-/Fixture-Punkt. Eine vollständige
-PROD-Abnahme wird daraus ausdrücklich nicht abgeleitet.
 
-Es wurden keine realen Mietverhältnisse beschrieben. Der PROD-Testbereich enthält
-aktuell nur diesen Vertrag und keine Kaution; die TEST-Abnahme bleibt deshalb die
-maßgebliche vollständige fachliche Abdeckung. Die PROD-Abnahme ist erst nach einem
-kontrolliert angelegten Fixture mit Kaution/Mehrverträgen und einem bestätigten
-Storno-Lauf vollständig.
+Für die Abnahme wurde dort ein kontrolliertes Fixture ergänzt: `TEST_WE_03` mit Vertrag
+34, Mickey Mouse und Minnie Mouse, `900,00 EUR` Gesamtmiete und `2.000,00 EUR`
+Kautions-Soll. Dadurch konnten Kaution, Mehrparteien-Verknüpfung, Mietmonat,
+Überzahlung mit Verteilung, Erstattung, Nachzahlung, Storno, erneute Zahlung und
+Reload-Persistenz direkt in der PROD-GUI geprüft werden. Die Schreibvorgänge und
+anschließenden Sheet-Lesekontrollen betrafen ausschließlich `TEST`; reale Objekte
+wurden nicht verändert.
+
+Die fachliche PROD-Abnahme ist für die produktiven Schreib- und Statusfälle abgeschlossen.
+Der einzige nicht automatisiert abgenommene Teil ist das explizite Abbrechen der nativen
+Dublettenwarnung, weil die Browser-Automation den `confirm()`-Dialog automatisch bestätigt.
 

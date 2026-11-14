@@ -9,14 +9,15 @@ der bestehenden TEST-Bereitstellung veröffentlicht und wurde dort mit einem
 Erfassungs-Schlüssel fachlich abgenommen. Anschließend wurde die bestehende PROD-
 Bereitstellung auf 4.8.12 (Deployment-Version `@42`) aktualisiert; die URL blieb unverändert.
 Der PROD-Endpunkt wurde zusätzlich am 2026-11-14 ausschließlich im dauerhaft getrennten
-Objekt `TEST` (`Test für Produktivsystem`) teilweise schreibend geprüft. Dabei wurden
-fachlicher Mietmonat, eine Überzahlung mit Aufteilung (`900,00 EUR`) und eine negative
-Erstattung geprüft. Die initiale Dublettenprüfung erzeugte wegen einer nicht sauber
-behandelten nativen Bestätigungsabfrage synthetische Kleinstbuchungen; diese wurden
-append-only neutralisiert. Der aktive TEST-Saldo wurde damit wieder auf den Stand vor
-dem Test gebracht, die Historie bleibt nachvollziehbar. Kaution, Mehrverträge und
-Mehrmieter konnten wegen des aktuellen PROD-Fixtures nicht geprüft werden; reale
-Objekte wurden nicht verändert.
+Objekt `TEST` (`Test für Produktivsystem`) schreibend geprüft. Dafür wurde ein
+kontrolliertes Fixture `TEST_WE_03` mit Vertrag 34, Mickey Mouse und Minnie Mouse,
+`900,00 EUR` Gesamtmiete und `2.000,00 EUR` Kautions-Soll ergänzt. Geprüft wurden
+Teil- und Vollkaution, fachlicher Mietmonat, Überzahlung mit Aufteilung, Erstattung,
+Nachzahlung, Storno, erneute Zahlung, Statusfarben und Persistenz nach Reload. Die
+Sheet-Zeilen wurden nach den GUI-Schreibvorgängen kontrolliert; reale Objekte wurden
+nicht verändert. Der native Dubletten-Confirm wird in der Browser-Automation automatisch
+bestätigt, deshalb ist nur der Warn-/Speicherpfad, nicht das manuelle Abbrechen, als
+PROD-GUI-Fall abgenommen.
 Die frühere 4.8.5-Bereitstellung bleibt als Rollback-Stand erhalten.
 
 Der CSV-Import ist absichtlich lokal und bestätigungspflichtig: Datei auswählen,
@@ -104,9 +105,9 @@ derselben `zahlung_id` meldet Backend 4.8.12 sonst absichtlich `PAYMENT_ID_CONFL
 korrekt abgeleitete Originalmonat nicht zur alten Zeile passt.
 
 Der Hardening-Stand ist Backend 4.8.12 in TEST und PROD bereitgestellt. Die fachliche
-Schreibabnahme ist in TEST vollständig für den dokumentierten Umfang erfolgt; PROD ist
-im Objekt `TEST` nur teilweise abgenommen, weil dort noch ein vollständiges
-Abnahme-Fixture einschließlich Kaution fehlt.
+Schreibabnahme ist in TEST vollständig und im PROD-Testobjekt `TEST` für die produktiven
+Schreib- und Statusfälle vollständig erfolgt. Das explizite Abbrechen einer nativen
+Dublettenwarnung bleibt als manueller QA-Schritt offen.
 Für die Speicherung der beiden neuen Vertragsfelder muss einmalig die ausdrücklich
 manuell aufzurufende Funktion `prepareContractSchema()` ausgeführt werden. Für die
 Zahlungsaufteilung muss zusätzlich einmalig `preparePaymentSchema()` ausgeführt werden.

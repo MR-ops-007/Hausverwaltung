@@ -69,15 +69,15 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   konkret, lässt eine bewusste Bestätigung zu und blockiert bei Abbruch nicht die weitere
   Bearbeitung. Die Prüfung bleibt bewusst frontendseitig und weich; Backend-Idempotenz,
   Stornos und die Zahlungsgruppenlogik bleiben unverändert. Stornierte Vorgänger und
-  Wiederholungen mit derselben `zahlung_id` werden ausgenommen. Mock und echtes TEST-
-  Backend (`objekt_id = TEST`) wurden am 2026-11-14 fachlich geprüft. Zusätzlich wurde
-  der echte PROD-Schreibweg im PROD-Testobjekt teilweise geprüft: fachlicher Mietmonat,
-  Überzahlung mit Aufteilung über `900,00 EUR` und eine negative Erstattung wurden
-  gespeichert und visuell nachvollzogen. Der ursprüngliche Dublettenlauf erzeugte wegen
-  einer nativen Bestätigungsabfrage synthetische Kleinstbuchungen; diese wurden durch
-  append-only Stornos neutralisiert. Der aktuelle PROD-Testbereich enthält nur Donald
-  Duck ohne Kaution; Mehrverträge, Kaution und der PROD-Storno bleiben offen. Der Branch
-  ist noch nicht nach `main` gemergt.
+  Wiederholungen mit derselben `zahlung_id` werden ausgenommen. Mock, echtes TEST-Backend
+  und der echte PROD-Schreibweg im dauerhaft getrennten PROD-Testobjekt `TEST` wurden am
+  2026-11-14 fachlich geprüft. Für PROD wurde ein kontrolliertes Fixture mit Vertrag 34,
+  Mickey Mouse, Minnie Mouse, `900,00 EUR` Monatsmiete und `2.000,00 EUR` Kaution ergänzt.
+  Fachlicher Mietmonat, Kaution, Überzahlung mit Aufteilung, Erstattung, Nachzahlung,
+  Storno, erneute Zahlung, Statusdarstellung und Reload-Persistenz wurden dort geprüft.
+  Der native Dubletten-Confirm wird in der Browser-Automation automatisch bestätigt; der
+  explizite Abbruchpfad bleibt als manueller QA-Schritt offen. Der Branch ist noch nicht
+  nach `main` gemergt.
 - Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
   erzeugt und veröffentlicht ausschließlich `runtime-config.js`; `runtime-secrets.js` bleibt lokal und
   wird durch einen negativen Workflow-Test gegen versehentliche Veröffentlichung geschützt.
@@ -318,6 +318,7 @@ Test-Einheiten:
 - `TEST_WE_01` - belegte Testwohnung
 - `TEST_WE_02` - Leerstand
 - `TEST_Allgemein` - Allgemeinbereich
+- `TEST_WE_03` - belegte Testwohnung mit Kaution, Vertrag 34, Mickey Mouse und Minnie Mouse
 
 Test-Zähler:
 
