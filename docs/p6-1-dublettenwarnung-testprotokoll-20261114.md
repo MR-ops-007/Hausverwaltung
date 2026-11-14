@@ -99,6 +99,12 @@ in der Vertragsmaske weiterhin bewusst deaktiviert ist:
   `2.000,00 EUR` Kautions-Soll.
 - Vertragsparteien: Mickey Mouse und Minnie Mouse.
 
+Die Vertragsparteien sind im Sheet über zwei Zeilen korrekt verknüpft. In der
+Mieteingangsmatrix wird derzeit jedoch nur die Hauptpartei (`Mickey Mouse`) angezeigt;
+`Minnie Mouse` erscheint dort nicht zusätzlich. Das ist kein Verlust der Verknüpfung,
+aber eine offene UI-Erweiterung für Mehrmieter-Verträge und wird deshalb nicht als
+vollständig visuell abgenommen bewertet.
+
 Die PROD-Umgebung zeigte `PRODUKTION`, Backend 4.8.12 und nach einem Reload weiterhin
 die neue Wohnung, den Vertrag und die Zahlungsdaten. Die folgenden Fälle wurden in der
 GUI ausgeführt und anschließend im echten Sheet geprüft:
