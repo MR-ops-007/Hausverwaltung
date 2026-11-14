@@ -32,11 +32,11 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - PR #37 (2026-11-11): Pages-Asset-Prüfung, JavaScript-Syntaxprüfung und `git diff --check`
   in CI ergänzt.
 
-Diese Einträge ändern die produktive Apps-Script-Version nicht. PROD bleibt bei 4.8.5;
-die lokalen Backend-Erweiterungen 4.8.6 bis 4.8.10 sowie die TEST-Stände 4.8.11 und 4.8.12 stehen deshalb
-als eigene Versionseinträge oben.
+Diese Einträge ändern die produktive Apps-Script-Version nicht. Die produktive Version ist
+seit PR #39 und dem anschließenden Deployment 4.8.12; 4.8.5 bleibt als dokumentierter
+Rollback-Stand erhalten.
 
-## 4.8.12 · 2026-11-13 · test
+## 4.8.12 · 2026-11-13 · produktiv
 
 Korrektur der fachlichen Mietmonate im Zahlungs-Schreibweg.
 
@@ -45,9 +45,12 @@ Korrektur der fachlichen Mietmonate im Zahlungs-Schreibweg.
 - Die UI interpretiert aus Google Sheets gelieferte ISO-Datumswerte in der Zeitzone
   `Europe/Berlin`, damit ein Monatswechsel um Mitternacht nicht falsch zugeordnet wird.
 - Die bestehende TEST-Bereitstellung wurde aktualisiert; `vertrag_capabilities` liefert
-  `payment_schema_ready: true`, PROD bleibt unverändert auf 4.8.5.
+  `payment_schema_ready: true`.
+- Nach PR #39 wurde die bestehende PROD-Bereitstellung mit Apps Script 4.8.12 aktualisiert
+  (Deployment-Version `@42`, unveränderte URL). Der PROD-Endpunkt wurde anschließend
+  lesend geprüft; es wurde kein produktiver Zahlungseingang geschrieben.
 
-## 4.8.11 · 2026-11-12 · test
+## 4.8.11 · 2026-11-12 · ersetzt
 
 P6-Hardening-Follow-up für historische Stornos und vorübergehende Netzfehler.
 
@@ -62,10 +65,10 @@ P6-Hardening-Follow-up für historische Stornos und vorübergehende Netzfehler.
   dem effektiven Originalmonat zu; ein Reload ist dafür nicht mehr erforderlich.
 - Für lokale TEST-Abnahmen kann ein ignoriertes `runtime-secrets.js` den TEST-Schlüssel
   bereitstellen; GitHub Pages übernimmt diese Datei nicht und PROD bleibt ohne lokalen Schlüssel.
-- Die Version ist in der bestehenden TEST-Bereitstellung veröffentlicht. PROD bleibt bis zur
-  fachlichen TEST-Abnahme auf 4.8.5.
+- Die Version war in der bestehenden TEST-Bereitstellung veröffentlicht und wurde durch
+  4.8.12 ersetzt.
 
-## 4.8.10 · 2026-11-12 · lokal
+## 4.8.10 · 2026-11-12 · ersetzt
 
 P6-Hardening-Follow-up für wiederholbare Zahlungsaktionen.
 
@@ -80,7 +83,7 @@ P6-Hardening-Follow-up für wiederholbare Zahlungsaktionen.
   vorzeitig den Offline-Schreibweg verhindert.
 - Die Version ist noch nicht in Apps Script bereitgestellt.
 
-## 4.8.9 · 2026-11-12 · lokal
+## 4.8.9 · 2026-11-12 · ersetzt
 
 P6-Hardening für den Zahlungsweg.
 
@@ -100,7 +103,7 @@ P6-Hardening für den Zahlungsweg.
   offener Monat bis zum Tageswechsel offen.
 - Die Version ist noch nicht in Apps Script bereitgestellt.
 
-## 4.8.8 · 2026-11-11 · lokal
+## 4.8.8 · 2026-11-11 · ersetzt
 
 Aufteilung von Überzahlungen auf Mietmonate.
 
@@ -110,7 +113,7 @@ Aufteilung von Überzahlungen auf Mietmonate.
 - Die Version ist noch nicht in Apps Script bereitgestellt; die Spalte muss im Blatt
   `Zahlungen` vorhanden sein.
 
-## 4.8.7 · 2026-11-11 · lokal
+## 4.8.7 · 2026-11-11 · ersetzt
 
 Vertragsspezifische Zahlungsfristen für die Mieteingangsansicht.
 
@@ -122,7 +125,7 @@ Vertragsspezifische Zahlungsfristen für die Mieteingangsansicht.
 - Die Version ist noch nicht in Apps Script bereitgestellt. Die beiden neuen Spalten
   werden ausschließlich über die explizite Schema-Vorbereitung ergänzt.
 
-## 4.8.6 · 2026-11-11 · lokal
+## 4.8.6 · 2026-11-11 · ersetzt
 
 Manuelle Mieteingänge und der erste CSV-Import werden vorbereitet.
 
@@ -137,7 +140,7 @@ Manuelle Mieteingänge und der erste CSV-Import werden vorbereitet.
 - Diese Version ist noch nicht in Apps Script bereitgestellt. Vor dem Merge und Deploy
   laufen Backend- und UI-Regressionstests gegen Mock-Daten.
 
-## 4.8.5 · 2026-11-10 · produktiv
+## 4.8.5 · 2026-11-10 · ersetzt
 
 Fail-closed-Zugriffsschutz und Geräteschlüssel mit Rollen. Details: `docs/access-control.md`.
 
