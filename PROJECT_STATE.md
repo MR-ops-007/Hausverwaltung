@@ -63,6 +63,12 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Apps Script 4.8.12 Zahlungsziele als Werktag oder Kalendertag sowie Zahlungsgruppen
   für aufgeteilte Eingänge. Für den Zahlungsweg ist Apps Script 4.8.12 produktiv bereitgestellt;
   4.8.5 bleibt als Rollback-Stand erhalten.
+- P6.1 ist im Branch `codex/p6-1-payment-duplicate-warning` umgesetzt: Manuelle Eingaben
+  und CSV-Übernahmen prüfen vor dem Schreiben auf eine mögliche Dublette anhand von
+  Vertrags-ID, Eingangsdatum, Betrag, fachlichem Mietmonat und Zahlungsart. Die UI warnt
+  konkret, lässt eine bewusste Bestätigung zu und blockiert bei Abbruch nicht die weitere
+  Bearbeitung. Die Prüfung bleibt bewusst frontendseitig und weich; Backend-Idempotenz,
+  Stornos und die Zahlungsgruppenlogik bleiben unverändert.
 - Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
   erzeugt und veröffentlicht ausschließlich `runtime-config.js`; `runtime-secrets.js` bleibt lokal und
   wird durch einen negativen Workflow-Test gegen versehentliche Veröffentlichung geschützt.

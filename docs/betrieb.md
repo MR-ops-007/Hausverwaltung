@@ -51,6 +51,21 @@ Die Summe wird während der Eingabe laufend gegen den tatsächlichen Eingang gep
 Bei einer Abweichung erscheint direkt im Dialog „Bitte Summe prüfen“ und die Speicherung
 bleibt deaktiviert, bis beide Beträge übereinstimmen.
 
+### Dublettenwarnung P6.1
+
+Vor einer manuellen Zahlung und vor der Übernahme einer CSV-Zeile prüft die Oberfläche,
+ob bereits eine Zahlung mit derselben `vertrag_id`, demselben Eingangsdatum, Betrag,
+fachlichem `mietmonat` und derselben Zahlungsart vorhanden ist. Datumswerte werden dabei
+auf den Kalendertag und Beträge auf Cent gerundet. Historische Zahlungen ohne `mietmonat`
+werden für diesen Vergleich ihrem Eingangsmonat zugeordnet.
+
+Die Meldung ist bewusst eine weiche Warnung: „Trotzdem speichern“ bleibt möglich, weil
+zwei echte Zahlungen am selben Tag mit demselben Betrag fachlich zulässig sein können.
+„Abbrechen“ lässt die Eingabe beziehungsweise CSV-Zeile unverändert. Die Regel wird nur
+im Frontend verwendet; serverseitige Idempotenz über `zahlung_id` und die Storno-Prüfungen
+bleiben die technische Schutzschicht. Aufgeteilte Zahlungsgruppen werden nicht nachträglich
+zu einer eigenen Gruppen-Dublette rekonstruiert.
+
 ### Zahlungsweg vor dem ersten Schreiben prüfen
 
 Vor einem Zahlungs-Schreibvorgang liest die App `vertrag_capabilities`. Das Backend muss

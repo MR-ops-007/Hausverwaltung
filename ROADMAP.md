@@ -345,16 +345,18 @@ Bank und das verfügbare Exportformat werden erst vor Beginn von P7 geprüft.
 ### Folgepakete für P6/P7
 
 Die folgenden Punkte sind bewusst als kleine, voneinander trennbare Pakete vorgemerkt. Sie
-werden erst nach der TEST-Abnahme des Hardening-Stands begonnen. Ziel bleibt ein pragmatischer
+werden nach der TEST-Abnahme des Hardening-Stands in dieser Reihenfolge bearbeitet. Ziel bleibt ein pragmatischer
 Arbeitsablauf; keine automatische Nebenkostenabrechnung, kein Mahnwesen und keine direkte
 Bankanbindung werden daraus abgeleitet.
 
 **Reihenfolge:**
 
-1. **P6.1 Dublettenwarnung:** Weiche Warnung bei gleicher Vertrags-ID, gleichem Eingangsdatum,
-   Betrag und fachlichem Mietmonat. Die Buchung bleibt nach Bestätigung möglich; bestehende
-   idempotente IDs und Storno-Regeln werden nicht verändert. Für CSV und manuelle Erfassung
-   müssen dieselben Vergleichsregeln gelten.
+1. **P6.1 Dublettenwarnung:** **Im Branch `codex/p6-1-payment-duplicate-warning` umgesetzt,
+   PR noch offen.** Weiche Warnung bei gleicher Vertrags-ID, gleichem Eingangsdatum,
+   Betrag, fachlichem Mietmonat und Zahlungsart. Die Buchung bleibt nach Bestätigung möglich;
+   bestehende idempotente IDs und Storno-Regeln werden nicht verändert. Für CSV und manuelle
+   Erfassung gelten dieselben Vergleichsregeln. Historische Zeilen ohne `mietmonat` werden
+   für die Prüfung ihrem Eingangsmonat zugeordnet.
 2. **P6.2 Gemeinsame Zahlungsregeln:** Die fachlichen Pure Functions für Mietmonat, Guthaben,
    Erstattung, Storno und Statusberechnung zwischen Backend und Mock vereinheitlichen oder
    aus einer gemeinsamen testbaren Quelle ableiten. Ziel ist, Copy-Paste-Abweichungen zu
@@ -394,6 +396,7 @@ Bankanbindung werden daraus abgeleitet.
 | 2026-11-10 | Mieteingänge zuerst manuell, strukturierter Kontoauszug-Import erst danach; OCR/PSD2 sind kein Startpunkt. |
 | 2026-11-11 | P6/P7 bleiben pragmatisch: CSV lokal importieren, Vorschläge bestätigen, keine direkte Bankanbindung. |
 | 2026-11-14 | PR #39 gemergt; P6/P7 und Apps Script 4.8.12 sind nach TEST-Abnahme produktiv dokumentiert. |
+| 2026-11-14 | P6.1 als reine Frontend-/Mock-Erweiterung begonnen: weiche Dublettenwarnung, keine Backend- oder Schemaänderung. |
 
 ## Definition of Done
 
