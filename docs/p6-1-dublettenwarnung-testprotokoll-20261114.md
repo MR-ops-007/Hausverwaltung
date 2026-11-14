@@ -86,9 +86,43 @@ den Bestätigungsweg zu prüfen. Der TEST-Bestand enthält deshalb für diesen F
 Das ist ein beabsichtigter synthetischer TEST-Datenbestand und betrifft keine
 Produktivwohnung.
 
-Der Produktivtest ist in diesem Protokoll noch nicht als bestanden markiert: Er benötigt
-die Eingabe des PROD-`APP_ACCESS_KEY` und darf danach ausschließlich mit
-`objekt_id = TEST` durchgeführt werden.
+## Abnahme im Produktiv-Backend
+
+Am 2026-11-14 wurde der Frontendstand mit Apps Script 4.8.12 gegen die bestehende
+PROD-Bereitstellung geprüft. Die Abnahme beschränkte sich ausschließlich auf
+`objekt_id = TEST` (`Test für Produktivsystem`). Andere produktive Objekte wurden
+nicht beschrieben; `Hauptstraße 29` war beim initialen Laden kurz sichtbar, es wurde
+dort aber keine Zahlung gespeichert.
+
+Die PROD-Umgebung zeigte `PRODUKTION`, Backend 4.8.12 und den vollständig geladenen
+TEST-Bestand. Im geprüften PROD-Testbereich war `WE 01 TEST` mit Donald Duck vorhanden;
+der Monat November 2026 stand vor der Prüfung auf `40,00 / 800,00 EUR`.
+
+1. **Echter Schreibweg:** Für November wurden `1,00 EUR`, Eingangsdatum `14.11.2026`,
+   Zahlungsart `Miete` und fachlicher Mietmonat `2026-11` gespeichert. Die UI meldete
+   `Zahlung gespeichert.`, die Zelle aktualisierte sich von `40,00` auf `41,00 EUR`
+   und die offene Miete sank von `7.960,00` auf `7.959,00 EUR`.
+2. **Persistenz und Zuordnung:** Nach dem Öffnen des Dialogs war die neue Zeile als
+   `2026-11-14 · Monat 2026-11 · 1,00 EUR · Miete` sichtbar. Eingangsdatum und
+   fachlicher Mietmonat bleiben damit im PROD-Testfall getrennt nachvollziehbar.
+3. **Dublettenwarnung:** Dieselbe Buchung mit gleicher Vertrags-ID, gleichem
+   Eingangsdatum, Betrag, Mietmonat und Zahlungsart löste den nativen Hinweis aus:
+   `Mögliche Doppelbuchung: Am 14.11.2026 wurden bereits 1,00 EUR als Miete für
+   2026-11 für diesen Vertrag erfasst.` Die Warnung wurde abgebrochen. Die Liste
+   blieb bei drei vorhandenen Zeilen; es wurde keine zweite identische PROD-Testzeile
+   angelegt.
+
+Der PROD-Testbereich enthält aktuell nur den oben geprüften Vertrag und keine Kaution
+(`0,00 / 0,00 EUR`). Kautions-, Überzahlungs-, Erstattungs- und Storno-Fälle wurden
+daher nicht erneut in PROD geschrieben. Diese Fälle sind im echten TEST-Backend bereits
+fachlich und schreibend abgenommen und bleiben dort die maßgebliche Abdeckung für die
+entsprechenden P6-Funktionen.
+
+**Beobachtete Restunschönheit:** Ältere Sheet-Zeilen werden im Dialog teilweise als
+`2026-11-13T23:00:00.000Z` angezeigt, während die neue UI-Zeile als `2026-11-14`
+erscheint. Die fachliche Dublettenprüfung und die Mietmonatszuordnung funktionierten
+korrekt; die uneinheitliche Darstellung historischer Eingangsdatumswerte ist ein
+separater Folgepunkt für die Timestamp-Normalisierung.
 
 ## Bewusste Grenzen
 
@@ -99,3 +133,9 @@ die Eingabe des PROD-`APP_ACCESS_KEY` und darf danach ausschließlich mit
   Idempotenz bleiben unverändert.
 - Das Paket verwendet dieselbe Vergleichsfunktion für manuelle Eingaben und CSV-Import,
   aber weiterhin getrennte UI-Einstiegspunkte.
+
+## Abnahmefazit
+
+Der Ablauf ist in Mock, echtem TEST-Backend und im PROD-Testobjekt beobachtet worden.
+Die automatisierten Tests und die reale PROD-Schreib-/Dublettenprüfung sind grün.
+P6.1 ist damit fachlich abnahmefähig; der Branch ist noch nicht in `main` gemergt.

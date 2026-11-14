@@ -8,7 +8,12 @@ PR #39 enthält den gehärteten Mieteingangs- und CSV-Import-Ausbau. Backend 4.8
 der bestehenden TEST-Bereitstellung veröffentlicht und wurde dort mit einem
 Erfassungs-Schlüssel fachlich abgenommen. Anschließend wurde die bestehende PROD-
 Bereitstellung auf 4.8.12 (Deployment-Version `@42`) aktualisiert; die URL blieb unverändert.
-Der PROD-Endpunkt wurde lesend geprüft, ein produktiver Zahlungseingang wurde nicht geschrieben.
+Der PROD-Endpunkt wurde zusätzlich am 2026-11-14 ausschließlich im dauerhaft getrennten
+Objekt `TEST` (`Test für Produktivsystem`) schreibend geprüft. Eine synthetische Zahlung
+über 1,00 EUR für Donald Duck wurde gespeichert und die anschließende identische Eingabe
+löste die Dublettenwarnung aus, ohne eine zweite Zeile anzulegen. Es wurden keine realen
+Objekte oder Mietverhältnisse beschrieben; Kaution, Überzahlung, Erstattung und Storno
+waren im aktuellen PROD-Testobjekt nicht vorhanden und wurden dort nicht künstlich ergänzt.
 Die frühere 4.8.5-Bereitstellung bleibt als Rollback-Stand erhalten.
 
 Der CSV-Import ist absichtlich lokal und bestätigungspflichtig: Datei auswählen,

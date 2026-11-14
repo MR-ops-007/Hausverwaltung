@@ -88,3 +88,21 @@ Regression abgesichert. Die technische Verknüpfung selbst bleibt ausschließlic
 über `vertrag_id`. Das Backend liefert neue `mietmonat`-Werte als Text `YYYY-MM`; die UI
 interpretiert ältere Google-Sheets-ISO-Werte zeitzonenrichtig für `Europe/Berlin`.
 
+## Ergänzende PROD-Abnahme am 2026-11-14
+
+Die vollständige P6-Abnahme wurde nach dem ursprünglichen TEST-Protokoll durch einen
+gezielten PROD-Smoke-Test im dauerhaft getrennten Objekt `objekt_id = TEST`
+(`Test für Produktivsystem`) ergänzt. Dabei wurde ausschließlich eine synthetische
+1,00-EUR-Miete für Donald Duck im November 2026 gespeichert. Eingangsdatum
+`14.11.2026` und fachlicher Mietmonat `2026-11` wurden getrennt persistiert; die
+Matrix aktualisierte sich von `40,00` auf `41,00 EUR` und die offene Miete sank um
+genau 1,00 EUR. Eine identische Wiederholung löste die P6.1-Dublettenwarnung aus und
+wurde abgebrochen, ohne eine zweite Zeile anzulegen.
+
+Es wurden keine realen Mietverhältnisse beschrieben. Der PROD-Testbereich enthält
+aktuell nur diesen Vertrag und keine Kaution; die im TEST-Protokoll abgenommenen Fälle
+für Kaution, Überzahlung, Erstattung, Storno, Aufteilung und mehrere Vertragsparteien
+bleiben deshalb die vollständige fachliche Abdeckung dieser Funktionen. Die Details
+des PROD-Smoke-Tests stehen in
+[`docs/p6-1-dublettenwarnung-testprotokoll-20261114.md`](p6-1-dublettenwarnung-testprotokoll-20261114.md).
+
