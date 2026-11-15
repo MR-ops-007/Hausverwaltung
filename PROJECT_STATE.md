@@ -1,18 +1,18 @@
 # PROJECT_STATE - Hausverwaltung
 
-## Stand: 2026-11-14
+## Stand: 2026-11-15
 
 `main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz und der Zahlungsweg 4.8.12 sind in TEST und PROD produktiv aktiviert.
 
 Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die nächsten sinnvollen Arbeitspakete.
 
-### Aktueller Stand nach PR #39
+### Aktueller Stand nach PR #41
 
-- `main` steht auf dem Stand nach PR #39 und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
+- `main` steht auf dem Stand nach PR #41 und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
   Z1 Speicherrückmeldung und Z2 Heizöl-Verbrauch.
 - Die Überlaufklassifikation, die Diagramm-Fehlerbehandlung, die Heizöl-Tankbilanz und
   der Speichervorgang sind gemeinsam regressionsgetestet.
-- Der vollständige Testlauf auf dem aktuellen P6.1-Branch umfasst aktuell 483 Tests in 20 Testdateien. Apps Script 4.8.12
+- Der vollständige Testlauf auf dem aktuellen `main`-Stand umfasst aktuell 483 Tests in 20 Testdateien. Apps Script 4.8.12
   ist in PROD (bestehende Bereitstellung, Deployment-Version 42) und TEST (bestehende Bereitstellung)
   veröffentlicht; die jeweiligen URLs blieben unverändert. 4.8.5 bleibt als Rollback-Stand dokumentiert.
 - Die lokale Auswahl von TEST und PROD sowie die GitHub-Pages-/Home-Screen-Grundlage sind in PR #35
@@ -63,7 +63,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Apps Script 4.8.12 Zahlungsziele als Werktag oder Kalendertag sowie Zahlungsgruppen
   für aufgeteilte Eingänge. Für den Zahlungsweg ist Apps Script 4.8.12 produktiv bereitgestellt;
   4.8.5 bleibt als Rollback-Stand erhalten.
-- P6.1 ist im Branch `codex/p6-1-payment-duplicate-warning` umgesetzt: Manuelle Eingaben
+- P6.1 ist mit PR #41 in `main` enthalten: Manuelle Eingaben
   und CSV-Übernahmen prüfen vor dem Schreiben auf eine mögliche Dublette anhand von
   Vertrags-ID, Eingangsdatum, Betrag, fachlichem Mietmonat und Zahlungsart. Die UI warnt
   konkret, lässt eine bewusste Bestätigung zu und blockiert bei Abbruch nicht die weitere
@@ -76,8 +76,11 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Fachlicher Mietmonat, Kaution, Überzahlung mit Aufteilung, Erstattung, Nachzahlung,
   Storno, erneute Zahlung, Statusdarstellung und Reload-Persistenz wurden dort geprüft.
   Der native Dubletten-Confirm wird in der Browser-Automation automatisch bestätigt; der
-  explizite Abbruchpfad bleibt als manueller QA-Schritt offen. Der Branch ist noch nicht
-  nach `main` gemergt.
+  explizite Abbruchpfad bleibt als manueller QA-Schritt offen. Der Remote-Branch wurde nach
+  dem Merge aufgeräumt.
+- Nächster fachlicher Schwerpunkt ist P6.3 Soll-Historie für Mieterhöhungen. Darauf baut
+  P6.6 für Erinnerungen an den frühestmöglichen nächsten Anpassungstermin auf; beide Pakete
+  sind in `ROADMAP.md` mit Abnahmekriterien und bewussten Nicht-Zielen beschrieben.
 - Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
   erzeugt und veröffentlicht ausschließlich `runtime-config.js`; `runtime-secrets.js` bleibt lokal und
   wird durch einen negativen Workflow-Test gegen versehentliche Veröffentlichung geschützt.

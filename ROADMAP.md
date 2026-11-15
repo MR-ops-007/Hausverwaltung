@@ -3,7 +3,7 @@
 Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklungspakete.
 `PROJECT_STATE.md` beschreibt den aktuellen Systemstand, `CHANGELOG.md` die Releases.
 
-**Stand: 2026-11-14**
+**Stand: 2026-11-15**
 
 ## Arbeitsregeln
 
@@ -20,7 +20,7 @@ Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklun
 
 ## Erledigt auf `main`
 
-Remote `origin/main` enthält aktuell PR #39 und den produktiven Backend-Stand 4.8.12.
+Remote `origin/main` enthält aktuell PR #41 und den produktiven Backend-Stand 4.8.12.
 
 | PR | Inhalt |
 | --- | --- |
@@ -40,6 +40,7 @@ Remote `origin/main` enthält aktuell PR #39 und den produktiven Backend-Stand 4
 | #37 | Pages-Build- und CI-Prüfungen gegen fehlende Frontend-Assets härten |
 | #38 | Dashboard-Datenqualität: fehlende, veraltete und dauerhafte Null-Ablesungen sichtbar machen |
 | #39 | P6/P7 Mieteingänge, CSV-MVP, Backend-Hardening und fachliche TEST-Abnahme |
+| #41 | P6.1 weiche Dublettenwarnung für manuelle und CSV-Zahlungsübernahme |
 
 Der lokale Branch `main` muss nach einem Merge weiterhin mit `origin/main` synchronisiert
 werden, bevor ein neues Feature darauf aufgebaut wird.
@@ -356,9 +357,9 @@ Bankanbindung werden daraus abgeleitet.
 
 **Reihenfolge:**
 
-1. **P6.1 Dublettenwarnung:** **Im Branch `codex/p6-1-payment-duplicate-warning` umgesetzt,
-   Review-Nachbesserungen ergänzt, Abnahme in Mock, TEST und im PROD-Testobjekt am
-   2026-11-14 durchgeführt.** Weiche Warnung bei gleicher Vertrags-ID, gleichem Eingangsdatum,
+1. **P6.1 Dublettenwarnung: abgeschlossen in PR #41.** Review-Nachbesserungen ergänzt,
+   Abnahme in Mock, TEST und im PROD-Testobjekt am
+   2026-11-14 durchgeführt. Weiche Warnung bei gleicher Vertrags-ID, gleichem Eingangsdatum,
    Betrag, fachlichem Mietmonat und Zahlungsart. Die Buchung bleibt nach Bestätigung möglich;
    bestehende idempotente IDs und Storno-Regeln werden nicht verändert. Für CSV und manuelle
    Erfassung gelten dieselben Vergleichsregeln. Historische Zeilen ohne `mietmonat` werden
@@ -370,20 +371,28 @@ Bankanbindung werden daraus abgeleitet.
    Nachzahlung, Storno, erneute Zahlung, Statusdarstellung und Reload-Persistenz wurden
    dort geprüft. Der native Dubletten-Confirm wird in der Browser-Automation automatisch
    bestätigt; der explizite Abbruchpfad bleibt als manueller QA-Schritt offen.
-2. **P6.2 Gemeinsame Zahlungsregeln:** Die fachlichen Pure Functions für Mietmonat, Guthaben,
+2. **P6.3 Zahlungsfachlichkeit:** Soll-Historie bei Mieterhöhungen ergänzen und die offenen
+   Fachregeln für Nachforderungen, Guthabenumbuchungen sowie Erstattungen im Saldo festlegen.
+   Erst danach werden diese Fälle in die Status- und Übersichtsberechnung aufgenommen.
+3. **P6.6 Erinnerungen für Mieterhöhungen:** Auf Basis der Soll-Historie eine Übersicht je
+   Vertrag bereitstellen: letzte dokumentierte Anpassung, frühestmöglicher nächster Termin,
+   Anpassungsart und Status (`keine Anpassung dokumentiert`, `noch nicht möglich`,
+   `Prüfung fällig`). Bei Index- oder Staffelmieten gelten die im Vertrag hinterlegten
+   Regeln; bei unvollständigen Stammdaten zeigt die UI ausdrücklich `Prüfung erforderlich`.
+   Zunächst ist eine sichtbare Übersicht ohne E-Mail- oder Push-Versand vorgesehen. Das
+   System macht keinen automatischen rechtlichen Anspruch geltend und schreibt keine
+   Vertragsdaten ohne ausdrückliche Nutzeraktion.
+4. **P6.2 Gemeinsame Zahlungsregeln:** Die fachlichen Pure Functions für Mietmonat, Guthaben,
    Erstattung, Storno und Statusberechnung zwischen Backend und Mock vereinheitlichen oder
    aus einer gemeinsamen testbaren Quelle ableiten. Ziel ist, Copy-Paste-Abweichungen zu
    vermeiden, ohne die Apps-Script-Architektur unnötig umzubauen.
-3. **P7.1 CSV-Monatsparser:** Verwendungszwecke wie `Miete Februar 2026` und `02/2026`
+5. **P7.1 CSV-Monatsparser:** Verwendungszwecke wie `Miete Februar 2026` und `02/2026`
    erkennen, Datumsangaben nicht fälschlich als Mietmonat interpretieren und die Quelle des
    Vorschlags anzeigen. Unklare Fälle bleiben bestätigungspflichtig.
-4. **P6.3 Zahlungsfachlichkeit:** Soll-Historie bei Mieterhöhungen ergänzen und die offenen
-   Fachregeln für Nachforderungen, Guthabenumbuchungen sowie Erstattungen im Saldo festlegen.
-   Erst danach werden diese Fälle in die Status- und Übersichtsberechnung aufgenommen.
-5. **P6.4 Zahlungsfristen:** Werktagsregeln belastbar machen. Samstag und Sonntag bleiben
+6. **P6.4 Zahlungsfristen:** Werktagsregeln belastbar machen. Samstag und Sonntag bleiben
    ausgeschlossen; gesetzliche Feiertage werden nur für das relevante Bundesland und Objekt
    berücksichtigt. Individuelle Vertragsvereinbarungen bleiben vorrangig.
-6. **P6.5 Kautionslebenszyklus:** Kaution nach Auszug, Rückzahlung und teilweise einbehaltene
+7. **P6.5 Kautionslebenszyklus:** Kaution nach Auszug, Rückzahlung und teilweise einbehaltene
    Beträge separat abbilden. Die bestehende Kautionsübersicht bleibt von Mietstatus und
    Mietmonaten getrennt.
 
