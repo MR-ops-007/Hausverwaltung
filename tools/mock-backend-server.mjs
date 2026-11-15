@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { createMockConsumptionData } from './mock-consumption-fixtures.mjs';
+import { tenantChangeFixture } from './mock-rental-fixtures.mjs';
 
 const port = Number(process.env.PORT || 8787);
 
@@ -18,6 +19,7 @@ const state = {
     { einheit_id: 'TEST_WE_05', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 5' },
     { einheit_id: 'TEST_WE_06', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 6' },
     { einheit_id: 'TEST_WE_07', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 7' },
+    ...tenantChangeFixture.einheiten,
     { einheit_id: 'TEST_Allgemein', objekt_id: 'TEST', typ: 'Allgemein', nummer: 'Allgemein' }
   ],
   Personen: [
@@ -27,7 +29,8 @@ const state = {
     { person_id: 'P4', vorname: 'Dagobert', name: 'Duck' },
     { person_id: 'P5', vorname: 'Gustav', name: 'Gans' },
     { person_id: 'P6', vorname: 'Tick', name: 'Duck' },
-    { person_id: 'P7', vorname: 'Trick', name: 'Duck' }
+    { person_id: 'P7', vorname: 'Trick', name: 'Duck' },
+    ...tenantChangeFixture.personen
   ],
   Vertraege: [
     { vertrag_id: 'TEST_V1', einheit_id: 'TEST_WE_01', hauptperson_id: 'P1', start_datum: '2026-01-01', aktiv: true, mietmodell: 'Kalt+NK', erhoehungs_typ: 'Normal', soll_kaltmiete: 500, soll_nebenkosten: 150, soll_gesamt: 650, kaution_soll: 2000, kaution_ist: 1200, zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: 3 },
@@ -36,7 +39,8 @@ const state = {
     { vertrag_id: 'TEST_V4', einheit_id: 'TEST_WE_04', hauptperson_id: 'P4', start_datum: '2026-01-01', aktiv: true, mietmodell: 'Warmmiete', erhoehungs_typ: 'Normal', soll_kaltmiete: 1100, soll_nebenkosten: 350, soll_gesamt: 1450, kaution_soll: 2000, kaution_ist: 2000, zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: 3 },
     { vertrag_id: 'TEST_V5', einheit_id: 'TEST_WE_05', hauptperson_id: 'P5', start_datum: '2026-01-01', aktiv: true, mietmodell: 'Kalt+NK', erhoehungs_typ: 'Normal', soll_kaltmiete: 400, soll_nebenkosten: 100, soll_gesamt: 500, kaution_soll: 2000, kaution_ist: 2000, zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: 3 },
     { vertrag_id: 'TEST_V6', einheit_id: 'TEST_WE_06', hauptperson_id: 'P6', start_datum: '2026-02-01', aktiv: true, mietmodell: 'Kalt+NK', erhoehungs_typ: 'Normal', soll_kaltmiete: 600, soll_nebenkosten: 200, soll_gesamt: 800, kaution_soll: 1600, kaution_ist: 1000, zahlungsziel_typ: 'KALENDERTAG', zahlungsziel_wert: 15 },
-    { vertrag_id: 'TEST_V7', einheit_id: 'TEST_WE_07', hauptperson_id: '', start_datum: '', aktiv: true, mietmodell: 'Pauschal', erhoehungs_typ: 'Normal', soll_kaltmiete: 0, soll_nebenkosten: 0, soll_gesamt: 0, kaution_soll: 0, kaution_ist: 0, zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: 3 }
+    { vertrag_id: 'TEST_V7', einheit_id: 'TEST_WE_07', hauptperson_id: '', start_datum: '', aktiv: true, mietmodell: 'Pauschal', erhoehungs_typ: 'Normal', soll_kaltmiete: 0, soll_nebenkosten: 0, soll_gesamt: 0, kaution_soll: 0, kaution_ist: 0, zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: 3 },
+    ...tenantChangeFixture.vertraege
   ],
   Vertragsparteien: [
     { vertrag_id: 'TEST_V1', person_id: 'P1', rolle: 'Hauptmieter', ordnet: 1 },
@@ -45,7 +49,8 @@ const state = {
     { vertrag_id: 'TEST_V4', person_id: 'P4', rolle: 'Hauptmieter', ordnet: 1 },
     { vertrag_id: 'TEST_V5', person_id: 'P5', rolle: 'Hauptmieter', ordnet: 1 },
     { vertrag_id: 'TEST_V6', person_id: 'P6', rolle: 'Hauptmieter', ordnet: 1 },
-    { vertrag_id: 'TEST_V6', person_id: 'P7', rolle: 'Hauptmieter', ordnet: 2 }
+    { vertrag_id: 'TEST_V6', person_id: 'P7', rolle: 'Hauptmieter', ordnet: 2 },
+    ...tenantChangeFixture.vertragsparteien
   ],
   Zaehler: consumptionFixture.zaehler,
   Zaehlerstaende: consumptionFixture.zaehlerstaende,
@@ -82,10 +87,11 @@ const state = {
     rent('TICK_01', 'TEST_V6', '2026-01', 400, '2026-01-05'),
     rent('TRICK_01', 'TEST_V6', '2026-01', 400, '2026-01-05'),
     rent('TICK_02', 'TEST_V6', '2026-02', 800, '2026-02-20'),
-    rent('TICK_KAUTION', 'TEST_V6', '', 1000, '2026-01-02', 'Kaution')
+    rent('TICK_KAUTION', 'TEST_V6', '', 1000, '2026-01-02', 'Kaution'),
+    ...tenantChangeFixture.zahlungen
   ],
   Haustechnik: [],
-  _view_aktive_mieter: [1, 2, 3, 4, 5, 6, 7].map(index => ({ objekt_id: 'TEST', einheit_id: `TEST_WE_0${index}`, vertrag_id: `TEST_V${index}`, mieter_name: ['Donald Duck', 'Mickey Mouse', 'Daisy Duck', 'Dagobert Duck', 'Gustav Gans', 'Tick Duck / Trick Duck', 'Leerstand'][index - 1], soll_gesamt: [650, 900, 750, 1450, 500, 800, 0][index - 1] })),
+  _view_aktive_mieter: [1, 2, 3, 4, 5, 6, 7].map(index => ({ objekt_id: 'TEST', einheit_id: `TEST_WE_0${index}`, vertrag_id: `TEST_V${index}`, mieter_name: ['Donald Duck', 'Mickey Mouse', 'Daisy Duck', 'Dagobert Duck', 'Gustav Gans', 'Tick Duck / Trick Duck', 'Leerstand'][index - 1], soll_gesamt: [650, 900, 750, 1450, 500, 800, 0][index - 1] })).concat(tenantChangeFixture.activeViewRow),
   _view_verbrauch_monat: consumptionFixture._view_verbrauch_monat,
   _view_verbrauch_jahr: consumptionFixture._view_verbrauch_jahr,
   _view_verbrauch_audit: consumptionFixture._view_verbrauch_audit,
