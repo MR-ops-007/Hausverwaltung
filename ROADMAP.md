@@ -396,7 +396,7 @@ Bankanbindung werden daraus abgeleitet.
    Zunächst ist eine sichtbare Übersicht ohne E-Mail- oder Push-Versand vorgesehen. Das
    System macht keinen automatischen rechtlichen Anspruch geltend und schreibt keine
    Vertragsdaten ohne ausdrückliche Nutzeraktion.
-4. **P6.7 Mieterwechsel und historische Vertragszeiträume: Validierungsgrundlage vorbereitet.**
+4. **P6.7 Mieterwechsel und historische Vertragszeiträume: in Umsetzung.**
    Ein Mieterwechsel wird über einen neuen Vertrag mit eigener `vertrag_id`,
    neuem Mietbeginn und eigener Vertragsparteien-Verknüpfung abgebildet; der alte Vertrag
    erhält ein Mietende und bleibt historisch erhalten. Die Standard-Mieteingangskontrolle
@@ -408,8 +408,10 @@ Bankanbindung werden daraus abgeleitet.
    `tools/mock-rental-fixtures.mjs`; der Testplan steht in
    `docs/p6-7-mieterwechsel-testplan.md`. `contractService.validateContractPeriods()`
    meldet Überschneidungen als Fehler sowie Lücken und Monatsmitte-Wechsel als Hinweise;
-   die atomare Schreiboperation und die historische UI-Anzeige bleiben die nächsten
-   Umsetzungsschritte. Details stehen in
+   Die Mieteingangskontrolle blendet historische Verträge ein, nimmt offene Posten
+   ehemaliger Verträge in die Übersicht auf und verlinkt Monate vor dem neuen Mietbeginn
+   auf den historischen Vertrag. Die atomare Schreiboperation und die historische
+   Verbrauchsaufteilung bleiben offen. Details stehen in
    `docs/p6-7-contract-period-validation.md`.
 5. **P6.2 Gemeinsame Zahlungsregeln:** Die fachlichen Pure Functions für Mietmonat, Guthaben,
    Erstattung, Storno und Statusberechnung zwischen Backend und Mock vereinheitlichen oder

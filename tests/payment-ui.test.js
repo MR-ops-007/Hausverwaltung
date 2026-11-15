@@ -130,6 +130,26 @@ describe('paymentUiService Monatsstatus', () => {
     expect(service.summarizeDeposit(current)).toMatchObject({ due: 1800, paid: 900, remaining: 900, status: 'teilweise' });
   });
 
+  it('ordnet Monate vor dem neuen Mietbeginn einem historischen Vorgänger zu', () => {
+    const service = loadPaymentService(baseState({
+      objekte: [{ objekt_id: 'TEST', bezeichnung: 'TEST · Entenhausen' }],
+      einheiten: tenantChangeFixture.einheiten,
+      personen: tenantChangeFixture.personen,
+      vertraege: tenantChangeFixture.vertraege,
+      vertragsparteien: tenantChangeFixture.vertragsparteien,
+      zahlungen: tenantChangeFixture.zahlungen
+    }));
+    const current = tenantChangeFixture.vertraege[1];
+
+    expect(service.getHistoricalContractForMonth(current, '2026-04').vertrag_id).toBe('TEST_V8_ALT');
+    expect(service.summarizeMonth(current, '2026-04', new Date(2026, 10, 30))).toMatchObject({
+      status: 'vor_mietbeginn_historisch', due: 0, paid: 0
+    });
+    expect(service.getPaymentsFor('TEST_V8_ALT', '2026-04').map(row => row.zahlung_id)).toEqual([
+      'PLUTO_2026_04', 'PLUTO_NACH_04', 'PLUTO_NACH_04_STORNO'
+    ]);
+  });
+
   it('charakterisiert Lücke und Monatsmitte beim aktuellen Vertragsmodell', () => {
     const service = loadPaymentService(baseState());
     const [gapPreviousRaw, gapCurrentRaw] = tenantChangeFixture.negativeCases.gap;
@@ -890,6 +910,36 @@ describe('paymentUiService CSV-Import', () => {
     expect(output.innerHTML).toContain('Überfällig');
     expect(output.innerHTML).toContain('Guthaben / Überzahlungen');
     expect(output.innerHTML).toContain('Kontoauszug als CSV');
+  });
+
+  it('zeigt historische Verträge und verlinkt den Vorgängermonat zur Erfassung', () => {
+    const output = { innerHTML: '' };
+    const service = loadPaymentService(baseState({
+      objekte: [{ objekt_id: 'TEST', bezeichnung: 'TEST · Entenhausen' }],
+      einheiten: tenantChangeFixture.einheiten,
+      personen: tenantChangeFixture.personen,
+      vertraege: tenantChangeFixture.vertraege,
+      vertragsparteien: tenantChangeFixture.vertragsparteien,
+      zahlungen: tenantChangeFixture.zahlungen
+    }), {
+      getElementById(id) {
+        return id === 'payments-output' ? output : null;
+      }
+    });
+    service.selectedObject = 'TEST';
+    service.selectedYear = '2026';
+    service.render();
+
+    expect(output.innerHTML).toContain('Historische Verträge einblenden');
+    expect(output.innerHTML).toContain('Pluto');
+    expect(output.innerHTML).toContain('Historischer Vorgänger');
+    expect(output.innerHTML).toContain("openHistoricalMonth('TEST_V8','2026-04')");
+    expect(output.innerHTML).toContain('Offene Posten ehemaliger Verträge fließen bereits in die Übersicht ein.');
+
+    service.showHistoricalContracts = true;
+    service.render();
+    expect(output.innerHTML).toContain('Nur aktuelle Verträge anzeigen');
+    expect(output.innerHTML).toContain('Historischer Vertrag');
   });
 
   it('kennzeichnet historische Sollbeträge in Matrix und Zahlungshinweis', () => {

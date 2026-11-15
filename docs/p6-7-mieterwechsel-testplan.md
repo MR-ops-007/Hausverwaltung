@@ -22,8 +22,8 @@ Pluto hat Zahlungen für Januar bis Mai 2026, eine nach dem Wechsel eingegangene
 Nachzahlung für April mit anschließendem Storno und eine vollständig hinterlegte
 Kaution. Goofy hat Zahlungen für Juni bis August 2026, eine Teilzahlung im Juli
 und eine teilweise hinterlegte Kaution. Die aktive Mieteransicht zeigt für die
-Einheit nur Goofy; der alte Vertrag bleibt für die spätere historische Ansicht
-im Grunddatenbestand erhalten.
+Einheit nur Goofy; in der Mieteingangskontrolle bleiben Pluto und seine Zahlungen
+über die historische Vertragsansicht erreichbar.
 
 ## Abnahmekriterien für die spätere UI-Umsetzung
 
@@ -56,12 +56,15 @@ Soll für Juni. Diese Charakterisierung wird nach der Entscheidung zu anteiligem
 Soll und Zwischenablesung bewusst angepasst. Sie ist keine fachliche Freigabe für
 eine spätere Abrechnung.
 
-## Bekannte Ausgangslage
+## Aktueller UI-Stand
 
-Die aktuelle Mieteingangskontrolle zeigt nur aktive Verträge. Die Fixture stellt
-den historischen Vertrag deshalb bereits korrekt bereit, kann ihn in der
-Standardmatrix aber noch nicht als eigene historische Zeile anzeigen. Das ist
-der eigentliche Implementierungsumfang von P6.7 und kein Fehler der Fixture.
+Die Standardansicht zeigt weiterhin die aktiven Verträge. Offene Posten und
+Kautionen historischer Verträge fließen bereits in die Übersicht ein. Über
+„Historische Verträge einblenden“ lässt sich der beendete Vertrag als eigene Zeile
+anzeigen. Monate vor dem neuen Mietbeginn werden auf der aktuellen Vertragszeile
+als „Historischer Vorgänger“ markiert; ein Klick öffnet direkt den passenden alten
+Vertrag und den fachlichen Mietmonat zur Erfassung. Damit können auch nach dem
+Mieterwechsel eingegangene Altmieten und Stornos nachgetragen werden.
 
 Verbrauchsviews verwenden derzeit den aktiven Mieter aus
 `_view_aktive_mieter`. Eine abrechnungsfähige Verbrauchsaufteilung nach alten
@@ -69,7 +72,7 @@ Vertragszeiträumen bleibt deshalb ebenfalls Bestandteil der späteren Umsetzung
 
 ## Technische Prüfung der Vorbereitung
 
-- `npm test`: 502 Tests in 20 Testdateien grün.
+- `npm test`: 506 Tests in 20 Testdateien grün.
 - `npm run check:frontend-assets`: erfolgreich.
 - `node --check` für Mock-Server und Fixture: erfolgreich.
 - Mock-API-Lauf: Für `TEST_WE_08` wurden beide Verträge, beide Parteien, die

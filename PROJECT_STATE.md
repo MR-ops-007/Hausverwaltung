@@ -90,15 +90,17 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   auf Desktopbreite geöffnet und die Matrix ohne Darstellungsfehler geprüft.
   Die Soll-Historie ist die Grundlage für P6.6 (Erinnerungen an mögliche Mieterhöhungen),
   das als separates Folgepaket verbleibt.
-- P6.7 Mieterwechsel ist als Folgepaket vorbereitet. Die Entenhausen-Fixture
+- P6.7 Mieterwechsel ist als Folgepaket in Umsetzung. Die Entenhausen-Fixture
   `tools/mock-rental-fixtures.mjs` enthält für `TEST_WE_08` einen beendeten Vertrag
   von Pluto bis 2026-05-31 und einen aktiven Vertrag von Goofy ab 2026-06-01 mit
-  getrennten Zahlungen, Kautionen und Vertragsparteien. Die UI zeigt derzeit weiterhin
-  nur den aktiven Vertrag; historische Vertragsperioden in der Mieteingangskontrolle
-  und Verbrauchsview sind der eigentliche Implementierungsumfang von P6.7. Die gemeinsame
+  getrennten Zahlungen, Kautionen und Vertragsparteien. Die UI zeigt standardmäßig nur
+  den aktiven Vertrag; historische Verträge lassen sich in der Mieteingangskontrolle
+  als eigene Zeilen einblenden. Offene Posten ehemaliger Verträge fließen in die
+  Übersicht ein, und Monate vor einem neuen Mietbeginn verlinken auf den passenden
+  historischen Vertrag. Die Verbrauchsview und die atomare Schreiboperation sind der
+  verbleibende Implementierungsumfang von P6.7. Die gemeinsame
   `contractService.validateContractPeriods()` prüft jetzt Überschneidungen, Lücken und
-  Wechsel innerhalb eines Monats; die atomare Schreiboperation und die historische Anzeige
-  folgen als nächste Schritte. Details: `docs/p6-7-contract-period-validation.md`.
+  Wechsel innerhalb eines Monats. Details: `docs/p6-7-contract-period-validation.md`.
 - Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
   erzeugt und veröffentlicht ausschließlich `runtime-config.js`; `runtime-secrets.js` bleibt lokal und
   wird durch einen negativen Workflow-Test gegen versehentliche Veröffentlichung geschützt.
