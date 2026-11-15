@@ -396,8 +396,8 @@ Bankanbindung werden daraus abgeleitet.
    Zunächst ist eine sichtbare Übersicht ohne E-Mail- oder Push-Versand vorgesehen. Das
    System macht keinen automatischen rechtlichen Anspruch geltend und schreibt keine
    Vertragsdaten ohne ausdrückliche Nutzeraktion.
-4. **P6.7 Mieterwechsel und historische Vertragszeiträume: als nächstes fachliches Paket
-   vorbereiten.** Ein Mieterwechsel wird über einen neuen Vertrag mit eigener `vertrag_id`,
+4. **P6.7 Mieterwechsel und historische Vertragszeiträume: Validierungsgrundlage vorbereitet.**
+   Ein Mieterwechsel wird über einen neuen Vertrag mit eigener `vertrag_id`,
    neuem Mietbeginn und eigener Vertragsparteien-Verknüpfung abgebildet; der alte Vertrag
    erhält ein Mietende und bleibt historisch erhalten. Die Standard-Mieteingangskontrolle
    zeigt zunächst den aktiven Vertrag, muss für die Abnahme aber auch alte Vertragsperioden,
@@ -406,7 +406,11 @@ Bankanbindung werden daraus abgeleitet.
    mitten im Monat wird nicht automatisch verteilt, bevor dafür eine fachliche Regel
    festgelegt ist. Die reproduzierbare Entenhausen-Fixture liegt in
    `tools/mock-rental-fixtures.mjs`; der Testplan steht in
-   `docs/p6-7-mieterwechsel-testplan.md`.
+   `docs/p6-7-mieterwechsel-testplan.md`. `contractService.validateContractPeriods()`
+   meldet Überschneidungen als Fehler sowie Lücken und Monatsmitte-Wechsel als Hinweise;
+   die atomare Schreiboperation und die historische UI-Anzeige bleiben die nächsten
+   Umsetzungsschritte. Details stehen in
+   `docs/p6-7-contract-period-validation.md`.
 5. **P6.2 Gemeinsame Zahlungsregeln:** Die fachlichen Pure Functions für Mietmonat, Guthaben,
    Erstattung, Storno und Statusberechnung zwischen Backend und Mock vereinheitlichen oder
    aus einer gemeinsamen testbaren Quelle ableiten. Ziel ist, Copy-Paste-Abweichungen zu

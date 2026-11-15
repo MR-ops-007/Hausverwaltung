@@ -99,6 +99,104 @@ const contractService = {
     }, {});
   },
 
+  /**
+   * Validates historical contract periods per unit without changing data.
+   * Overlaps are errors; gaps and mid-month changes are review warnings.
+   */
+  validateContractPeriods(contracts = []) {
+    const errors = [];
+    const warnings = [];
+    const periods = [];
+    const day = 24 * 60 * 60 * 1000;
+
+    if (!Array.isArray(contracts)) {
+      return { valid: false, errors: [{ code: 'PERIODS_NOT_ARRAY', message: 'Vertragszeitraeume muessen als Liste uebergeben werden.' }], warnings: [], periods: [] };
+    }
+
+    contracts.forEach((contract, index) => {
+      if (!contract || this.blank(contract.vertrag_id) || this.blank(contract.einheit_id)) {
+        errors.push({ code: 'PERIOD_IDENTITY_MISSING', index, message: 'Vertrag und Einheit muessen fuer eine Zeitraumpruefung eindeutig sein.' });
+        return;
+      }
+
+      let start;
+      let end = '';
+      try {
+        if (this.blank(contract.start_datum)) throw new Error('Startdatum fehlt.');
+        start = this.iso(this.date(contract.start_datum));
+        if (!this.blank(contract.end_datum)) end = this.iso(this.date(contract.end_datum));
+      } catch (error) {
+        errors.push({
+          code: 'PERIOD_DATE_INVALID', index, vertragId: String(contract.vertrag_id),
+          unitId: String(contract.einheit_id), message: String(error.message || error)
+        });
+        return;
+      }
+
+      if (end && end < start) {
+        errors.push({
+          code: 'PERIOD_END_BEFORE_START', vertragId: String(contract.vertrag_id),
+          unitId: String(contract.einheit_id), start, end,
+          message: 'Das Vertragsende liegt vor dem Vertragsbeginn.'
+        });
+        return;
+      }
+
+      periods.push({
+        vertragId: String(contract.vertrag_id),
+        unitId: String(contract.einheit_id),
+        start,
+        end,
+        startTime: this.date(start).getTime(),
+        endTime: end ? this.date(end).getTime() : Infinity
+      });
+    });
+
+    const grouped = periods.reduce((result, period) => {
+      (result[period.unitId] ||= []).push(period);
+      return result;
+    }, {});
+
+    Object.keys(grouped).forEach(unitId => {
+      const unitPeriods = grouped[unitId].sort((a, b) => a.startTime - b.startTime || a.vertragId.localeCompare(b.vertragId));
+      unitPeriods.slice(1).forEach((period, index) => {
+        const previous = unitPeriods[index];
+        if (period.startTime <= previous.endTime) {
+          errors.push({
+            code: 'PERIOD_OVERLAP', unitId, previousVertragId: previous.vertragId, vertragId: period.vertragId,
+            previousStart: previous.start, previousEnd: previous.end, start: period.start, end: period.end,
+            message: 'Vertragszeiträume derselben Einheit überschneiden sich.'
+          });
+          return;
+        }
+
+        const gapStart = new Date(previous.endTime + day);
+        const gapEnd = new Date(period.startTime - day);
+        if (previous.end && gapStart.getTime() <= gapEnd.getTime()) {
+          warnings.push({
+            code: 'PERIOD_GAP', unitId, previousVertragId: previous.vertragId, vertragId: period.vertragId,
+            from: this.iso(gapStart), to: this.iso(gapEnd),
+            message: 'Zwischen den Vertragszeiträumen besteht eine Lücke.'
+          });
+        }
+
+        const previousEnd = this.date(previous.end);
+        const currentStart = this.date(period.start);
+        if (previous.end && previous.end.slice(0, 7) === period.start.slice(0, 7) &&
+            previousEnd.getUTCDate() !== new Date(Date.UTC(previousEnd.getUTCFullYear(), previousEnd.getUTCMonth() + 1, 0)).getUTCDate() &&
+            currentStart.getUTCDate() !== 1) {
+          warnings.push({
+            code: 'MID_MONTH_CHANGE', unitId, previousVertragId: previous.vertragId, vertragId: period.vertragId,
+            month: period.start.slice(0, 7), previousEnd: previous.end, start: period.start,
+            message: 'Der Mieterwechsel erfolgt innerhalb eines Monats; eine anteilige Sollregel ist erforderlich.'
+          });
+        }
+      });
+    });
+
+    return { valid: errors.length === 0, errors, warnings, periods };
+  },
+
   snapshot(contract) {
     return JSON.stringify(Object.keys(contract).sort().reduce((result, key) => {
       const value = contract[key];

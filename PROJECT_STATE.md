@@ -95,7 +95,10 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   von Pluto bis 2026-05-31 und einen aktiven Vertrag von Goofy ab 2026-06-01 mit
   getrennten Zahlungen, Kautionen und Vertragsparteien. Die UI zeigt derzeit weiterhin
   nur den aktiven Vertrag; historische Vertragsperioden in der Mieteingangskontrolle
-  und Verbrauchsview sind der eigentliche Implementierungsumfang von P6.7.
+  und Verbrauchsview sind der eigentliche Implementierungsumfang von P6.7. Die gemeinsame
+  `contractService.validateContractPeriods()` prüft jetzt Überschneidungen, Lücken und
+  Wechsel innerhalb eines Monats; die atomare Schreiboperation und die historische Anzeige
+  folgen als nächste Schritte. Details: `docs/p6-7-contract-period-validation.md`.
 - Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
   erzeugt und veröffentlicht ausschließlich `runtime-config.js`; `runtime-secrets.js` bleibt lokal und
   wird durch einen negativen Workflow-Test gegen versehentliche Veröffentlichung geschützt.
