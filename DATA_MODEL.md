@@ -229,6 +229,15 @@ Neue Tabelle `Mietanpassungen` (append-only): `anpassung_id`, `vertrag_id` (FK),
 `vorher_json`, `nachher_json`. Snapshots dokumentieren Historie; aktueller Stand
 bleibt ausschließlich in `Vertraege`.
 
+Für die Mieteingangsansicht wird der historische monatliche Sollbetrag aus diesen
+Snapshots abgeleitet. `wirksam_ab` ist bei dokumentierten Indexanpassungen der primäre
+Wirksamkeitsmonat; für ältere `STAMMDATEN`-Zeilen ohne diesen Wert verwendet die UI
+`nachher_json.letzte_anpassung` und ersatzweise den Erfassungsmonat als ausdrücklich
+markierten Kompatibilitäts-Fallback. Eine Historienzeile ohne Änderung von
+`soll_gesamt` verändert den Monats-Sollbetrag nicht. Gespeicherte Zahlungseingänge werden
+nicht rückwirkend umgebucht. Die Ableitung ist damit eine reine Leselogik und benötigt
+keine zusätzliche Spalte oder Apps-Script-Berechnung.
+
 Indexvorschau betrifft ausschließlich Nettokaltmiete; die Übernahme benötigt
 explizite Bestätigung und dokumentierte Erklärung. `aktiv` bleibt maßgeblicher
 Vertragszustand. Etage/Kündigungsverzicht sind nicht Bestandteil dieses Ausbaus.
