@@ -18,6 +18,14 @@ Sollbetrag aus der append-only Tabelle `Mietanpassungen`.
 4. Historienzeilen ohne Änderung des monatlichen Sollbetrags werden ignoriert.
 5. Die Regel gilt an einer Stelle für Monatsstatus, Dialoganzeige und
    Überzahlungsverteilung. Bestehende Zahlungseingänge werden nicht rückwirkend verändert.
+6. Für Monate ab dem letzten vergangenen Historieneintrag gilt der aktuelle Betrag aus
+   `Vertraege` als Gegenwartswahrheit. Weicht er vom letzten `nachher_json.soll_gesamt`
+   ab, bleibt der aktuelle Betrag sichtbar und die UI meldet `Historie prüfen`.
+7. Ein zukünftiges `wirksam_ab` darf dagegen die späteren Monate vorbereiten und wird
+   nicht durch den aktuellen Betrag überschrieben.
+8. Ist am Vertrag `letzte_anpassung` befüllt, aber keine passende Historienzeile geladen,
+   zeigt die UI `Anpassung ohne Historieneintrag` statt den fehlenden Verlauf still zu
+   ignorieren.
 
 Die Historie wird chronologisch nach Wirksamkeitsmonat verarbeitet. Bei mehreren
 Anpassungen gilt jeweils der zuletzt wirksame Betrag.
@@ -25,9 +33,12 @@ Anpassungen gilt jeweils der zuletzt wirksame Betrag.
 ## Sichtbare Hinweise
 
 Historische Monate tragen den Hinweis `historisches Soll`. Der Status-Tooltip erklärt:
-`Historischer Sollbetrag aus dem dokumentierten Änderungsverlauf.` Im Hilfetext der
-Mieteingänge wird außerdem beschrieben, dass Anpassungen ab ihrem Wirksamkeitsmonat
-berücksichtigt werden.
+`Historischer Sollbetrag aus dem dokumentierten Änderungsverlauf.` Bei einem Fallback ohne
+explizites `wirksam_ab` ergänzt die UI `Der Wirksamkeitsmonat ist geschätzt`. Fehlt der
+Vorher-Snapshot, erscheint `Die Sollhistorie ist unvollständig`. Weicht der aktuelle
+Vertrag vom letzten historischen Nachher-Snapshot ab, erscheint `Historie prüfen`.
+Der CSV-Vorschlag vergleicht den Eingang mit dem Soll des erkannten Mietmonats, nicht nur
+mit dem heutigen Vertragssoll.
 
 ## Bewusste Grenzen
 
@@ -37,6 +48,8 @@ berücksichtigt werden.
 - Nachforderungen, Guthabenumbuchungen und die Behandlung von Erstattungen im Saldo
   bleiben separate fachliche Folgepakete.
 - Neue Datenbank- oder Apps-Script-Spalten sind nicht erforderlich.
+- Die Wirksamkeit wird auf Monatsgranularität ausgewertet. Ein Datum innerhalb eines Monats
+  gilt für den gesamten Monat; eine tagesgenaue anteilige Miete ist nicht Bestandteil von P6.3.
 
 ## Automatisierte Abnahme
 
@@ -47,13 +60,18 @@ Die Tests in `tests/payment-ui.test.js` decken ab:
 - Ignorieren einer Vertragsänderung ohne Solländerung.
 - Legacy-Fallback über `letzte_anpassung`.
 - Sichtbare Kennzeichnung des historischen Solls in der Monatsmatrix.
+- Aktueller Vertragssatz nach dem letzten vergangenen Eintrag und Warnung bei einer
+  Inkonsistenz zwischen Vertrag und Historie.
+- Zukünftiger Wirksamkeitsmonat sowie Fallback-Kennzeichnung bei fehlendem `wirksam_ab`.
+- CSV-Vorschlag für einen Eingang vor einer Mieterhöhung.
+- Anpassungsdatum am Vertrag ohne passende Historienzeile.
 
 Die vollständige Testausgabe und die abschließenden Prüfsummen werden nach dem Lauf in
 `PROJECT_STATE.md` und im Pull Request dokumentiert.
 
 ## Durchgeführte Prüfung auf dem Branch
 
-- `npm test`: 488 Tests in 20 Testdateien grün.
+- `npm test`: 497 Tests in 20 Testdateien grün.
 - `npm run check:frontend-assets`: 19 lokale Assets vorhanden.
 - `node --check payment-ui.js`: grün.
 - `git diff --check`: grün.

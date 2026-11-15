@@ -380,12 +380,14 @@ Bankanbindung werden daraus abgeleitet.
    historischen Zahlungen rückwirkend verändert und kein Apps-Script-Deployment benötigt.
    Abnahme: historische Vorher-/Nachher-Beträge, Überzahlung über eine Erhöhung hinweg,
    Legacy-Fallback, No-op-Historie und sichtbare UI-Kennzeichnung sind automatisiert getestet.
-   Der Branch-Lauf umfasst 488 Tests in 20 Testdateien; Asset-Prüfung, Syntaxprüfung und
+   Der Branch-Lauf umfasst 497 Tests in 20 Testdateien; Asset-Prüfung, Syntaxprüfung und
    `git diff --check` sind ebenfalls grün. Die lokale Zahlungsansicht wurde mit TEST ·
    Entenhausen auf Desktopbreite geöffnet und die bestehende Matrix ohne Darstellungsfehler
    geprüft.
    Offene Fachregeln für Nachforderungen, Guthabenumbuchungen sowie Erstattungen im Saldo
-   bleiben ein eigenes Folgepaket.
+   bleiben ein eigenes Folgepaket. Ergänzend sind CSV-Beträge gegen den historischen
+   Mietmonat geprüft, aktuelle Vertragswerte nach dem letzten Eintrag abgesichert und
+   geschätzte bzw. unvollständige Historien sichtbar gekennzeichnet.
 3. **P6.6 Erinnerungen für Mieterhöhungen:** Auf Basis der Soll-Historie eine Übersicht je
    Vertrag bereitstellen: letzte dokumentierte Anpassung, frühestmöglicher nächster Termin,
    Anpassungsart und Status (`keine Anpassung dokumentiert`, `noch nicht möglich`,

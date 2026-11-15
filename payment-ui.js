@@ -360,32 +360,45 @@ const paymentUiService = {
         const after = this.parseHistorySnapshot(row.nachher_json);
         const amount = after ? this.monthlyDueSnapshot(after) : null;
         const previousAmount = before ? this.monthlyDueSnapshot(before) : null;
-        // Legacy STAMMDATEN entries had no wirksam_ab; letzte_anpassung is the
-        // best available effective month until a dedicated date is documented.
-        const effectiveMonth = this.monthKey(row.wirksam_ab || (after && after.letzte_anpassung) || row.erfasst_am);
-        if (!after || amount === null || !effectiveMonth) return null;
+        const effectiveCandidates = [
+          { value: row.wirksam_ab, basis: 'wirksam_ab', estimated: false },
+          { value: after && after.letzte_anpassung, basis: 'letzte_anpassung', estimated: true },
+          { value: row.erfasst_am, basis: 'erfasst_am', estimated: true }
+        ];
+        const effective = effectiveCandidates
+          .map(candidate => ({ ...candidate, month: this.monthKey(candidate.value) }))
+          .find(candidate => candidate.month);
+        if (!after || amount === null || !effective) return null;
         // Contract history also records non-rent changes. They must not make an
         // unchanged rent look like a historical Soll transition in the matrix.
         if (previousAmount !== null && Math.abs(previousAmount - amount) < 0.005) return null;
-        return { row, before, after, amount, effectiveMonth };
+        return {
+          row, before, after, amount,
+          effectiveMonth: effective.month,
+          effectiveBasis: effective.basis,
+          estimated: effective.estimated
+        };
       })
       .filter(Boolean)
       .sort((a, b) => a.effectiveMonth.localeCompare(b.effectiveMonth)
         || String(a.row.erfasst_am || '').localeCompare(String(b.row.erfasst_am || '')));
   },
 
-  rentDueForMonth(contract, month) {
+  rentDueForMonth(contract, month, asOf = new Date()) {
     const currentAmount = this.monthlyDueSnapshot(contract);
-    if (!month || currentAmount === null) return { amount: currentAmount === null ? 0 : currentAmount, historical: false, source: null };
+    if (!month || currentAmount === null) return { amount: currentAmount === null ? 0 : currentAmount, historical: false, estimated: false, incomplete: false, inconsistent: false, missing: false, source: null };
     const entries = this.rentHistoryEntries(contract);
-    if (!entries.length) return { amount: currentAmount, historical: false, source: null };
+    if (!entries.length) return { amount: currentAmount, historical: false, estimated: false, incomplete: false, inconsistent: false, missing: Boolean(contract && contract.letzte_anpassung), source: null };
 
     let amount = currentAmount;
     let source = null;
+    let incomplete = false;
     const firstBefore = entries[0].before ? this.monthlyDueSnapshot(entries[0].before) : null;
     if (firstBefore !== null) {
       amount = firstBefore;
       source = { ...entries[0], phase: 'before' };
+    } else {
+      incomplete = true;
     }
     entries.forEach(entry => {
       if (entry.effectiveMonth <= month) {
@@ -393,11 +406,33 @@ const paymentUiService = {
         source = { ...entry, phase: 'after' };
       }
     });
-    return { amount, historical: Boolean(source), source };
+    const latest = entries[entries.length - 1];
+    const asOfMonth = this.monthKey(asOf);
+    const latestIsCurrentOrPast = latest.effectiveMonth <= asOfMonth;
+    const contractAdjustmentMonth = this.monthKey(contract && contract.letzte_anpassung);
+    const missing = Boolean(contractAdjustmentMonth && contractAdjustmentMonth > latest.effectiveMonth);
+    let inconsistent = false;
+    // Once an effective date is in the past, the current contract row is the
+    // source of truth for the present and all later months. A future-dated
+    // history entry remains applicable to its future months.
+    if (latestIsCurrentOrPast && month >= latest.effectiveMonth) {
+      inconsistent = Math.abs(currentAmount - latest.amount) >= 0.005;
+      amount = currentAmount;
+      source = { ...latest, phase: 'current' };
+    }
+    return {
+      amount,
+      historical: Boolean(source),
+      estimated: Boolean(source && source.estimated),
+      incomplete,
+      inconsistent,
+      missing,
+      source
+    };
   },
 
-  monthlyDue(contract, month = '') {
-    return this.rentDueForMonth(contract, month).amount;
+  monthlyDue(contract, month = '', asOf = new Date()) {
+    return this.rentDueForMonth(contract, month, asOf).amount;
   },
 
   depositDue(contract) {
@@ -430,7 +465,9 @@ const paymentUiService = {
     const refunds = this.getRefundPayments(contract.vertrag_id, month);
     const paid = payments.reduce((sum, payment) => sum + (this.parseNumber(payment.betrag) || 0), 0);
     const outsidePeriod = this.contractPeriodStatus(contract, month);
-    const dueInfo = outsidePeriod ? { amount: 0, historical: false, source: null } : this.rentDueForMonth(contract, month);
+    const dueInfo = outsidePeriod
+      ? { amount: 0, historical: false, estimated: false, incomplete: false, inconsistent: false, source: null }
+      : this.rentDueForMonth(contract, month, now);
     const due = dueInfo.amount;
     const dueDate = this.paymentDeadlineDate(contract, month);
     const current = this.parseDate(now) || new Date();
@@ -459,6 +496,10 @@ const paymentUiService = {
       dueDate,
       deadlineLabel: this.paymentDeadlineLabel(contract, month),
       dueFromHistory: dueInfo.historical,
+      dueHistoryEstimated: dueInfo.estimated,
+      dueHistoryIncomplete: dueInfo.incomplete,
+      dueHistoryInconsistent: dueInfo.inconsistent,
+      dueHistoryMissing: dueInfo.missing,
       dueHistorySource: dueInfo.source,
       payments,
       refunds
@@ -553,8 +594,14 @@ const paymentUiService = {
       vor_mietbeginn: 'Neutral: Der Mietvertrag begann in diesem Monat noch nicht.',
       nach_mietende: 'Neutral: Der Mietvertrag war in diesem Monat bereits beendet.'
     };
+    const notes = [];
+    if (month.dueFromHistory) notes.push('Historischer Sollbetrag aus dem dokumentierten Änderungsverlauf.');
+    if (month.dueHistoryEstimated) notes.push('Der Wirksamkeitsmonat ist geschätzt, weil kein explizites Wirksamkeitsdatum dokumentiert ist.');
+    if (month.dueHistoryIncomplete) notes.push('Die Sollhistorie ist unvollständig, weil der vorherige Sollbetrag fehlt.');
+    if (month.dueHistoryInconsistent) notes.push('Der aktuelle Vertragssollbetrag weicht vom letzten Historieneintrag ab. Bitte Historie prüfen.');
+    if (month.dueHistoryMissing) notes.push('Eine Anpassung ist am Vertrag dokumentiert, aber kein Historieneintrag vorhanden.');
     const base = descriptions[month.status] || 'Status des Mietmonats.';
-    return base + (month.dueFromHistory ? ' Historischer Sollbetrag aus dem dokumentierten Änderungsverlauf.' : '');
+    return [base, ...notes].join(' ');
   },
 
   legendHtml() {
@@ -665,11 +712,11 @@ const paymentUiService = {
     const depositSummary = overview.depositRemaining > 0
       ? `⚠ ${this.formatMoney(overview.depositRemaining)} EUR Kaution offen`
       : '✓ Kautionen vollständig hinterlegt oder nicht vereinbart';
-    const contractSummary = matrix.map(item => '<div class="payment-contract-summary-item"><strong>' + this.escape(item.unit) + ' · ' + this.escape(item.tenant) + '</strong><span>' + this.formatMoney(item.due) + ' EUR / Monat</span>' + this.depositStatusHtml(item.deposit) + '</div>').join('');
+    const contractSummary = matrix.map(item => '<div class="payment-contract-summary-item"><strong>' + this.escape(item.unit) + ' · ' + this.escape(item.tenant) + '</strong><span>' + this.formatMoney(item.due) + ' EUR / Monat · aktuell</span>' + this.depositStatusHtml(item.deposit) + '</div>').join('');
     const monthHeaders = this.MONTH_NAMES.map((name, index) => `<th scope="col">${name}<span class="payment-month-number">${index + 1}</span></th>`).join('');
     const rows = matrix.map(item => `
       <tr>
-        <th scope="row" class="payment-tenant-cell"><strong>${this.escape(item.unit)}</strong><span>${this.escape(item.tenant)}</span><small>${this.formatMoney(item.due)} EUR / Monat</small><span class="payment-deposit payment-deposit-${item.deposit.status}">${item.deposit.due > 0 ? 'Kaution: ' + this.formatMoney(item.deposit.paid) + ' / ' + this.formatMoney(item.deposit.due) + ' EUR' : 'Keine Kaution vereinbart'}</span>${item.deposit.due > 0 && item.deposit.status !== 'vollständig' ? `<button class="payment-deposit-action" type="button" onclick="paymentUiService.openPaymentDialog('${this.escape(item.contract.vertrag_id)}','','Kaution')">Kaution erfassen</button>` : ''}</th>
+        <th scope="row" class="payment-tenant-cell"><strong>${this.escape(item.unit)}</strong><span>${this.escape(item.tenant)}</span><small>${this.formatMoney(item.due)} EUR / Monat · aktuell</small><span class="payment-deposit payment-deposit-${item.deposit.status}">${item.deposit.due > 0 ? 'Kaution: ' + this.formatMoney(item.deposit.paid) + ' / ' + this.formatMoney(item.deposit.due) + ' EUR' : 'Keine Kaution vereinbart'}</span>${item.deposit.due > 0 && item.deposit.status !== 'vollständig' ? `<button class="payment-deposit-action" type="button" onclick="paymentUiService.openPaymentDialog('${this.escape(item.contract.vertrag_id)}','','Kaution')">Kaution erfassen</button>` : ''}</th>
         ${item.months.map(month => `<td><button class="payment-cell ${this.statusClass(month.status)}${month.verspaetet ? ' payment-cell-late' : ''}" type="button" onclick="paymentUiService.openPaymentDialog('${this.escape(item.contract.vertrag_id)}','${month.month}')" title="${this.escape(this.statusTitle(month) + (month.verspaetet ? ' Zusätzlich verspätet beglichen oder aktuell überfällig.' : ''))}"><strong>${this.escape(this.statusLabel(month.status))}${month.verspaetet ? '<small>verspätet</small>' : ''}</strong><span>${this.formatMoney(month.paid)} / ${this.formatMoney(month.due)} EUR</span></button></td>`).join('')}
       </tr>`).join('');
     output.innerHTML = `
@@ -680,7 +727,7 @@ const paymentUiService = {
       </div>
       <div class="payment-overview" aria-label="Zusammenfassung der Mieteingänge"><div><strong>Offene Miete</strong><b>${this.formatMoney(overview.openAmount)} EUR</b><small>bis zum aktuellen Monat</small></div><div><strong>Überfällige Monate</strong><b>${overview.overdueMonths}</b><small>${overview.lateMonths} verspätete oder offene Monate</small></div><div><strong>Wiederholte Verspätungen</strong><b>${overview.repeatedDelay}</b><small>Verträge mit mindestens 2 Hinweisen</small></div><div><strong>Guthaben / Überzahlungen</strong><b>${this.formatMoney(overview.creditAmount)} EUR</b><small>inklusive nicht zugeordneter Reste</small></div><div><strong>Kaution</strong><b>${this.formatMoney(overview.depositPaid)} / ${this.formatMoney(overview.depositDue)} EUR</b><small>${this.formatMoney(overview.depositRemaining)} EUR offen</small></div></div>
       <details class="payment-contract-summary"><summary><strong>Vertragsstatus</strong><span class="payment-contract-summary-overall">${depositSummary}</span></summary><div class="payment-contract-summary-grid">${contractSummary}</div></details>
-      <p class="payment-help"><strong>So wird zugeordnet:</strong> Das Eingangsdatum dokumentiert den tatsächlichen Geldfluss. Der ausgewählte Mietmonat bestimmt die fachliche Zuordnung. <strong>Miete</strong> ist der reguläre Monatsbetrag; eine <strong>Nachzahlung</strong> gleicht einen zusätzlich offenen Betrag für den zugeordneten Monat aus. Eine <strong>Erstattung</strong> wird als negative Rückzahlung geführt und verändert den Zahlungsstatus der Miete nicht. Die Frist wird je Vertrag als 3. Werktag oder individueller Kalendertag berechnet. Dokumentierte Mietanpassungen werden ab ihrem Wirksamkeitsmonat berücksichtigt; solche Monate sind als historisches Soll gekennzeichnet.</p>
+      <p class="payment-help"><strong>So wird zugeordnet:</strong> Das Eingangsdatum dokumentiert den tatsächlichen Geldfluss. Der ausgewählte Mietmonat bestimmt die fachliche Zuordnung. <strong>Miete</strong> ist der reguläre Monatsbetrag; eine <strong>Nachzahlung</strong> gleicht einen zusätzlich offenen Betrag für den zugeordneten Monat aus. Eine <strong>Erstattung</strong> wird als negative Rückzahlung geführt und verändert den Zahlungsstatus der Miete nicht. Die Frist wird je Vertrag als 3. Werktag oder individueller Kalendertag berechnet. Dokumentierte Mietanpassungen werden ab ihrem Wirksamkeitsmonat berücksichtigt; solche Monate sind als historisches Soll gekennzeichnet. Nach dem letzten vergangenen Historieneintrag gilt der aktuelle Vertragssatz. Abweichungen oder geschätzte Wirksamkeitsdaten werden als Prüfhinweis angezeigt.</p>
       ${this.legendHtml()}
       ${matrix.length ? `<div class="payment-table-wrap"><table class="payment-table"><thead><tr><th scope="col">Mieter / Einheit</th>${monthHeaders}</tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="payment-empty">Keine aktiven Verträge für diese Auswahl vorhanden.</p>'}
       <section class="payment-import-section"><div class="payment-section-heading"><div><h3>Kontoauszug als CSV</h3><p>Die Datei wird lokal gelesen. Buchungen werden erst nach deiner Zuordnung gespeichert.</p></div><label class="payment-file-button">CSV auswählen<input type="file" accept=".csv,text/csv,text/plain" onchange="paymentUiService.handleImportFile(this.files && this.files[0])"></label></div><div id="payment-import-output"></div></section>`;
@@ -731,7 +778,7 @@ const paymentUiService = {
     const title = isDeposit ? 'Kaution erfassen' : 'Mieteingang erfassen';
     const context = isDeposit
       ? `Soll ${this.formatMoney(summary.due)} EUR · bisher ${this.formatMoney(summary.paid)} EUR`
-      : `<strong>${this.escape(month)}</strong> · Soll ${this.formatMoney(summary.due)} EUR${summary.dueFromHistory ? ' · historisches Soll' : ''} · bisher ${this.formatMoney(summary.paid)} EUR · ${this.escape(this.paymentDeadlineLabel(contract, month))}`;
+      : `<strong>${this.escape(month)}</strong> · Soll ${this.formatMoney(summary.due)} EUR${summary.dueFromHistory ? ' · historisches Soll' : ''}${summary.dueHistoryEstimated ? ' · Wirksamkeit geschätzt' : ''}${summary.dueHistoryIncomplete ? ' · Sollhistorie unvollständig' : ''}${summary.dueHistoryInconsistent ? ' · Historie prüfen' : ''}${summary.dueHistoryMissing ? ' · Historie fehlt' : ''} · bisher ${this.formatMoney(summary.paid)} EUR · ${this.escape(this.paymentDeadlineLabel(contract, month))}`;
     const monthField = isDeposit ? '' : `<label>Fachlicher Mietmonat<input id="payment-month" type="month" value="${this.escape(month)}" readonly aria-label="Fachlicher Mietmonat aus der angeklickten Spalte"></label>`;
     const dialogHint = isDeposit
       ? 'Die Kaution wird separat vom Mietmonat geführt. Das Eingangsdatum dokumentiert den tatsächlichen Geldfluss.'
@@ -1037,17 +1084,19 @@ const paymentUiService = {
   suggestImportRows(rows, contracts = this.getContracts()) {
     return (rows || []).map(row => {
       const haystack = `${row.name} ${row.verwendungszweck}`.toLowerCase();
+      const detectedMonth = this.normalizePaymentMonth(row.mietmonat)
+        || this.extractPaymentMonth(`${row.name} ${row.verwendungszweck}`)
+        || this.monthKey(row.datum);
       const scored = contracts.map(contract => {
         const tenant = this.tenantName(contract).toLowerCase();
         const parts = tenant.split(/\s+\/\s+|\s+/).filter(part => part.length >= 3);
         let score = 0;
         if (haystack.includes(String(contract.vertrag_id).toLowerCase())) score += 5;
         if (tenant !== 'leerstand' && parts.every(part => haystack.includes(part))) score += 4;
-        if (Math.abs((this.parseNumber(row.betrag) || 0) - this.monthlyDue(contract)) < 0.01) score += 2;
+        if (Math.abs((this.parseNumber(row.betrag) || 0) - this.monthlyDue(contract, detectedMonth)) < 0.01) score += 2;
         return { contract, score };
       }).sort((a, b) => b.score - a.score);
       const best = scored[0];
-      const detectedMonth = row.mietmonat || this.extractPaymentMonth(`${row.name} ${row.verwendungszweck}`) || this.monthKey(row.datum);
       return { ...row, mietmonat: detectedMonth, vertrag_id: best && best.score >= 2 ? String(best.contract.vertrag_id) : '', matchReason: best && best.score >= 2 ? `Vorschlag: ${this.tenantName(best.contract)} (${best.score} Punkte)` : 'Keine eindeutige Zuordnung' };
     });
   },

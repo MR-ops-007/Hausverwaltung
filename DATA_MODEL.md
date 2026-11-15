@@ -236,7 +236,13 @@ Wirksamkeitsmonat; für ältere `STAMMDATEN`-Zeilen ohne diesen Wert verwendet d
 markierten Kompatibilitäts-Fallback. Eine Historienzeile ohne Änderung von
 `soll_gesamt` verändert den Monats-Sollbetrag nicht. Gespeicherte Zahlungseingänge werden
 nicht rückwirkend umgebucht. Die Ableitung ist damit eine reine Leselogik und benötigt
-keine zusätzliche Spalte oder Apps-Script-Berechnung.
+keine zusätzliche Spalte oder Apps-Script-Berechnung. Für Monate ab dem letzten vergangenen
+Historieneintrag bleibt `Vertraege.soll_gesamt` die Gegenwartswahrheit. Weicht dieser Wert
+vom letzten `nachher_json.soll_gesamt` ab, zeigt die UI einen Prüfhinweis; sie verwendet
+nicht still den alten Snapshot. Zukünftige `wirksam_ab`-Einträge bleiben für ihre späteren
+Monate auswertbar. Die Auswertung erfolgt monatsweise, nicht anteilig nach Tagen.
+Ist `Vertraege.letzte_anpassung` befüllt, aber keine passende Zeile in
+`Mietanpassungen` vorhanden, meldet die UI diese unvollständige Historie ausdrücklich.
 
 Indexvorschau betrifft ausschließlich Nettokaltmiete; die Übernahme benötigt
 explizite Bestätigung und dokumentierte Erklärung. `aktiv` bleibt maßgeblicher
