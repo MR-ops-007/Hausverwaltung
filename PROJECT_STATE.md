@@ -93,11 +93,12 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 - P6.7 Mieterwechsel ist als Folgepaket in Umsetzung. Die Entenhausen-Fixture
   `tools/mock-rental-fixtures.mjs` enthält für `TEST_WE_08` einen beendeten Vertrag
   von Pluto bis 2026-05-31 und einen aktiven Vertrag von Goofy ab 2026-06-01 mit
-  getrennten Zahlungen, Kautionen und Vertragsparteien. Die UI zeigt standardmäßig nur
-  den aktiven Vertrag; historische Verträge lassen sich in der Mieteingangskontrolle
-  als eigene Zeilen einblenden. Offene Posten ehemaliger Verträge fließen in die
-  Übersicht ein, und Monate vor einem neuen Mietbeginn verlinken auf den passenden
-  historischen Vertrag. Die Verbrauchsview und die atomare Schreiboperation sind der
+  getrennten Zahlungen, Kautionen und Vertragsparteien. Die Mieteingangskontrolle filtert
+  nach dem gewählten Jahr: 2025 zeigt Pluto, 2026 zeigt standardmäßig Goofy; historische
+  Vertragsperioden lassen sich zusätzlich als eigene Zeilen einblenden. Offene Posten
+  ehemaliger Verträge fließen in die Übersicht ein, und Monate vor einem neuen Mietbeginn
+  verlinken auf den passenden historischen Vertrag. Die Verbrauchsview und die atomare
+  Schreiboperation sind der
   verbleibende Implementierungsumfang von P6.7. Die gemeinsame
   `contractService.validateContractPeriods()` prüft jetzt Überschneidungen, Lücken und
   Wechsel innerhalb eines Monats. Details: `docs/p6-7-contract-period-validation.md`.

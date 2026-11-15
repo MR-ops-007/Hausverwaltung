@@ -150,6 +150,21 @@ describe('paymentUiService Monatsstatus', () => {
     ]);
   });
 
+  it('zeigt je Jahr die relevante Vertragsperiode und nicht den heutigen Aktivstatus', () => {
+    const service = loadPaymentService(baseState({
+      einheiten: tenantChangeFixture.einheiten,
+      personen: tenantChangeFixture.personen,
+      vertraege: tenantChangeFixture.vertraege,
+      vertragsparteien: tenantChangeFixture.vertragsparteien,
+      zahlungen: tenantChangeFixture.zahlungen
+    }));
+
+    expect(service.getContractsForYear('TEST', '2025').map(row => row.vertrag_id)).toEqual(['TEST_V8_ALT']);
+    expect(service.getContractsForYear('TEST', '2025', true).map(row => row.vertrag_id)).toEqual(['TEST_V8_ALT']);
+    expect(service.getContractsForYear('TEST', '2026').map(row => row.vertrag_id)).toEqual(['TEST_V8']);
+    expect(service.getContractsForYear('TEST', '2026', true).map(row => row.vertrag_id)).toEqual(['TEST_V8_ALT', 'TEST_V8']);
+  });
+
   it('charakterisiert Lücke und Monatsmitte beim aktuellen Vertragsmodell', () => {
     const service = loadPaymentService(baseState());
     const [gapPreviousRaw, gapCurrentRaw] = tenantChangeFixture.negativeCases.gap;
@@ -930,7 +945,7 @@ describe('paymentUiService CSV-Import', () => {
     service.selectedYear = '2026';
     service.render();
 
-    expect(output.innerHTML).toContain('Historische Verträge einblenden');
+    expect(output.innerHTML).toContain('Historische Vertragsperioden einblenden');
     expect(output.innerHTML).toContain('Pluto');
     expect(output.innerHTML).toContain('Historischer Vorgänger');
     expect(output.innerHTML).toContain("openHistoricalMonth('TEST_V8','2026-04')");
@@ -938,8 +953,32 @@ describe('paymentUiService CSV-Import', () => {
 
     service.showHistoricalContracts = true;
     service.render();
-    expect(output.innerHTML).toContain('Nur aktuelle Verträge anzeigen');
+    expect(output.innerHTML).toContain('Nur aktuelle Vertragsperiode anzeigen');
     expect(output.innerHTML).toContain('Historischer Vertrag');
+  });
+
+  it('zeigt im Vorjahr Pluto und nicht den erst später eingezogenen Goofy', () => {
+    const output = { innerHTML: '' };
+    const service = loadPaymentService(baseState({
+      objekte: [{ objekt_id: 'TEST', bezeichnung: 'TEST · Entenhausen' }],
+      einheiten: tenantChangeFixture.einheiten,
+      personen: tenantChangeFixture.personen,
+      vertraege: tenantChangeFixture.vertraege,
+      vertragsparteien: tenantChangeFixture.vertragsparteien,
+      zahlungen: tenantChangeFixture.zahlungen
+    }), {
+      getElementById(id) {
+        return id === 'payments-output' ? output : null;
+      }
+    });
+    service.selectedObject = 'TEST';
+    service.selectedYear = '2025';
+    service.render();
+
+    expect(output.innerHTML).toContain('Pluto');
+    expect(output.innerHTML).not.toContain('Goofy');
+    expect(output.innerHTML).toContain('für 2025');
+    expect(output.innerHTML).toContain('700,00 EUR / Monat · historisch');
   });
 
   it('kennzeichnet historische Sollbeträge in Matrix und Zahlungshinweis', () => {

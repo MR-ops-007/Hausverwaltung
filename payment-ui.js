@@ -230,6 +230,37 @@ const paymentUiService = {
         || this.monthKey(a.start_datum).localeCompare(this.monthKey(b.start_datum)));
   },
 
+  contractIntersectsYear(contract, year) {
+    const normalizedYear = String(year || '').slice(0, 4);
+    if (!/^\d{4}$/.test(normalizedYear)) return true;
+    const yearStart = `${normalizedYear}-01`;
+    const yearEnd = `${normalizedYear}-12`;
+    const startMonth = this.monthKey(contract && contract.start_datum);
+    const endMonth = this.monthKey(contract && contract.end_datum);
+    return (!startMonth || startMonth <= yearEnd) && (!endMonth || endMonth >= yearStart);
+  },
+
+  getContractsForYear(objectId = '', year = this.selectedYear, includeHistorical = false) {
+    const candidates = this.getContracts(objectId, true)
+      .filter(contract => this.contractIntersectsYear(contract, year));
+    if (includeHistorical) return candidates;
+
+    const selectedByUnit = new Map();
+    candidates.forEach(contract => {
+      const key = String(contract.einheit_id || contract.vertrag_id);
+      const current = selectedByUnit.get(key);
+      const candidateStart = this.monthKey(contract.start_datum) || '';
+      const currentStart = current ? this.monthKey(current.start_datum) || '' : '';
+      const replacesCurrent = !current
+        || candidateStart > currentStart
+        || (candidateStart === currentStart && this.isActive(contract.aktiv) && !this.isActive(current.aktiv));
+      if (replacesCurrent) selectedByUnit.set(key, contract);
+    });
+    return Array.from(selectedByUnit.values())
+      .sort((a, b) => this.unitName(a).localeCompare(this.unitName(b), 'de')
+        || (this.monthKey(a.start_datum) || '').localeCompare(this.monthKey(b.start_datum) || ''));
+  },
+
   contractPeriodLabel(contract) {
     const start = this.formatDate(contract && contract.start_datum);
     const end = contract && contract.end_datum ? this.formatDate(contract.end_datum) : 'offen';
@@ -770,19 +801,19 @@ const paymentUiService = {
     if (!this.selectedObject || !objectIds.includes(this.selectedObject)) {
       this.selectedObject = objectIds.includes(currentObject) ? currentObject : (objectIds[0] || '');
     }
-    const contracts = this.getContracts(this.selectedObject, this.showHistoricalContracts);
-    const allContracts = this.getContracts(this.selectedObject, true);
+    const contracts = this.getContractsForYear(this.selectedObject, this.selectedYear, this.showHistoricalContracts);
+    const allContracts = this.getContractsForYear(this.selectedObject, this.selectedYear, true);
     const matrix = this.buildMatrix({ contracts, payments: dataService.state.zahlungen || [], year: this.selectedYear });
     const overviewMatrix = this.buildMatrix({ contracts: allContracts, payments: dataService.state.zahlungen || [], year: this.selectedYear });
     const overview = this.summarizeOverview(overviewMatrix, this.selectedYear);
     const depositSummary = overview.depositRemaining > 0
       ? `⚠ ${this.formatMoney(overview.depositRemaining)} EUR Kaution offen`
       : '✓ Kautionen vollständig hinterlegt oder nicht vereinbart';
-    const contractSummary = overviewMatrix.map(item => '<div class="payment-contract-summary-item' + (this.isActive(item.contract.aktiv) ? '' : ' payment-contract-summary-item-historical') + '"><strong>' + this.escape(item.unit) + ' · ' + this.escape(item.tenant) + '</strong><span>' + (this.isActive(item.contract.aktiv) ? 'Aktueller Vertrag' : 'Historischer Vertrag') + ' · ' + this.escape(this.contractPeriodLabel(item.contract)) + '</span><span>' + this.formatMoney(item.due) + ' EUR / Monat · aktuell</span>' + this.depositStatusHtml(item.deposit) + '</div>').join('');
+    const contractSummary = overviewMatrix.map(item => '<div class="payment-contract-summary-item' + (this.isActive(item.contract.aktiv) ? '' : ' payment-contract-summary-item-historical') + '"><strong>' + this.escape(item.unit) + ' · ' + this.escape(item.tenant) + '</strong><span>' + (this.isActive(item.contract.aktiv) ? 'Aktueller Vertrag' : 'Historischer Vertrag') + ' · ' + this.escape(this.contractPeriodLabel(item.contract)) + '</span><span>' + this.formatMoney(item.due) + ' EUR / Monat · ' + (this.isActive(item.contract.aktiv) ? 'aktuell' : 'historisch') + '</span>' + this.depositStatusHtml(item.deposit) + '</div>').join('');
     const monthHeaders = this.MONTH_NAMES.map((name, index) => `<th scope="col">${name}<span class="payment-month-number">${index + 1}</span></th>`).join('');
     const rows = matrix.map(item => `
       <tr>
-        <th scope="row" class="payment-tenant-cell${this.isActive(item.contract.aktiv) ? '' : ' payment-tenant-cell-historical'}"><strong>${this.escape(item.unit)}</strong><span>${this.escape(item.tenant)}</span><small>${this.isActive(item.contract.aktiv) ? 'Aktueller Vertrag' : 'Historischer Vertrag'} · ${this.escape(this.contractPeriodLabel(item.contract))}</small><small>${this.formatMoney(item.due)} EUR / Monat · aktuell</small><span class="payment-deposit payment-deposit-${item.deposit.status}">${item.deposit.due > 0 ? 'Kaution: ' + this.formatMoney(item.deposit.paid) + ' / ' + this.formatMoney(item.deposit.due) + ' EUR' : 'Keine Kaution vereinbart'}</span>${item.deposit.due > 0 && item.deposit.status !== 'vollständig' ? `<button class="payment-deposit-action" type="button" onclick="paymentUiService.openPaymentDialog('${this.escape(item.contract.vertrag_id)}','','Kaution')">Kaution erfassen</button>` : ''}</th>
+        <th scope="row" class="payment-tenant-cell${this.isActive(item.contract.aktiv) ? '' : ' payment-tenant-cell-historical'}"><strong>${this.escape(item.unit)}</strong><span>${this.escape(item.tenant)}</span><small>${this.isActive(item.contract.aktiv) ? 'Aktueller Vertrag' : 'Historischer Vertrag'} · ${this.escape(this.contractPeriodLabel(item.contract))}</small><small>${this.formatMoney(item.due)} EUR / Monat · ${this.isActive(item.contract.aktiv) ? 'aktuell' : 'historisch'}</small><span class="payment-deposit payment-deposit-${item.deposit.status}">${item.deposit.due > 0 ? 'Kaution: ' + this.formatMoney(item.deposit.paid) + ' / ' + this.formatMoney(item.deposit.due) + ' EUR' : 'Keine Kaution vereinbart'}</span>${item.deposit.due > 0 && item.deposit.status !== 'vollständig' ? `<button class="payment-deposit-action" type="button" onclick="paymentUiService.openPaymentDialog('${this.escape(item.contract.vertrag_id)}','','Kaution')">Kaution erfassen</button>` : ''}</th>
         ${item.months.map(month => {
           const action = month.status === 'vor_mietbeginn_historisch'
             ? `paymentUiService.openHistoricalMonth('${this.escape(item.contract.vertrag_id)}','${month.month}')`
@@ -791,7 +822,7 @@ const paymentUiService = {
         }).join('')}
       </tr>`).join('');
     output.innerHTML = `
-      <div class="payment-page-heading"><div><h2>Mieteingänge</h2><p>Monatliche Zahlungseingänge ${this.showHistoricalContracts ? 'inklusive historischer Verträge' : 'je aktivem Mietvertrag'}. Offene Posten ehemaliger Verträge fließen bereits in die Übersicht ein.</p></div><button class="payment-history-toggle" type="button" onclick="paymentUiService.toggleHistoricalContracts()">${this.showHistoricalContracts ? 'Nur aktuelle Verträge anzeigen' : 'Historische Verträge einblenden'}</button></div>
+      <div class="payment-page-heading"><div><h2>Mieteingänge</h2><p>Monatliche Zahlungseingänge für ${this.escape(this.selectedYear)} ${this.showHistoricalContracts ? 'inklusive historischer Verträge' : 'je relevante Vertragsperiode'}. Es werden nur Verträge angezeigt, die das gewählte Jahr berühren. Offene Posten ehemaliger Verträge fließen bereits in die Übersicht ein.</p></div><button class="payment-history-toggle" type="button" onclick="paymentUiService.toggleHistoricalContracts()">${this.showHistoricalContracts ? 'Nur aktuelle Vertragsperiode anzeigen' : 'Historische Vertragsperioden einblenden'}</button></div>
       <div class="payments-toolbar">
         <label>Objekt<select id="payment-object-select" onchange="paymentUiService.selectedObject=this.value; paymentUiService.render()"><option value="">Alle Objekte</option>${objectIds.map(id => `<option value="${this.escape(id)}" ${id === this.selectedObject ? 'selected' : ''}>${this.escape(this.objectName(id))}</option>`).join('')}</select></label>
         <label>Jahr<select id="payment-year-select" onchange="paymentUiService.selectedYear=this.value; paymentUiService.render()">${years.map(year => `<option value="${year}" ${year === String(this.selectedYear) ? 'selected' : ''}>${year}</option>`).join('')}</select></label>

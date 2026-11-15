@@ -399,8 +399,10 @@ Bankanbindung werden daraus abgeleitet.
 4. **P6.7 Mieterwechsel und historische Vertragszeiträume: in Umsetzung.**
    Ein Mieterwechsel wird über einen neuen Vertrag mit eigener `vertrag_id`,
    neuem Mietbeginn und eigener Vertragsparteien-Verknüpfung abgebildet; der alte Vertrag
-   erhält ein Mietende und bleibt historisch erhalten. Die Standard-Mieteingangskontrolle
-   zeigt zunächst den aktiven Vertrag, muss für die Abnahme aber auch alte Vertragsperioden,
+   erhält ein Mietende und bleibt historisch erhalten. Die Mieteingangskontrolle filtert nach
+   dem ausgewählten Jahr: Je Einheit wird standardmäßig die relevante Vertragsperiode des
+   Jahres gezeigt, nicht nur der heutige Aktivstatus. Historische Vertragsperioden lassen
+   sich zusätzlich einblenden. Für die Abnahme müssen alte Vertragsperioden,
    Zahlungen vor/nach dem Wechsel, Kautionen, Stornos, verspätete Zahlungen und mehrere
    Vertragsparteien sauber trennen. Überlappungen und Lücken werden geprüft. Ein Wechsel
    mitten im Monat wird nicht automatisch verteilt, bevor dafür eine fachliche Regel

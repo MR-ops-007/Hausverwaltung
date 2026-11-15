@@ -35,8 +35,10 @@ Einheit nur Goofy; in der Mieteingangskontrolle bleiben Pluto und seine Zahlunge
    neuen Vertrag zu.
 4. Ein Wechsel mitten im Monat verlangt eine ausdrückliche fachliche Regel,
    bevor Zahlungen oder Verbräuche automatisch aufgeteilt werden.
-5. Die Mieteingangskontrolle zeigt den aktuellen Vertrag in der Standardansicht
-   und bietet die historische Vertragsperiode separat an.
+5. Die Mieteingangskontrolle filtert nach dem gewählten Jahr: Je Einheit wird die
+   Vertragsperiode angezeigt, die das Jahr tatsächlich abdeckt. Für 2025 erscheint
+   Pluto, für 2026 standardmäßig Goofy. Weitere historische Vertragsperioden lassen
+   sich separat einblenden.
 6. Zahlungen vor dem Wechsel bleiben beim alten Vertrag. Zahlungen ab dem neuen
    Vertragsbeginn werden dem neuen Vertrag zugeordnet.
 7. Eine verspätete Zahlung oder ein Storno für den alten Vertrag verändert nicht
@@ -58,12 +60,13 @@ eine spätere Abrechnung.
 
 ## Aktueller UI-Stand
 
-Die Standardansicht zeigt weiterhin die aktiven Verträge. Offene Posten und
-Kautionen historischer Verträge fließen bereits in die Übersicht ein. Über
-„Historische Verträge einblenden“ lässt sich der beendete Vertrag als eigene Zeile
-anzeigen. Monate vor dem neuen Mietbeginn werden auf der aktuellen Vertragszeile
-als „Historischer Vorgänger“ markiert; ein Klick öffnet direkt den passenden alten
-Vertrag und den fachlichen Mietmonat zur Erfassung. Damit können auch nach dem
+Die Mieteingangskontrolle filtert nach dem gewählten Jahr und nicht nur nach dem
+heutigen `aktiv`-Flag. Für 2025 erscheint bei `TEST_WE_08` Pluto, weil sein Vertrag
+dieses Jahr abdeckt; Goofy erscheint erst ab seinem Mietbeginn am 01.06.2026. Für
+2026 zeigt die Standardansicht Goofy und markiert Januar bis Mai als „Historischer
+Vorgänger“. Ein Klick öffnet direkt den passenden alten Vertrag und den fachlichen
+Mietmonat zur Erfassung. Über „Historische Vertragsperioden einblenden“ lässt sich
+Pluto für 2026 zusätzlich als eigene Zeile anzeigen. Damit können auch nach dem
 Mieterwechsel eingegangene Altmieten und Stornos nachgetragen werden.
 
 Verbrauchsviews verwenden derzeit den aktiven Mieter aus
@@ -72,7 +75,7 @@ Vertragszeiträumen bleibt deshalb ebenfalls Bestandteil der späteren Umsetzung
 
 ## Technische Prüfung der Vorbereitung
 
-- `npm test`: 506 Tests in 20 Testdateien grün.
+- `npm test`: 508 Tests in 20 Testdateien grün.
 - `npm run check:frontend-assets`: erfolgreich.
 - `node --check` für Mock-Server und Fixture: erfolgreich.
 - Mock-API-Lauf: Für `TEST_WE_08` wurden beide Verträge, beide Parteien, die
