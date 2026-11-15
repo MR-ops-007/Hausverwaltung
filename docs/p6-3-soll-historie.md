@@ -28,6 +28,18 @@ Sollbetrag aus der append-only Tabelle `Mietanpassungen`.
    zeigt die UI `Anpassung ohne Historieneintrag` nur ab dem dokumentierten
    Anpassungsmonat statt den fehlenden Verlauf still zu ignorieren.
 
+### Bedeutung von `letzte_anpassung`
+
+Im Datenmodell bezeichnet `Vertraege.letzte_anpassung` den Monat der letzten
+vertraglichen Mietpreisänderung, nicht das Datum des Zugangs eines
+Erhöhungsschreibens. Bei einer dokumentierten Indexanpassung kommt der belastbare
+Wirksamkeitsmonat aus `Mietanpassungen.wirksam_ab`. Bei älteren
+`STAMMDATEN`-Zeilen ohne dieses Feld ist `nachher_json.letzte_anpassung` nur ein
+geschätzter Kompatibilitätswert; ersatzweise wird der Erfassungsmonat verwendet.
+Aus diesem Fallback werden keine zusätzlichen gesetzlichen Vorlauf- oder
+Nachlauffristen abgeleitet. Eine solche Frist wäre nur vertretbar, wenn Zugang und
+rechtliche Wirksamkeit separat gespeichert würden.
+
 Die Historie wird chronologisch nach Wirksamkeitsmonat verarbeitet. Bei mehreren
 Anpassungen gilt jeweils der zuletzt wirksame Betrag.
 
