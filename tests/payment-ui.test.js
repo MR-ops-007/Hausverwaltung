@@ -147,6 +147,30 @@ describe('paymentUiService Monatsstatus', () => {
     expect(service.statusTitle(summary)).toContain('Wirksamkeitsmonat ist geschätzt');
   });
 
+  it('markiert bei mehreren Einträgen nur das unsichere Übergangsfenster als geschätzt', () => {
+    const service = loadPaymentService(baseState({
+      vertraege: [{ ...baseState().vertraege[0], soll_gesamt: 900 }],
+      mietanpassungen: [
+        {
+          vertrag_id: 'V1', wirksam_ab: '2026-06-01', erfasst_am: '2026-05-01',
+          vorher_json: JSON.stringify({ soll_gesamt: 650 }),
+          nachher_json: JSON.stringify({ soll_gesamt: 800 })
+        },
+        {
+          vertrag_id: 'V1', wirksam_ab: '', erfasst_am: '2026-07-15',
+          vorher_json: JSON.stringify({ soll_gesamt: 800 }),
+          nachher_json: JSON.stringify({ soll_gesamt: 900, letzte_anpassung: '2026-08-01' })
+        }
+      ]
+    }));
+    const contract = service.getContracts()[0];
+    expect(service.summarizeMonth(contract, '2026-05').dueHistoryEstimated).toBe(false);
+    expect(service.summarizeMonth(contract, '2026-06').dueHistoryEstimated).toBe(true);
+    expect(service.summarizeMonth(contract, '2026-07').dueHistoryEstimated).toBe(true);
+    expect(service.summarizeMonth(contract, '2026-08').dueHistoryEstimated).toBe(true);
+    expect(service.summarizeMonth(contract, '2026-09').dueHistoryEstimated).toBe(false);
+  });
+
   it('markiert eine unvollständige Sollhistorie ohne Vorher-Snapshot', () => {
     const service = loadPaymentService(baseState({
       vertraege: [{ ...baseState().vertraege[0], soll_gesamt: 700 }],
@@ -274,6 +298,32 @@ describe('paymentUiService Monatsstatus', () => {
     }));
     const summary = service.summarizeMonth(service.getContracts()[0], '2026-10');
     expect(summary.dueHistoryMissing).toBe(true);
+  });
+
+  it('begrenzt fehlende und unvollständige Historienhinweise auf die betroffenen Monate', () => {
+    const incompleteService = loadPaymentService(baseState({
+      vertraege: [{ ...baseState().vertraege[0], soll_gesamt: 700 }],
+      mietanpassungen: [{
+        vertrag_id: 'V1', wirksam_ab: '2026-08-01', erfasst_am: '2026-07-15',
+        vorher_json: '',
+        nachher_json: JSON.stringify({ soll_gesamt: 700 })
+      }]
+    }));
+    const incompleteContract = incompleteService.getContracts()[0];
+    expect(incompleteService.summarizeMonth(incompleteContract, '2026-07').dueHistoryIncomplete).toBe(true);
+    expect(incompleteService.summarizeMonth(incompleteContract, '2026-08').dueHistoryIncomplete).toBe(false);
+
+    const missingService = loadPaymentService(baseState({
+      vertraege: [{ ...baseState().vertraege[0], soll_gesamt: 700, letzte_anpassung: '2026-08-01' }],
+      mietanpassungen: [{
+        vertrag_id: 'V1', wirksam_ab: '2026-06-01', erfasst_am: '2026-05-15',
+        vorher_json: JSON.stringify({ soll_gesamt: 650 }),
+        nachher_json: JSON.stringify({ soll_gesamt: 700 })
+      }]
+    }));
+    const missingContract = missingService.getContracts()[0];
+    expect(missingService.summarizeMonth(missingContract, '2026-07').dueHistoryMissing).toBe(false);
+    expect(missingService.summarizeMonth(missingContract, '2026-08').dueHistoryMissing).toBe(true);
   });
 
   it('ignoriert unvollständige Historien-Snapshots und fällt auf das aktuelle Soll zurück', () => {
@@ -736,7 +786,7 @@ describe('paymentUiService CSV-Import', () => {
     }));
     const rows = service.suggestImportRows([
       { datum: '05.08.2026', betrag: 800, name: 'Donald Duck', verwendungszweck: 'Miete' }
-    ]);
+    ], undefined, new Date(2026, 10, 15));
     expect(rows[0].mietmonat).toBe('2026-08');
     expect(rows[0].vertrag_id).toBe('V1');
     expect(rows[0].matchReason).toContain('(6 Punkte)');

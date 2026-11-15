@@ -388,17 +388,25 @@ const paymentUiService = {
     const currentAmount = this.monthlyDueSnapshot(contract);
     if (!month || currentAmount === null) return { amount: currentAmount === null ? 0 : currentAmount, historical: false, estimated: false, incomplete: false, inconsistent: false, missing: false, source: null };
     const entries = this.rentHistoryEntries(contract);
-    if (!entries.length) return { amount: currentAmount, historical: false, estimated: false, incomplete: false, inconsistent: false, missing: Boolean(contract && contract.letzte_anpassung), source: null };
+    const contractAdjustmentMonth = this.monthKey(contract && contract.letzte_anpassung);
+    if (!entries.length) {
+      return {
+        amount: currentAmount,
+        historical: false,
+        estimated: false,
+        incomplete: false,
+        inconsistent: false,
+        missing: Boolean(contractAdjustmentMonth && month >= contractAdjustmentMonth),
+        source: null
+      };
+    }
 
     let amount = currentAmount;
     let source = null;
-    let incomplete = false;
     const firstBefore = entries[0].before ? this.monthlyDueSnapshot(entries[0].before) : null;
     if (firstBefore !== null) {
       amount = firstBefore;
       source = { ...entries[0], phase: 'before' };
-    } else {
-      incomplete = true;
     }
     entries.forEach(entry => {
       if (entry.effectiveMonth <= month) {
@@ -409,8 +417,19 @@ const paymentUiService = {
     const latest = entries[entries.length - 1];
     const asOfMonth = this.monthKey(asOf);
     const latestIsCurrentOrPast = latest.effectiveMonth <= asOfMonth;
-    const contractAdjustmentMonth = this.monthKey(contract && contract.letzte_anpassung);
-    const missing = Boolean(contractAdjustmentMonth && contractAdjustmentMonth > latest.effectiveMonth);
+    const incomplete = firstBefore === null && month < entries[0].effectiveMonth;
+    const missing = Boolean(
+      contractAdjustmentMonth
+      && month >= contractAdjustmentMonth
+      && contractAdjustmentMonth > latest.effectiveMonth
+    );
+    const estimatedEntry = entries.find((entry, index) => {
+      if (!entry.estimated) return false;
+      const previousMonth = entries[index - 1]?.effectiveMonth
+        || this.monthKey(contract && contract.start_datum);
+      return (!previousMonth || month >= previousMonth) && month <= entry.effectiveMonth;
+    });
+    const estimated = Boolean(estimatedEntry);
     let inconsistent = false;
     // Once an effective date is in the past, the current contract row is the
     // source of truth for the present and all later months. A future-dated
@@ -423,7 +442,7 @@ const paymentUiService = {
     return {
       amount,
       historical: Boolean(source),
-      estimated: Boolean(source && source.estimated),
+      estimated,
       incomplete,
       inconsistent,
       missing,
@@ -1081,7 +1100,7 @@ const paymentUiService = {
     })).filter(row => row.datum && row.betrag !== null && row.betrag > 0);
   },
 
-  suggestImportRows(rows, contracts = this.getContracts()) {
+  suggestImportRows(rows, contracts = this.getContracts(), asOf = new Date()) {
     return (rows || []).map(row => {
       const haystack = `${row.name} ${row.verwendungszweck}`.toLowerCase();
       const detectedMonth = this.normalizePaymentMonth(row.mietmonat)
@@ -1093,7 +1112,7 @@ const paymentUiService = {
         let score = 0;
         if (haystack.includes(String(contract.vertrag_id).toLowerCase())) score += 5;
         if (tenant !== 'leerstand' && parts.every(part => haystack.includes(part))) score += 4;
-        if (Math.abs((this.parseNumber(row.betrag) || 0) - this.monthlyDue(contract, detectedMonth)) < 0.01) score += 2;
+        if (Math.abs((this.parseNumber(row.betrag) || 0) - this.monthlyDue(contract, detectedMonth, asOf)) < 0.01) score += 2;
         return { contract, score };
       }).sort((a, b) => b.score - a.score);
       const best = scored[0];

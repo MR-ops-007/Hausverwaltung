@@ -85,7 +85,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Legacy-Fallback und werden in der UI als historisches Soll kenntlich gemacht. Reine
   Vertragsänderungen ohne Solländerung erzeugen keinen historischen Übergang. Es gibt keine
   Backend- oder Apps-Script-Änderung und keine rückwirkende Änderung gespeicherter Zahlungen.
-  Der Branch-Lauf umfasst 497 Tests in 20 Testdateien; Asset-Prüfung, Syntaxprüfung und
+  Der Branch-Lauf umfasst 499 Tests in 20 Testdateien; Asset-Prüfung, Syntaxprüfung und
   `git diff --check` sind grün. Die Zahlungsansicht wurde lokal gegen TEST · Entenhausen
   auf Desktopbreite geöffnet und die Matrix ohne Darstellungsfehler geprüft.
   Die Soll-Historie ist die Grundlage für P6.6 (Erinnerungen an mögliche Mieterhöhungen),

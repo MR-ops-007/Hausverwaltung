@@ -380,7 +380,7 @@ Bankanbindung werden daraus abgeleitet.
    historischen Zahlungen rückwirkend verändert und kein Apps-Script-Deployment benötigt.
    Abnahme: historische Vorher-/Nachher-Beträge, Überzahlung über eine Erhöhung hinweg,
    Legacy-Fallback, No-op-Historie und sichtbare UI-Kennzeichnung sind automatisiert getestet.
-   Der Branch-Lauf umfasst 497 Tests in 20 Testdateien; Asset-Prüfung, Syntaxprüfung und
+   Der Branch-Lauf umfasst 499 Tests in 20 Testdateien; Asset-Prüfung, Syntaxprüfung und
    `git diff --check` sind ebenfalls grün. Die lokale Zahlungsansicht wurde mit TEST ·
    Entenhausen auf Desktopbreite geöffnet und die bestehende Matrix ohne Darstellungsfehler
    geprüft.

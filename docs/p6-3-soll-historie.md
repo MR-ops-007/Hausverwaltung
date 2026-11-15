@@ -13,8 +13,9 @@ Sollbetrag aus der append-only Tabelle `Mietanpassungen`.
    `vorher_json.soll_gesamt`.
 3. Bei älteren `STAMMDATEN`-Einträgen ohne `wirksam_ab` wird zunächst
    `nachher_json.letzte_anpassung`, ersatzweise `erfasst_am`, als Fallback verwendet.
-   Dieser Fall ist eine technische Übergangslösung und wird in der UI als historisches
-   Soll gekennzeichnet.
+   Dieser Fall ist eine technische Übergangslösung. Die UI markiert das unsichere
+   Übergangsfenster vom vorherigen dokumentierten Wirksamkeitsmonat (beziehungsweise
+   dem Mietbeginn) bis zum geschätzten Monat; Monate danach gelten als sicher.
 4. Historienzeilen ohne Änderung des monatlichen Sollbetrags werden ignoriert.
 5. Die Regel gilt an einer Stelle für Monatsstatus, Dialoganzeige und
    Überzahlungsverteilung. Bestehende Zahlungseingänge werden nicht rückwirkend verändert.
@@ -24,8 +25,8 @@ Sollbetrag aus der append-only Tabelle `Mietanpassungen`.
 7. Ein zukünftiges `wirksam_ab` darf dagegen die späteren Monate vorbereiten und wird
    nicht durch den aktuellen Betrag überschrieben.
 8. Ist am Vertrag `letzte_anpassung` befüllt, aber keine passende Historienzeile geladen,
-   zeigt die UI `Anpassung ohne Historieneintrag` statt den fehlenden Verlauf still zu
-   ignorieren.
+   zeigt die UI `Anpassung ohne Historieneintrag` nur ab dem dokumentierten
+   Anpassungsmonat statt den fehlenden Verlauf still zu ignorieren.
 
 Die Historie wird chronologisch nach Wirksamkeitsmonat verarbeitet. Bei mehreren
 Anpassungen gilt jeweils der zuletzt wirksame Betrag.
@@ -34,9 +35,12 @@ Anpassungen gilt jeweils der zuletzt wirksame Betrag.
 
 Historische Monate tragen den Hinweis `historisches Soll`. Der Status-Tooltip erklärt:
 `Historischer Sollbetrag aus dem dokumentierten Änderungsverlauf.` Bei einem Fallback ohne
-explizites `wirksam_ab` ergänzt die UI `Der Wirksamkeitsmonat ist geschätzt`. Fehlt der
-Vorher-Snapshot, erscheint `Die Sollhistorie ist unvollständig`. Weicht der aktuelle
-Vertrag vom letzten historischen Nachher-Snapshot ab, erscheint `Historie prüfen`.
+explizites `wirksam_ab` ergänzt die UI `Der Wirksamkeitsmonat ist geschätzt` nur im
+unsicheren Übergangsfenster. Fehlt der Vorher-Snapshot, erscheint `Die Sollhistorie ist
+unvollständig` nur vor dem ersten Wirksamkeitsmonat. Weicht der aktuelle Vertrag vom
+letzten historischen Nachher-Snapshot ab, erscheint `Historie prüfen`. Fehlt die passende
+Historienzeile, wird der Hinweis erst ab dem am Vertrag dokumentierten Anpassungsmonat
+angezeigt.
 Der CSV-Vorschlag vergleicht den Eingang mit dem Soll des erkannten Mietmonats, nicht nur
 mit dem heutigen Vertragssoll.
 
@@ -64,6 +68,8 @@ Die Tests in `tests/payment-ui.test.js` decken ab:
   Inkonsistenz zwischen Vertrag und Historie.
 - Zukünftiger Wirksamkeitsmonat sowie Fallback-Kennzeichnung bei fehlendem `wirksam_ab`.
 - CSV-Vorschlag für einen Eingang vor einer Mieterhöhung.
+- Begrenztes geschätztes Übergangsfenster bei mehreren Anpassungen.
+- Zeitlich begrenzte Hinweise für unvollständige oder fehlende Historie.
 - Anpassungsdatum am Vertrag ohne passende Historienzeile.
 
 Die vollständige Testausgabe und die abschließenden Prüfsummen werden nach dem Lauf in
@@ -71,7 +77,7 @@ Die vollständige Testausgabe und die abschließenden Prüfsummen werden nach de
 
 ## Durchgeführte Prüfung auf dem Branch
 
-- `npm test`: 497 Tests in 20 Testdateien grün.
+- `npm test`: 499 Tests in 20 Testdateien grün.
 - `npm run check:frontend-assets`: 19 lokale Assets vorhanden.
 - `node --check payment-ui.js`: grün.
 - `git diff --check`: grün.
