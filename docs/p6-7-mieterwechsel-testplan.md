@@ -51,8 +51,10 @@ Die aktuelle Charakterisierung hält zusätzlich fest: Eine Nachzahlung von 50 E
 für Plutos April erzeugt vor dem Storno ein Guthaben von 50 EUR; nach dem Storno
 bleibt der Monat bei 700,00 EUR und wird weiterhin als verspätet erkannt. Bei einem
 Wechsel mitten im Monat bewertet das heutige Modell beide Verträge noch mit dem
-vollen Monatssoll. Das ist bewusst ein offener Folgepunkt und keine fachliche
-Freigabe für eine spätere Abrechnung.
+vollen Monatssoll; auf Einheitsebene ergibt das im Beispiel aktuell 1.500,00 EUR
+Soll für Juni. Diese Charakterisierung wird nach der Entscheidung zu anteiligem
+Soll und Zwischenablesung bewusst angepasst. Sie ist keine fachliche Freigabe für
+eine spätere Abrechnung.
 
 ## Bekannte Ausgangslage
 

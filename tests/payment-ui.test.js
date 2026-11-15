@@ -143,8 +143,14 @@ describe('paymentUiService Monatsstatus', () => {
 
     expect(service.summarizeMonth(gapPrevious, '2026-06', now)).toMatchObject({ status: 'nach_mietende', due: 0, paid: 0 });
     expect(service.summarizeMonth(gapCurrent, '2026-06', now)).toMatchObject({ status: 'vor_mietbeginn', due: 0, paid: 0 });
-    expect(service.summarizeMonth(midPrevious, '2026-06', now).due).toBe(700);
-    expect(service.summarizeMonth(midCurrent, '2026-06', now).due).toBe(800);
+    // Characterization: until the pro-rata rule is decided, both contract rows
+    // receive their full June Soll. Update these expectations with that decision.
+    const midPreviousJune = service.summarizeMonth(midPrevious, '2026-06', now);
+    const midCurrentJune = service.summarizeMonth(midCurrent, '2026-06', now);
+    expect(midPreviousJune.due).toBe(700);
+    expect(midCurrentJune.due).toBe(800);
+    // At unit level the current model therefore exposes 1,500 EUR for June.
+    expect(midPreviousJune.due + midCurrentJune.due).toBe(1500);
   });
 
   it('verwendet für historische Mietmonate den dokumentierten Sollbetrag', () => {
