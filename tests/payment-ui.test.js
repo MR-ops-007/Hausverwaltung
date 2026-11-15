@@ -117,12 +117,34 @@ describe('paymentUiService Monatsstatus', () => {
     expect(service.summarizeMonth(previous, '2026-06', now)).toMatchObject({ status: 'nach_mietende', paid: 0, due: 0 });
     expect(service.summarizeMonth(current, '2026-06', now)).toMatchObject({ status: 'bezahlt', paid: 800, due: 800 });
     expect(service.summarizeMonth(current, '2026-07', now)).toMatchObject({ status: 'teilbezahlt', paid: 400, due: 800 });
-    expect(service.summarizeMonth(previous, '2026-04', now).paid).toBe(700);
+    expect(service.summarizeMonth(previous, '2026-04', now)).toMatchObject({ paid: 700, due: 700, status: 'bezahlt', verspaetet: true });
     expect(service.getPaymentsEnteredInMonth(previous.vertrag_id, '2026-06').map(row => row.zahlung_id)).toEqual([
       'PLUTO_NACH_04', 'PLUTO_NACH_04_STORNO'
     ]);
+    const beforeStorno = loadPaymentService(baseState({
+      vertraege: tenantChangeFixture.vertraege,
+      zahlungen: tenantChangeFixture.zahlungen.filter(row => row.zahlung_id !== 'PLUTO_NACH_04_STORNO')
+    }));
+    expect(beforeStorno.summarizeMonth(previous, '2026-04', now)).toMatchObject({ paid: 750, due: 700, credit: 50, status: 'bezahlt' });
     expect(service.summarizeDeposit(previous)).toMatchObject({ due: 1500, paid: 1500, remaining: 0, status: 'vollständig' });
     expect(service.summarizeDeposit(current)).toMatchObject({ due: 1800, paid: 900, remaining: 900, status: 'teilweise' });
+  });
+
+  it('charakterisiert Lücke und Monatsmitte beim aktuellen Vertragsmodell', () => {
+    const service = loadPaymentService(baseState());
+    const [gapPreviousRaw, gapCurrentRaw] = tenantChangeFixture.negativeCases.gap;
+    const [midPreviousRaw, midCurrentRaw] = tenantChangeFixture.negativeCases.midMonth;
+    const withRent = (contract, amount) => ({ ...contract, soll_gesamt: amount, zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: 3 });
+    const gapPrevious = withRent(gapPreviousRaw, 700);
+    const gapCurrent = withRent(gapCurrentRaw, 800);
+    const midPrevious = withRent(midPreviousRaw, 700);
+    const midCurrent = withRent(midCurrentRaw, 800);
+    const now = new Date(2026, 10, 30);
+
+    expect(service.summarizeMonth(gapPrevious, '2026-06', now)).toMatchObject({ status: 'nach_mietende', due: 0, paid: 0 });
+    expect(service.summarizeMonth(gapCurrent, '2026-06', now)).toMatchObject({ status: 'vor_mietbeginn', due: 0, paid: 0 });
+    expect(service.summarizeMonth(midPrevious, '2026-06', now).due).toBe(700);
+    expect(service.summarizeMonth(midCurrent, '2026-06', now).due).toBe(800);
   });
 
   it('verwendet für historische Mietmonate den dokumentierten Sollbetrag', () => {
