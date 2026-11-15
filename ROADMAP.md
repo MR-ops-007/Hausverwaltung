@@ -371,9 +371,23 @@ Bankanbindung werden daraus abgeleitet.
    Nachzahlung, Storno, erneute Zahlung, Statusdarstellung und Reload-Persistenz wurden
    dort geprüft. Der native Dubletten-Confirm wird in der Browser-Automation automatisch
    bestätigt; der explizite Abbruchpfad bleibt als manueller QA-Schritt offen.
-2. **P6.3 Zahlungsfachlichkeit:** Soll-Historie bei Mieterhöhungen ergänzen und die offenen
-   Fachregeln für Nachforderungen, Guthabenumbuchungen sowie Erstattungen im Saldo festlegen.
-   Erst danach werden diese Fälle in die Status- und Übersichtsberechnung aufgenommen.
+2. **P6.3 Soll-Historie: in Umsetzung auf `codex/p6-3-soll-historie`.** Die Monatsmatrix,
+   der Zahlungseingangsdialog und die Überzahlungsverteilung verwenden den Sollbetrag aus
+   `Mietanpassungen` ab dem dokumentierten Wirksamkeitsmonat. Reine Vertragsänderungen ohne
+   Solländerung bleiben dabei außen vor. Für ältere Stammdatenänderungen ohne `wirksam_ab`
+   gilt der dokumentierte Wert in `nachher_json.letzte_anpassung`, ersatzweise der
+   Erfassungsmonat, als ausdrücklich markierter Kompatibilitäts-Fallback. Es werden keine
+   historischen Zahlungen rückwirkend verändert und kein Apps-Script-Deployment benötigt.
+   Abnahme: historische Vorher-/Nachher-Beträge, Überzahlung über eine Erhöhung hinweg,
+   Legacy-Fallback, No-op-Historie und sichtbare UI-Kennzeichnung sind automatisiert getestet.
+   Der Branch-Lauf umfasst 499 Tests in 20 Testdateien; Asset-Prüfung, Syntaxprüfung und
+   `git diff --check` sind ebenfalls grün. Die lokale Zahlungsansicht wurde mit TEST ·
+   Entenhausen auf Desktopbreite geöffnet und die bestehende Matrix ohne Darstellungsfehler
+   geprüft.
+   Offene Fachregeln für Nachforderungen, Guthabenumbuchungen sowie Erstattungen im Saldo
+   bleiben ein eigenes Folgepaket. Ergänzend sind CSV-Beträge gegen den historischen
+   Mietmonat geprüft, aktuelle Vertragswerte nach dem letzten Eintrag abgesichert und
+   geschätzte bzw. unvollständige Historien sichtbar gekennzeichnet.
 3. **P6.6 Erinnerungen für Mieterhöhungen:** Auf Basis der Soll-Historie eine Übersicht je
    Vertrag bereitstellen: letzte dokumentierte Anpassung, frühestmöglicher nächster Termin,
    Anpassungsart und Status (`keine Anpassung dokumentiert`, `noch nicht möglich`,

@@ -34,6 +34,11 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - P6.1 (2026-11-14, PR #41, in `main`): weiche Dublettenwarnung vor manueller
   und CSV-Zahlungsübernahme. Keine Backend- oder Schemaänderung; der PROD-Test
   beschränkte Schreibvorgänge auf das isolierte Objekt `TEST`.
+- P6.3 (2026-11-15, Branch `codex/p6-3-soll-historie`, lokal): historische
+  monatliche Sollbeträge werden aus den dokumentierten `Mietanpassungen`-Snapshots
+  abgeleitet und in Monatsstatus, Zahlungseingangsdialog und Überzahlungsverteilung
+  verwendet. Keine Backend- oder Schemaänderung; ein Apps-Script-Deployment ist nicht
+  erforderlich.
 
 Diese Einträge ändern die produktive Apps-Script-Version nicht. Die produktive Version ist
 seit PR #39 und dem anschließenden Deployment 4.8.12; 4.8.5 bleibt als dokumentierter

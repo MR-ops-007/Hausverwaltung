@@ -78,9 +78,18 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Der native Dubletten-Confirm wird in der Browser-Automation automatisch bestätigt; der
   explizite Abbruchpfad bleibt als manueller QA-Schritt offen. Der Remote-Branch wurde nach
   dem Merge aufgeräumt.
-- Nächster fachlicher Schwerpunkt ist P6.3 Soll-Historie für Mieterhöhungen. Darauf baut
-  P6.6 für Erinnerungen an den frühestmöglichen nächsten Anpassungstermin auf; beide Pakete
-  sind in `ROADMAP.md` mit Abnahmekriterien und bewussten Nicht-Zielen beschrieben.
+- P6.3 Soll-Historie wird im Branch `codex/p6-3-soll-historie` umgesetzt: Monatsmatrix,
+  Status, Zahlungseingangsdialog und Überzahlungsverteilung ermitteln das monatliche Soll
+  aus den append-only Snapshots in `Mietanpassungen`. `wirksam_ab` ist der primäre
+  Wirksamkeitsmonat; ältere Stammdatenzeilen ohne dieses Feld verwenden den dokumentierten
+  Legacy-Fallback und werden in der UI als historisches Soll kenntlich gemacht. Reine
+  Vertragsänderungen ohne Solländerung erzeugen keinen historischen Übergang. Es gibt keine
+  Backend- oder Apps-Script-Änderung und keine rückwirkende Änderung gespeicherter Zahlungen.
+  Der Branch-Lauf umfasst 499 Tests in 20 Testdateien; Asset-Prüfung, Syntaxprüfung und
+  `git diff --check` sind grün. Die Zahlungsansicht wurde lokal gegen TEST · Entenhausen
+  auf Desktopbreite geöffnet und die Matrix ohne Darstellungsfehler geprüft.
+  Die Soll-Historie ist die Grundlage für P6.6 (Erinnerungen an mögliche Mieterhöhungen),
+  das als separates Folgepaket verbleibt.
 - Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
   erzeugt und veröffentlicht ausschließlich `runtime-config.js`; `runtime-secrets.js` bleibt lokal und
   wird durch einen negativen Workflow-Test gegen versehentliche Veröffentlichung geschützt.
