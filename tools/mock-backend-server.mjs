@@ -68,7 +68,7 @@ const state = {
     ...tenantChangeFixture.zahlungen
   ],
   Haustechnik: [],
-  _view_aktive_mieter: [1, 2, 3, 4, 5, 6, 7].map(index => ({ objekt_id: 'TEST', einheit_id: `TEST_WE_0${index}`, vertrag_id: `TEST_V${index}`, mieter_name: ['Donald Duck', 'Mickey Mouse', 'Daisy Duck', 'Dagobert Duck', 'Gustav Gans', 'Tick Duck / Trick Duck', 'Leerstand'][index - 1], soll_gesamt: [650, 900, 750, 1450, 500, 800, 0][index - 1] })).concat(tenantChangeFixture.activeViewRow),
+  _view_aktive_mieter: [1, 2, 3, 4, 5, 6].map(index => ({ objekt_id: 'TEST', einheit_id: `TEST_WE_0${index}`, vertrag_id: `TEST_V${index}`, mieter_name: ['Donald Duck', 'Mickey Mouse', 'Daisy Duck', 'Dagobert Duck', 'Gustav Gans', 'Tick Duck / Trick Duck'][index - 1], soll_gesamt: [650, 900, 750, 1450, 500, 800][index - 1] })).concat({ objekt_id: 'TEST', einheit_id: 'TEST_WE_07', vertrag_id: '', mieter_name: 'Leerstand', soll_gesamt: 0 }, tenantChangeFixture.activeViewRow),
   _view_verbrauch_monat: consumptionFixture._view_verbrauch_monat,
   _view_verbrauch_jahr: consumptionFixture._view_verbrauch_jahr,
   _view_verbrauch_audit: consumptionFixture._view_verbrauch_audit,

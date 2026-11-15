@@ -95,11 +95,12 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   von Pluto bis 2026-05-31 und einen aktiven Vertrag von Goofy ab 2026-06-01 mit
   getrennten Zahlungen, Kautionen und Vertragsparteien. Die synthetischen Entenhausen-Daten
   enthalten außerdem einen Grundbestand mit Verträgen für Wohnungen 1 bis 6 seit 2025,
-  Wohnung 7 als Leerstand und unterschiedlichen Zahlungsfällen. Die Mieteingangskontrolle filtert
-  nach dem gewählten Jahr: 2025 zeigt den Grundbestand und Pluto, 2026 zeigt standardmäßig Goofy; historische
-  Vertragsperioden lassen sich zusätzlich als eigene Zeilen einblenden. Offene Posten
-  ehemaliger Verträge fließen in die Übersicht ein, und Monate vor einem neuen Mietbeginn
-  verlinken auf den passenden historischen Vertrag. Die Verbrauchsview und die atomare
+  Wohnung 7 als Leerstand und unterschiedlichen Zahlungsfällen. Die Mieteingangskontrolle
+  baut ihre Zeilen aus dem Einheitenbestand auf: 2025 zeigt den Grundbestand und Pluto,
+  2026 zeigt Pluto für Januar bis Mai und Goofy ab Juni als getrennte Vertragszeilen.
+  Einheiten ohne Vertrag bleiben als Leerstand sichtbar. Offene Posten ehemaliger Verträge
+  fließen in die Übersicht ein, und Monate vor einem neuen Mietbeginn verlinken auf den
+  passenden historischen Vertrag. Die Verbrauchsview und die atomare
   Schreiboperation sind der
   verbleibende Implementierungsumfang von P6.7. Die gemeinsame
   `contractService.validateContractPeriods()` prüft jetzt Überschneidungen, Lücken und

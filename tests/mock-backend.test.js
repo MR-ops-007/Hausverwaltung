@@ -43,9 +43,7 @@ describe('synthetische Mock-Fixtures', () => {
     const rentedUnits = baselineRentalFixture.vertraege
       .filter(contract => contract.soll_gesamt > 0)
       .map(contract => contract.einheit_id);
-    const coveredBy2025 = baselineRentalFixture.vertraege
-      .filter(contract => !contract.start_datum || contract.start_datum.slice(0, 4) <= '2025')
-      .map(contract => contract.einheit_id);
+    const coveredBy2025 = baselineRentalFixture.einheiten.map(unit => unit.einheit_id);
     const rentMonths = new Set(baselineRentalFixture.zahlungen.map(row => row.mietmonat));
 
     expect(new Set(rentedUnits)).toEqual(new Set(['TEST_WE_01', 'TEST_WE_02', 'TEST_WE_03', 'TEST_WE_04', 'TEST_WE_05', 'TEST_WE_06']));
