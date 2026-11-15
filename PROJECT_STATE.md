@@ -78,7 +78,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Der native Dubletten-Confirm wird in der Browser-Automation automatisch bestätigt; der
   explizite Abbruchpfad bleibt als manueller QA-Schritt offen. Der Remote-Branch wurde nach
   dem Merge aufgeräumt.
-- P6.3 Soll-Historie wird im Branch `codex/p6-3-soll-historie` umgesetzt: Monatsmatrix,
+- P6.3 Soll-Historie ist mit PR #43 in `main` enthalten: Monatsmatrix,
   Status, Zahlungseingangsdialog und Überzahlungsverteilung ermitteln das monatliche Soll
   aus den append-only Snapshots in `Mietanpassungen`. `wirksam_ab` ist der primäre
   Wirksamkeitsmonat; ältere Stammdatenzeilen ohne dieses Feld verwenden den dokumentierten
@@ -90,6 +90,12 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   auf Desktopbreite geöffnet und die Matrix ohne Darstellungsfehler geprüft.
   Die Soll-Historie ist die Grundlage für P6.6 (Erinnerungen an mögliche Mieterhöhungen),
   das als separates Folgepaket verbleibt.
+- P6.7 Mieterwechsel ist als Folgepaket vorbereitet. Die Entenhausen-Fixture
+  `tools/mock-rental-fixtures.mjs` enthält für `TEST_WE_08` einen beendeten Vertrag
+  von Pluto bis 2026-05-31 und einen aktiven Vertrag von Goofy ab 2026-06-01 mit
+  getrennten Zahlungen, Kautionen und Vertragsparteien. Die UI zeigt derzeit weiterhin
+  nur den aktiven Vertrag; historische Vertragsperioden in der Mieteingangskontrolle
+  und Verbrauchsview sind der eigentliche Implementierungsumfang von P6.7.
 - Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
   erzeugt und veröffentlicht ausschließlich `runtime-config.js`; `runtime-secrets.js` bleibt lokal und
   wird durch einen negativen Workflow-Test gegen versehentliche Veröffentlichung geschützt.
