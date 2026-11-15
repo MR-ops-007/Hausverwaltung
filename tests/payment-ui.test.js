@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { tenantChangeFixture } from '../tools/mock-rental-fixtures.mjs';
 
 const paymentCode = readFileSync(new URL('../payment-ui.js', import.meta.url), 'utf8');
 
@@ -98,6 +99,30 @@ describe('paymentUiService Monatsstatus', () => {
     expect(service.summarizeMonth(contract, '2026-02', new Date(2026, 10, 11))).toMatchObject({ status: 'teilbezahlt', paid: 300, remaining: 350, verspaetet: true });
     expect(service.summarizeMonth(contract, '2026-03', new Date(2026, 10, 11)).status).toBe('überfällig');
     expect(service.summarizeMonth(contract, '2026-12', new Date(2026, 10, 11)).status).toBe('zukünftig');
+  });
+
+  it('trennt Mietstatus und Kaution bei einem Mieterwechsel über die Vertrags-ID', () => {
+    const service = loadPaymentService(baseState({
+      personen: [...baseState().personen, ...tenantChangeFixture.personen],
+      einheiten: [...baseState().einheiten, ...tenantChangeFixture.einheiten],
+      vertraege: tenantChangeFixture.vertraege,
+      vertragsparteien: tenantChangeFixture.vertragsparteien,
+      zahlungen: tenantChangeFixture.zahlungen
+    }));
+    const previous = tenantChangeFixture.vertraege[0];
+    const current = tenantChangeFixture.vertraege[1];
+    const now = new Date(2026, 10, 30);
+
+    expect(service.summarizeMonth(previous, '2026-05', now)).toMatchObject({ status: 'bezahlt', paid: 700, due: 700 });
+    expect(service.summarizeMonth(previous, '2026-06', now)).toMatchObject({ status: 'nach_mietende', paid: 0, due: 0 });
+    expect(service.summarizeMonth(current, '2026-06', now)).toMatchObject({ status: 'bezahlt', paid: 800, due: 800 });
+    expect(service.summarizeMonth(current, '2026-07', now)).toMatchObject({ status: 'teilbezahlt', paid: 400, due: 800 });
+    expect(service.summarizeMonth(previous, '2026-04', now).paid).toBe(700);
+    expect(service.getPaymentsEnteredInMonth(previous.vertrag_id, '2026-06').map(row => row.zahlung_id)).toEqual([
+      'PLUTO_NACH_04', 'PLUTO_NACH_04_STORNO'
+    ]);
+    expect(service.summarizeDeposit(previous)).toMatchObject({ due: 1500, paid: 1500, remaining: 0, status: 'vollständig' });
+    expect(service.summarizeDeposit(current)).toMatchObject({ due: 1800, paid: 900, remaining: 900, status: 'teilweise' });
   });
 
   it('verwendet für historische Mietmonate den dokumentierten Sollbetrag', () => {

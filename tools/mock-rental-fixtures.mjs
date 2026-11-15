@@ -38,6 +38,8 @@ export const tenantChangeFixture = {
     payment('PLUTO_2026_03', 'TEST_V8_ALT', '2026-03', 700, '2026-03-05'),
     payment('PLUTO_2026_04', 'TEST_V8_ALT', '2026-04', 700, '2026-05-12'),
     payment('PLUTO_2026_05', 'TEST_V8_ALT', '2026-05', 700, '2026-05-05'),
+    payment('PLUTO_NACH_04', 'TEST_V8_ALT', '2026-04', 50, '2026-06-10', 'Nachzahlung'),
+    { zahlung_id: 'PLUTO_NACH_04_STORNO', vertrag_id: 'TEST_V8_ALT', mietmonat: '2026-04', betrag: -50, datum: '2026-06-11', art: 'Storno', storno_von: 'PLUTO_NACH_04', gegen_art: 'Nachzahlung' },
     payment('PLUTO_KAUTION', 'TEST_V8_ALT', '', 1500, '2025-06-02', 'Kaution'),
     payment('GOOFY_2026_06', 'TEST_V8', '2026-06', 800, '2026-06-05'),
     payment('GOOFY_2026_07', 'TEST_V8', '2026-07', 400, '2026-07-12'),
@@ -47,5 +49,19 @@ export const tenantChangeFixture = {
   activeViewRow: {
     objekt_id: 'TEST', einheit_id: 'TEST_WE_08', vertrag_id: 'TEST_V8',
     mieter_name: 'Goofy', soll_gesamt: 800
+  },
+  negativeCases: {
+    gap: [
+      { vertrag_id: 'TEST_GAP_OLD', einheit_id: 'TEST_WE_09', start_datum: '2025-01-01', end_datum: '2026-05-31', aktiv: false },
+      { vertrag_id: 'TEST_GAP_NEW', einheit_id: 'TEST_WE_09', start_datum: '2026-07-01', end_datum: '', aktiv: true }
+    ],
+    overlap: [
+      { vertrag_id: 'TEST_OVERLAP_OLD', einheit_id: 'TEST_WE_10', start_datum: '2025-01-01', end_datum: '2026-06-30', aktiv: false },
+      { vertrag_id: 'TEST_OVERLAP_NEW', einheit_id: 'TEST_WE_10', start_datum: '2026-06-15', end_datum: '', aktiv: true }
+    ],
+    midMonth: [
+      { vertrag_id: 'TEST_MID_OLD', einheit_id: 'TEST_WE_11', start_datum: '2025-01-01', end_datum: '2026-06-14', aktiv: false },
+      { vertrag_id: 'TEST_MID_NEW', einheit_id: 'TEST_WE_11', start_datum: '2026-06-15', end_datum: '', aktiv: true }
+    ]
   }
 };

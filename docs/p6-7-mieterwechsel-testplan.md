@@ -18,7 +18,8 @@ Die wiederverwendbare Fixture `tools/mock-rental-fixtures.mjs` bildet für
 | ab 01.06.2026 | `TEST_V8` | Goofy | aktiv | 800,00 EUR |
 
 Die Zahlungen und Kautionen sind getrennt an die jeweilige `vertrag_id` gebunden.
-Pluto hat Zahlungen für Januar bis Mai 2026 und eine vollständig hinterlegte
+Pluto hat Zahlungen für Januar bis Mai 2026, eine nach dem Wechsel eingegangene
+Nachzahlung für April mit anschließendem Storno und eine vollständig hinterlegte
 Kaution. Goofy hat Zahlungen für Juni bis August 2026, eine Teilzahlung im Juli
 und eine teilweise hinterlegte Kaution. Die aktive Mieteransicht zeigt für die
 Einheit nur Goofy; der alte Vertrag bleibt für die spätere historische Ansicht
@@ -59,7 +60,7 @@ Vertragszeiträumen bleibt deshalb ebenfalls Bestandteil der späteren Umsetzung
 
 ## Technische Prüfung der Vorbereitung
 
-- `npm test`: 500 Tests in 20 Testdateien grün.
+- `npm test`: 501 Tests in 20 Testdateien grün.
 - `npm run check:frontend-assets`: erfolgreich.
 - `node --check` für Mock-Server und Fixture: erfolgreich.
 - Mock-API-Lauf: Für `TEST_WE_08` wurden beide Verträge, beide Parteien, die
