@@ -9,6 +9,16 @@ jedoch jeweils eine eigene `vertrag_id`.
 
 ## Entenhausen-Fixture
 
+Der Mock-Grundbestand ist über die Jahresgrenzen hinweg konsistent aufgebaut:
+
+- Wohnungen 1 bis 6 haben laufende Verträge ab 2025 und sind deshalb in den
+  Jahresansichten 2025 und 2026 sichtbar.
+- Wohnung 7 ist in beiden Jahren als Leerstand ohne Sollmiete enthalten.
+- Für 2025 gibt es passende Zahlungseingänge mit unterschiedlichen Fällen:
+  vollständig bezahlt, verspätet, teilbezahlt und überzahlt.
+- Wohnung 8 ist bewusst der separate Mieterwechsel-Fall und wird ausschließlich
+  über die folgende Pluto-/Goofy-Fixture beschrieben.
+
 Die wiederverwendbare Fixture `tools/mock-rental-fixtures.mjs` bildet für
 `TEST_WE_08` folgenden Wechsel ab:
 
@@ -18,7 +28,8 @@ Die wiederverwendbare Fixture `tools/mock-rental-fixtures.mjs` bildet für
 | ab 01.06.2026 | `TEST_V8` | Goofy | aktiv | 800,00 EUR |
 
 Die Zahlungen und Kautionen sind getrennt an die jeweilige `vertrag_id` gebunden.
-Pluto hat Zahlungen für Januar bis Mai 2026, eine nach dem Wechsel eingegangene
+Pluto hat vollständige Zahlungen für Juni bis Dezember 2025 und Januar bis Mai 2026,
+eine nach dem Wechsel eingegangene
 Nachzahlung für April mit anschließendem Storno und eine vollständig hinterlegte
 Kaution. Goofy hat Zahlungen für Juni bis August 2026, eine Teilzahlung im Juli
 und eine teilweise hinterlegte Kaution. Die aktive Mieteransicht zeigt für die
@@ -61,8 +72,9 @@ eine spätere Abrechnung.
 ## Aktueller UI-Stand
 
 Die Mieteingangskontrolle filtert nach dem gewählten Jahr und nicht nur nach dem
-heutigen `aktiv`-Flag. Für 2025 erscheint bei `TEST_WE_08` Pluto, weil sein Vertrag
-dieses Jahr abdeckt; Goofy erscheint erst ab seinem Mietbeginn am 01.06.2026. Für
+heutigen `aktiv`-Flag. Für 2025 erscheinen der Grundbestand der Wohnungen 1 bis 7
+und bei `TEST_WE_08` Pluto, weil sein Vertrag dieses Jahr abdeckt; Goofy erscheint
+erst ab seinem Mietbeginn am 01.06.2026. Für
 2026 zeigt die Standardansicht Goofy und markiert Januar bis Mai als „Historischer
 Vorgänger“. Ein Klick öffnet direkt den passenden alten Vertrag und den fachlichen
 Mietmonat zur Erfassung. Über „Historische Vertragsperioden einblenden“ lässt sich
@@ -75,7 +87,7 @@ Vertragszeiträumen bleibt deshalb ebenfalls Bestandteil der späteren Umsetzung
 
 ## Technische Prüfung der Vorbereitung
 
-- `npm test`: 508 Tests in 20 Testdateien grün.
+- `npm test`: 509 Tests in 20 Testdateien grün.
 - `npm run check:frontend-assets`: erfolgreich.
 - `node --check` für Mock-Server und Fixture: erfolgreich.
 - Mock-API-Lauf: Für `TEST_WE_08` wurden beide Verträge, beide Parteien, die

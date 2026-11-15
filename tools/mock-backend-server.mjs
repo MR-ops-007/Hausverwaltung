@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { createMockConsumptionData } from './mock-consumption-fixtures.mjs';
-import { tenantChangeFixture } from './mock-rental-fixtures.mjs';
+import { baselineRentalFixture, tenantChangeFixture } from './mock-rental-fixtures.mjs';
 
 const port = Number(process.env.PORT || 8787);
 
@@ -12,49 +12,26 @@ const consumptionFixture = createMockConsumptionData();
 const state = {
   Objekte: [{ objekt_id: 'TEST', bezeichnung: 'TEST · Entenhausen' }],
   Einheiten: [
-    { einheit_id: 'TEST_WE_01', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 1' },
-    { einheit_id: 'TEST_WE_02', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 2' },
-    { einheit_id: 'TEST_WE_03', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 3' },
-    { einheit_id: 'TEST_WE_04', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 4' },
-    { einheit_id: 'TEST_WE_05', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 5' },
-    { einheit_id: 'TEST_WE_06', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 6' },
-    { einheit_id: 'TEST_WE_07', objekt_id: 'TEST', typ: 'Wohnung', nummer: 'Wohnung 7' },
+    ...baselineRentalFixture.einheiten,
     ...tenantChangeFixture.einheiten,
     { einheit_id: 'TEST_Allgemein', objekt_id: 'TEST', typ: 'Allgemein', nummer: 'Allgemein' }
   ],
   Personen: [
-    { person_id: 'P1', vorname: 'Donald', name: 'Duck' },
-    { person_id: 'P2', vorname: 'Mickey', name: 'Mouse' },
-    { person_id: 'P3', vorname: 'Daisy', name: 'Duck' },
-    { person_id: 'P4', vorname: 'Dagobert', name: 'Duck' },
-    { person_id: 'P5', vorname: 'Gustav', name: 'Gans' },
-    { person_id: 'P6', vorname: 'Tick', name: 'Duck' },
-    { person_id: 'P7', vorname: 'Trick', name: 'Duck' },
+    ...baselineRentalFixture.personen,
     ...tenantChangeFixture.personen
   ],
   Vertraege: [
-    { vertrag_id: 'TEST_V1', einheit_id: 'TEST_WE_01', hauptperson_id: 'P1', start_datum: '2026-01-01', aktiv: true, mietmodell: 'Kalt+NK', erhoehungs_typ: 'Normal', soll_kaltmiete: 500, soll_nebenkosten: 150, soll_gesamt: 650, kaution_soll: 2000, kaution_ist: 1200, zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: 3 },
-    { vertrag_id: 'TEST_V2', einheit_id: 'TEST_WE_02', hauptperson_id: 'P2', start_datum: '2026-01-15', aktiv: true, mietmodell: 'Kalt+NK', erhoehungs_typ: 'Normal', soll_kaltmiete: 700, soll_nebenkosten: 200, soll_gesamt: 900, kaution_soll: 2000, kaution_ist: 2000, zahlungsziel_typ: 'KALENDERTAG', zahlungsziel_wert: 15 },
-    { vertrag_id: 'TEST_V3', einheit_id: 'TEST_WE_03', hauptperson_id: 'P3', start_datum: '2026-03-01', aktiv: true, mietmodell: 'Pauschal', erhoehungs_typ: 'Normal', soll_kaltmiete: 750, soll_nebenkosten: 0, soll_gesamt: 750, kaution_soll: 1500, kaution_ist: 750, zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: 4 },
-    { vertrag_id: 'TEST_V4', einheit_id: 'TEST_WE_04', hauptperson_id: 'P4', start_datum: '2026-01-01', aktiv: true, mietmodell: 'Warmmiete', erhoehungs_typ: 'Normal', soll_kaltmiete: 1100, soll_nebenkosten: 350, soll_gesamt: 1450, kaution_soll: 2000, kaution_ist: 2000, zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: 3 },
-    { vertrag_id: 'TEST_V5', einheit_id: 'TEST_WE_05', hauptperson_id: 'P5', start_datum: '2026-01-01', aktiv: true, mietmodell: 'Kalt+NK', erhoehungs_typ: 'Normal', soll_kaltmiete: 400, soll_nebenkosten: 100, soll_gesamt: 500, kaution_soll: 2000, kaution_ist: 2000, zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: 3 },
-    { vertrag_id: 'TEST_V6', einheit_id: 'TEST_WE_06', hauptperson_id: 'P6', start_datum: '2026-02-01', aktiv: true, mietmodell: 'Kalt+NK', erhoehungs_typ: 'Normal', soll_kaltmiete: 600, soll_nebenkosten: 200, soll_gesamt: 800, kaution_soll: 1600, kaution_ist: 1000, zahlungsziel_typ: 'KALENDERTAG', zahlungsziel_wert: 15 },
-    { vertrag_id: 'TEST_V7', einheit_id: 'TEST_WE_07', hauptperson_id: '', start_datum: '', aktiv: true, mietmodell: 'Pauschal', erhoehungs_typ: 'Normal', soll_kaltmiete: 0, soll_nebenkosten: 0, soll_gesamt: 0, kaution_soll: 0, kaution_ist: 0, zahlungsziel_typ: 'WERKTAG', zahlungsziel_wert: 3 },
+    ...baselineRentalFixture.vertraege,
     ...tenantChangeFixture.vertraege
   ],
   Vertragsparteien: [
-    { vertrag_id: 'TEST_V1', person_id: 'P1', rolle: 'Hauptmieter', ordnet: 1 },
-    { vertrag_id: 'TEST_V2', person_id: 'P2', rolle: 'Hauptmieter', ordnet: 1 },
-    { vertrag_id: 'TEST_V3', person_id: 'P3', rolle: 'Hauptmieter', ordnet: 1 },
-    { vertrag_id: 'TEST_V4', person_id: 'P4', rolle: 'Hauptmieter', ordnet: 1 },
-    { vertrag_id: 'TEST_V5', person_id: 'P5', rolle: 'Hauptmieter', ordnet: 1 },
-    { vertrag_id: 'TEST_V6', person_id: 'P6', rolle: 'Hauptmieter', ordnet: 1 },
-    { vertrag_id: 'TEST_V6', person_id: 'P7', rolle: 'Hauptmieter', ordnet: 2 },
+    ...baselineRentalFixture.vertragsparteien,
     ...tenantChangeFixture.vertragsparteien
   ],
   Zaehler: consumptionFixture.zaehler,
   Zaehlerstaende: consumptionFixture.zaehlerstaende,
   Zahlungen: [
+    ...baselineRentalFixture.zahlungen,
     rent('D_2026_01', 'TEST_V1', '2026-01', 650, '2026-01-05'),
     rent('D_2026_02', 'TEST_V1', '2026-02', 150, '2026-11-11'),
     rent('D_2026_03', 'TEST_V1', '2026-03', 650, '2026-03-05'),

@@ -93,8 +93,10 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 - P6.7 Mieterwechsel ist als Folgepaket in Umsetzung. Die Entenhausen-Fixture
   `tools/mock-rental-fixtures.mjs` enthält für `TEST_WE_08` einen beendeten Vertrag
   von Pluto bis 2026-05-31 und einen aktiven Vertrag von Goofy ab 2026-06-01 mit
-  getrennten Zahlungen, Kautionen und Vertragsparteien. Die Mieteingangskontrolle filtert
-  nach dem gewählten Jahr: 2025 zeigt Pluto, 2026 zeigt standardmäßig Goofy; historische
+  getrennten Zahlungen, Kautionen und Vertragsparteien. Die synthetischen Entenhausen-Daten
+  enthalten außerdem einen Grundbestand mit Verträgen für Wohnungen 1 bis 6 seit 2025,
+  Wohnung 7 als Leerstand und unterschiedlichen Zahlungsfällen. Die Mieteingangskontrolle filtert
+  nach dem gewählten Jahr: 2025 zeigt den Grundbestand und Pluto, 2026 zeigt standardmäßig Goofy; historische
   Vertragsperioden lassen sich zusätzlich als eigene Zeilen einblenden. Offene Posten
   ehemaliger Verträge fließen in die Übersicht ein, und Monate vor einem neuen Mietbeginn
   verlinken auf den passenden historischen Vertrag. Die Verbrauchsview und die atomare
