@@ -243,10 +243,11 @@ describe('paymentUiService Monatsstatus', () => {
 
   it('zeigt eine Einheit mit Vertrag auch bei nicht standardisiertem Typ und erzeugt dort keinen Falschwarnhinweis', () => {
     const unit = { einheit_id: 'O1_GARAGE_01', objekt_id: 'O1', nummer: 'Garage 1', typ: 'Stellplatz' };
-    const contract = { vertrag_id: 'GARAGE_CONTRACT', einheit_id: unit.einheit_id, start_datum: '2026-01-01', end_datum: '', aktiv: true, soll_gesamt: 100 };
+    const contract = { vertrag_id: 'GARAGE_CONTRACT', einheit_id: unit.einheit_id, start_datum: '2026-01-01', end_datum: '2026-12-31', aktiv: true, soll_gesamt: 100 };
     const service = loadPaymentService(baseState({ einheiten: [unit], vertraege: [contract] }));
 
-    expect(service.getUnits('O1')).toEqual([unit]);
+    expect(service.getUnits('O1', '2026')).toEqual([unit]);
+    expect(service.getUnits('O1', '2027')).toEqual([]);
     expect(service.buildUnitRows([unit], [contract], '2026')).toEqual([
       expect.objectContaining({ rowType: 'vertrag', unitId: unit.einheit_id, contract })
     ]);
@@ -254,6 +255,7 @@ describe('paymentUiService Monatsstatus', () => {
 
     const withoutContract = loadPaymentService(baseState({ einheiten: [unit], vertraege: [] }));
     expect(withoutContract.getUnits('O1')).toEqual([]);
+    expect(withoutContract.buildUnitRows([], [], '2026')).toEqual([]);
   });
 
   it('zeigt eine objektübergreifende Lücke im betroffenen Zwischenjahr', () => {
@@ -268,6 +270,7 @@ describe('paymentUiService Monatsstatus', () => {
       expect.objectContaining({ code: 'PERIOD_GAP', severity: 'warning', from: '2025-01-01', to: '2025-12-31' })
     ]);
     expect(service.buildContractWarnings([unit], contracts, '2026')).toEqual([]);
+    expect(service.periodWarningAffectsYear({ code: 'UNKNOWN_REVIEW_CODE' }, '2026')).toBe(true);
   });
 
   it('charakterisiert Lücke und Monatsmitte beim aktuellen Vertragsmodell', () => {

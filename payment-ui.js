@@ -247,10 +247,11 @@ const paymentUiService = {
     return !type || ['wohnung', 'gewerbe'].includes(type);
   },
 
-  getUnits(objectId = '') {
+  getUnits(objectId = '', year = '') {
     const allUnits = dataService.state.einheiten || [];
     const contractUnitIds = new Set((dataService.state.vertraege || [])
       .filter(contract => !objectId || this.objectId(contract) === String(objectId))
+      .filter(contract => !year || this.contractIntersectsYear(contract, year))
       .map(contract => String(contract.einheit_id || '')));
     return allUnits
       .filter(unit => !objectId || String(unit.objekt_id || '') === String(objectId))
@@ -258,9 +259,9 @@ const paymentUiService = {
       .sort((a, b) => this.sortUnitRecords(a, b));
   },
 
-  buildUnitRows(units = [], contracts = [], year = this.selectedYear) {
+  buildUnitRows(units = [], contracts = [], year = this.selectedYear, allUnits = null) {
     const normalizedUnits = Array.isArray(units) ? units : [];
-    const visibleUnits = normalizedUnits.length ? normalizedUnits : (dataService.state.einheiten || []);
+    const visibleUnits = Array.isArray(allUnits) ? allUnits : normalizedUnits;
     const candidates = (Array.isArray(contracts) ? contracts : [])
       .filter(contract => this.contractIntersectsYear(contract, year));
     const knownUnitIds = new Set([
@@ -678,7 +679,8 @@ const paymentUiService = {
     const previous = dataService.state.zahlungen;
     dataService.state.zahlungen = payments;
     try {
-      const sourceRows = rows || this.buildUnitRows(units, contracts, year);
+      const fallbackUnits = Array.isArray(units) && units.length ? null : (dataService.state.einheiten || []);
+      const sourceRows = rows || this.buildUnitRows(units, contracts, year, fallbackUnits);
       return sourceRows.map(row => {
         if (!row.contract) {
           return {
@@ -915,7 +917,7 @@ const paymentUiService = {
     if (!this.selectedObject || !objectIds.includes(this.selectedObject)) {
       this.selectedObject = objectIds.includes(currentObject) ? currentObject : (objectIds[0] || '');
     }
-    const units = this.getUnits(this.selectedObject);
+    const units = this.getUnits(this.selectedObject, this.selectedYear);
     const allContracts = this.getContracts(this.selectedObject, true);
     const contracts = allContracts.filter(contract => this.contractIntersectsYear(contract, this.selectedYear));
     const unitRows = this.buildUnitRows(units, contracts, this.selectedYear);

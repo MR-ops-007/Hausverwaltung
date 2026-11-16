@@ -38,7 +38,8 @@ Mietmatrix erscheint. Eine Einheit mit einem Vertrag wird unabhängig von ihrem
 Typ angezeigt; dadurch werden z. B. Stellplätze oder abweichend benannte
 Gewerbeeinheiten nicht als unbekannt gemeldet oder unterschlagen. Die Prüfung
 kann über alle Vertragszeiträume des Objekts laufen; die UI filtert die Hinweise
-nach dem ausgewählten Jahr.
+nach dem ausgewählten Jahr. Nicht mietrelevante Einheiten mit einem abgeschlossenen
+Vertrag erscheinen nur in den Jahren, die dieser Vertrag berührt.
 
 Die serverseitige Durchsetzung erfolgt im nächsten Schritt zusammen mit einer
 atomaren, idempotenten Mieterwechsel-Operation: alter Vertrag beenden, neuen Vertrag
@@ -63,6 +64,11 @@ Die wiederverwendbare Entenhausen-Fixture prüft:
 - Vertrag auf einer Einheit vom Typ `Stellplatz`: Die Vertragszeile bleibt sichtbar,
   ohne `UNKNOWN_UNIT`; dieselbe vertragsfreie Einheit erzeugt keinen künstlichen
   Leerstand in der Mietmatrix.
+- Eine leere, explizit übergebene Einheitenliste erzeugt keine fremden Zeilen. Ein
+  vollständiger Bestand wird nur über den dafür vorgesehenen `allUnits`-Parameter
+  verwendet.
+- Unbekannte Warncodes bleiben sichtbar und werden konservativ dem ausgewählten
+  Jahr zugeordnet.
 
 Die Funktion ist Teil des gemeinsam geladenen `ContractService.js` und steht damit
 für Browser- und Apps-Script-Code an derselben Stelle bereit. Für dieses Paket ist
