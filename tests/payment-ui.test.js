@@ -3,13 +3,15 @@ import { readFileSync } from 'node:fs';
 import { tenantChangeFixture } from '../tools/mock-rental-fixtures.mjs';
 
 const paymentCode = readFileSync(new URL('../payment-ui.js', import.meta.url), 'utf8');
+const contractCode = readFileSync(new URL('../apps-script/ContractService.js', import.meta.url), 'utf8');
+const contractService = new Function(`${contractCode}; return contractService;`)();
 
 function loadPaymentService(state, document = {}, cloudService = {}, uiOptions = {}) {
   const dataService = { state: { ...state } };
   const uiService = { escapeHtml: value => String(value ?? ''), setNavigationState() {}, closeModal() {}, ...uiOptions };
   const confirm = typeof uiOptions.confirm === 'function' ? uiOptions.confirm : () => true;
-  const factory = new Function('dataService', 'uiService', 'document', 'cloudService', 'confirm', `${paymentCode}; return paymentUiService;`);
-  return factory(dataService, uiService, document, cloudService, confirm);
+  const factory = new Function('dataService', 'uiService', 'document', 'cloudService', 'confirm', 'contractService', `${paymentCode}; return paymentUiService;`);
+  return factory(dataService, uiService, document, cloudService, confirm, contractService);
 }
 
 function baseState(overrides = {}) {
@@ -130,7 +132,7 @@ describe('paymentUiService Monatsstatus', () => {
     expect(service.summarizeDeposit(current)).toMatchObject({ due: 1800, paid: 900, remaining: 900, status: 'teilweise' });
   });
 
-  it('ordnet Monate vor dem neuen Mietbeginn einem historischen Vorgänger zu', () => {
+  it('zeigt Monate vor dem neuen Mietbeginn neutral in der neuen Vertragszeile', () => {
     const service = loadPaymentService(baseState({
       objekte: [{ objekt_id: 'TEST', bezeichnung: 'TEST · Entenhausen' }],
       einheiten: tenantChangeFixture.einheiten,
@@ -141,9 +143,8 @@ describe('paymentUiService Monatsstatus', () => {
     }));
     const current = tenantChangeFixture.vertraege[1];
 
-    expect(service.getHistoricalContractForMonth(current, '2026-04').vertrag_id).toBe('TEST_V8_ALT');
     expect(service.summarizeMonth(current, '2026-04', new Date(2026, 10, 30))).toMatchObject({
-      status: 'vor_mietbeginn_historisch', due: 0, paid: 0
+      status: 'vor_mietbeginn', due: 0, paid: 0
     });
     expect(service.getPaymentsFor('TEST_V8_ALT', '2026-04').map(row => row.zahlung_id)).toEqual([
       'PLUTO_2026_04', 'PLUTO_NACH_04', 'PLUTO_NACH_04_STORNO'
@@ -160,9 +161,19 @@ describe('paymentUiService Monatsstatus', () => {
     }));
 
     expect(service.getContractsForYear('TEST', '2025').map(row => row.vertrag_id)).toEqual(['TEST_V8_ALT']);
-    expect(service.getContractsForYear('TEST', '2025', true).map(row => row.vertrag_id)).toEqual(['TEST_V8_ALT']);
     expect(service.getContractsForYear('TEST', '2026').map(row => row.vertrag_id)).toEqual(['TEST_V8_ALT', 'TEST_V8']);
-    expect(service.getContractsForYear('TEST', '2026', true).map(row => row.vertrag_id)).toEqual(['TEST_V8_ALT', 'TEST_V8']);
+  });
+
+  it('bietet auch Zwischenjahre ohne Vertrag für die Jahresansicht an', () => {
+    const service = loadPaymentService(baseState({ vertraege: [
+      { vertrag_id: 'OLD', einheit_id: 'O1_WE_01', start_datum: '2023-01-01', end_datum: '2023-12-31', aktiv: false, soll_gesamt: 650 },
+      { vertrag_id: 'NEW', einheit_id: 'O1_WE_01', start_datum: '2025-01-01', end_datum: '', aktiv: true, soll_gesamt: 700 }
+    ] }));
+
+    expect(service.getYears()).toContain('2024');
+    expect(service.buildUnitRows(baseState().einheiten, [], '2024')).toEqual([
+      expect.objectContaining({ rowType: 'leerstand', unitId: 'O1_WE_01' })
+    ]);
   });
 
   it('baut die Jahreszeilen aus dem Einheitenbestand und nicht nur aus Verträgen', () => {
@@ -204,7 +215,29 @@ describe('paymentUiService Monatsstatus', () => {
     expect(vacancyRows.every(row => row.rowType === 'leerstand')).toBe(true);
     expect(service.summarizeOverview(vacancyMatrix, '2024')).toMatchObject({ unitCount: 2, contractCount: 0, vacantUnits: 2, openAmount: 0, creditAmount: 0, depositDue: 0 });
     expect(service.buildContractWarnings(units, overlap, '2026')).toEqual([
-      'Überschneidung in Einheit O1_WE_02: OVERLAP_A und OVERLAP_B überlappen sich.'
+      expect.objectContaining({ code: 'PERIOD_OVERLAP', severity: 'error', unitId: 'O1_WE_02' })
+    ]);
+  });
+
+  it('nutzt die zentrale Zeitraumprüfung für Hinweise und schließt nicht mietrelevante Einheiten aus', () => {
+    const units = [
+      { einheit_id: 'O1_WE_01', objekt_id: 'O1', nummer: 'Wohnung 1', typ: 'Wohnung' },
+      { einheit_id: 'O1_WE_02', objekt_id: 'O1', nummer: 'Hausflur', typ: 'Allgemein' },
+      { einheit_id: 'O1_WE_03', objekt_id: 'O1', nummer: 'Gemeinschaft', typ: 'Gemeinschaft' }
+    ];
+    const contracts = [
+      { vertrag_id: 'MID_A', einheit_id: 'O1_WE_01', start_datum: '2025-01-01', end_datum: '2026-06-14', aktiv: false, soll_gesamt: 500 },
+      { vertrag_id: 'MID_B', einheit_id: 'O1_WE_01', start_datum: '2026-06-15', end_datum: '', aktiv: true, soll_gesamt: 600 },
+      { vertrag_id: 'BAD_OBJECT', einheit_id: 'O1_WE_01', objekt_id: 'O2', start_datum: '2027-01-01', end_datum: '', aktiv: true, soll_gesamt: 600 }
+    ];
+    const service = loadPaymentService(baseState({ einheiten: units, vertraege: contracts }));
+
+    expect(service.getUnits('O1').map(unit => unit.einheit_id)).toEqual(['O1_WE_01']);
+    expect(service.buildContractWarnings(units, contracts.slice(0, 2), '2026')).toEqual([
+      expect.objectContaining({ code: 'MID_MONTH_CHANGE', severity: 'warning', unitId: 'O1_WE_01' })
+    ]);
+    expect(service.buildContractWarnings(units, [contracts[2]], '2027')).toEqual([
+      expect.objectContaining({ code: 'OBJECT_ID_CONFLICT', severity: 'error', vertragId: 'BAD_OBJECT' })
     ]);
   });
 
@@ -990,8 +1023,8 @@ describe('paymentUiService CSV-Import', () => {
 
     expect(output.innerHTML).toContain('Pluto');
     expect(output.innerHTML).toContain('Goofy');
-    expect(output.innerHTML).toContain('Historischer Vorgänger');
-    expect(output.innerHTML).toContain("openHistoricalMonth('TEST_V8','2026-04')");
+    expect(output.innerHTML).toContain('Vor Mietbeginn');
+    expect(output.innerHTML).not.toContain('openHistoricalMonth');
     expect(output.innerHTML).toContain('Offene Posten ehemaliger Verträge fließen bereits in die Übersicht ein.');
     expect((output.innerHTML.match(/payment-row-historical/g) || []).length).toBe(1);
     expect((output.innerHTML.match(/payment-unit-group/g) || []).length).toBe(1);

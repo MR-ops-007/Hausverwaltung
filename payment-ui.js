@@ -9,7 +9,6 @@
 const paymentUiService = {
   selectedObject: '',
   selectedYear: '',
-  showHistoricalContracts: false,
   busy: false,
   importRows: [],
   retryingFullData: false,
@@ -121,32 +120,12 @@ const paymentUiService = {
     return new Date(year, monthIndex + 1, 0);
   },
 
-  contractCoversMonth(contract, month) {
-    const start = this.parseDate(contract && contract.start_datum);
-    const end = this.parseDate(contract && contract.end_datum);
-    const startMonth = start ? this.monthKey(start) : '';
-    const endMonth = end ? this.monthKey(end) : '';
-    return (!startMonth || month >= startMonth) && (!endMonth || month <= endMonth);
-  },
-
-  getHistoricalContractForMonth(contract, month) {
-    const currentId = String(contract && contract.vertrag_id || '');
-    const unitId = String(contract && contract.einheit_id || '');
-    return (dataService.state.vertraege || [])
-      .filter(candidate => String(candidate.vertrag_id || '') !== currentId)
-      .filter(candidate => String(candidate.einheit_id || '') === unitId)
-      .filter(candidate => this.contractCoversMonth(candidate, month))
-      .sort((a, b) => this.monthKey(b.start_datum).localeCompare(this.monthKey(a.start_datum)))[0] || null;
-  },
-
   contractPeriodStatus(contract, month) {
     const start = this.parseDate(contract && contract.start_datum);
     const end = this.parseDate(contract && contract.end_datum);
     const startMonth = start ? this.monthKey(start) : '';
     const endMonth = end ? this.monthKey(end) : '';
-    if (startMonth && month < startMonth) {
-      return this.getHistoricalContractForMonth(contract, month) ? 'vor_mietbeginn_historisch' : 'vor_mietbeginn';
-    }
+    if (startMonth && month < startMonth) return 'vor_mietbeginn';
     if (endMonth && month > endMonth) return 'nach_mietende';
     return '';
   },
@@ -189,9 +168,9 @@ const paymentUiService = {
   },
 
   objectId(contract) {
-    if (contract && contract.objekt_id) return String(contract.objekt_id);
     const unit = (dataService.state.einheiten || []).find(row => String(row.einheit_id) === String(contract.einheit_id));
     if (unit && unit.objekt_id) return String(unit.objekt_id);
+    if (contract && contract.objekt_id) return String(contract.objekt_id);
     const unitId = String(contract.einheit_id || '');
     const object = (dataService.state.objekte || []).find(row => unitId.startsWith(String(row.objekt_id) + '_'));
     return object ? String(object.objekt_id) : '';
@@ -250,7 +229,7 @@ const paymentUiService = {
     return (!startMonth || startMonth <= yearEnd) && (!endMonth || endMonth >= yearStart);
   },
 
-  getContractsForYear(objectId = '', year = this.selectedYear, includeHistorical = false) {
+  getContractsForYear(objectId = '', year = this.selectedYear) {
     const candidates = this.getContracts(objectId, true)
       .filter(contract => this.contractIntersectsYear(contract, year));
     return candidates
@@ -258,9 +237,19 @@ const paymentUiService = {
         || (this.monthKey(a.start_datum) || '').localeCompare(this.monthKey(b.start_datum) || ''));
   },
 
+  isRentRelevantUnit(unit) {
+    if (!unit) return false;
+    const explicit = unit.mietrelevant ?? unit.miet_relevant;
+    if (explicit !== undefined && explicit !== null && String(explicit).trim() !== '') {
+      return [true, 1, '1', 'true', 'ja', 'yes'].includes(typeof explicit === 'string' ? explicit.trim().toLowerCase() : explicit);
+    }
+    const type = String(unit.typ || '').trim().toLowerCase();
+    return !type || ['wohnung', 'gewerbe'].includes(type);
+  },
+
   getUnits(objectId = '') {
     return (dataService.state.einheiten || [])
-      .filter(unit => !['allgemein', 'gemeinschaft'].includes(String(unit.typ || '').trim().toLowerCase()))
+      .filter(unit => this.isRentRelevantUnit(unit))
       .filter(unit => !objectId || String(unit.objekt_id || '') === String(objectId))
       .sort((a, b) => this.sortUnitRecords(a, b));
   },
@@ -302,49 +291,48 @@ const paymentUiService = {
       || String(a.contract && a.contract.vertrag_id || '').localeCompare(String(b.contract && b.contract.vertrag_id || ''), 'de', { numeric: true }));
   },
 
-  buildContractWarnings(units = [], contracts = [], year = this.selectedYear) {
-    const rows = this.buildUnitRows(units, contracts, year);
-    const warnings = rows.filter(row => row.rowType === 'vertrag_warnung').map(row => row.warning);
-    const byUnit = new Map();
-    rows.filter(row => row.contract && row.rowType === 'vertrag').forEach(row => {
-      const unitId = String(row.unitId || '');
-      if (!byUnit.has(unitId)) byUnit.set(unitId, []);
-      byUnit.get(unitId).push(row.contract);
-    });
-    byUnit.forEach((unitContracts, unitId) => {
-      const sorted = unitContracts.slice().sort((a, b) => (this.monthKey(a.start_datum) || '').localeCompare(this.monthKey(b.start_datum) || ''));
-      for (let index = 1; index < sorted.length; index += 1) {
-        const previous = sorted[index - 1];
-        const current = sorted[index];
-        const previousEnd = this.monthKey(previous.end_datum);
-        const currentStart = this.monthKey(current.start_datum);
-        if (previousEnd && currentStart && previousEnd >= currentStart) {
-          warnings.push(`Überschneidung in Einheit ${unitId || 'unbekannt'}: ${previous.vertrag_id} und ${current.vertrag_id} überlappen sich.`);
-        }
+  buildContractWarnings(units = [], contracts = [], year = this.selectedYear, rows = null) {
+    const unitRows = rows || this.buildUnitRows(units, contracts, year);
+    const knownUnits = new Map((Array.isArray(units) ? units : []).map(unit => [String(unit.einheit_id || ''), unit]));
+    const warnings = [];
+    const push = (entry) => {
+      const normalized = typeof entry === 'string'
+        ? { severity: 'error', code: 'DATA_WARNING', message: entry }
+        : { severity: entry.severity || 'warning', code: entry.code || 'DATA_WARNING', message: entry.message || 'Datenprüfung erforderlich.', ...entry };
+      const key = [normalized.severity, normalized.code, normalized.unitId || '', normalized.vertragId || '', normalized.previousVertragId || '', normalized.message].join('|');
+      if (!warnings.some(item => item._key === key)) warnings.push({ ...normalized, _key: key });
+    };
+
+    unitRows.filter(row => row.rowType === 'vertrag_warnung').forEach(row => push({
+      severity: 'error', code: 'UNKNOWN_UNIT', unitId: row.unitId, vertragId: row.contract && row.contract.vertrag_id,
+      message: row.warning
+    }));
+
+    (Array.isArray(contracts) ? contracts : []).forEach(contract => {
+      const unitId = String(contract.einheit_id || '');
+      const unit = knownUnits.get(unitId);
+      if (unit && contract.objekt_id && unit.objekt_id && String(contract.objekt_id) !== String(unit.objekt_id)) {
+        push({
+          severity: 'error', code: 'OBJECT_ID_CONFLICT', unitId, vertragId: contract.vertrag_id,
+          message: `Vertrag ${contract.vertrag_id} verweist auf Objekt ${contract.objekt_id}, die Einheit gehört aber zu ${unit.objekt_id}.`
+        });
       }
     });
-    return Array.from(new Set(warnings));
+
+    if (typeof contractService === 'undefined' || typeof contractService.validateContractPeriods !== 'function') {
+      push({ severity: 'error', code: 'CONTRACT_RULES_UNAVAILABLE', message: 'Die zentrale Vertragszeitraumprüfung ist nicht verfügbar.' });
+    } else {
+      const validation = contractService.validateContractPeriods(contracts);
+      (validation.errors || []).forEach(error => push({ severity: 'error', ...error }));
+      (validation.warnings || []).forEach(warning => push({ severity: 'warning', ...warning }));
+    }
+    return warnings.map(({ _key, ...warning }) => warning);
   },
 
   contractPeriodLabel(contract) {
     const start = this.formatDate(contract && contract.start_datum);
     const end = contract && contract.end_datum ? this.formatDate(contract.end_datum) : 'offen';
     return `${start} – ${end}`;
-  },
-
-  toggleHistoricalContracts() {
-    this.showHistoricalContracts = !this.showHistoricalContracts;
-    this.render();
-  },
-
-  openHistoricalMonth(contractId, month) {
-    const current = (dataService.state.vertraege || []).find(row => String(row.vertrag_id) === String(contractId));
-    const historical = this.getHistoricalContractForMonth(current, month);
-    if (!historical) return;
-    this.showHistoricalContracts = true;
-    this.selectedObject = this.objectId(historical);
-    this.render();
-    this.openPaymentDialog(historical.vertrag_id, month);
   },
 
   getPaymentMonth(payment) {
@@ -765,7 +753,7 @@ const paymentUiService = {
   },
 
   statusLabel(status) {
-    return { bezahlt: 'Bezahlt', teilbezahlt: 'Teilbezahlt', offen: 'Offen', überfällig: 'Überfällig', zukünftig: 'Zukünftig', leerstand: 'Leerstand', vor_mietbeginn: 'Vor Mietbeginn', vor_mietbeginn_historisch: 'Historischer Vorgänger', nach_mietende: 'Nach Mietende' }[status] || status;
+    return { bezahlt: 'Bezahlt', teilbezahlt: 'Teilbezahlt', offen: 'Offen', überfällig: 'Überfällig', zukünftig: 'Zukünftig', leerstand: 'Leerstand', vor_mietbeginn: 'Vor Mietbeginn', nach_mietende: 'Nach Mietende' }[status] || status;
   },
 
   statusTitle(month) {
@@ -778,7 +766,6 @@ const paymentUiService = {
       zukünftig: `Blau: Dieser Mietmonat liegt noch vor der Frist. ${deadline}.`,
       leerstand: 'Weiß: Leerstand ohne vereinbarte Sollmiete.',
       vor_mietbeginn: 'Neutral: Der Mietvertrag begann in diesem Monat noch nicht.',
-      vor_mietbeginn_historisch: 'Neutral: Für diesen Monat gibt es einen früheren Vertrag. Klicken öffnet den historischen Vertrag zur Erfassung.',
       nach_mietende: 'Neutral: Der Mietvertrag war in diesem Monat bereits beendet.'
     };
     const notes = [];
@@ -798,8 +785,7 @@ const paymentUiService = {
       ['offen', 'Offen', 'Grau: Noch keine Zahlung; die individuelle Frist ist noch nicht überschritten.'],
       ['überfällig', 'Überfällig', 'Rot: Frist überschritten und Sollbetrag nicht vollständig erreicht.'],
       ['zukünftig', 'Zukünftig', 'Blau: Mietmonat liegt vor seiner individuellen Frist.'],
-      ['leerstand', 'Leerstand', 'Weiß: Kein aktiver Mietvertrag mit Sollmiete.'],
-      ['vor_mietbeginn_historisch', 'Historischer Vorgänger', 'Neutral: Ein früherer Vertrag deckt diesen Monat ab. Klicken öffnet ihn zur Erfassung.']
+      ['leerstand', 'Leerstand', 'Weiß: Keine Vertragsperiode mit Sollmiete für diese Einheit.']
     ];
     return '<div class="payment-legend" aria-label="Farblegende für Mietstatus">' + items.map(([status, label, detail]) =>
       `<button type="button" class="payment-legend-item ${this.statusClass(status)}" aria-expanded="false" onclick="paymentUiService.toggleLegend(this)"><span>${label}</span><small>${detail}</small></button>`).join('') + '</div>';
@@ -818,10 +804,15 @@ const paymentUiService = {
 
   getYears() {
     const years = new Set([String(new Date().getFullYear())]);
+    const observedYears = [];
     (dataService.state.vertraege || []).forEach(contract => {
       [contract.start_datum, contract.end_datum].forEach(value => {
         const date = this.parseDate(value);
-        if (date) years.add(String(date.getFullYear()));
+        if (date) {
+          const year = date.getFullYear();
+          years.add(String(year));
+          observedYears.push(year);
+        }
       });
     });
     (dataService.state.zahlungen || []).forEach(payment => {
@@ -830,6 +821,11 @@ const paymentUiService = {
       if (month) years.add(month.slice(0, 4));
       else if (paymentDate) years.add(String(paymentDate.getFullYear()));
     });
+    if (observedYears.length > 1) {
+      const firstYear = Math.min(...observedYears);
+      const lastYear = Math.max(...observedYears, new Date().getFullYear());
+      for (let year = firstYear; year <= lastYear; year += 1) years.add(String(year));
+    }
     return Array.from(years).sort((a, b) => Number(b) - Number(a));
   },
 
@@ -898,11 +894,11 @@ const paymentUiService = {
       this.selectedObject = objectIds.includes(currentObject) ? currentObject : (objectIds[0] || '');
     }
     const units = this.getUnits(this.selectedObject);
-    const contracts = this.getContractsForYear(this.selectedObject, this.selectedYear, true);
+    const contracts = this.getContractsForYear(this.selectedObject, this.selectedYear);
     const unitRows = this.buildUnitRows(units, contracts, this.selectedYear);
     const matrix = this.buildMatrix({ rows: unitRows, payments: dataService.state.zahlungen || [], year: this.selectedYear });
     const overviewMatrix = matrix;
-    const dataWarnings = this.buildContractWarnings(units, contracts, this.selectedYear);
+    const dataWarnings = this.buildContractWarnings(units, contracts, this.selectedYear, unitRows);
     const overview = this.summarizeOverview(overviewMatrix, this.selectedYear);
     const depositSummary = overview.depositRemaining > 0
       ? `⚠ ${this.formatMoney(overview.depositRemaining)} EUR Kaution offen`
@@ -924,20 +920,15 @@ const paymentUiService = {
         ? `<span>${historical ? 'Historischer Vertrag' : 'Aktueller Vertrag'} · ${this.escape(this.contractPeriodLabel(item.contract))}</span><small>${this.formatMoney(item.due)} EUR / Monat · ${historical ? 'historisch' : 'aktuell'}</small><span class="payment-deposit payment-deposit-${item.deposit.status}">${item.deposit.due > 0 ? 'Kaution: ' + this.formatMoney(item.deposit.paid) + ' / ' + this.formatMoney(item.deposit.due) + ' EUR' : 'Keine Kaution vereinbart'}</span>${item.deposit.due > 0 && item.deposit.status !== 'vollständig' ? `<button class="payment-deposit-action" type="button" onclick="paymentUiService.openPaymentDialog('${this.escape(item.contract.vertrag_id)}','','Kaution')">Kaution erfassen</button>` : ''}`
         : '<small>Keine Vertragsperiode im ausgewählten Jahr</small><small>Einheit bleibt im Bestand sichtbar.</small>';
       const monthCells = item.months.map(month => {
-        const historicalAction = month.status === 'vor_mietbeginn_historisch' && hasContract;
-        const actionable = hasContract && (historicalAction || !['vor_mietbeginn', 'nach_mietende', 'leerstand'].includes(month.status));
-        const action = historicalAction
-          ? `paymentUiService.openHistoricalMonth('${this.escape(item.contract.vertrag_id)}','${month.month}')`
-          : actionable
-            ? `paymentUiService.openPaymentDialog('${this.escape(item.contract.vertrag_id)}','${month.month}')`
-            : '';
+        const actionable = hasContract && !['vor_mietbeginn', 'nach_mietende', 'leerstand'].includes(month.status);
+        const action = actionable ? `paymentUiService.openPaymentDialog('${this.escape(item.contract.vertrag_id)}','${month.month}')` : '';
         const disabled = actionable ? '' : ' disabled';
         return `<td><button class="payment-cell ${this.statusClass(month.status)}${month.verspaetet ? ' payment-cell-late' : ''}" type="button"${action ? ` onclick="${action}"` : ''}${disabled} title="${this.escape(this.statusTitle(month) + (month.verspaetet ? ' Zusätzlich verspätet beglichen oder aktuell überfällig.' : ''))}"><strong>${this.escape(this.statusLabel(month.status))}${month.verspaetet ? '<small>verspätet</small>' : ''}</strong><span>${this.formatMoney(month.paid)} / ${this.formatMoney(month.due)} EUR</span></button></td>`;
       }).join('');
       return `${groupHeader}<tr class="${rowClass}"><th scope="row" class="payment-tenant-cell${historical ? ' payment-tenant-cell-historical' : ''}${item.rowType === 'vertrag_warnung' ? ' payment-tenant-cell-warning' : ''}"><strong>${this.escape(item.unit)}</strong><span>${this.escape(item.tenant)}</span>${warningBadge}${contractInfo}</th>${monthCells}</tr>`;
     }).join('');
     const warningHtml = dataWarnings.length
-      ? `<div class="payment-data-warnings" role="alert"><strong>Datenprüfung erforderlich</strong>${dataWarnings.map(warning => `<span>${this.escape(warning)}</span>`).join('')}</div>`
+      ? `<div class="payment-data-warnings" role="${dataWarnings.some(warning => warning.severity === 'error') ? 'alert' : 'status'}"><strong>Datenprüfung erforderlich</strong>${dataWarnings.map(warning => `<span class="payment-data-warning-${warning.severity}"><b>${this.escape(warning.code)}</b> ${this.escape(warning.message)}</span>`).join('')}</div>`
       : '';
     output.innerHTML = `
       <div class="payment-page-heading"><div><h2>Mieteingänge</h2><p>Monatliche Zahlungseingänge für ${this.escape(this.selectedYear)}. Alle Einheiten des Objekts bleiben sichtbar; je Vertragszeitraum wird eine eigene Zeile angezeigt. Offene Posten ehemaliger Verträge fließen bereits in die Übersicht ein.</p></div></div>

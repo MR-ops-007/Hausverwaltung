@@ -153,43 +153,50 @@ const contractService = {
     });
 
     const grouped = periods.reduce((result, period) => {
-      (result[period.unitId] ||= []).push(period);
+      if (!result[period.unitId]) result[period.unitId] = [];
+      result[period.unitId].push(period);
       return result;
     }, {});
 
     Object.keys(grouped).forEach(unitId => {
       const unitPeriods = grouped[unitId].sort((a, b) => a.startTime - b.startTime || a.vertragId.localeCompare(b.vertragId));
-      unitPeriods.slice(1).forEach((period, index) => {
-        const previous = unitPeriods[index];
-        if (period.startTime <= previous.endTime) {
+      let coverageEnd = -Infinity;
+      let coveragePeriod = null;
+      unitPeriods.forEach((period, index) => {
+        if (coveragePeriod && period.startTime <= coverageEnd) {
           errors.push({
-            code: 'PERIOD_OVERLAP', unitId, previousVertragId: previous.vertragId, vertragId: period.vertragId,
-            previousStart: previous.start, previousEnd: previous.end, start: period.start, end: period.end,
+            code: 'PERIOD_OVERLAP', unitId, previousVertragId: coveragePeriod.vertragId, vertragId: period.vertragId,
+            previousStart: coveragePeriod.start, previousEnd: coveragePeriod.end, start: period.start, end: period.end,
             message: 'Vertragszeiträume derselben Einheit überschneiden sich.'
           });
-          return;
+        } else if (index > 0) {
+          const previous = unitPeriods[index - 1];
+          const gapStart = new Date(previous.endTime + day);
+          const gapEnd = new Date(period.startTime - day);
+          if (previous.end && gapStart.getTime() <= gapEnd.getTime()) {
+            warnings.push({
+              code: 'PERIOD_GAP', unitId, previousVertragId: previous.vertragId, vertragId: period.vertragId,
+              from: this.iso(gapStart), to: this.iso(gapEnd),
+              message: 'Zwischen den Vertragszeiträumen besteht eine Lücke.'
+            });
+          }
+
+          const previousEnd = this.date(previous.end);
+          const currentStart = this.date(period.start);
+          if (previous.end && previous.end.slice(0, 7) === period.start.slice(0, 7) &&
+              previousEnd.getUTCDate() !== new Date(Date.UTC(previousEnd.getUTCFullYear(), previousEnd.getUTCMonth() + 1, 0)).getUTCDate() &&
+              currentStart.getUTCDate() !== 1) {
+            warnings.push({
+              code: 'MID_MONTH_CHANGE', unitId, previousVertragId: previous.vertragId, vertragId: period.vertragId,
+              month: period.start.slice(0, 7), previousEnd: previous.end, start: period.start,
+              message: 'Der Mieterwechsel erfolgt innerhalb eines Monats; eine anteilige Sollregel ist erforderlich.'
+            });
+          }
         }
 
-        const gapStart = new Date(previous.endTime + day);
-        const gapEnd = new Date(period.startTime - day);
-        if (previous.end && gapStart.getTime() <= gapEnd.getTime()) {
-          warnings.push({
-            code: 'PERIOD_GAP', unitId, previousVertragId: previous.vertragId, vertragId: period.vertragId,
-            from: this.iso(gapStart), to: this.iso(gapEnd),
-            message: 'Zwischen den Vertragszeiträumen besteht eine Lücke.'
-          });
-        }
-
-        const previousEnd = this.date(previous.end);
-        const currentStart = this.date(period.start);
-        if (previous.end && previous.end.slice(0, 7) === period.start.slice(0, 7) &&
-            previousEnd.getUTCDate() !== new Date(Date.UTC(previousEnd.getUTCFullYear(), previousEnd.getUTCMonth() + 1, 0)).getUTCDate() &&
-            currentStart.getUTCDate() !== 1) {
-          warnings.push({
-            code: 'MID_MONTH_CHANGE', unitId, previousVertragId: previous.vertragId, vertragId: period.vertragId,
-            month: period.start.slice(0, 7), previousEnd: previous.end, start: period.start,
-            message: 'Der Mieterwechsel erfolgt innerhalb eines Monats; eine anteilige Sollregel ist erforderlich.'
-          });
+        if (!coveragePeriod || period.endTime > coverageEnd) {
+          coveragePeriod = period;
+          coverageEnd = period.endTime;
         }
       });
     });

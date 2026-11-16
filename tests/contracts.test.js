@@ -147,6 +147,29 @@ describe('contract domain rules', () => {
     expect(result.valid).toBe(false);
     expect(result.errors.map(error => error.code)).toEqual(['PERIOD_DATE_INVALID', 'PERIOD_END_BEFORE_START', 'PERIOD_DATE_INVALID']);
   });
+
+  it('findet Überschneidungen gegen das laufende maximale Vertragsende', () => {
+    const result = service.validateContractPeriods([
+      { vertrag_id: 'V_LONG', einheit_id: 'WE_1', start_datum: '2020-01-01', end_datum: '2026-12-31' },
+      { vertrag_id: 'V_SHORT', einheit_id: 'WE_1', start_datum: '2021-01-01', end_datum: '2021-06-30' },
+      { vertrag_id: 'V_LATE', einheit_id: 'WE_1', start_datum: '2022-01-01', end_datum: '' }
+    ]);
+
+    expect(result.errors.map(error => [error.previousVertragId, error.vertragId])).toEqual([
+      ['V_LONG', 'V_SHORT'],
+      ['V_LONG', 'V_LATE']
+    ]);
+  });
+
+  it('meldet auch einen neuen Vertrag nach einem offenen Vorgänger als Überschneidung', () => {
+    const result = service.validateContractPeriods([
+      { vertrag_id: 'V_OPEN', einheit_id: 'WE_2', start_datum: '2020-01-01', end_datum: '' },
+      { vertrag_id: 'V_NEXT', einheit_id: 'WE_2', start_datum: '2026-01-01', end_datum: '' }
+    ]);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual([expect.objectContaining({ code: 'PERIOD_OVERLAP', previousVertragId: 'V_OPEN', vertragId: 'V_NEXT' })]);
+  });
 });
 
 function backendFixture({ token = 'test-only', writeFailure = false } = {}) {

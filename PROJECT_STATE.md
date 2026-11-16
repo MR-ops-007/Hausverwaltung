@@ -99,8 +99,9 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   baut ihre Zeilen aus dem Einheitenbestand auf: 2025 zeigt den Grundbestand und Pluto,
   2026 zeigt Pluto für Januar bis Mai und Goofy ab Juni als getrennte Vertragszeilen.
   Einheiten ohne Vertrag bleiben als Leerstand sichtbar. Offene Posten ehemaliger Verträge
-  fließen in die Übersicht ein, und Monate vor einem neuen Mietbeginn verlinken auf den
-  passenden historischen Vertrag. Die Verbrauchsview und die atomare
+  fließen in die Übersicht ein. Alte Vertragsperioden sind als eigene Zeilen direkt
+  bearbeitbar; Monate außerhalb der jeweiligen Vertragsperiode bleiben neutral und nicht
+  klickbar. Die Verbrauchsview und die atomare
   Schreiboperation sind der
   verbleibende Implementierungsumfang von P6.7. Die gemeinsame
   `contractService.validateContractPeriods()` prüft jetzt Überschneidungen, Lücken und

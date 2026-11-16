@@ -34,7 +34,7 @@ Nachzahlung für April mit anschließendem Storno und eine vollständig hinterle
 Kaution. Goofy hat Zahlungen für Juni bis August 2026, eine Teilzahlung im Juli
 und eine teilweise hinterlegte Kaution. Die aktive Mieteransicht zeigt für die
 Einheit nur Goofy; in der Mieteingangskontrolle bleiben Pluto und seine Zahlungen
-über die historische Vertragsansicht erreichbar.
+als eigene historische Vertragszeile sichtbar.
 
 ## Abnahmekriterien für die spätere UI-Umsetzung
 
@@ -76,11 +76,13 @@ Die Mieteingangskontrolle filtert nach dem gewählten Jahr und nicht nur nach de
 heutigen `aktiv`-Flag. Die Einheiten kommen aus `Einheiten`; Verträge bestimmen nur
 die zeitbezogene Belegung. Für 2025 erscheinen der Grundbestand der Wohnungen 1 bis 7
 und bei `TEST_WE_08` Pluto. Für 2026 erscheinen Pluto für Januar bis Mai und Goofy
-ab dem 01.06.2026 als getrennte Vertragszeilen. Monate vor dem Beginn eines späteren
-Vertrags verlinken auf den passenden historischen Vertrag und den fachlichen Mietmonat.
-Eine Einheit ohne Vertrag bleibt als neutraler Leerstand sichtbar. Verträge mit
-unbekannter Einheit und Überschneidungen werden als Datenwarnung angezeigt, statt
-still aus der Ansicht zu verschwinden.
+ab dem 01.06.2026 als getrennte Vertragszeilen. Monate außerhalb der jeweiligen
+Vertragsperiode bleiben in der jeweiligen Zeile neutral und sind nicht klickbar; der
+historische Vertrag wird direkt als eigene Zeile bearbeitbar angezeigt. Eine Einheit
+ohne Vertrag bleibt als neutraler Leerstand sichtbar. Verträge mit unbekannter Einheit,
+widersprüchlicher Objektzuordnung, Überschneidungen, Lücken und Monatsmitte-Wechseln
+werden als strukturierte Datenprüfung angezeigt, statt still aus der Ansicht zu
+verschwinden.
 
 Verbrauchsviews verwenden derzeit den aktiven Mieter aus
 `_view_aktive_mieter`. Eine abrechnungsfähige Verbrauchsaufteilung nach alten
@@ -88,9 +90,17 @@ Vertragszeiträumen bleibt deshalb ebenfalls Bestandteil der späteren Umsetzung
 
 ## Technische Prüfung der Vorbereitung
 
-- `npm test`: 511 Tests in 20 Testdateien grün.
+- `npm test`: 515 Tests in 20 Testdateien grün.
 - `npm run check:frontend-assets`: erfolgreich.
 - `node --check` für Mock-Server und Fixture: erfolgreich.
 - Mock-API-Lauf: Für `TEST_WE_08` wurden beide Verträge, beide Parteien, die
   getrennten Zahlungen/Kautionen und ausschließlich `TEST_V8` in der aktiven
   Mieteransicht bestätigt.
+- Die zentrale `contractService.validateContractPeriods()` ist die gemeinsame
+  Quelle für Zeitraumfehler und Hinweise in Backend-nahem Code und UI. Sie prüft
+  gegen das laufende maximale Vertragsende, erkennt dadurch auch indirekte
+  Überschneidungen und offene Vorgänger. Die UI zeigt die Codes `PERIOD_OVERLAP`,
+  `PERIOD_GAP`, `MID_MONTH_CHANGE`, `UNKNOWN_UNIT` und `OBJECT_ID_CONFLICT` an.
+- Die Matrix verwendet für mietrelevante Einheiten eine positive Typregel
+  (`Wohnung`, `Gewerbe` oder explizit `mietrelevant`). `Allgemein` und
+  `Gemeinschaft` werden nicht als Miet-Leerstand dargestellt.

@@ -14,6 +14,10 @@ für historische Verträge derselben Einheit.
   (`MID_MONTH_CHANGE`). Die Zeiträume bleiben gültig, aber eine fachliche Regel
   für anteiliges Soll und gegebenenfalls eine Zwischenablesung ist erforderlich.
 - Fehlende, ungültige oder umgekehrte Datumswerte werden als Fehler gemeldet.
+- Die Überschneidungsprüfung vergleicht jeden neuen Zeitraum mit dem bisher
+  größten Vertragsende. Dadurch werden auch indirekte Überschneidungen erkannt,
+  wenn ein langer Vorgängervertrag bereits durch einen kürzeren Zwischenvertrag
+  verdeckt wird. Ein offener Vorgänger überlappt jeden später beginnenden Vertrag.
 - Die Funktion normalisiert Datumswerte auf `YYYY-MM`, `YYYY-MM-DD` und eindeutige
   Vertrags-/Einheits-IDs. Sie schreibt keine Daten und enthält keine UI-Logik.
 
@@ -23,6 +27,11 @@ Der aktuelle Vertrags-Schreibweg ändert keine `start_datum`- oder `end_datum`-W
 Die Validierung wird deshalb in diesem Paket noch nicht pauschal vor jeden
 Stammdaten- oder Indexschreibvorgang geschaltet. Das würde auch bereits vorhandene
 historische Daten mit bekannten Auffälligkeiten für harmlose Notizänderungen sperren.
+
+Die UI ruft dieselbe Funktion für die ausgewählten Vertragsperioden auf und zeigt
+die Codes als strukturierte Datenprüfung an. `UNKNOWN_UNIT` und
+`OBJECT_ID_CONFLICT` kommen ergänzend aus der Bestandszuordnung; die Einheit ist
+dabei die führende Quelle für das Objekt.
 
 Die serverseitige Durchsetzung erfolgt im nächsten Schritt zusammen mit einer
 atomaren, idempotenten Mieterwechsel-Operation: alter Vertrag beenden, neuen Vertrag
@@ -39,6 +48,11 @@ Die wiederverwendbare Entenhausen-Fixture prüft:
 - Wechsel innerhalb Juni 2026: Hinweis auf die noch offene anteilige Sollregel.
 - Ungültiges Datum, fehlendes Startdatum und Ende vor Beginn: Fehlercodes ohne
   Ausnahmeabbruch.
+- Drei überlappende Zeiträume: der dritte Zeitraum wird gegen den langen ersten
+  Zeitraum geprüft, nicht nur gegen den direkten Vorgänger.
+- Offener Vorgängervertrag mit späterem Vertrag: Überschneidung wird erkannt.
+- UI-Hinweise für Monatsmitte, unbekannte Einheit und widersprüchliche
+  Objektzuordnung werden mit Code und Schweregrad dargestellt.
 
 Die Funktion ist Teil des gemeinsam geladenen `ContractService.js` und steht damit
 für Browser- und Apps-Script-Code an derselben Stelle bereit. Für dieses Paket ist

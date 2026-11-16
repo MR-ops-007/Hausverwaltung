@@ -411,9 +411,10 @@ Bankanbindung werden daraus abgeleitet.
    `tools/mock-rental-fixtures.mjs`; der Testplan steht in
    `docs/p6-7-mieterwechsel-testplan.md`. `contractService.validateContractPeriods()`
    meldet Überschneidungen als Fehler sowie Lücken und Monatsmitte-Wechsel als Hinweise;
-   Die Mieteingangskontrolle nimmt offene Posten
-   ehemaliger Verträge in die Übersicht auf und verlinkt Monate vor dem neuen Mietbeginn
-   auf den historischen Vertrag. Die atomare Schreiboperation und die historische
+   die UI verwendet dieselbe Prüfung und zeigt die Codes als Datenprüfung an. Die
+   Mieteingangskontrolle nimmt offene Posten ehemaliger Verträge in die Übersicht auf
+   und zeigt alte Vertragsperioden als eigene Zeilen; Monate außerhalb der jeweiligen
+   Vertragsperiode bleiben neutral und nicht klickbar. Die atomare Schreiboperation und die historische
    Verbrauchsaufteilung bleiben offen. Details stehen in
    `docs/p6-7-contract-period-validation.md`.
 5. **P6.2 Gemeinsame Zahlungsregeln:** Die fachlichen Pure Functions für Mietmonat, Guthaben,
