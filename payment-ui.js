@@ -229,6 +229,15 @@ const paymentUiService = {
     return (!startMonth || startMonth <= yearEnd) && (!endMonth || endMonth >= yearStart);
   },
 
+  contractsAreAdjacent(previousContract, nextContract) {
+    const previousEnd = this.startOfDay(previousContract && previousContract.end_datum);
+    const nextStart = this.startOfDay(nextContract && nextContract.start_datum);
+    if (!previousEnd || !nextStart) return false;
+    const expectedStart = new Date(previousEnd.getTime());
+    expectedStart.setDate(expectedStart.getDate() + 1);
+    return nextStart.getTime() === expectedStart.getTime();
+  },
+
   getContractsForYear(objectId = '', year = this.selectedYear) {
     const candidates = this.getContracts(objectId, true)
       .filter(contract => this.contractIntersectsYear(contract, year));
@@ -946,23 +955,28 @@ const paymentUiService = {
       : '✓ Kautionen vollständig hinterlegt oder nicht vereinbart';
     const contractSummary = overviewMatrix.filter(item => item.contract).map(item => '<div class="payment-contract-summary-item' + (this.isActive(item.contract.aktiv) ? '' : ' payment-contract-summary-item-historical') + (item.rowType === 'vertrag_warnung' ? ' payment-contract-summary-item-warning' : '') + '"><strong>' + this.escape(item.unit) + ' · ' + this.escape(item.tenant) + '</strong><span>' + (this.isActive(item.contract.aktiv) ? 'Aktueller Vertrag' : 'Historischer Vertrag') + ' · ' + this.escape(this.contractPeriodLabel(item.contract)) + '</span><span>' + this.formatMoney(item.due) + ' EUR / Monat · ' + (this.isActive(item.contract.aktiv) ? 'aktuell' : 'historisch') + '</span>' + this.depositStatusHtml(item.deposit) + '</div>').join('');
     const monthHeaders = this.MONTH_NAMES.map((name, index) => `<th scope="col">${name}<span class="payment-month-number">${index + 1}</span></th>`).join('');
+    const rowGroupKey = (item, index) => {
+      if (item.rowType === 'vertrag_warnung' || !item.unitId) {
+        return `contract:${String(item.contract && item.contract.vertrag_id || index)}`;
+      }
+      return `unit:${String(item.unitId)}`;
+    };
+    const rowGroupKeys = matrix.map(rowGroupKey);
     const unitRowCounts = new Map();
-    matrix.forEach(item => {
-      const unitId = String(item.unitId || '');
-      unitRowCounts.set(unitId, (unitRowCounts.get(unitId) || 0) + 1);
-    });
-    let previousUnitId = null;
-    const rows = matrix.map(item => {
-      const newUnit = item.unitId !== previousUnitId;
-      previousUnitId = item.unitId;
-      const groupedUnit = (unitRowCounts.get(String(item.unitId || '')) || 0) > 1;
+    rowGroupKeys.forEach(key => unitRowCounts.set(key, (unitRowCounts.get(key) || 0) + 1));
+    let previousGroupKey = null;
+    const rows = matrix.map((item, index) => {
+      const groupKey = rowGroupKeys[index];
+      const newUnit = groupKey !== previousGroupKey;
+      previousGroupKey = groupKey;
+      const groupedUnit = (unitRowCounts.get(groupKey) || 0) > 1;
       const hasContract = Boolean(item.contract);
       const historical = hasContract && !this.isActive(item.contract.aktiv);
       const rowClass = item.rowType === 'leerstand'
         ? ' payment-row-vacancy'
         : historical ? ' payment-row-historical' : '';
       const groupedFirst = groupedUnit && newUnit;
-      const rowSpan = groupedFirst ? ` rowspan="${unitRowCounts.get(String(item.unitId || ''))}"` : '';
+      const rowSpan = groupedFirst ? ` rowspan="${unitRowCounts.get(groupKey)}"` : '';
       const warningBadge = item.rowType === 'vertrag_warnung' ? '<span class="payment-data-warning-badge" title="Vertrag verweist auf eine unbekannte Einheit">Daten prüfen</span>' : '';
       const contractInfo = hasContract
         ? `<span>${historical ? 'Historischer Vertrag' : 'Aktueller Vertrag'} · ${this.escape(this.contractPeriodLabel(item.contract))}</span><small>${this.formatMoney(item.due)} EUR / Monat · ${historical ? 'historisch' : 'aktuell'}</small><span class="payment-deposit payment-deposit-${item.deposit.status}">${item.deposit.due > 0 ? 'Kaution: ' + this.formatMoney(item.deposit.paid) + ' / ' + this.formatMoney(item.deposit.due) + ' EUR' : 'Keine Kaution vereinbart'}</span>${item.deposit.due > 0 && item.deposit.status !== 'vollständig' ? `<button class="payment-deposit-action" type="button" onclick="paymentUiService.openPaymentDialog('${this.escape(item.contract.vertrag_id)}','','Kaution')">Kaution erfassen</button>` : ''}`
@@ -976,7 +990,13 @@ const paymentUiService = {
       const unitCell = groupedFirst || !groupedUnit
         ? `<th scope="rowgroup"${rowSpan} class="payment-unit-cell${groupedUnit ? ' payment-unit-cell-grouped' : ''}${groupedFirst ? ' payment-unit-cell-grouped-first' : ''}">${this.escape(item.unit)}</th>`
         : '';
-      const changeMarker = groupedUnit && !groupedFirst && hasContract
+      const previousItem = index > 0 ? matrix[index - 1] : null;
+      const isContractTransition = previousItem
+        && previousItem.rowType === 'vertrag'
+        && item.rowType === 'vertrag'
+        && String(previousItem.unitId || '') === String(item.unitId || '')
+        && this.contractsAreAdjacent(previousItem.contract, item.contract);
+      const changeMarker = isContractTransition
         ? `<span class="payment-change-marker">Mieterwechsel · ${this.escape(this.formatDate(item.contract.start_datum))}</span>`
         : '';
       return `<tr class="${rowClass}${groupedUnit && !groupedFirst ? ' payment-row-after-change' : ''}">${unitCell}<th scope="row" class="payment-tenant-cell${historical ? ' payment-tenant-cell-historical' : ''}${item.rowType === 'vertrag_warnung' ? ' payment-tenant-cell-warning' : ''}"><strong class="payment-tenant-name">${this.escape(item.tenant)}</strong>${changeMarker}${warningBadge}${contractInfo}</th>${monthCells}</tr>`;

@@ -1094,6 +1094,50 @@ describe('paymentUiService CSV-Import', () => {
     expect((output.innerHTML.match(/>Wohnung 8</g) || []).length).toBe(1);
   });
 
+  it('gruppiert Verträge ohne Einheit nicht als Mieterwechsel', () => {
+    const output = { innerHTML: '' };
+    const service = loadPaymentService(baseState({
+      vertraege: [
+        { vertrag_id: 'MISSING_A', objekt_id: 'O1', einheit_id: '', start_datum: '2026-01-01', end_datum: '', aktiv: true, soll_gesamt: 500 },
+        { vertrag_id: 'MISSING_B', objekt_id: 'O1', einheit_id: '', start_datum: '2026-06-01', end_datum: '', aktiv: true, soll_gesamt: 600 }
+      ]
+    }), {
+      getElementById(id) {
+        return id === 'payments-output' ? output : null;
+      }
+    });
+    service.selectedObject = 'O1';
+    service.selectedYear = '2026';
+    service.render();
+
+    expect((output.innerHTML.match(/payment-change-marker/g) || []).length).toBe(0);
+    expect((output.innerHTML.match(/payment-data-warning-badge/g) || []).length).toBe(2);
+    expect((output.innerHTML.match(/rowspan=/g) || []).length).toBe(0);
+  });
+
+  it('markiert überlappende Vertragsperioden nicht als Mieterwechsel', () => {
+    const output = { innerHTML: '' };
+    const unit = { einheit_id: 'O1_WE_01', objekt_id: 'O1', nummer: 'Wohnung 1', typ: 'Wohnung' };
+    const service = loadPaymentService(baseState({
+      einheiten: [unit],
+      vertraege: [
+        { vertrag_id: 'OVERLAP_A', objekt_id: 'O1', einheit_id: unit.einheit_id, start_datum: '2026-01-01', end_datum: '2026-06-30', aktiv: false, soll_gesamt: 500 },
+        { vertrag_id: 'OVERLAP_B', objekt_id: 'O1', einheit_id: unit.einheit_id, start_datum: '2026-06-01', end_datum: '', aktiv: true, soll_gesamt: 600 }
+      ]
+    }), {
+      getElementById(id) {
+        return id === 'payments-output' ? output : null;
+      }
+    });
+    service.selectedObject = 'O1';
+    service.selectedYear = '2026';
+    service.render();
+
+    expect((output.innerHTML.match(/payment-change-marker/g) || []).length).toBe(0);
+    expect(output.innerHTML).toContain('rowspan="2"');
+    expect(output.innerHTML).toContain('PERIOD_OVERLAP');
+  });
+
   it('zeigt im Vorjahr Pluto und nicht den erst später eingezogenen Goofy', () => {
     const output = { innerHTML: '' };
     const service = loadPaymentService(baseState({
