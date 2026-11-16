@@ -956,12 +956,12 @@ const paymentUiService = {
       const newUnit = item.unitId !== previousUnitId;
       previousUnitId = item.unitId;
       const groupedUnit = (unitRowCounts.get(String(item.unitId || '')) || 0) > 1;
-      const groupHeader = newUnit && groupedUnit
-        ? `<tr class="payment-unit-group"><th colspan="${this.MONTH_NAMES.length + 1}">${this.escape(item.unit)}${item.rowType === 'leerstand' ? ' · Leerstand' : ''}</th></tr>`
-        : '';
       const hasContract = Boolean(item.contract);
       const historical = hasContract && !this.isActive(item.contract.aktiv);
-      const rowClass = item.rowType === 'leerstand' ? ' payment-row-vacancy' : historical ? ' payment-row-historical' : '';
+      const rowClass = item.rowType === 'leerstand'
+        ? ' payment-row-vacancy'
+        : historical ? ' payment-row-historical' : '';
+      const groupedFirst = groupedUnit && newUnit;
       const warningBadge = item.rowType === 'vertrag_warnung' ? '<span class="payment-data-warning-badge" title="Vertrag verweist auf eine unbekannte Einheit">Daten prüfen</span>' : '';
       const contractInfo = hasContract
         ? `<span>${historical ? 'Historischer Vertrag' : 'Aktueller Vertrag'} · ${this.escape(this.contractPeriodLabel(item.contract))}</span><small>${this.formatMoney(item.due)} EUR / Monat · ${historical ? 'historisch' : 'aktuell'}</small><span class="payment-deposit payment-deposit-${item.deposit.status}">${item.deposit.due > 0 ? 'Kaution: ' + this.formatMoney(item.deposit.paid) + ' / ' + this.formatMoney(item.deposit.due) + ' EUR' : 'Keine Kaution vereinbart'}</span>${item.deposit.due > 0 && item.deposit.status !== 'vollständig' ? `<button class="payment-deposit-action" type="button" onclick="paymentUiService.openPaymentDialog('${this.escape(item.contract.vertrag_id)}','','Kaution')">Kaution erfassen</button>` : ''}`
@@ -972,8 +972,10 @@ const paymentUiService = {
         const disabled = actionable ? '' : ' disabled';
         return `<td><button class="payment-cell ${this.statusClass(month.status)}${month.verspaetet ? ' payment-cell-late' : ''}" type="button"${action ? ` onclick="${action}"` : ''}${disabled} title="${this.escape(this.statusTitle(month) + (month.verspaetet ? ' Zusätzlich verspätet beglichen oder aktuell überfällig.' : ''))}"><strong>${this.escape(this.statusLabel(month.status))}${month.verspaetet ? '<small>verspätet</small>' : ''}</strong><span>${this.formatMoney(month.paid)} / ${this.formatMoney(month.due)} EUR</span></button></td>`;
       }).join('');
-      const unitLabel = groupedUnit ? '' : `<strong>${this.escape(item.unit)}</strong>`;
-      return `${groupHeader}<tr class="${rowClass}"><th scope="row" class="payment-tenant-cell${groupedUnit ? ' payment-tenant-cell-grouped' : ''}${historical ? ' payment-tenant-cell-historical' : ''}${item.rowType === 'vertrag_warnung' ? ' payment-tenant-cell-warning' : ''}">${unitLabel}<span>${this.escape(item.tenant)}</span>${warningBadge}${contractInfo}</th>${monthCells}</tr>`;
+      const unitLabel = groupedUnit
+        ? (groupedFirst ? `<strong class="payment-unit-label">${this.escape(item.unit)}</strong>` : '')
+        : `<strong>${this.escape(item.unit)}</strong>`;
+      return `<tr class="${rowClass}"><th scope="row" class="payment-tenant-cell${groupedUnit ? ' payment-tenant-cell-grouped' : ''}${groupedFirst ? ' payment-tenant-cell-grouped-first' : ''}${historical ? ' payment-tenant-cell-historical' : ''}${item.rowType === 'vertrag_warnung' ? ' payment-tenant-cell-warning' : ''}">${unitLabel}<span>${this.escape(item.tenant)}</span>${warningBadge}${contractInfo}</th>${monthCells}</tr>`;
     }).join('');
     const warningHtml = dataWarnings.length
       ? `<div class="payment-data-warnings" role="${dataWarnings.some(warning => warning.severity === 'error') ? 'alert' : 'status'}"><strong>Datenprüfung erforderlich</strong>${dataWarnings.map(warning => `<span class="payment-data-warning-${warning.severity}"><b>${this.escape(warning.code)}</b> ${this.escape(warning.message)}</span>`).join('')}</div>`

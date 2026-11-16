@@ -1087,7 +1087,9 @@ describe('paymentUiService CSV-Import', () => {
     expect(output.innerHTML).not.toContain('openHistoricalMonth');
     expect(output.innerHTML).toContain('Offene Posten ehemaliger Verträge fließen bereits in die Übersicht ein.');
     expect((output.innerHTML.match(/payment-row-historical/g) || []).length).toBe(1);
-    expect((output.innerHTML.match(/payment-unit-group/g) || []).length).toBe(1);
+    expect((output.innerHTML.match(/payment-unit-group/g) || []).length).toBe(0);
+    expect(output.innerHTML).toContain('<strong class="payment-unit-label">Wohnung 8</strong>');
+    expect((output.innerHTML.match(/payment-unit-label/g) || []).length).toBe(1);
     expect((output.innerHTML.match(/>Wohnung 8</g) || []).length).toBe(1);
   });
 
