@@ -1001,8 +1001,18 @@ const paymentUiService = {
         : '';
       return `<tr class="${rowClass}${groupedUnit && !groupedFirst ? ' payment-row-after-change' : ''}">${unitCell}<th scope="row" class="payment-tenant-cell${historical ? ' payment-tenant-cell-historical' : ''}${item.rowType === 'vertrag_warnung' ? ' payment-tenant-cell-warning' : ''}"><strong class="payment-tenant-name">${this.escape(item.tenant)}</strong>${changeMarker}${warningBadge}${contractInfo}</th>${monthCells}</tr>`;
     }).join('');
+    const warningLines = dataWarnings.map(warning => {
+      const unit = warning.unitId
+        ? (dataService.state.einheiten || []).find(row => String(row.einheit_id) === String(warning.unitId))
+        : null;
+      const unitLabel = warning.unitId
+        ? `${unit ? this.unitNameFromRecord(unit) : 'Einheit unbekannt'}${unit && unit.einheit_id ? ` (${unit.einheit_id})` : warning.unitId ? ` (${warning.unitId})` : ''}`
+        : '';
+      const context = [unitLabel, warning.vertragId ? `Vertrag ${warning.vertragId}` : ''].filter(Boolean).join(' · ');
+      return `<span class="payment-data-warning-${warning.severity}"><b>${this.escape(warning.code)}</b> ${context ? `<strong>${this.escape(context)}:</strong> ` : ''}${this.escape(warning.message)}</span>`;
+    }).join('');
     const warningHtml = dataWarnings.length
-      ? `<div class="payment-data-warnings" role="${dataWarnings.some(warning => warning.severity === 'error') ? 'alert' : 'status'}"><strong>Datenprüfung erforderlich</strong>${dataWarnings.map(warning => `<span class="payment-data-warning-${warning.severity}"><b>${this.escape(warning.code)}</b> ${this.escape(warning.message)}</span>`).join('')}</div>`
+      ? `<div class="payment-data-warnings" role="${dataWarnings.some(warning => warning.severity === 'error') ? 'alert' : 'status'}"><strong>Datenprüfung erforderlich</strong>${warningLines}</div>`
       : '';
     output.innerHTML = `
       <div class="payment-page-heading"><div><h2>Mieteingänge</h2><p>Monatliche Zahlungseingänge für ${this.escape(this.selectedYear)}. Alle Einheiten des Objekts bleiben sichtbar; je Vertragszeitraum wird eine eigene Zeile angezeigt. Offene Posten ehemaliger Verträge fließen bereits in die Übersicht ein.</p></div></div>

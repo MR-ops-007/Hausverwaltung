@@ -1138,6 +1138,24 @@ describe('paymentUiService CSV-Import', () => {
     expect(output.innerHTML).toContain('PERIOD_OVERLAP');
   });
 
+  it('zeigt Datenwarnungen mit Einheit und Vertragskontext', () => {
+    const output = { innerHTML: '' };
+    const service = loadPaymentService(baseState({
+      vertraege: [
+        { vertrag_id: 'UNKNOWN', objekt_id: 'O1', einheit_id: 'O1_WE_99', start_datum: '2026-01-01', end_datum: '', aktiv: true, soll_gesamt: 500 }
+      ]
+    }), {
+      getElementById(id) {
+        return id === 'payments-output' ? output : null;
+      }
+    });
+    service.selectedObject = 'O1';
+    service.selectedYear = '2026';
+    service.render();
+
+    expect(output.innerHTML).toContain('Einheit unbekannt (O1_WE_99) · Vertrag UNKNOWN:');
+  });
+
   it('zeigt im Vorjahr Pluto und nicht den erst später eingezogenen Goofy', () => {
     const output = { innerHTML: '' };
     const service = loadPaymentService(baseState({
