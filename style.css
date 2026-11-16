@@ -549,7 +549,7 @@ input[type="text"] {
 .payment-table td { padding: 7px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #eef2f7; vertical-align: top; text-align: left; }
 .payment-table thead th { position: sticky; top: 0; z-index: 1; background: #f8fafc; color: #334155; font-size: .8rem; }
 .payment-table th:first-child { position: sticky; left: 0; z-index: 2; min-width: 220px; background: #f8fafc; }
-.payment-unit-group th { position: sticky; left: 0; z-index: 2; padding: 9px 10px; background: #e8eef8; color: #243b63; font-size: .82rem; border-top: 2px solid #c7d5eb; }
+.payment-unit-group th { position: sticky; left: 0; z-index: 2; padding: 8px 10px; background: #e8eef8; color: #334e7d; font-size: .74rem; font-weight: 800; letter-spacing: .03em; border-top: 2px solid #c7d5eb; }
 .payment-row-vacancy th,
 .payment-row-vacancy td { background: #fff; }
 .payment-row-historical th:first-child { background: #f8fafc; }
@@ -557,6 +557,7 @@ input[type="text"] {
 .payment-tenant-cell strong,
 .payment-tenant-cell span,
 .payment-tenant-cell small { display: block; }
+.payment-tenant-cell > strong { font-size: 1rem; }
 .payment-tenant-cell span { margin-top: 3px; color: #475569; font-weight: 600; }
 .payment-tenant-cell small { margin-top: 7px; color: #64748b; font-weight: 600; }
 .payment-tenant-cell-historical { border-left:4px solid #94a3b8; }
