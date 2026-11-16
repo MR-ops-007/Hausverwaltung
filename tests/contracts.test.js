@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { tenantChangeFixture } from '../tools/mock-rental-fixtures.mjs';
 
 const shared = readFileSync(new URL('../apps-script/ContractService.js', import.meta.url), 'utf8');
 const service = new Function(`${shared}; return contractService;`)();
@@ -114,6 +115,71 @@ describe('contract domain rules', () => {
     expect(service.iso(service.date('2024-02-29T23:00:00.000Z'))).toBe('2024-03-01');
     expect(service.iso(service.date('01.03.2024'))).toBe('2024-03-01');
     expect(() => service.date('2025-02-29')).toThrow();
+  });
+  it('validates tenant change periods per unit', () => {
+    const valid = service.validateContractPeriods(tenantChangeFixture.vertraege);
+    expect(valid.valid).toBe(true);
+    expect(valid.errors).toEqual([]);
+    expect(valid.warnings).toEqual([]);
+
+    const gap = service.validateContractPeriods(tenantChangeFixture.negativeCases.gap);
+    expect(gap.valid).toBe(true);
+    expect(gap.errors).toEqual([]);
+    expect(gap.warnings).toEqual([expect.objectContaining({ code: 'PERIOD_GAP', from: '2026-06-01', to: '2026-06-30' })]);
+
+    const midMonth = service.validateContractPeriods(tenantChangeFixture.negativeCases.midMonth);
+    expect(midMonth.valid).toBe(true);
+    expect(midMonth.errors).toEqual([]);
+    expect(midMonth.warnings).toEqual([expect.objectContaining({ code: 'MID_MONTH_CHANGE', month: '2026-06' })]);
+
+    const overlap = service.validateContractPeriods(tenantChangeFixture.negativeCases.overlap);
+    expect(overlap.valid).toBe(false);
+    expect(overlap.errors).toEqual([expect.objectContaining({ code: 'PERIOD_OVERLAP', unitId: 'TEST_WE_10' })]);
+    expect(overlap.warnings).toEqual([]);
+  });
+
+  it('reports invalid and incomplete contract periods without throwing', () => {
+    const result = service.validateContractPeriods([
+      { vertrag_id: 'V_INVALID', einheit_id: 'WE_1', start_datum: '2026-02-30', end_datum: '' },
+      { vertrag_id: 'V_REVERSED', einheit_id: 'WE_2', start_datum: '2026-04-01', end_datum: '2026-03-31' },
+      { vertrag_id: 'V_MISSING', einheit_id: 'WE_3', start_datum: '' }
+    ]);
+    expect(result.valid).toBe(false);
+    expect(result.errors.map(error => error.code)).toEqual(['PERIOD_DATE_INVALID', 'PERIOD_END_BEFORE_START', 'PERIOD_DATE_INVALID']);
+  });
+
+  it('findet Überschneidungen gegen das laufende maximale Vertragsende', () => {
+    const result = service.validateContractPeriods([
+      { vertrag_id: 'V_LONG', einheit_id: 'WE_1', start_datum: '2020-01-01', end_datum: '2026-12-31' },
+      { vertrag_id: 'V_SHORT', einheit_id: 'WE_1', start_datum: '2021-01-01', end_datum: '2021-06-30' },
+      { vertrag_id: 'V_LATE', einheit_id: 'WE_1', start_datum: '2022-01-01', end_datum: '' }
+    ]);
+
+    expect(result.errors.map(error => [error.previousVertragId, error.vertragId])).toEqual([
+      ['V_LONG', 'V_SHORT'],
+      ['V_LONG', 'V_LATE']
+    ]);
+  });
+
+  it('meldet auch einen neuen Vertrag nach einem offenen Vorgänger als Überschneidung', () => {
+    const result = service.validateContractPeriods([
+      { vertrag_id: 'V_OPEN', einheit_id: 'WE_2', start_datum: '2020-01-01', end_datum: '' },
+      { vertrag_id: 'V_NEXT', einheit_id: 'WE_2', start_datum: '2026-01-01', end_datum: '' }
+    ]);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual([expect.objectContaining({ code: 'PERIOD_OVERLAP', previousVertragId: 'V_OPEN', vertragId: 'V_NEXT' })]);
+  });
+
+  it('berechnet eine Lücke nach einem überlappenden Zwischenvertrag über die echte Abdeckung', () => {
+    const result = service.validateContractPeriods([
+      { vertrag_id: 'V_LONG', einheit_id: 'WE_3', start_datum: '2020-01-01', end_datum: '2026-12-31' },
+      { vertrag_id: 'V_SHORT', einheit_id: 'WE_3', start_datum: '2021-01-01', end_datum: '2021-06-30' },
+      { vertrag_id: 'V_LATE', einheit_id: 'WE_3', start_datum: '2027-01-01', end_datum: '' }
+    ]);
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.warnings).toEqual([]);
   });
 });
 

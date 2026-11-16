@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createMockConsumptionData } from '../tools/mock-consumption-fixtures.mjs';
-import { tenantChangeFixture } from '../tools/mock-rental-fixtures.mjs';
+import { baselineRentalFixture, tenantChangeFixture } from '../tools/mock-rental-fixtures.mjs';
 
 describe('synthetische Mock-Fixtures', () => {
   it('liefert Verbrauchsdaten für alle unterstützten Medien und Jahre', () => {
@@ -22,7 +22,10 @@ describe('synthetische Mock-Fixtures', () => {
 
     const oldPayments = tenantChangeFixture.zahlungen.filter(row => row.vertrag_id === previous.vertrag_id);
     const newPayments = tenantChangeFixture.zahlungen.filter(row => row.vertrag_id === current.vertrag_id);
-    expect(oldPayments.filter(row => row.art === 'Miete').map(row => row.mietmonat)).toEqual(['2026-01', '2026-02', '2026-03', '2026-04', '2026-05']);
+    expect(oldPayments.filter(row => row.art === 'Miete').map(row => row.mietmonat)).toEqual([
+      '2025-06', '2025-07', '2025-08', '2025-09', '2025-10', '2025-11', '2025-12',
+      '2026-01', '2026-02', '2026-03', '2026-04', '2026-05'
+    ]);
     expect(newPayments.map(row => row.mietmonat).filter(Boolean)).toEqual(['2026-06', '2026-07', '2026-08']);
     expect(tenantChangeFixture.activeViewRow.vertrag_id).toBe(current.vertrag_id);
     expect(tenantChangeFixture.vertragsparteien).toEqual(expect.arrayContaining([
@@ -34,5 +37,26 @@ describe('synthetische Mock-Fixtures', () => {
     expect(tenantChangeFixture.negativeCases.overlap[0].end_datum >= tenantChangeFixture.negativeCases.overlap[1].start_datum).toBe(true);
     expect(tenantChangeFixture.negativeCases.midMonth[0].end_datum).toBe('2026-06-14');
     expect(tenantChangeFixture.negativeCases.midMonth[1].start_datum).toBe('2026-06-15');
+  });
+
+  it('hält den Entenhausen-Grundbestand über 2025 und 2026 konsistent', () => {
+    const rentedUnits = baselineRentalFixture.vertraege
+      .filter(contract => contract.soll_gesamt > 0)
+      .map(contract => contract.einheit_id);
+    const coveredBy2025 = baselineRentalFixture.einheiten.map(unit => unit.einheit_id);
+    const rentMonths = new Set(baselineRentalFixture.zahlungen.map(row => row.mietmonat));
+
+    expect(new Set(rentedUnits)).toEqual(new Set(['TEST_WE_01', 'TEST_WE_02', 'TEST_WE_03', 'TEST_WE_04', 'TEST_WE_05', 'TEST_WE_06']));
+    expect(new Set(coveredBy2025)).toEqual(new Set(['TEST_WE_01', 'TEST_WE_02', 'TEST_WE_03', 'TEST_WE_04', 'TEST_WE_05', 'TEST_WE_06', 'TEST_WE_07']));
+    expect(rentMonths.has('2025-01')).toBe(true);
+    expect(rentMonths.has('2025-12')).toBe(true);
+    expect(baselineRentalFixture.zahlungen).toEqual(expect.arrayContaining([
+      expect.objectContaining({ vertrag_id: 'TEST_V3', mietmonat: '2025-07', betrag: 300 }),
+      expect.objectContaining({ vertrag_id: 'TEST_V5', mietmonat: '2025-02', betrag: 600 })
+    ]));
+    expect(tenantChangeFixture.zahlungen).toEqual(expect.arrayContaining([
+      expect.objectContaining({ vertrag_id: 'TEST_V8_ALT', mietmonat: '2025-06', betrag: 700 }),
+      expect.objectContaining({ vertrag_id: 'TEST_V8_ALT', mietmonat: '2025-12', betrag: 700 })
+    ]));
   });
 });

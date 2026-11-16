@@ -3,13 +3,15 @@ import { readFileSync } from 'node:fs';
 import { tenantChangeFixture } from '../tools/mock-rental-fixtures.mjs';
 
 const paymentCode = readFileSync(new URL('../payment-ui.js', import.meta.url), 'utf8');
+const contractCode = readFileSync(new URL('../apps-script/ContractService.js', import.meta.url), 'utf8');
+const contractService = new Function(`${contractCode}; return contractService;`)();
 
 function loadPaymentService(state, document = {}, cloudService = {}, uiOptions = {}) {
   const dataService = { state: { ...state } };
   const uiService = { escapeHtml: value => String(value ?? ''), setNavigationState() {}, closeModal() {}, ...uiOptions };
   const confirm = typeof uiOptions.confirm === 'function' ? uiOptions.confirm : () => true;
-  const factory = new Function('dataService', 'uiService', 'document', 'cloudService', 'confirm', `${paymentCode}; return paymentUiService;`);
-  return factory(dataService, uiService, document, cloudService, confirm);
+  const factory = new Function('dataService', 'uiService', 'document', 'cloudService', 'confirm', 'contractService', `${paymentCode}; return paymentUiService;`);
+  return factory(dataService, uiService, document, cloudService, confirm, contractService);
 }
 
 function baseState(overrides = {}) {
@@ -128,6 +130,174 @@ describe('paymentUiService Monatsstatus', () => {
     expect(beforeStorno.summarizeMonth(previous, '2026-04', now)).toMatchObject({ paid: 750, due: 700, credit: 50, status: 'bezahlt' });
     expect(service.summarizeDeposit(previous)).toMatchObject({ due: 1500, paid: 1500, remaining: 0, status: 'vollständig' });
     expect(service.summarizeDeposit(current)).toMatchObject({ due: 1800, paid: 900, remaining: 900, status: 'teilweise' });
+  });
+
+  it('zeigt Monate vor dem neuen Mietbeginn neutral in der neuen Vertragszeile', () => {
+    const service = loadPaymentService(baseState({
+      objekte: [{ objekt_id: 'TEST', bezeichnung: 'TEST · Entenhausen' }],
+      einheiten: tenantChangeFixture.einheiten,
+      personen: tenantChangeFixture.personen,
+      vertraege: tenantChangeFixture.vertraege,
+      vertragsparteien: tenantChangeFixture.vertragsparteien,
+      zahlungen: tenantChangeFixture.zahlungen
+    }));
+    const current = tenantChangeFixture.vertraege[1];
+
+    expect(service.summarizeMonth(current, '2026-04', new Date(2026, 10, 30))).toMatchObject({
+      status: 'vor_mietbeginn', due: 0, paid: 0
+    });
+    expect(service.getPaymentsFor('TEST_V8_ALT', '2026-04').map(row => row.zahlung_id)).toEqual([
+      'PLUTO_2026_04', 'PLUTO_NACH_04', 'PLUTO_NACH_04_STORNO'
+    ]);
+  });
+
+  it('zeigt je Jahr alle Vertragsperioden, die eine Einheit abdecken', () => {
+    const service = loadPaymentService(baseState({
+      einheiten: tenantChangeFixture.einheiten,
+      personen: tenantChangeFixture.personen,
+      vertraege: tenantChangeFixture.vertraege,
+      vertragsparteien: tenantChangeFixture.vertragsparteien,
+      zahlungen: tenantChangeFixture.zahlungen
+    }));
+
+    expect(service.getContractsForYear('TEST', '2025').map(row => row.vertrag_id)).toEqual(['TEST_V8_ALT']);
+    expect(service.getContractsForYear('TEST', '2026').map(row => row.vertrag_id)).toEqual(['TEST_V8_ALT', 'TEST_V8']);
+  });
+
+  it('bietet auch Zwischenjahre ohne Vertrag für die Jahresansicht an', () => {
+    const service = loadPaymentService(baseState({ vertraege: [
+      { vertrag_id: 'OLD', einheit_id: 'O1_WE_01', start_datum: '2023-01-01', end_datum: '2023-12-31', aktiv: false, soll_gesamt: 650 },
+      { vertrag_id: 'NEW', einheit_id: 'O1_WE_01', start_datum: '2025-01-01', end_datum: '', aktiv: true, soll_gesamt: 700 }
+    ] }));
+
+    expect(service.getYears()).toContain('2024');
+    expect(service.buildUnitRows(baseState().einheiten, [], '2024')).toEqual([
+      expect.objectContaining({ rowType: 'leerstand', unitId: 'O1_WE_01' })
+    ]);
+  });
+
+  it('baut die Jahreszeilen aus dem Einheitenbestand und nicht nur aus Verträgen', () => {
+    const units = [
+      { einheit_id: 'O1_WE_01', objekt_id: 'O1', nummer: 'Wohnung 1' },
+      { einheit_id: 'O1_WE_02', objekt_id: 'O1', nummer: 'Wohnung 2' },
+      { einheit_id: 'O1_WE_10', objekt_id: 'O1', nummer: 'Wohnung 10' }
+    ];
+    const contracts = [
+      { vertrag_id: 'OLD', einheit_id: 'O1_WE_01', hauptperson_id: 'P1', start_datum: '2025-01-01', end_datum: '2026-05-31', aktiv: false, soll_gesamt: 650 },
+      { vertrag_id: 'NEW', einheit_id: 'O1_WE_01', hauptperson_id: 'P1', start_datum: '2026-06-01', end_datum: '', aktiv: true, soll_gesamt: 700 },
+      { vertrag_id: 'UNKNOWN', objekt_id: 'O1', einheit_id: 'O1_WE_99', hauptperson_id: 'P1', start_datum: '2026-01-01', end_datum: '', aktiv: true, soll_gesamt: 500 }
+    ];
+    const service = loadPaymentService(baseState({ einheiten: units, vertraege: contracts }));
+    const rows = service.buildUnitRows(units, contracts, '2026');
+
+    expect(rows.filter(row => row.unitId === 'O1_WE_01').map(row => row.contract.vertrag_id)).toEqual(['OLD', 'NEW']);
+    expect(rows.find(row => row.unitId === 'O1_WE_02')).toMatchObject({ rowType: 'leerstand' });
+    expect(rows.find(row => row.unitId === 'O1_WE_99')).toMatchObject({ rowType: 'vertrag_warnung', contract: { vertrag_id: 'UNKNOWN' } });
+    expect(rows.map(row => service.unitNameFromRecord(row.unit))).toEqual(['Wohnung 1', 'Wohnung 1', 'Wohnung 2', 'Wohnung 10', 'Einheit unbekannt (O1_WE_99)']);
+
+    const matrix = service.buildMatrix({ rows, year: '2026' });
+    expect(service.summarizeOverview(matrix, '2026')).toMatchObject({ unitCount: 3, contractCount: 3, vacantUnits: 2, dataWarningCount: 1 });
+  });
+
+  it('zeigt alle Einheiten in einem vertragsfreien Jahr als Leerstand und warnt bei Überschneidungen', () => {
+    const units = [
+      { einheit_id: 'O1_WE_02', objekt_id: 'O1', nummer: 'Wohnung 2' },
+      { einheit_id: 'O1_WE_10', objekt_id: 'O1', nummer: 'Wohnung 10' }
+    ];
+    const overlap = [
+      { vertrag_id: 'OVERLAP_A', einheit_id: 'O1_WE_02', start_datum: '2026-01-01', end_datum: '2026-06-30', aktiv: false, soll_gesamt: 500 },
+      { vertrag_id: 'OVERLAP_B', einheit_id: 'O1_WE_02', start_datum: '2026-06-15', end_datum: '', aktiv: true, soll_gesamt: 600 }
+    ];
+    const service = loadPaymentService(baseState({ einheiten: units, vertraege: overlap }));
+    const vacancyRows = service.buildUnitRows(units, [], '2024');
+    const vacancyMatrix = service.buildMatrix({ rows: vacancyRows, year: '2024' });
+
+    expect(vacancyRows.every(row => row.rowType === 'leerstand')).toBe(true);
+    expect(service.summarizeOverview(vacancyMatrix, '2024')).toMatchObject({ unitCount: 2, contractCount: 0, vacantUnits: 2, openAmount: 0, creditAmount: 0, depositDue: 0 });
+    expect(service.buildContractWarnings(units, overlap, '2026')).toEqual([
+      expect.objectContaining({ code: 'PERIOD_OVERLAP', severity: 'error', unitId: 'O1_WE_02' })
+    ]);
+  });
+
+  it('nutzt die zentrale Zeitraumprüfung für Hinweise und schließt nicht mietrelevante Einheiten aus', () => {
+    const units = [
+      { einheit_id: 'O1_WE_01', objekt_id: 'O1', nummer: 'Wohnung 1', typ: 'Wohnung' },
+      { einheit_id: 'O1_WE_02', objekt_id: 'O1', nummer: 'Hausflur', typ: 'Allgemein' },
+      { einheit_id: 'O1_WE_03', objekt_id: 'O1', nummer: 'Gemeinschaft', typ: 'Gemeinschaft' }
+    ];
+    const contracts = [
+      { vertrag_id: 'MID_A', einheit_id: 'O1_WE_01', start_datum: '2025-01-01', end_datum: '2026-06-14', aktiv: false, soll_gesamt: 500 },
+      { vertrag_id: 'MID_B', einheit_id: 'O1_WE_01', start_datum: '2026-06-15', end_datum: '', aktiv: true, soll_gesamt: 600 },
+      { vertrag_id: 'BAD_OBJECT', einheit_id: 'O1_WE_01', objekt_id: 'O2', start_datum: '2027-01-01', end_datum: '', aktiv: true, soll_gesamt: 600 }
+    ];
+    const service = loadPaymentService(baseState({ einheiten: units, vertraege: contracts }));
+
+    expect(service.getUnits('O1').map(unit => unit.einheit_id)).toEqual(['O1_WE_01']);
+    expect(service.buildContractWarnings(units, contracts.slice(0, 2), '2026')).toEqual([
+      expect.objectContaining({ code: 'MID_MONTH_CHANGE', severity: 'warning', unitId: 'O1_WE_01' })
+    ]);
+    expect(service.buildContractWarnings(units, [contracts[2]], '2027')).toEqual([
+      expect.objectContaining({ code: 'OBJECT_ID_CONFLICT', severity: 'error', vertragId: 'BAD_OBJECT' })
+    ]);
+  });
+
+  it('zeigt eine Einheit mit Vertrag auch bei nicht standardisiertem Typ und erzeugt dort keinen Falschwarnhinweis', () => {
+    const unit = { einheit_id: 'O1_GARAGE_01', objekt_id: 'O1', nummer: 'Garage 1', typ: 'Stellplatz' };
+    const contract = { vertrag_id: 'GARAGE_CONTRACT', einheit_id: unit.einheit_id, start_datum: '2026-01-01', end_datum: '2026-12-31', aktiv: true, soll_gesamt: 100 };
+    const service = loadPaymentService(baseState({ einheiten: [unit], vertraege: [contract] }));
+
+    expect(service.getUnits('O1', '2026')).toEqual([unit]);
+    expect(service.getUnits('O1', '2027')).toEqual([]);
+    expect(service.buildUnitRows([unit], [contract], '2026')).toEqual([
+      expect.objectContaining({ rowType: 'vertrag', unitId: unit.einheit_id, contract })
+    ]);
+    expect(service.buildUnitRows([], [contract], '2026')).toEqual([
+      expect.objectContaining({ rowType: 'vertrag', unitId: unit.einheit_id, unit, contract })
+    ]);
+    expect(service.buildContractWarnings([unit], [contract], '2026')).toEqual([]);
+
+    const withoutContract = loadPaymentService(baseState({ einheiten: [unit], vertraege: [] }));
+    expect(withoutContract.getUnits('O1')).toEqual([]);
+    expect(withoutContract.buildUnitRows([], [], '2026')).toEqual([]);
+  });
+
+  it('erzeugt beim direkten Matrix-Aufruf keine fremden Leerstandszeilen aus dem globalen State', () => {
+    const service = loadPaymentService(baseState({ einheiten: [
+      { einheit_id: 'O1_WE_01', objekt_id: 'O1', nummer: 'Wohnung 1' },
+      { einheit_id: 'O2_WE_01', objekt_id: 'O2', nummer: 'Wohnung 1' }
+    ] }));
+
+    const matrix = service.buildMatrix({ contracts: service.getContracts(), year: '2026' });
+    expect(matrix).toHaveLength(1);
+    expect(matrix[0]).toMatchObject({ rowType: 'vertrag', unitId: 'O1_WE_01' });
+  });
+
+  it('behält bei leerer Einheitenliste beide Vertragsperioden einer Einheit', () => {
+    const service = loadPaymentService(baseState({
+      objekte: [{ objekt_id: 'TEST', bezeichnung: 'TEST · Entenhausen' }],
+      einheiten: tenantChangeFixture.einheiten,
+      vertraege: tenantChangeFixture.vertraege
+    }));
+
+    const rows = service.buildUnitRows([], tenantChangeFixture.vertraege, '2026');
+    expect(rows.filter(row => row.unitId === 'TEST_WE_08').map(row => row.contract.vertrag_id)).toEqual([
+      'TEST_V8_ALT', 'TEST_V8'
+    ]);
+  });
+
+  it('zeigt eine objektübergreifende Lücke im betroffenen Zwischenjahr', () => {
+    const unit = { einheit_id: 'O1_WE_01', objekt_id: 'O1', nummer: 'Wohnung 1', typ: 'Wohnung' };
+    const contracts = [
+      { vertrag_id: 'GAP_OLD', einheit_id: unit.einheit_id, start_datum: '2023-01-01', end_datum: '2024-12-31', aktiv: false, soll_gesamt: 500 },
+      { vertrag_id: 'GAP_NEW', einheit_id: unit.einheit_id, start_datum: '2026-01-01', end_datum: '', aktiv: true, soll_gesamt: 600 }
+    ];
+    const service = loadPaymentService(baseState({ einheiten: [unit], vertraege: contracts }));
+
+    expect(service.buildContractWarnings([unit], contracts, '2025')).toEqual([
+      expect.objectContaining({ code: 'PERIOD_GAP', severity: 'warning', from: '2025-01-01', to: '2025-12-31' })
+    ]);
+    expect(service.buildContractWarnings([unit], contracts, '2026')).toEqual([]);
+    expect(service.periodWarningAffectsYear({ code: 'UNKNOWN_REVIEW_CODE' }, '2026')).toBe(true);
   });
 
   it('charakterisiert Lücke und Monatsmitte beim aktuellen Vertragsmodell', () => {
@@ -573,7 +743,7 @@ describe('paymentUiService Monatsstatus', () => {
     const service = loadPaymentService(baseState({ zahlungen: [
       { zahlung_id: 'CREDIT', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '', betrag: 100, art: 'Miete', zahlungsgruppe_id: 'ZG_CREDIT' }
     ] }));
-    const matrix = service.buildMatrix({ contracts: service.getContracts(), year: '2026', now: new Date(2026, 10, 11) });
+    const matrix = service.buildMatrix({ units: service.getUnits('O1'), contracts: service.getContracts(), year: '2026', now: new Date(2026, 10, 11) });
     expect(service.summarizeOverview(matrix, '2026', new Date(2026, 10, 11))).toMatchObject({ unassignedCredit: 100, creditAmount: 100 });
     expect(service.summarizeMonth(service.getContracts()[0], '2026-11', new Date(2026, 10, 11)).paid).toBe(0);
   });
@@ -767,7 +937,7 @@ describe('paymentUiService Monatsstatus', () => {
       baseState().vertraege[0],
       { vertrag_id: 'V2', einheit_id: 'O1_WE_01', hauptperson_id: 'P1', aktiv: false, soll_gesamt: 500 }
     ] }));
-    const matrix = service.buildMatrix({ contracts: service.getContracts(), year: '2026', now: new Date(2026, 10, 11) });
+    const matrix = service.buildMatrix({ units: service.getUnits('O1'), contracts: service.getContracts(), year: '2026', now: new Date(2026, 10, 11) });
     expect(matrix).toHaveLength(1);
     expect(matrix[0].months).toHaveLength(12);
   });
@@ -890,6 +1060,57 @@ describe('paymentUiService CSV-Import', () => {
     expect(output.innerHTML).toContain('Überfällig');
     expect(output.innerHTML).toContain('Guthaben / Überzahlungen');
     expect(output.innerHTML).toContain('Kontoauszug als CSV');
+  });
+
+  it('zeigt historische Verträge und verlinkt den Vorgängermonat zur Erfassung', () => {
+    const output = { innerHTML: '' };
+    const service = loadPaymentService(baseState({
+      objekte: [{ objekt_id: 'TEST', bezeichnung: 'TEST · Entenhausen' }],
+      einheiten: tenantChangeFixture.einheiten,
+      personen: tenantChangeFixture.personen,
+      vertraege: tenantChangeFixture.vertraege,
+      vertragsparteien: tenantChangeFixture.vertragsparteien,
+      zahlungen: tenantChangeFixture.zahlungen
+    }), {
+      getElementById(id) {
+        return id === 'payments-output' ? output : null;
+      }
+    });
+    service.selectedObject = 'TEST';
+    service.selectedYear = '2026';
+    service.render();
+
+    expect(output.innerHTML).toContain('Pluto');
+    expect(output.innerHTML).toContain('Goofy');
+    expect(output.innerHTML).toContain('Vor Mietbeginn');
+    expect(output.innerHTML).not.toContain('openHistoricalMonth');
+    expect(output.innerHTML).toContain('Offene Posten ehemaliger Verträge fließen bereits in die Übersicht ein.');
+    expect((output.innerHTML.match(/payment-row-historical/g) || []).length).toBe(1);
+    expect((output.innerHTML.match(/payment-unit-group/g) || []).length).toBe(1);
+  });
+
+  it('zeigt im Vorjahr Pluto und nicht den erst später eingezogenen Goofy', () => {
+    const output = { innerHTML: '' };
+    const service = loadPaymentService(baseState({
+      objekte: [{ objekt_id: 'TEST', bezeichnung: 'TEST · Entenhausen' }],
+      einheiten: tenantChangeFixture.einheiten,
+      personen: tenantChangeFixture.personen,
+      vertraege: tenantChangeFixture.vertraege,
+      vertragsparteien: tenantChangeFixture.vertragsparteien,
+      zahlungen: tenantChangeFixture.zahlungen
+    }), {
+      getElementById(id) {
+        return id === 'payments-output' ? output : null;
+      }
+    });
+    service.selectedObject = 'TEST';
+    service.selectedYear = '2025';
+    service.render();
+
+    expect(output.innerHTML).toContain('Pluto');
+    expect(output.innerHTML).not.toContain('Goofy');
+    expect(output.innerHTML).toContain('für 2025');
+    expect(output.innerHTML).toContain('700,00 EUR / Monat · historisch');
   });
 
   it('kennzeichnet historische Sollbeträge in Matrix und Zahlungshinweis', () => {

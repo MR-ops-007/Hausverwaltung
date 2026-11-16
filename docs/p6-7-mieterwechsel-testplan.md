@@ -9,6 +9,16 @@ jedoch jeweils eine eigene `vertrag_id`.
 
 ## Entenhausen-Fixture
 
+Der Mock-Grundbestand ist über die Jahresgrenzen hinweg konsistent aufgebaut:
+
+- Wohnungen 1 bis 6 haben laufende Verträge ab 2025 und sind deshalb in den
+  Jahresansichten 2025 und 2026 sichtbar.
+- Wohnung 7 ist in beiden Jahren als Leerstand ohne Sollmiete enthalten.
+- Für 2025 gibt es passende Zahlungseingänge mit unterschiedlichen Fällen:
+  vollständig bezahlt, verspätet, teilbezahlt und überzahlt.
+- Wohnung 8 ist bewusst der separate Mieterwechsel-Fall und wird ausschließlich
+  über die folgende Pluto-/Goofy-Fixture beschrieben.
+
 Die wiederverwendbare Fixture `tools/mock-rental-fixtures.mjs` bildet für
 `TEST_WE_08` folgenden Wechsel ab:
 
@@ -18,12 +28,13 @@ Die wiederverwendbare Fixture `tools/mock-rental-fixtures.mjs` bildet für
 | ab 01.06.2026 | `TEST_V8` | Goofy | aktiv | 800,00 EUR |
 
 Die Zahlungen und Kautionen sind getrennt an die jeweilige `vertrag_id` gebunden.
-Pluto hat Zahlungen für Januar bis Mai 2026, eine nach dem Wechsel eingegangene
+Pluto hat vollständige Zahlungen für Juni bis Dezember 2025 und Januar bis Mai 2026,
+eine nach dem Wechsel eingegangene
 Nachzahlung für April mit anschließendem Storno und eine vollständig hinterlegte
 Kaution. Goofy hat Zahlungen für Juni bis August 2026, eine Teilzahlung im Juli
 und eine teilweise hinterlegte Kaution. Die aktive Mieteransicht zeigt für die
-Einheit nur Goofy; der alte Vertrag bleibt für die spätere historische Ansicht
-im Grunddatenbestand erhalten.
+Einheit nur Goofy; in der Mieteingangskontrolle bleiben Pluto und seine Zahlungen
+als eigene historische Vertragszeile sichtbar.
 
 ## Abnahmekriterien für die spätere UI-Umsetzung
 
@@ -35,8 +46,11 @@ im Grunddatenbestand erhalten.
    neuen Vertrag zu.
 4. Ein Wechsel mitten im Monat verlangt eine ausdrückliche fachliche Regel,
    bevor Zahlungen oder Verbräuche automatisch aufgeteilt werden.
-5. Die Mieteingangskontrolle zeigt den aktuellen Vertrag in der Standardansicht
-   und bietet die historische Vertragsperiode separat an.
+5. Die Mieteingangskontrolle baut ihre Zeilen aus dem Einheitenbestand auf. Jede
+   Einheit des Objekts bleibt in jedem ausgewählten Jahr sichtbar. Je Vertragsperiode,
+   die das Jahr abdeckt, gibt es eine eigene Zeile: 2025 erscheint Pluto; 2026 erscheinen
+   Pluto für Januar bis Mai und Goofy ab Juni. Einheiten ohne Vertrag erscheinen neutral
+   als Leerstand.
 6. Zahlungen vor dem Wechsel bleiben beim alten Vertrag. Zahlungen ab dem neuen
    Vertragsbeginn werden dem neuen Vertrag zugeordnet.
 7. Eine verspätete Zahlung oder ein Storno für den alten Vertrag verändert nicht
@@ -56,12 +70,19 @@ Soll für Juni. Diese Charakterisierung wird nach der Entscheidung zu anteiligem
 Soll und Zwischenablesung bewusst angepasst. Sie ist keine fachliche Freigabe für
 eine spätere Abrechnung.
 
-## Bekannte Ausgangslage
+## Aktueller UI-Stand
 
-Die aktuelle Mieteingangskontrolle zeigt nur aktive Verträge. Die Fixture stellt
-den historischen Vertrag deshalb bereits korrekt bereit, kann ihn in der
-Standardmatrix aber noch nicht als eigene historische Zeile anzeigen. Das ist
-der eigentliche Implementierungsumfang von P6.7 und kein Fehler der Fixture.
+Die Mieteingangskontrolle filtert nach dem gewählten Jahr und nicht nur nach dem
+heutigen `aktiv`-Flag. Die Einheiten kommen aus `Einheiten`; Verträge bestimmen nur
+die zeitbezogene Belegung. Für 2025 erscheinen der Grundbestand der Wohnungen 1 bis 7
+und bei `TEST_WE_08` Pluto. Für 2026 erscheinen Pluto für Januar bis Mai und Goofy
+ab dem 01.06.2026 als getrennte Vertragszeilen. Monate außerhalb der jeweiligen
+Vertragsperiode bleiben in der jeweiligen Zeile neutral und sind nicht klickbar; der
+historische Vertrag wird direkt als eigene Zeile bearbeitbar angezeigt. Eine Einheit
+ohne Vertrag bleibt als neutraler Leerstand sichtbar. Verträge mit unbekannter Einheit,
+widersprüchlicher Objektzuordnung, Überschneidungen, Lücken und Monatsmitte-Wechseln
+werden als strukturierte Datenprüfung angezeigt, statt still aus der Ansicht zu
+verschwinden.
 
 Verbrauchsviews verwenden derzeit den aktiven Mieter aus
 `_view_aktive_mieter`. Eine abrechnungsfähige Verbrauchsaufteilung nach alten
@@ -69,9 +90,18 @@ Vertragszeiträumen bleibt deshalb ebenfalls Bestandteil der späteren Umsetzung
 
 ## Technische Prüfung der Vorbereitung
 
-- `npm test`: 502 Tests in 20 Testdateien grün.
+- `npm test`: 518 Tests in 20 Testdateien grün.
 - `npm run check:frontend-assets`: erfolgreich.
 - `node --check` für Mock-Server und Fixture: erfolgreich.
 - Mock-API-Lauf: Für `TEST_WE_08` wurden beide Verträge, beide Parteien, die
   getrennten Zahlungen/Kautionen und ausschließlich `TEST_V8` in der aktiven
   Mieteransicht bestätigt.
+- Die zentrale `contractService.validateContractPeriods()` ist die gemeinsame
+  Quelle für Zeitraumfehler und Hinweise in Backend-nahem Code und UI. Sie prüft
+  gegen das laufende maximale Vertragsende, erkennt dadurch auch indirekte
+  Überschneidungen und offene Vorgänger. Die UI zeigt die Codes `PERIOD_OVERLAP`,
+  `PERIOD_GAP`, `MID_MONTH_CHANGE`, `UNKNOWN_UNIT` und `OBJECT_ID_CONFLICT` an.
+- Die Typregel entscheidet nur über vertragsfreie Einheiten: `Wohnung`, `Gewerbe`
+  oder explizit `mietrelevant` dürfen als Leerstand erscheinen. Eine Einheit mit
+  Vertrag wird unabhängig von ihrem Typ angezeigt; `Allgemein` und `Gemeinschaft`
+  werden ohne Vertrag nicht als Miet-Leerstand dargestellt.
