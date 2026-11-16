@@ -272,6 +272,19 @@ describe('paymentUiService Monatsstatus', () => {
     expect(matrix[0]).toMatchObject({ rowType: 'vertrag', unitId: 'O1_WE_01' });
   });
 
+  it('behält bei leerer Einheitenliste beide Vertragsperioden einer Einheit', () => {
+    const service = loadPaymentService(baseState({
+      objekte: [{ objekt_id: 'TEST', bezeichnung: 'TEST · Entenhausen' }],
+      einheiten: tenantChangeFixture.einheiten,
+      vertraege: tenantChangeFixture.vertraege
+    }));
+
+    const rows = service.buildUnitRows([], tenantChangeFixture.vertraege, '2026');
+    expect(rows.filter(row => row.unitId === 'TEST_WE_08').map(row => row.contract.vertrag_id)).toEqual([
+      'TEST_V8_ALT', 'TEST_V8'
+    ]);
+  });
+
   it('zeigt eine objektübergreifende Lücke im betroffenen Zwischenjahr', () => {
     const unit = { einheit_id: 'O1_WE_01', objekt_id: 'O1', nummer: 'Wohnung 1', typ: 'Wohnung' };
     const contracts = [

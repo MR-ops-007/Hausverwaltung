@@ -288,6 +288,8 @@ const paymentUiService = {
 
     // A caller may pass a deliberately filtered unit list. Known units with a
     // matching contract must still remain visible instead of disappearing.
+    // The filters are evaluated for the complete candidate list before the
+    // loop starts, so multiple contract periods for one unit remain visible.
     candidates
       .filter(contract => knownUnitIds.has(String(contract.einheit_id || '')))
       .filter(contract => !rowUnitIds.has(String(contract.einheit_id || '')))
