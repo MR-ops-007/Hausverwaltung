@@ -1060,6 +1060,7 @@ describe('paymentUiService CSV-Import', () => {
     expect(output.innerHTML).toContain('Überfällig');
     expect(output.innerHTML).toContain('Guthaben / Überzahlungen');
     expect(output.innerHTML).toContain('Kontoauszug als CSV');
+    expect((output.innerHTML.match(/payment-unit-group/g) || []).length).toBe(0);
   });
 
   it('zeigt historische Verträge und verlinkt den Vorgängermonat zur Erfassung', () => {
@@ -1087,6 +1088,7 @@ describe('paymentUiService CSV-Import', () => {
     expect(output.innerHTML).toContain('Offene Posten ehemaliger Verträge fließen bereits in die Übersicht ein.');
     expect((output.innerHTML.match(/payment-row-historical/g) || []).length).toBe(1);
     expect((output.innerHTML.match(/payment-unit-group/g) || []).length).toBe(1);
+    expect((output.innerHTML.match(/>Wohnung 8</g) || []).length).toBe(1);
   });
 
   it('zeigt im Vorjahr Pluto und nicht den erst später eingezogenen Goofy', () => {

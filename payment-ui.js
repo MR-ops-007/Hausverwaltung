@@ -946,11 +946,17 @@ const paymentUiService = {
       : '✓ Kautionen vollständig hinterlegt oder nicht vereinbart';
     const contractSummary = overviewMatrix.filter(item => item.contract).map(item => '<div class="payment-contract-summary-item' + (this.isActive(item.contract.aktiv) ? '' : ' payment-contract-summary-item-historical') + (item.rowType === 'vertrag_warnung' ? ' payment-contract-summary-item-warning' : '') + '"><strong>' + this.escape(item.unit) + ' · ' + this.escape(item.tenant) + '</strong><span>' + (this.isActive(item.contract.aktiv) ? 'Aktueller Vertrag' : 'Historischer Vertrag') + ' · ' + this.escape(this.contractPeriodLabel(item.contract)) + '</span><span>' + this.formatMoney(item.due) + ' EUR / Monat · ' + (this.isActive(item.contract.aktiv) ? 'aktuell' : 'historisch') + '</span>' + this.depositStatusHtml(item.deposit) + '</div>').join('');
     const monthHeaders = this.MONTH_NAMES.map((name, index) => `<th scope="col">${name}<span class="payment-month-number">${index + 1}</span></th>`).join('');
+    const unitRowCounts = new Map();
+    matrix.forEach(item => {
+      const unitId = String(item.unitId || '');
+      unitRowCounts.set(unitId, (unitRowCounts.get(unitId) || 0) + 1);
+    });
     let previousUnitId = null;
     const rows = matrix.map(item => {
       const newUnit = item.unitId !== previousUnitId;
       previousUnitId = item.unitId;
-      const groupHeader = newUnit
+      const groupedUnit = (unitRowCounts.get(String(item.unitId || '')) || 0) > 1;
+      const groupHeader = newUnit && groupedUnit
         ? `<tr class="payment-unit-group"><th colspan="${this.MONTH_NAMES.length + 1}">${this.escape(item.unit)}${item.rowType === 'leerstand' ? ' · Leerstand' : ''}</th></tr>`
         : '';
       const hasContract = Boolean(item.contract);
@@ -966,7 +972,8 @@ const paymentUiService = {
         const disabled = actionable ? '' : ' disabled';
         return `<td><button class="payment-cell ${this.statusClass(month.status)}${month.verspaetet ? ' payment-cell-late' : ''}" type="button"${action ? ` onclick="${action}"` : ''}${disabled} title="${this.escape(this.statusTitle(month) + (month.verspaetet ? ' Zusätzlich verspätet beglichen oder aktuell überfällig.' : ''))}"><strong>${this.escape(this.statusLabel(month.status))}${month.verspaetet ? '<small>verspätet</small>' : ''}</strong><span>${this.formatMoney(month.paid)} / ${this.formatMoney(month.due)} EUR</span></button></td>`;
       }).join('');
-      return `${groupHeader}<tr class="${rowClass}"><th scope="row" class="payment-tenant-cell${historical ? ' payment-tenant-cell-historical' : ''}${item.rowType === 'vertrag_warnung' ? ' payment-tenant-cell-warning' : ''}"><strong>${this.escape(item.unit)}</strong><span>${this.escape(item.tenant)}</span>${warningBadge}${contractInfo}</th>${monthCells}</tr>`;
+      const unitLabel = groupedUnit ? '' : `<strong>${this.escape(item.unit)}</strong>`;
+      return `${groupHeader}<tr class="${rowClass}"><th scope="row" class="payment-tenant-cell${groupedUnit ? ' payment-tenant-cell-grouped' : ''}${historical ? ' payment-tenant-cell-historical' : ''}${item.rowType === 'vertrag_warnung' ? ' payment-tenant-cell-warning' : ''}">${unitLabel}<span>${this.escape(item.tenant)}</span>${warningBadge}${contractInfo}</th>${monthCells}</tr>`;
     }).join('');
     const warningHtml = dataWarnings.length
       ? `<div class="payment-data-warnings" role="${dataWarnings.some(warning => warning.severity === 'error') ? 'alert' : 'status'}"><strong>Datenprüfung erforderlich</strong>${dataWarnings.map(warning => `<span class="payment-data-warning-${warning.severity}"><b>${this.escape(warning.code)}</b> ${this.escape(warning.message)}</span>`).join('')}</div>`
