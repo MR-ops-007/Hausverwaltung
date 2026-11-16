@@ -962,6 +962,7 @@ const paymentUiService = {
         ? ' payment-row-vacancy'
         : historical ? ' payment-row-historical' : '';
       const groupedFirst = groupedUnit && newUnit;
+      const rowSpan = groupedFirst ? ` rowspan="${unitRowCounts.get(String(item.unitId || ''))}"` : '';
       const warningBadge = item.rowType === 'vertrag_warnung' ? '<span class="payment-data-warning-badge" title="Vertrag verweist auf eine unbekannte Einheit">Daten prüfen</span>' : '';
       const contractInfo = hasContract
         ? `<span>${historical ? 'Historischer Vertrag' : 'Aktueller Vertrag'} · ${this.escape(this.contractPeriodLabel(item.contract))}</span><small>${this.formatMoney(item.due)} EUR / Monat · ${historical ? 'historisch' : 'aktuell'}</small><span class="payment-deposit payment-deposit-${item.deposit.status}">${item.deposit.due > 0 ? 'Kaution: ' + this.formatMoney(item.deposit.paid) + ' / ' + this.formatMoney(item.deposit.due) + ' EUR' : 'Keine Kaution vereinbart'}</span>${item.deposit.due > 0 && item.deposit.status !== 'vollständig' ? `<button class="payment-deposit-action" type="button" onclick="paymentUiService.openPaymentDialog('${this.escape(item.contract.vertrag_id)}','','Kaution')">Kaution erfassen</button>` : ''}`
@@ -972,10 +973,13 @@ const paymentUiService = {
         const disabled = actionable ? '' : ' disabled';
         return `<td><button class="payment-cell ${this.statusClass(month.status)}${month.verspaetet ? ' payment-cell-late' : ''}" type="button"${action ? ` onclick="${action}"` : ''}${disabled} title="${this.escape(this.statusTitle(month) + (month.verspaetet ? ' Zusätzlich verspätet beglichen oder aktuell überfällig.' : ''))}"><strong>${this.escape(this.statusLabel(month.status))}${month.verspaetet ? '<small>verspätet</small>' : ''}</strong><span>${this.formatMoney(month.paid)} / ${this.formatMoney(month.due)} EUR</span></button></td>`;
       }).join('');
-      const unitLabel = groupedUnit
-        ? (groupedFirst ? `<strong class="payment-unit-label">${this.escape(item.unit)}</strong>` : '')
-        : `<strong>${this.escape(item.unit)}</strong>`;
-      return `<tr class="${rowClass}"><th scope="row" class="payment-tenant-cell${groupedUnit ? ' payment-tenant-cell-grouped' : ''}${groupedFirst ? ' payment-tenant-cell-grouped-first' : ''}${historical ? ' payment-tenant-cell-historical' : ''}${item.rowType === 'vertrag_warnung' ? ' payment-tenant-cell-warning' : ''}">${unitLabel}<span>${this.escape(item.tenant)}</span>${warningBadge}${contractInfo}</th>${monthCells}</tr>`;
+      const unitCell = groupedFirst || !groupedUnit
+        ? `<th scope="rowgroup"${rowSpan} class="payment-unit-cell${groupedUnit ? ' payment-unit-cell-grouped' : ''}${groupedFirst ? ' payment-unit-cell-grouped-first' : ''}">${this.escape(item.unit)}</th>`
+        : '';
+      const changeMarker = groupedUnit && !groupedFirst && hasContract
+        ? `<span class="payment-change-marker">Mieterwechsel · ${this.escape(this.formatDate(item.contract.start_datum))}</span>`
+        : '';
+      return `<tr class="${rowClass}${groupedUnit && !groupedFirst ? ' payment-row-after-change' : ''}">${unitCell}<th scope="row" class="payment-tenant-cell${historical ? ' payment-tenant-cell-historical' : ''}${item.rowType === 'vertrag_warnung' ? ' payment-tenant-cell-warning' : ''}"><strong class="payment-tenant-name">${this.escape(item.tenant)}</strong>${changeMarker}${warningBadge}${contractInfo}</th>${monthCells}</tr>`;
     }).join('');
     const warningHtml = dataWarnings.length
       ? `<div class="payment-data-warnings" role="${dataWarnings.some(warning => warning.severity === 'error') ? 'alert' : 'status'}"><strong>Datenprüfung erforderlich</strong>${dataWarnings.map(warning => `<span class="payment-data-warning-${warning.severity}"><b>${this.escape(warning.code)}</b> ${this.escape(warning.message)}</span>`).join('')}</div>`
@@ -991,7 +995,7 @@ const paymentUiService = {
       <p class="payment-help"><strong>So wird zugeordnet:</strong> Das Eingangsdatum dokumentiert den tatsächlichen Geldfluss. Der ausgewählte Mietmonat bestimmt die fachliche Zuordnung. <strong>Miete</strong> ist der reguläre Monatsbetrag; eine <strong>Nachzahlung</strong> gleicht einen zusätzlich offenen Betrag für den zugeordneten Monat aus. Eine <strong>Erstattung</strong> wird als negative Rückzahlung geführt und verändert den Zahlungsstatus der Miete nicht. Die Frist wird je Vertrag als 3. Werktag oder individueller Kalendertag berechnet. Dokumentierte Mietanpassungen werden ab ihrem Wirksamkeitsmonat berücksichtigt; solche Monate sind als historisches Soll gekennzeichnet. Nach dem letzten vergangenen Historieneintrag gilt der aktuelle Vertragssatz. Abweichungen oder geschätzte Wirksamkeitsdaten werden als Prüfhinweis angezeigt.</p>
       ${this.legendHtml()}
       ${warningHtml}
-      ${matrix.length ? `<div class="payment-table-wrap"><table class="payment-table"><thead><tr><th scope="col">Mieter / Einheit</th>${monthHeaders}</tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="payment-empty">Keine Verträge für diese Auswahl vorhanden.</p>'}
+      ${matrix.length ? `<div class="payment-table-wrap"><table class="payment-table"><colgroup><col class="payment-unit-col"><col class="payment-tenant-col">${this.MONTH_NAMES.map(() => '<col class="payment-month-col">').join('')}</colgroup><thead><tr><th scope="col" class="payment-unit-header">Einheit</th><th scope="col" class="payment-tenant-header">Mieter / Vertrag</th>${monthHeaders}</tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="payment-empty">Keine Verträge für diese Auswahl vorhanden.</p>'}
       <section class="payment-import-section"><div class="payment-section-heading"><div><h3>Kontoauszug als CSV</h3><p>Die Datei wird lokal gelesen. Buchungen werden erst nach deiner Zuordnung gespeichert.</p></div><label class="payment-file-button">CSV auswählen<input type="file" accept=".csv,text/csv,text/plain" onchange="paymentUiService.handleImportFile(this.files && this.files[0])"></label></div><div id="payment-import-output"></div></section>`;
     if (this.importRows.length > 0) this.renderImportRows();
   },

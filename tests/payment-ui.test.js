@@ -1088,8 +1088,9 @@ describe('paymentUiService CSV-Import', () => {
     expect(output.innerHTML).toContain('Offene Posten ehemaliger Verträge fließen bereits in die Übersicht ein.');
     expect((output.innerHTML.match(/payment-row-historical/g) || []).length).toBe(1);
     expect((output.innerHTML.match(/payment-unit-group/g) || []).length).toBe(0);
-    expect(output.innerHTML).toContain('<strong class="payment-unit-label">Wohnung 8</strong>');
-    expect((output.innerHTML.match(/payment-unit-label/g) || []).length).toBe(1);
+    expect(output.innerHTML).toContain('<th scope="col" class="payment-unit-header">Einheit</th><th scope="col" class="payment-tenant-header">Mieter / Vertrag</th>');
+    expect(output.innerHTML).toContain('<th scope="rowgroup" rowspan="2" class="payment-unit-cell payment-unit-cell-grouped payment-unit-cell-grouped-first">Wohnung 8</th>');
+    expect(output.innerHTML).toContain('<span class="payment-change-marker">Mieterwechsel · 01.06.2026</span>');
     expect((output.innerHTML.match(/>Wohnung 8</g) || []).length).toBe(1);
   });
 
