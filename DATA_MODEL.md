@@ -250,6 +250,22 @@ Vertragszustand. Etage/Kündigungsverzicht sind nicht Bestandteil dieses Ausbaus
 Vollständige Analyse, Fristen, Einschränkungen und reversibler Migrationsplan:
 [Vertragskonzept](docs/contracts-index-plan.md).
 
+### Mieterwechsel (P6.7b)
+
+Ein Mieterwechsel überschreibt keinen bestehenden Vertrag. Der Admin-only-Schreibtyp
+`MIETERWECHSEL_ANLEGEN` beendet den bisherigen Vertrag mit `end_datum` am Tag vor dem
+neuen `start_datum` und legt eine neue Zeile mit eigener `vertrag_id` sowie neue Zeilen
+in `Vertragsparteien` an. Beide Verträge behalten dieselbe `einheit_id`; Zahlungen,
+Kautionen und Mietanpassungen bleiben über die jeweilige Vertrags-ID getrennt.
+
+Der Vorgang läuft im zentralen Apps-Script-Lock, benötigt den erwarteten Snapshot des
+alten Vertrags und prüft vor dem Schreiben `contractService.validateContractPeriods()`.
+Eine Wiederholung derselben neuen Vertrags-ID ist idempotent; eine abweichende Wiederholung,
+eine Überschneidung oder eine unbekannte Fremdschlüsselreferenz wird abgewiesen. Ein
+Mieterwechsel innerhalb eines Monats wird nicht automatisch anteilig berechnet, sondern
+als fachlicher Hinweis zurückgegeben. Eine UI-Maske zum Anlegen des Vorgangs folgt in
+einem eigenen Paket.
+
 Die UI kann ungespeicherte Indexwerte aus der öffentlichen Bundesbank-Reihe
 `BBDP1.M.DE.N.VPI.C.A00000.I20.L` abrufen (Destatis-Daten, VPI Deutschland,
 monatlicher Gesamtindex, unbereinigt, 2020=100). Indexstände werden abgerufen,

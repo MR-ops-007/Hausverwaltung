@@ -7,6 +7,11 @@ const contractService = {
     'vertragsdokument_url', 'sondervereinbarungen_url', 'vertrag_hinweis',
     'nk_betriebskosten', 'nk_heizung_warmwasser', 'index_basis_monat', 'index_basis_wert', 'index_reihe',
     'zahlungsziel_typ', 'zahlungsziel_wert'],
+  tenantChangeFields: ['vertrag_id', 'einheit_id', 'hauptperson_id', 'start_datum', 'end_datum', 'aktiv',
+    'mietmodell', 'erhoehungs_typ', 'letzte_anpassung', 'soll_kaltmiete', 'soll_nebenkosten', 'soll_gesamt',
+    'kaution_soll', 'kaution_ist', 'zahlungsziel_typ', 'zahlungsziel_wert',
+    'vertragsdokument_url', 'sondervereinbarungen_url', 'vertrag_hinweis',
+    'nk_betriebskosten', 'nk_heizung_warmwasser', 'index_basis_monat', 'index_basis_wert', 'index_reihe'],
   historyHeaders: ['anpassung_id', 'vertrag_id', 'art', 'erfasst_am', 'wirksam_ab',
     'zugang_datum', 'erklaerung_url', 'index_neu_monat', 'index_neu_wert', 'index_reihe',
     'vorher_json', 'nachher_json'],
@@ -114,6 +119,61 @@ const contractService = {
       if (Object.prototype.hasOwnProperty.call(values, key) && !this.same(current[key], values[key])) patch[key] = values[key];
       return patch;
     }, {});
+  },
+
+  /**
+   * Builds and validates the new contract side of an atomic tenant change.
+   * Identity and period fields are intentionally separate from preparePatch:
+   * a tenant change creates a new historical record instead of mutating one.
+   */
+  prepareTenantChange(current, input) {
+    if (!current || !input || typeof input !== 'object' || Array.isArray(input)) {
+      throw new Error('Daten fuer den neuen Mietvertrag fehlen.');
+    }
+    Object.keys(input).forEach(key => {
+      if (!this.tenantChangeFields.includes(key)) throw new Error('Nicht bearbeitbares Feld im Mieterwechsel: ' + key);
+    });
+    if (this.blank(input.vertrag_id)) throw new Error('Neue Vertrags-ID fehlt.');
+    if (this.blank(input.einheit_id) || String(input.einheit_id) !== String(current.einheit_id)) {
+      throw new Error('Einheit des neuen Vertrags muss der bisherigen Einheit entsprechen.');
+    }
+    if (this.blank(input.hauptperson_id)) throw new Error('Hauptperson des neuen Vertrags fehlt.');
+    const start = this.iso(this.date(input.start_datum));
+    const end = this.blank(input.end_datum) ? '' : this.iso(this.date(input.end_datum));
+    if (end && end < start) throw new Error('Das neue Vertragsende liegt vor dem Vertragsbeginn.');
+
+    const source = Object.assign({}, current, input);
+    if (!['Pauschal', 'Warmmiete', 'Kalt+NK'].includes(source.mietmodell)) throw new Error('Mietmodell ungueltig.');
+    if (!['Index', 'Staffel', 'Normal'].includes(source.erhoehungs_typ)) throw new Error('Erhoehungstyp ungueltig.');
+    const cold = this.money(this.number(source.soll_kaltmiete, 'Nettokaltmiete'));
+    const costs = this.money(this.number(source.soll_nebenkosten, 'Nebenkosten'));
+    const depositSoll = Object.prototype.hasOwnProperty.call(input, 'kaution_soll') ? input.kaution_soll : source.kaution_soll;
+    const depositIst = Object.prototype.hasOwnProperty.call(input, 'kaution_ist') ? input.kaution_ist : 0;
+    const result = Object.assign({}, source, {
+      vertrag_id: String(input.vertrag_id).trim(),
+      einheit_id: String(input.einheit_id).trim(),
+      hauptperson_id: String(input.hauptperson_id).trim(),
+      start_datum: start,
+      end_datum: end,
+      aktiv: true,
+      soll_kaltmiete: cold,
+      soll_nebenkosten: costs,
+      soll_gesamt: this.money(cold + costs),
+      kaution_soll: this.number(this.blank(depositSoll) ? 0 : depositSoll, 'Kaution Soll'),
+      kaution_ist: this.number(this.blank(depositIst) ? 0 : depositIst, 'Kaution Ist')
+    });
+    if (Object.prototype.hasOwnProperty.call(input, 'letzte_anpassung') && !this.blank(input.letzte_anpassung)) {
+      result.letzte_anpassung = this.iso(this.date(input.letzte_anpassung));
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'zahlungsziel_typ') || Object.prototype.hasOwnProperty.call(input, 'zahlungsziel_wert')) {
+      const type = this.paymentDeadlineType(source.zahlungsziel_typ);
+      result.zahlungsziel_typ = type;
+      result.zahlungsziel_wert = this.paymentDeadlineValue(source.zahlungsziel_wert, type);
+    }
+    ['vertragsdokument_url', 'sondervereinbarungen_url'].forEach(key => {
+      if (Object.prototype.hasOwnProperty.call(input, key)) result[key] = this.documentUrl(input[key]);
+    });
+    return result;
   },
 
   /**

@@ -5,7 +5,7 @@ const KEY = 'test-only-key';
 
 function backend({ key, accessKeys, paymentRows } = {}) {
   const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
-  const calls = { locks: 0, viewUpdates: 0, contractWrites: [] };
+  const calls = { locks: 0, viewUpdates: 0, contractWrites: [], tenantChanges: [] };
   const rows = {
     Zaehlerstaende: [['stand_id', 'zaehler_id', 'wert']],
     Zahlungen: paymentRows || [['zahlung_id', 'betrag']]
@@ -51,7 +51,8 @@ function backend({ key, accessKeys, paymentRows } = {}) {
     updateAktiveMieterView = () => { calls.viewUpdates++; };
     updateVerbrauchViews = () => { calls.viewUpdates++; return { status: 'success', message: 'Verbrauchsviews aktualisiert' }; };
     handleContractWrite = (spreadsheet, payload) => { calls.contractWrites.push(payload); return { status: 'success', vertrag: {}, anpassung: {} }; };
-    return { doGet, doPost, constantTimeEquals, getAccessPrincipal };`);
+    handleTenantChange = (spreadsheet, payload) => { calls.tenantChanges.push(payload); return { status: 'success', vertrag_neu: payload.data }; };
+    return { doGet, doPost, constantTimeEquals, getAccessPrincipal, canWriteType };`);
   const api = factory(...Object.values(globals), calls);
   const parse = output => JSON.parse(output.text);
   return {
@@ -144,7 +145,7 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     }
     expect(api.rows.Zaehlerstaende).toHaveLength(1);
     expect(api.rows.Zahlungen).toHaveLength(1);
-    expect(api.calls).toEqual({ locks: 0, viewUpdates: 0, contractWrites: [] });
+    expect(api.calls).toEqual({ locks: 0, viewUpdates: 0, contractWrites: [], tenantChanges: [] });
   });
 
   it('schreibt mit richtigem Schlüssel und reicht Vertragsänderungen weiter', () => {
@@ -156,6 +157,20 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     expect(api.calls.viewUpdates).toBe(2);
     api.post({ typ: 'INDEX_ANWENDEN', token: 'vertrag', data: {}, key: KEY });
     expect(api.calls.contractWrites).toHaveLength(1);
+  });
+
+  it('routet Mieterwechsel nur für Admin-Geräte und meldet die Capability', () => {
+    const admin = backend({ key: KEY });
+    expect(admin.post({ typ: 'MIETERWECHSEL_ANLEGEN', key: KEY, token: 'vertrag', vertrag_id: 'ALT',
+      data: { vertrag_id: 'NEU' } })).toMatchObject({ status: 'success' });
+    expect(admin.calls.tenantChanges).toHaveLength(1);
+    expect(admin.post({ typ: 'LESEN', view: 'vertrag_capabilities', key: KEY })).toMatchObject({ tenant_change_writes: true });
+
+    const capture = backend({ accessKeys: [{ id: 'father', key: 'capture-key', role: 'erfassen', aktiv: true }] });
+    expect(capture.post({ typ: 'MIETERWECHSEL_ANLEGEN', key: 'capture-key', token: 'vertrag', vertrag_id: 'ALT',
+      data: { vertrag_id: 'NEU' } })).toMatchObject({ status: 'error', code: 'FORBIDDEN' });
+    expect(capture.calls.tenantChanges).toHaveLength(0);
+    expect(capture.post({ typ: 'LESEN', view: 'vertrag_capabilities', key: 'capture-key' })).toMatchObject({ tenant_change_writes: false });
   });
 
   it('behandelt Zahlungen über zahlung_id idempotent und weist abweichende Wiederholungen ab', () => {

@@ -1,7 +1,7 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.12
- * Stand: 2026-11-13
+ * Version: 4.8.13
+ * Stand: 2026-11-16
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
  * Änderungen seit v4.1:
@@ -123,8 +123,12 @@
  *
  * Änderungen seit v4.8.11:
  * - Neue mietmonat-Werte werden beim Schreiben ausdrücklich als Text YYYY-MM gespeichert
+ *
+ * Änderungen seit v4.8.12:
+ * - Mieterwechsel werden als atomarer, idempotenter Admin-Schreibvorgang mit geschlossenem
+ *   Vorgängervertrag, neuer Vertragspartei und zentraler Zeitraumprüfung gespeichert
  */
-const BACKEND_VERSION = "4.8.12";
+const BACKEND_VERSION = "4.8.13";
 
 function sendJSON(obj) {
   return ContentService
@@ -202,7 +206,7 @@ function hasValidAccessKey(providedKey) {
 
 function canWriteType(principal, type) {
   if (!principal) return false;
-  if (type === 'VERTRAG_AKTUALISIEREN' || type === 'INDEX_ANWENDEN') {
+  if (type === 'VERTRAG_AKTUALISIEREN' || type === 'INDEX_ANWENDEN' || type === 'MIETERWECHSEL_ANLEGEN') {
     return principal.role === 'admin';
   }
   return principal.role === 'admin' || principal.role === 'erfassen';
@@ -223,6 +227,7 @@ function readView(ss, view, principal) {
     return {
       backend_version: BACKEND_VERSION,
       contract_writes: Boolean(principal && principal.role === 'admin'),
+      tenant_change_writes: Boolean(principal && principal.role === 'admin'),
       payment_writes: Boolean(principal && (principal.role === 'admin' || principal.role === 'erfassen')),
       payment_schema_ready: paymentSchema.ready,
       payment_schema_missing: paymentSchema.missing,
@@ -580,6 +585,10 @@ function doPost(e) {
       return sendJSON(handleContractWrite(ss, payload));
     }
 
+    if (payload.typ === 'MIETERWECHSEL_ANLEGEN') {
+      return sendJSON(handleTenantChange(ss, payload));
+    }
+
     if (BACKEND_ACTION_TYPES.indexOf(payload.typ) !== -1) {
       if (payload.typ === 'VERBRAUCH_VIEWS_AKTUALISIEREN') {
         return sendJSON(updateVerbrauchViews());
@@ -604,10 +613,13 @@ function doPost(e) {
 
     return sendJSON(writePayments(ss, payload.data));
   } catch (err) {
-    return sendJSON({
+    const response = {
       status: "error",
       message: err.toString()
-    });
+    };
+    if (err && err.code) response.code = err.code;
+    if (err && err.details) response.details = err.details;
+    return sendJSON(response);
   } finally {
     lock.releaseLock();
   }

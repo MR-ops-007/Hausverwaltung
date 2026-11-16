@@ -100,6 +100,40 @@ die TEST-Tabelle.
 10. Nach einem Reload stimmen Matrix, Detailansicht und Vertragszeiträume mit den
     gespeicherten `vertrag_id`s überein.
 
+## P6.7b – Backend-Abnahme
+
+Die serverseitige Schreiboperation heißt `MIETERWECHSEL_ANLEGEN` und ist ausschließlich
+für `admin`-Geräteschlüssel freigeschaltet. Sie wird im bestehenden Script-Lock ausgeführt;
+ein `CONTRACT_WRITE_TOKEN` bleibt zusätzlich erforderlich. Der Aufruf erwartet:
+
+- `vertrag_id`: ID des bisherigen Vertrags,
+- `erwarteter_stand`: Snapshot des bisherigen Vertrags,
+- `data`: neuer Vertrag mit eigener `vertrag_id`, derselben `einheit_id`,
+  `hauptperson_id` und `start_datum`,
+- optional `parteien`: neue Vertragsparteien; ohne Angabe wird die Hauptperson als
+  `Hauptmieter` angelegt.
+
+Vor dem ersten Schreiben werden Einheit, Personen, Zeitraum und erwarteter Stand geprüft.
+Der bisherige Vertrag wird am Vortag des neuen Mietbeginns beendet und auf `aktiv = false`
+gesetzt. Der neue Vertrag und die Parteien werden anschließend angehängt. Ein Fehler beim
+zweiten Schreibschritt setzt die bereits geänderten Zellen zurück.
+
+| Prüffall | Erwartetes Ergebnis |
+|---|---|
+| Wechsel vom offenen Vertrag zu einem neuen Vertrag am Folgetag | Alter Vertrag endet am Vortag, neuer Vertrag ist aktiv, Parteien sind verknüpft. |
+| Derselbe Request erneut | Erfolg mit `bereits_vorhanden`, keine weitere Vertrags- oder Parteienzeile. |
+| Neue ID mit abweichenden Daten | `TENANT_CHANGE_ID_CONFLICT`, keine Änderung. |
+| Veralteter `erwarteter_stand` | `TENANT_CHANGE_STALE`, keine Änderung. |
+| Neuer Beginn vor oder am alten Ende | `CONTRACT_PERIOD_OVERLAP`, keine Änderung. |
+| Unbekannte Person oder Einheit | Schreibfehler, keine Änderung. |
+| Fehler beim Anhängen der Parteien | Rollback des alten Vertrags und der neuen Vertragszeile. |
+| Gerät mit Rolle `erfassen` | `FORBIDDEN`; `tenant_change_writes` bleibt `false`. |
+| Start innerhalb eines Monats | Nur der fachliche Hinweis `MID_MONTH_CHANGE`; keine automatische anteilige Berechnung. |
+
+Die Operation ist in `tests/contracts.test.js` und `tests/access.test.js` automatisiert
+abgesichert. Für die echte Abnahme wird Apps Script 4.8.13 zuerst in TEST bereitgestellt;
+die UI-Maske ist noch nicht Teil dieses Pakets und wird in einem Folgepaket ergänzt.
+
 Die aktuelle Charakterisierung hält zusätzlich fest: Eine Nachzahlung von 50 EUR
 für Plutos April erzeugt vor dem Storno ein Guthaben von 50 EUR; nach dem Storno
 bleibt der Monat bei 700,00 EUR und wird weiterhin als verspätet erkannt. Bei einem
@@ -129,7 +163,7 @@ Vertragszeiträumen bleibt deshalb ebenfalls Bestandteil der späteren Umsetzung
 
 ## Technische Prüfung der Vorbereitung
 
-- `npm test`: 520 Tests in 20 Testdateien grün.
+- `npm test`: 535 Tests in 20 Testdateien grün (inklusive der P6.7b-Backend-Regressionen).
 - `npm run check:frontend-assets`: erfolgreich.
 - `node --check` für Mock-Server und Fixture: erfolgreich.
 - Mock-API-Lauf: Für `TEST_WE_08` wurden beide Verträge, beide Parteien, die

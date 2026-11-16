@@ -35,6 +35,15 @@ die lokale Script Property `CONTRACT_WRITE_TOKEN`. Keine Freigabewerte committen
 Vor Push produktiven Stand in separater Arbeitskopie pullen und Diff prüfen.
 Details: [Vertragskonzept und Rollback](../docs/contracts-index-plan.md).
 
+Der Mieterwechsel-Schreibtyp `MIETERWECHSEL_ANLEGEN` ist ab Backend 4.8.13
+Admin-only. Er schließt den bisherigen Vertrag am Vortag des neuen Mietbeginns,
+legt den neuen Vertrag und dessen Vertragsparteien an und prüft dabei den erwarteten
+Snapshot sowie `contractService.validateContractPeriods()`. Der Vorgang läuft im
+zentralen Script-Lock und ist über die neue Vertrags-ID idempotent. Die UI-Maske für
+den Vorgang ist noch nicht enthalten; bis dahin bleibt der API-Aufruf ein vorbereiteter
+Backend-Schreibweg. Vor TEST/PROD muss die neue Apps-Script-Version bereitgestellt und
+mit einem isolierten Testobjekt abgenommen werden.
+
 `preparePaymentSchema()` ist die ebenfalls manuell aufzurufende Vorbereitung für das
 Blatt `Zahlungen`. Sie ergänzt unter anderem `zahlungsgruppe_id` für aufgeteilte
 Mieteingänge und verändert keine bestehenden Buchungen.

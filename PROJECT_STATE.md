@@ -1,18 +1,18 @@
 # PROJECT_STATE - Hausverwaltung
 
-## Stand: 2026-11-15
+## Stand: 2026-11-17
 
 `main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz und der Zahlungsweg 4.8.12 sind in TEST und PROD produktiv aktiviert.
 
 Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die nächsten sinnvollen Arbeitspakete.
 
-### Aktueller Stand nach PR #41
+### Aktueller Stand nach PR #46
 
-- `main` steht auf dem Stand nach PR #41 und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
+- `main` steht auf dem Stand nach PR #46 und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
   Z1 Speicherrückmeldung und Z2 Heizöl-Verbrauch.
 - Die Überlaufklassifikation, die Diagramm-Fehlerbehandlung, die Heizöl-Tankbilanz und
   der Speichervorgang sind gemeinsam regressionsgetestet.
-- Der vollständige Testlauf auf dem aktuellen `main`-Stand umfasst aktuell 483 Tests in 20 Testdateien. Apps Script 4.8.12
+- Der dokumentierte Testlauf des letzten `main`-Stands umfasst 483 Tests in 20 Testdateien. Apps Script 4.8.12
   ist in PROD (bestehende Bereitstellung, Deployment-Version 42) und TEST (bestehende Bereitstellung)
   veröffentlicht; die jeweiligen URLs blieben unverändert. 4.8.5 bleibt als Rollback-Stand dokumentiert.
 - Die lokale Auswahl von TEST und PROD sowie die GitHub-Pages-/Home-Screen-Grundlage sind in PR #35
@@ -90,7 +90,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   auf Desktopbreite geöffnet und die Matrix ohne Darstellungsfehler geprüft.
   Die Soll-Historie ist die Grundlage für P6.6 (Erinnerungen an mögliche Mieterhöhungen),
   das als separates Folgepaket verbleibt.
-- P6.7 Mieterwechsel ist als Folgepaket in Umsetzung. Die Entenhausen-Fixture
+- P6.7 Mieterwechsel ist mit PR #46 abgeschlossen. Die Entenhausen-Fixture
   `tools/mock-rental-fixtures.mjs` enthält für `TEST_WE_08` einen beendeten Vertrag
   von Pluto bis 2026-05-31 und einen aktiven Vertrag von Goofy ab 2026-06-01 mit
   getrennten Zahlungen, Kautionen und Vertragsparteien. Die synthetischen Entenhausen-Daten
@@ -102,11 +102,18 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   fließen in die Übersicht ein. Alte Vertragsperioden sind als eigene Zeilen direkt
   bearbeitbar; Monate außerhalb der jeweiligen Vertragsperiode bleiben neutral und nicht
   klickbar. Einheiten mit Vertrag werden unabhängig vom Typ angezeigt; die Typregel
-  wirkt nur auf vertragsfreie Leerstände. Die Verbrauchsview und die atomare
-  Schreiboperation sind der
-  verbleibende Implementierungsumfang von P6.7. Die gemeinsame
+  wirkt nur auf vertragsfreie Leerstände. Die historische Verbrauchsaufteilung und die
+  atomare Schreiboperation sind bewusst als Folgepaket P6.7b getrennt. Die gemeinsame
   `contractService.validateContractPeriods()` prüft jetzt Überschneidungen, Lücken und
   Wechsel innerhalb eines Monats. Details: `docs/p6-7-contract-period-validation.md`.
+- P6.7b wird im Branch `codex/p6-7-server-enforcement` umgesetzt: Der Admin-only-Schreibtyp
+  `MIETERWECHSEL_ANLEGEN` beendet den Vorgängervertrag am Tag vor dem neuen Mietbeginn,
+  legt den neuen Vertrag und seine Vertragsparteien an und verwendet dafür den bestehenden
+  Script-Lock. Erwarteter Vertragsstand, Zeitraumprüfung, Einheiten-/Personenreferenzen,
+  Idempotenz und Rollback sind automatisiert getestet. Die UI-Maske für den Vorgang bleibt
+  ein Folgepaket. Der Branch hebt das Apps-Script-Backend auf 4.8.13; Deployment in TEST und
+  PROD ist erst nach Merge und manueller Abnahme erforderlich. Der Branch-Lauf umfasst 535
+  Tests in 20 Testdateien; Asset-Prüfung, Syntaxprüfung und `git diff --check` sind grün.
 - Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
   erzeugt und veröffentlicht ausschließlich `runtime-config.js`; `runtime-secrets.js` bleibt lokal und
   wird durch einen negativen Workflow-Test gegen versehentliche Veröffentlichung geschützt.

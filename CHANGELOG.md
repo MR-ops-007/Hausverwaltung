@@ -44,6 +44,23 @@ Diese Einträge ändern die produktive Apps-Script-Version nicht. Die produktive
 seit PR #39 und dem anschließenden Deployment 4.8.12; 4.8.5 bleibt als dokumentierter
 Rollback-Stand erhalten.
 
+## 4.8.13 · 2026-11-17 · lokal
+
+P6.7b: Serverseitige Grundlage für einen sicheren Mieterwechsel.
+
+- Ein Mieterwechsel schließt den bisherigen aktiven Vertrag am Tag vor dem neuen
+  Mietbeginn, legt einen neuen Vertrag mit eigener `vertrag_id` an und verknüpft die
+  neuen Vertragsparteien.
+- Der Vorgang läuft als Admin-only-Schreibtyp `MIETERWECHSEL_ANLEGEN` im bestehenden
+  Apps-Script-Lock, prüft den erwarteten Vertragsstand und validiert die Zeiträume vor
+  dem ersten Schreiben.
+- Wiederholungen mit derselben neuen Vertrags-ID werden idempotent bestätigt; abweichende
+  Daten, Überschneidungen, unbekannte Personen oder fehlende Stammdaten werden abgewiesen.
+- Der Schreibweg enthält einen Rollback für Fehler beim Anhängen der neuen Vertrags- oder
+  Parteienzeilen. Eine UI-Maske für das Anlegen des Wechsels ist bewusst ein Folgepaket.
+- Apps Script muss nach dem Merge als 4.8.13 in TEST und anschließend PROD bereitgestellt
+  werden; die URL bleibt unverändert.
+
 ## 4.8.12 · 2026-11-13 · produktiv
 
 Korrektur der fachlichen Mietmonate im Zahlungs-Schreibweg.
