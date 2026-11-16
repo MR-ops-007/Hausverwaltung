@@ -251,11 +251,25 @@ describe('paymentUiService Monatsstatus', () => {
     expect(service.buildUnitRows([unit], [contract], '2026')).toEqual([
       expect.objectContaining({ rowType: 'vertrag', unitId: unit.einheit_id, contract })
     ]);
+    expect(service.buildUnitRows([], [contract], '2026')).toEqual([
+      expect.objectContaining({ rowType: 'vertrag', unitId: unit.einheit_id, unit, contract })
+    ]);
     expect(service.buildContractWarnings([unit], [contract], '2026')).toEqual([]);
 
     const withoutContract = loadPaymentService(baseState({ einheiten: [unit], vertraege: [] }));
     expect(withoutContract.getUnits('O1')).toEqual([]);
     expect(withoutContract.buildUnitRows([], [], '2026')).toEqual([]);
+  });
+
+  it('erzeugt beim direkten Matrix-Aufruf keine fremden Leerstandszeilen aus dem globalen State', () => {
+    const service = loadPaymentService(baseState({ einheiten: [
+      { einheit_id: 'O1_WE_01', objekt_id: 'O1', nummer: 'Wohnung 1' },
+      { einheit_id: 'O2_WE_01', objekt_id: 'O2', nummer: 'Wohnung 1' }
+    ] }));
+
+    const matrix = service.buildMatrix({ contracts: service.getContracts(), year: '2026' });
+    expect(matrix).toHaveLength(1);
+    expect(matrix[0]).toMatchObject({ rowType: 'vertrag', unitId: 'O1_WE_01' });
   });
 
   it('zeigt eine objektübergreifende Lücke im betroffenen Zwischenjahr', () => {
@@ -716,7 +730,7 @@ describe('paymentUiService Monatsstatus', () => {
     const service = loadPaymentService(baseState({ zahlungen: [
       { zahlung_id: 'CREDIT', vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '', betrag: 100, art: 'Miete', zahlungsgruppe_id: 'ZG_CREDIT' }
     ] }));
-    const matrix = service.buildMatrix({ contracts: service.getContracts(), year: '2026', now: new Date(2026, 10, 11) });
+    const matrix = service.buildMatrix({ units: service.getUnits('O1'), contracts: service.getContracts(), year: '2026', now: new Date(2026, 10, 11) });
     expect(service.summarizeOverview(matrix, '2026', new Date(2026, 10, 11))).toMatchObject({ unassignedCredit: 100, creditAmount: 100 });
     expect(service.summarizeMonth(service.getContracts()[0], '2026-11', new Date(2026, 10, 11)).paid).toBe(0);
   });
@@ -910,7 +924,7 @@ describe('paymentUiService Monatsstatus', () => {
       baseState().vertraege[0],
       { vertrag_id: 'V2', einheit_id: 'O1_WE_01', hauptperson_id: 'P1', aktiv: false, soll_gesamt: 500 }
     ] }));
-    const matrix = service.buildMatrix({ contracts: service.getContracts(), year: '2026', now: new Date(2026, 10, 11) });
+    const matrix = service.buildMatrix({ units: service.getUnits('O1'), contracts: service.getContracts(), year: '2026', now: new Date(2026, 10, 11) });
     expect(matrix).toHaveLength(1);
     expect(matrix[0].months).toHaveLength(12);
   });

@@ -66,7 +66,10 @@ Die wiederverwendbare Entenhausen-Fixture prüft:
   Leerstand in der Mietmatrix.
 - Eine leere, explizit übergebene Einheitenliste erzeugt keine fremden Zeilen. Ein
   vollständiger Bestand wird nur über den dafür vorgesehenen `allUnits`-Parameter
-  verwendet.
+  verwendet. `buildMatrix` nutzt keinen impliziten State-Rückfall; Aufrufer müssen
+  `units` oder bereits aufgebaute `rows` übergeben. Falls die Einheitenliste bewusst
+  gefiltert ist, ergänzt `buildUnitRows` bekannte Einheiten mit passenden Verträgen,
+  damit Vertragszeilen nicht still verschwinden.
 - Unbekannte Warncodes bleiben sichtbar und werden konservativ dem ausgewählten
   Jahr zugeordnet.
 

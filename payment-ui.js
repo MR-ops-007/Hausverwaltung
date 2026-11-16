@@ -264,14 +264,17 @@ const paymentUiService = {
     const visibleUnits = Array.isArray(allUnits) ? allUnits : normalizedUnits;
     const candidates = (Array.isArray(contracts) ? contracts : [])
       .filter(contract => this.contractIntersectsYear(contract, year));
-    const knownUnitIds = new Set([
-      ...(dataService.state.einheiten || []).map(unit => String(unit.einheit_id || '')),
-      ...visibleUnits.map(unit => String(unit.einheit_id || ''))
-    ]);
+    const knownUnits = new Map([
+      ...(dataService.state.einheiten || []),
+      ...visibleUnits
+    ].map(unit => [String(unit.einheit_id || ''), unit]));
+    const knownUnitIds = new Set(knownUnits.keys());
     const rows = [];
+    const rowUnitIds = new Set();
 
     visibleUnits.forEach(unit => {
       const unitId = String(unit.einheit_id || '');
+      rowUnitIds.add(unitId);
       const unitContracts = candidates
         .filter(contract => String(contract.einheit_id || '') === unitId)
         .sort((a, b) => (this.monthKey(a.start_datum) || '').localeCompare(this.monthKey(b.start_datum) || '')
@@ -282,6 +285,18 @@ const paymentUiService = {
       }
       unitContracts.forEach(contract => rows.push({ rowType: 'vertrag', unit, unitId, contract }));
     });
+
+    // A caller may pass a deliberately filtered unit list. Known units with a
+    // matching contract must still remain visible instead of disappearing.
+    candidates
+      .filter(contract => knownUnitIds.has(String(contract.einheit_id || '')))
+      .filter(contract => !rowUnitIds.has(String(contract.einheit_id || '')))
+      .forEach(contract => {
+        const unitId = String(contract.einheit_id || '');
+        const unit = knownUnits.get(unitId);
+        rowUnitIds.add(unitId);
+        rows.push({ rowType: 'vertrag', unit, unitId, contract });
+      });
 
     candidates
       .filter(contract => !knownUnitIds.has(String(contract.einheit_id || '')))
@@ -679,8 +694,7 @@ const paymentUiService = {
     const previous = dataService.state.zahlungen;
     dataService.state.zahlungen = payments;
     try {
-      const fallbackUnits = Array.isArray(units) && units.length ? null : (dataService.state.einheiten || []);
-      const sourceRows = rows || this.buildUnitRows(units, contracts, year, fallbackUnits);
+      const sourceRows = rows || this.buildUnitRows(units, contracts, year);
       return sourceRows.map(row => {
         if (!row.contract) {
           return {
