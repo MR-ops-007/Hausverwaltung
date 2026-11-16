@@ -42,6 +42,61 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     expect(statuses.slice(productive + 1).every(status => status === 'ersetzt')).toBe(true);
   });
 
+  it('installiert genau einen täglichen Trigger für die aktive Mieter-View', () => {
+    const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
+    const triggers = [];
+    const ScriptApp = {
+      EventType: { CLOCK: 'CLOCK' },
+      getProjectTriggers: () => triggers,
+      newTrigger: handler => {
+        const builder = {
+          timeBased: () => builder,
+          atHour: () => builder,
+          nearMinute: () => builder,
+          everyDays: () => {
+            triggers.push({ getHandlerFunction: () => handler, getEventType: () => 'CLOCK' });
+            return { create: () => undefined };
+          }
+        };
+        return builder;
+      }
+    };
+    const installDailyViewTrigger = new Function('ScriptApp', `${code}; return installDailyViewTrigger;`)(ScriptApp);
+
+    expect(installDailyViewTrigger()).toMatchObject({ status: 'success', already_present: false });
+    expect(installDailyViewTrigger()).toMatchObject({ status: 'success', already_present: true });
+    expect(triggers).toHaveLength(1);
+  });
+
+  it('wechselt die aktive Mieter-View anhand eines reproduzierbaren Stichtags', () => {
+    const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
+    const contractCode = readFileSync(new URL('../apps-script/ContractService.js', import.meta.url), 'utf8');
+    const contractService = new Function(`${contractCode}; return contractService;`)();
+    const makeSheet = rows => ({
+      getDataRange: () => ({ getValues: () => rows.map(row => row.slice()) }),
+      clearContents: () => { rows.splice(0, rows.length); },
+      getRange: () => ({ setValues: values => { values.forEach(row => rows.push(row.slice())); } })
+    });
+    const sheets = {
+      Einheiten: makeSheet([['einheit_id'], ['WE_1']]),
+      Vertraege: makeSheet([
+        ['vertrag_id', 'einheit_id', 'hauptperson_id', 'start_datum', 'end_datum', 'soll_gesamt', 'aktiv'],
+        ['V_OLD', 'WE_1', 'P_OLD', '2025-01-01', '2026-05-31', 700, false],
+        ['V_NEW', 'WE_1', 'P_NEW', '2026-06-01', '', 800, false]
+      ]),
+      Personen: makeSheet([['person_id', 'name', 'vorname'], ['P_OLD', 'Alt', 'Pluto'], ['P_NEW', 'Neu', 'Goofy']]),
+      Vertragsparteien: makeSheet([['vertrag_id', 'person_id', 'rolle'], ['V_OLD', 'P_OLD', 'Hauptmieter'], ['V_NEW', 'P_NEW', 'Hauptmieter']]),
+      _view_aktive_mieter: makeSheet([['alt']])
+    };
+    const SpreadsheetApp = { getActiveSpreadsheet: () => ({ getSheetByName: name => sheets[name] }) };
+    const updateAktiveMieterView = new Function('SpreadsheetApp', 'contractService', `${code}; return updateAktiveMieterView;`)(SpreadsheetApp, contractService);
+
+    updateAktiveMieterView(new Date('2026-05-31T12:00:00Z'));
+    expect(sheets._view_aktive_mieter.getDataRange().getValues()[1][1]).toBe('V_OLD');
+    updateAktiveMieterView(new Date('2026-06-01T12:00:00Z'));
+    expect(sheets._view_aktive_mieter.getDataRange().getValues()[1][1]).toBe('V_NEW');
+  });
+
   it('prepares the payment schema without changing existing rows', () => {
     const paymentCode = readFileSync(new URL('../apps-script/Payments.gs', import.meta.url), 'utf8');
     const headers = ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art'];

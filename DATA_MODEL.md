@@ -269,6 +269,12 @@ abgewiesen. Ein Mieterwechsel innerhalb eines Monats wird nicht automatisch ante
 sondern als fachlicher Hinweis zurückgegeben. Eine UI-Maske und die Neuvermietung einer
 leerstehenden Einheit folgen in eigenen Paketen.
 
+Das append-only Blatt `MieterwechselProtokoll` speichert `mieterwechsel_id`, die alte und neue
+Vertrags-ID, den Fingerabdruck der normalisierten Anlageanfrage und `erfasst_am`. Dieser
+Fingerabdruck ist die Idempotenzquelle für Wiederholungen; spätere Mietanpassungen oder
+Kautionszahlungen verändern ihn nicht. Das Blatt wird ausschließlich über
+`prepareContractSchema()` angelegt.
+
 Die UI kann ungespeicherte Indexwerte aus der öffentlichen Bundesbank-Reihe
 `BBDP1.M.DE.N.VPI.C.A00000.I20.L` abrufen (Destatis-Daten, VPI Deutschland,
 monatlicher Gesamtindex, unbereinigt, 2020=100). Indexstände werden abgerufen,

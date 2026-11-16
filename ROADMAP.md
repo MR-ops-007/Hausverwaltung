@@ -426,10 +426,13 @@ Bankanbindung werden daraus abgeleitet.
    und seine Vertragsparteien werden mit eigener ID angelegt. Erwarteter Vertragsstand,
    Zeitraumprüfung, Person-/Einheitenreferenzen, erweiterte Idempotenz und Rollback sind Teil
    des Schreibwegs. `aktiv` wird aus Start- und Enddatum für den aktuellen Tag abgeleitet;
-   `kaution_ist` wird nicht vom Client übernommen, sondern startet als aus Zahlungen
-   abgeleiteter Wert bei null. Doppelte Vertragsparteien werden abgewiesen. Die UI-Maske zum
-   Erfassen eines neuen Vertrags bleibt bewusst ein Folgepaket; bis dahin kann die Operation
-   nur über einen autorisierten API-Client aufgerufen werden.
+   die aktive Mieter-View wird über einen einmalig installierten täglichen Trigger aktualisiert.
+   Die normalisierte Anfrage wird im append-only `MieterwechselProtokoll` gespeichert, damit
+   Retries von späteren Miet- oder Kautionsänderungen unabhängig bleiben. `kaution_ist` wird
+   nicht vom Client übernommen, sondern startet als aus Zahlungen abgeleiteter Wert bei null.
+   Doppelte Vertragsparteien werden abgewiesen. Die UI-Maske zum Erfassen eines neuen Vertrags
+   bleibt bewusst ein Folgepaket; bis dahin kann die Operation nur über einen autorisierten
+   API-Client aufgerufen werden.
 6. **P6.7c Neuvermietung einer leerstehenden Einheit:** Folgepaket für den Fall, dass kein
    aktiver Vorgängervertrag existiert. Der aktuelle Mieterwechsel-Schreibweg verlangt bewusst
    einen aktiven Vorgänger; eine neue Vermietung braucht einen eigenen, ebenfalls idempotenten

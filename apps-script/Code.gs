@@ -3031,7 +3031,7 @@ function getSheetData(sheet) {
 /**
  * Kernfunktion für die Performance-View (Caching-Logik)
  */
-function updateAktiveMieterView() {
+function updateAktiveMieterView(now) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   const getSheet = (name) => ss.getSheetByName(name);
@@ -3086,7 +3086,7 @@ function updateAktiveMieterView() {
   einheiten.forEach(e => {
     const v = vertraege.find(v =>
       String(v.einheit_id) === String(e.einheit_id) &&
-      contractService.isCurrentlyActive(v)
+      contractService.isCurrentlyActive(v, now)
     );
 
     if (v) {
@@ -3117,4 +3117,22 @@ function updateAktiveMieterView() {
       .getRange(1, 1, output.length, output[0].length)
       .setValues(output);
   }
+}
+
+/** Installs the single daily refresh trigger for the date-derived active view. */
+function installDailyViewTrigger() {
+  const triggers = ScriptApp.getProjectTriggers();
+  const exists = triggers.some(trigger =>
+    trigger.getHandlerFunction() === 'updateAktiveMieterView' &&
+    trigger.getEventType() === ScriptApp.EventType.CLOCK
+  );
+  if (!exists) {
+    ScriptApp.newTrigger('updateAktiveMieterView')
+      .timeBased()
+      .atHour(0)
+      .nearMinute(15)
+      .everyDays(1)
+      .create();
+  }
+  return { status: 'success', already_present: exists, handler: 'updateAktiveMieterView' };
 }

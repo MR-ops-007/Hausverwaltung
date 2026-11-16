@@ -59,6 +59,9 @@ P6.7b: Serverseitige Grundlage für einen sicheren Mieterwechsel.
 - `aktiv` wird aus Start- und Enddatum abgeleitet, `kaution_ist` wird nicht aus dem Client
   übernommen und doppelte Vertragsparteien werden abgewiesen. Eine Neuvermietung ohne aktiven
   Vorgänger bleibt als eigenes Folgepaket abgegrenzt.
+- Die aktive Mieter-View kann über `installDailyViewTrigger()` täglich aktualisiert werden.
+  Ein append-only `MieterwechselProtokoll` hält den Fingerabdruck der normalisierten
+  Anlageanfrage für belastbare Retries fest.
 - Der Schreibweg enthält einen Rollback für Fehler beim Anhängen der neuen Vertrags- oder
   Parteienzeilen. Eine UI-Maske für das Anlegen des Wechsels ist bewusst ein Folgepaket.
 - Apps Script muss nach dem Merge als 4.8.13 in TEST und anschließend PROD bereitgestellt

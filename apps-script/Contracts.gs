@@ -16,6 +16,10 @@ function prepareContractSchema() {
     ss.insertSheet('Mietanpassungen').getRange(1, 1, 1, contractService.historyHeaders.length)
       .setValues([contractService.historyHeaders]);
   }
+  if (!ss.getSheetByName('MieterwechselProtokoll')) {
+    ss.insertSheet('MieterwechselProtokoll').getRange(1, 1, 1, contractService.tenantChangeProtocolHeaders.length)
+      .setValues([contractService.tenantChangeProtocolHeaders]);
+  }
   return { addedHeaders: missing };
 }
 
@@ -24,6 +28,25 @@ function contractWriteFailure(code, message, details) {
   error.code = code;
   if (details) error.details = details;
   return error;
+}
+
+function normalizeTenantChangeParties(parties) {
+  return parties.map((party, index) => ({
+    person_id: String(party && party.person_id || '').trim(),
+    rolle: String(party && party.rolle || '').trim() || (index === 0 ? 'Hauptmieter' : 'Mitmieter'),
+    ordnet: Number(party && party.ordnet) || index + 1,
+    vollmacht: party && (party.vollmacht === true || String(party.vollmacht).toLowerCase() === 'true')
+  })).sort((a, b) => `${a.person_id}|${a.rolle}|${a.ordnet}`.localeCompare(`${b.person_id}|${b.rolle}|${b.ordnet}`));
+}
+
+function tenantChangeRequestFingerprint(contract, parties) {
+  const stableContract = {};
+  contractService.tenantChangeFields.forEach(field => {
+    if (field !== 'aktiv' && field !== 'kaution_ist') {
+      stableContract[field] = contract[field] === undefined ? '' : contract[field];
+    }
+  });
+  return contractService.snapshot({ contract: stableContract, parteien: parties });
 }
 
 /**
@@ -40,7 +63,8 @@ function handleTenantChange(ss, payload) {
   const partySheet = ss.getSheetByName('Vertragsparteien');
   const peopleSheet = ss.getSheetByName('Personen');
   const unitSheet = ss.getSheetByName('Einheiten');
-  if (!contractSheet || !partySheet || !peopleSheet || !unitSheet) {
+  const protocolSheet = ss.getSheetByName('MieterwechselProtokoll');
+  if (!contractSheet || !partySheet || !peopleSheet || !unitSheet || !protocolSheet) {
     throw contractWriteFailure('TENANT_CHANGE_SCHEMA_MISSING', 'Mieterwechsel-Schema ist nicht vollständig vorbereitet.');
   }
 
@@ -64,6 +88,17 @@ function handleTenantChange(ss, payload) {
   const current = contractRecords[oldIndex];
   ['vertrag_id', 'einheit_id', 'start_datum', 'end_datum', 'aktiv'].forEach(header => {
     if (contractHeaders.indexOf(header) < 0) throw contractWriteFailure('TENANT_CHANGE_SCHEMA_MISSING', 'Vertraege-Spalte fehlt: ' + header);
+  });
+  const protocolRows = protocolSheet.getDataRange().getValues();
+  if (!protocolRows.length) throw contractWriteFailure('TENANT_CHANGE_SCHEMA_MISSING', 'MieterwechselProtokoll enthält keine Kopfzeile.');
+  const protocolHeaders = protocolRows[0].map(String);
+  contractService.tenantChangeProtocolHeaders.forEach(header => {
+    if (protocolHeaders.indexOf(header) < 0) throw contractWriteFailure('TENANT_CHANGE_SCHEMA_MISSING', 'MieterwechselProtokoll-Spalte fehlt: ' + header);
+  });
+  const protocolRecords = protocolRows.slice(1).map(row => {
+    const item = {};
+    protocolHeaders.forEach((header, index) => { item[header] = row[index]; });
+    return item;
   });
   const newMatches = contractRecords.map((item, index) => String(item.vertrag_id) === newId ? index : -1).filter(index => index >= 0);
 
@@ -97,15 +132,13 @@ function handleTenantChange(ss, payload) {
     const requestedParties = Array.isArray(payload.parteien) ? payload.parteien : [{
       person_id: candidate.hauptperson_id, rolle: 'Hauptmieter', ordnet: 1, vollmacht: false
     }];
-    const partySignature = parties => parties.map((party, index) => ({
-      person_id: String(party && party.person_id || '').trim(),
-      rolle: String(party && party.rolle || '').trim() || (index === 0 ? 'Hauptmieter' : 'Mitmieter'),
-      ordnet: Number(party && party.ordnet) || index + 1,
-      vollmacht: party && (party.vollmacht === true || String(party.vollmacht).toLowerCase() === 'true')
-    })).sort((a, b) => `${a.person_id}|${a.rolle}|${a.ordnet}`.localeCompare(`${b.person_id}|${b.rolle}|${b.ordnet}`));
+    const partySignature = normalizeTenantChangeParties(requestedParties);
+    const requestFingerprint = tenantChangeRequestFingerprint(candidate, partySignature);
+    const protocol = protocolRecords.find(row => String(row.vertrag_neu_id) === newId);
+    const sameProtocol = protocol && String(protocol.request_fingerprint) === requestFingerprint;
     const existingPartyRows = getSheetData(partySheet).filter(row => String(row.vertrag_id) === newId);
-    const sameParties = JSON.stringify(partySignature(existingPartyRows)) === JSON.stringify(partySignature(requestedParties));
-    if (sameContract && sameParties) {
+    const sameParties = JSON.stringify(normalizeTenantChangeParties(existingPartyRows)) === JSON.stringify(partySignature);
+    if (sameProtocol || (!protocol && sameContract && sameParties)) {
       return { status: 'success', message: 'Mieterwechsel war bereits gespeichert.', bereits_vorhanden: true,
         vertrag_alt: current, vertrag_neu: existing };
     }
@@ -167,6 +200,7 @@ function handleTenantChange(ss, payload) {
   const requestedParties = Array.isArray(payload.parteien) ? payload.parteien : [{
     person_id: next.hauptperson_id, rolle: 'Hauptmieter', ordnet: 1, vollmacht: false
   }];
+  const requestFingerprint = tenantChangeRequestFingerprint(next, normalizeTenantChangeParties(requestedParties));
   if (!requestedParties.length) throw contractWriteFailure('TENANT_CHANGE_PARTIES_MISSING', 'Mindestens eine Vertragspartei ist erforderlich.');
   const parties = requestedParties.map((party, index) => {
     const personId = String(party && party.person_id || '').trim();
@@ -193,6 +227,7 @@ function handleTenantChange(ss, payload) {
   });
   const contractRowNumber = contractSheet.getLastRow() + 1;
   const partyRowNumber = partySheet.getLastRow() + 1;
+  const protocolRowNumber = protocolSheet.getLastRow() + 1;
   const oldEndCell = contractSheet.getRange(oldIndex + 2, contractHeaders.indexOf('end_datum') + 1);
   const oldActiveCell = contractSheet.getRange(oldIndex + 2, contractHeaders.indexOf('aktiv') + 1);
   const previous = {
@@ -201,17 +236,24 @@ function handleTenantChange(ss, payload) {
   };
   const contractValues = contractHeaders.map(header => next[header] === undefined ? '' : next[header]);
   const partyValues = parties.map(party => partyHeaders.map(header => party[header] === undefined ? '' : party[header]));
+  const protocolRecord = {
+    mieterwechsel_id: Utilities.getUuid(), vertrag_alt_id: oldId, vertrag_neu_id: newId,
+    request_fingerprint: requestFingerprint, erfasst_am: new Date().toISOString()
+  };
+  const protocolValues = protocolHeaders.map(header => protocolRecord[header] === undefined ? '' : protocolRecord[header]);
   try {
     oldEndCell.setValue(closed.end_datum);
-    oldActiveCell.setValue(false);
+    oldActiveCell.setValue(closed.aktiv);
     contractSheet.getRange(contractRowNumber, 1, 1, contractHeaders.length).setValues([contractValues]);
     partySheet.getRange(partyRowNumber, 1, partyValues.length, partyHeaders.length).setValues(partyValues);
+    protocolSheet.getRange(protocolRowNumber, 1, 1, protocolHeaders.length).setValues([protocolValues]);
     SpreadsheetApp.flush();
   } catch (error) {
     oldEndCell.setValue(previous.end.formula || previous.end.value);
     oldActiveCell.setValue(previous.active.formula || previous.active.value);
     contractSheet.getRange(contractRowNumber, 1, 1, contractHeaders.length).clearContent();
     partySheet.getRange(partyRowNumber, 1, partyValues.length, partyHeaders.length).clearContent();
+    protocolSheet.getRange(protocolRowNumber, 1, 1, protocolHeaders.length).clearContent();
     throw error;
   }
 

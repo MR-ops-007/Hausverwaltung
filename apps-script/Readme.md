@@ -46,6 +46,13 @@ Neuvermietung einer leerstehenden Einheit sind noch nicht enthalten; bis dahin b
 API-Aufruf ein vorbereiteter Backend-Schreibweg. Vor TEST/PROD muss die neue Apps-Script-
 Version bereitgestellt und mit einem isolierten Testobjekt abgenommen werden.
 
+`prepareContractSchema()` legt zusätzlich das append-only Blatt
+`MieterwechselProtokoll` an. Darin wird der Fingerabdruck der normalisierten Anlageanfrage
+gespeichert. Vor dem Deployment muss die Funktion deshalb einmal manuell ausgeführt werden.
+Die Funktion `installDailyViewTrigger()` richtet einmalig einen täglichen Trigger für
+`updateAktiveMieterView()` ein. Sie legt keinen zweiten Trigger an, wenn bereits einer für
+dieselbe Funktion vorhanden ist.
+
 `preparePaymentSchema()` ist die ebenfalls manuell aufzurufende Vorbereitung für das
 Blatt `Zahlungen`. Sie ergänzt unter anderem `zahlungsgruppe_id` für aufgeteilte
 Mieteingänge und verändert keine bestehenden Buchungen.

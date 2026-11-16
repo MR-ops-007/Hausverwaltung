@@ -12,6 +12,7 @@ const contractService = {
     'kaution_soll', 'kaution_ist', 'zahlungsziel_typ', 'zahlungsziel_wert',
     'vertragsdokument_url', 'sondervereinbarungen_url', 'vertrag_hinweis',
     'nk_betriebskosten', 'nk_heizung_warmwasser', 'index_basis_monat', 'index_basis_wert', 'index_reihe'],
+  tenantChangeProtocolHeaders: ['mieterwechsel_id', 'vertrag_alt_id', 'vertrag_neu_id', 'request_fingerprint', 'erfasst_am'],
   historyHeaders: ['anpassung_id', 'vertrag_id', 'art', 'erfasst_am', 'wirksam_ab',
     'zugang_datum', 'erklaerung_url', 'index_neu_monat', 'index_neu_wert', 'index_reihe',
     'vorher_json', 'nachher_json'],

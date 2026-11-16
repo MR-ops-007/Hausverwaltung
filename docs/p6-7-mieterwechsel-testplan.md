@@ -140,6 +140,13 @@ die Flag-Spalte erneut ändern muss. Ein Mieterwechsel ohne aktiven Vorgänger, 
 Neuvermietung eines echten Leerstands, ist bewusst nicht Teil dieser Operation und wird als
 P6.7c separat umgesetzt.
 
+Vor der echten Abnahme müssen `prepareContractSchema()` und einmalig
+`installDailyViewTrigger()` im Apps-Script-Projekt ausgeführt werden. Das erste legt das
+append-only Blatt `MieterwechselProtokoll` an; das zweite aktualisiert die datumsabhängige
+aktive Mieter-View täglich. Die Funktion `updateAktiveMieterView(now)` akzeptiert zusätzlich
+ein Stichtagsdatum und ist dadurch automatisiert für den Wechsel vor und nach dem Mietbeginn
+prüfbar.
+
 Die Operation ist in `tests/contracts.test.js` und `tests/access.test.js` automatisiert
 abgesichert. Für die echte Abnahme wird Apps Script 4.8.13 zuerst in TEST bereitgestellt;
 die UI-Maske ist noch nicht Teil dieses Pakets und wird in einem Folgepaket ergänzt.

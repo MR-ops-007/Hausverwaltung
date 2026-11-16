@@ -268,9 +268,10 @@ function backendFixture({ token = 'test-only', writeFailure = false, partyWriteF
   const people = [['person_id', 'name', 'vorname'], ['P_OLD', 'Alt', 'Mieter'], ['P_NEW', 'Neu', 'Mieter']];
   const parties = [['vertrag_id', 'person_id', 'rolle', 'ordnet', 'vollmacht'],
     [current.vertrag_id, current.hauptperson_id, 'Hauptmieter', 1, true]];
+  const protocol = [service.tenantChangeProtocolHeaders.slice()];
   const sheets = {
     Vertraege: makeSheet(grid), Mietanpassungen: makeSheet(log), Einheiten: makeSheet([Object.keys(unit), Object.values(unit)]),
-    Personen: makeSheet(people), Vertragsparteien: makeSheet(parties), _view_aktive_mieter: makeSheet([['vertrag_id']])
+    Personen: makeSheet(people), Vertragsparteien: makeSheet(parties), MieterwechselProtokoll: makeSheet(protocol), _view_aktive_mieter: makeSheet([['vertrag_id']])
   };
   let viewUpdates = 0;
   const source = readFileSync(new URL('../apps-script/Contracts.gs', import.meta.url), 'utf8');
@@ -280,7 +281,7 @@ function backendFixture({ token = 'test-only', writeFailure = false, partyWriteF
     () => { viewUpdates++; });
   const ss = { getSheetByName: name => sheets[name] };
   const original = Object.fromEntries(headers.map((key, i) => [key, row[i]]));
-  return { grid, log, parties, people, original, headers, sheets, updates: () => viewUpdates,
+  return { grid, log, parties, protocol, people, original, headers, sheets, updates: () => viewUpdates,
     write: payload => handlers.handleContractWrite(ss, { token: 'test-only', vertrag_id: current.vertrag_id,
       erwarteter_stand: service.snapshot(original), ...payload }),
     tenantChange: payload => handlers.handleTenantChange(ss, { ...payload, token: payload.token === undefined ? 'test-only' : payload.token }) };
@@ -388,10 +389,15 @@ describe('contract backend persistence', () => {
       data: { vertrag_id: 'V_NEW', einheit_id: current.einheit_id, hauptperson_id: 'P_NEW', start_datum: '2026-06-01' }
     };
     expect(fixture.tenantChange(payload).status).toBe('success');
+    const newContract = fixture.grid.find(row => row[fixture.headers.indexOf('vertrag_id')] === 'V_NEW');
+    newContract[fixture.headers.indexOf('soll_kaltmiete')] = 999;
+    newContract[fixture.headers.indexOf('soll_gesamt')] = 1199;
+    newContract[fixture.headers.indexOf('kaution_ist')] = 300;
     const retry = fixture.tenantChange(payload);
     expect(retry).toMatchObject({ status: 'success', bereits_vorhanden: true });
     expect(fixture.grid).toHaveLength(3);
     expect(fixture.parties).toHaveLength(3);
+    expect(fixture.protocol).toHaveLength(2);
     expect(() => fixture.tenantChange({ ...payload, data: { ...payload.data, vertrag_id: 'V_OTHER' } })).toThrow(/bisherige Vertrag wurde inzwischen geändert|Stale|geändert/);
   });
 
@@ -418,6 +424,8 @@ describe('contract backend persistence', () => {
       });
       expect(result.vertrag_alt).toMatchObject({ end_datum: '2026-12-31', aktiv: true });
       expect(result.vertrag_neu).toMatchObject({ start_datum: '2027-01-01', aktiv: false });
+      expect(fixture.grid[1][fixture.headers.indexOf('aktiv')]).toBe(true);
+      expect(fixture.grid[2][fixture.headers.indexOf('aktiv')]).toBe(false);
     } finally { vi.useRealTimers(); }
   });
 
@@ -476,6 +484,37 @@ describe('contract backend persistence', () => {
       token: 'wrong-token', vertrag_id: current.vertrag_id, erwarteter_stand: service.snapshot(forbidden.original),
       data: { vertrag_id: 'V_FORBIDDEN', einheit_id: current.einheit_id, hauptperson_id: 'P_NEW', start_datum: '2026-06-01' }
     })).toThrow(/freigeschaltet/);
+  });
+});
+
+describe('contract schema preparation', () => {
+  it('legt das Protokollblatt für idempotente Mieterwechsel explizit an', () => {
+    const contractCode = readFileSync(new URL('../apps-script/ContractService.js', import.meta.url), 'utf8');
+    const contractsCode = readFileSync(new URL('../apps-script/Contracts.gs', import.meta.url), 'utf8');
+    const schemaHeaders = [...service.fields];
+    const sheets = {
+      Vertraege: {
+        getLastColumn: () => schemaHeaders.length,
+        getMaxColumns: () => schemaHeaders.length,
+        getRange: () => ({ getValues: () => [schemaHeaders] })
+      }
+    };
+    const insertSheet = name => {
+      const sheet = { headers: [], getRange: () => ({ setValues: values => { sheet.headers = values[0]; } }) };
+      sheets[name] = sheet;
+      return sheet;
+    };
+    const SpreadsheetApp = {
+      getActiveSpreadsheet: () => ({
+        getSheetByName: name => sheets[name],
+        insertSheet
+      })
+    };
+    const prepareContractSchema = new Function('SpreadsheetApp', `${contractCode};${contractsCode};return prepareContractSchema;`)(SpreadsheetApp);
+
+    prepareContractSchema();
+
+    expect(sheets.MieterwechselProtokoll.headers).toEqual(service.tenantChangeProtocolHeaders);
   });
 });
 

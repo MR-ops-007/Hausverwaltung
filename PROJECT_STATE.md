@@ -109,10 +109,12 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 - P6.7b wird im Branch `codex/p6-7-server-enforcement` umgesetzt: Der Admin-only-Schreibtyp
   `MIETERWECHSEL_ANLEGEN` beendet den Vorgängervertrag am Tag vor dem neuen Mietbeginn,
   legt den neuen Vertrag und seine Vertragsparteien an und verwendet dafür den bestehenden
-  Script-Lock. Die Aktivität wird aus dem Vertragszeitraum abgeleitet, Wiederholungen werden
-  über die vollständigen Vertragsdaten und Parteien abgeglichen, `kaution_ist` wird nicht aus
-  dem Client übernommen und doppelte Parteien werden abgewiesen. Erwarteter Vertragsstand,
-  Zeitraumprüfung, Einheiten-/Personenreferenzen und Rollback sind automatisiert getestet.
+  Script-Lock. Die Aktivität wird aus dem Vertragszeitraum abgeleitet und die aktive Mieter-View
+  wird über einen einmalig installierten täglichen Trigger aktualisiert. Wiederholungen werden
+  über einen gespeicherten Fingerabdruck der normalisierten Anfrage und Parteien abgeglichen,
+  `kaution_ist` wird nicht aus dem Client übernommen und doppelte Parteien werden abgewiesen.
+  Erwarteter Vertragsstand, Zeitraumprüfung, Einheiten-/Personenreferenzen und Rollback sind
+  automatisiert getestet.
   Die UI-Maske und die Neuvermietung einer leerstehenden Einheit bleiben Folgepakete.
   Der Branch hebt das Apps-Script-Backend auf 4.8.13; Deployment in TEST und PROD ist erst
   nach Merge und manueller Abnahme erforderlich.
