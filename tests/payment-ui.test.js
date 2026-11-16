@@ -219,6 +219,34 @@ describe('paymentUiService Monatsstatus', () => {
     ]);
   });
 
+  it('behandelt inaktive leere Vertragszeilen als Leerstand ohne Datumswarnung', () => {
+    const unit = { einheit_id: 'O1_WE_07', objekt_id: 'O1', nummer: 'Wohnung 7' };
+    const placeholder = {
+      vertrag_id: 'VACANCY_07', einheit_id: unit.einheit_id, aktiv: true,
+      start_datum: '', end_datum: '', soll_gesamt: 0, kaution_soll: 0
+    };
+    const service = loadPaymentService(baseState({ einheiten: [unit], vertraege: [placeholder] }));
+
+    expect(service.getContractsForYear('O1', '2026')).toEqual([]);
+    expect(service.buildUnitRows([unit], [placeholder], '2026')).toEqual([
+      expect.objectContaining({ rowType: 'leerstand', unitId: unit.einheit_id, contract: null })
+    ]);
+    expect(service.buildContractWarnings([unit], [placeholder], '2026')).toEqual([]);
+  });
+
+  it('meldet einen aktiven Vertrag ohne Startdatum weiterhin', () => {
+    const unit = { einheit_id: 'O1_WE_08', objekt_id: 'O1', nummer: 'Wohnung 8' };
+    const contract = {
+      vertrag_id: 'ACTIVE_MISSING_START', einheit_id: unit.einheit_id, objekt_id: 'O1',
+      aktiv: true, start_datum: '', end_datum: '', soll_gesamt: 650, hauptperson_id: 'P1'
+    };
+    const service = loadPaymentService(baseState({ einheiten: [unit], vertraege: [contract] }));
+
+    expect(service.buildContractWarnings([unit], [contract], '2026')).toEqual([
+      expect.objectContaining({ code: 'PERIOD_DATE_INVALID', vertragId: contract.vertrag_id, unitId: unit.einheit_id })
+    ]);
+  });
+
   it('nutzt die zentrale Zeitraumprüfung für Hinweise und schließt nicht mietrelevante Einheiten aus', () => {
     const units = [
       { einheit_id: 'O1_WE_01', objekt_id: 'O1', nummer: 'Wohnung 1', typ: 'Wohnung' },
@@ -588,11 +616,14 @@ describe('paymentUiService Monatsstatus', () => {
   });
 
   it('führt Leerstand sichtbar, aber ohne offene Sollmiete', () => {
+    const placeholder = { vertrag_id: 'V7', einheit_id: 'O1_WE_01', hauptperson_id: '', aktiv: true, soll_gesamt: 0 };
     const service = loadPaymentService(baseState({
-      vertraege: [{ vertrag_id: 'V7', einheit_id: 'O1_WE_01', hauptperson_id: '', aktiv: true, soll_gesamt: 0 }]
+      vertraege: [placeholder]
     }));
-    const summary = service.summarizeMonth(service.getContracts()[0], '2026-11', new Date(2026, 10, 11));
-    expect(summary).toMatchObject({ due: 0, remaining: 0, status: 'leerstand', verspaetet: false });
+    expect(service.getContracts()).toEqual([]);
+    expect(service.buildUnitRows(baseState().einheiten, [placeholder], '2026')).toEqual([
+      expect.objectContaining({ rowType: 'leerstand', unitId: 'O1_WE_01', contract: null })
+    ]);
   });
 
   it('berücksichtigt Stornos append-only als Gegenbuchung', () => {

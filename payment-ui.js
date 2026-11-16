@@ -167,6 +167,12 @@ const paymentUiService = {
     return !([false, 0, '0', 'false', 'FALSE', 'nein', 'NEIN', 'falsch', 'FALSCH'].includes(value));
   },
 
+  isVacancyPlaceholder(contract) {
+    return typeof contractService !== 'undefined'
+      && typeof contractService.isVacancyPlaceholder === 'function'
+      && contractService.isVacancyPlaceholder(contract);
+  },
+
   objectId(contract) {
     const unit = (dataService.state.einheiten || []).find(row => String(row.einheit_id) === String(contract.einheit_id));
     if (unit && unit.objekt_id) return String(unit.objekt_id);
@@ -213,6 +219,7 @@ const paymentUiService = {
   getContracts(objectId = '', includeHistorical = false) {
     return (dataService.state.vertraege || [])
       .filter(contract => contract.vertrag_id !== '' && contract.vertrag_id !== null)
+      .filter(contract => !this.isVacancyPlaceholder(contract))
       .filter(contract => includeHistorical || this.isActive(contract.aktiv))
       .filter(contract => !objectId || this.objectId(contract) === String(objectId))
       .sort((a, b) => this.unitName(a).localeCompare(this.unitName(b), 'de', { numeric: true, sensitivity: 'base' })
@@ -259,6 +266,7 @@ const paymentUiService = {
   getUnits(objectId = '', year = '') {
     const allUnits = dataService.state.einheiten || [];
     const contractUnitIds = new Set((dataService.state.vertraege || [])
+      .filter(contract => !this.isVacancyPlaceholder(contract))
       .filter(contract => !objectId || this.objectId(contract) === String(objectId))
       .filter(contract => !year || this.contractIntersectsYear(contract, year))
       .map(contract => String(contract.einheit_id || '')));
@@ -272,6 +280,7 @@ const paymentUiService = {
     const normalizedUnits = Array.isArray(units) ? units : [];
     const visibleUnits = Array.isArray(allUnits) ? allUnits : normalizedUnits;
     const candidates = (Array.isArray(contracts) ? contracts : [])
+      .filter(contract => !this.isVacancyPlaceholder(contract))
       .filter(contract => this.contractIntersectsYear(contract, year));
     const knownUnits = new Map([
       ...(dataService.state.einheiten || []),
@@ -360,7 +369,9 @@ const paymentUiService = {
     if (typeof contractService === 'undefined' || typeof contractService.validateContractPeriods !== 'function') {
       push({ severity: 'error', code: 'CONTRACT_RULES_UNAVAILABLE', message: 'Die zentrale Vertragszeitraumprüfung ist nicht verfügbar.' });
     } else {
-      const validation = contractService.validateContractPeriods(contracts);
+      const validationContracts = (Array.isArray(contracts) ? contracts : [])
+        .filter(contract => !this.isVacancyPlaceholder(contract));
+      const validation = contractService.validateContractPeriods(validationContracts);
       (validation.errors || []).filter(error => this.periodWarningAffectsYear(error, year)).forEach(error => push({ severity: 'error', ...error }));
       (validation.warnings || []).filter(warning => this.periodWarningAffectsYear(warning, year)).forEach(warning => push({ severity: 'warning', ...warning }));
     }

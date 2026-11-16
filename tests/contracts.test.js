@@ -142,10 +142,38 @@ describe('contract domain rules', () => {
     const result = service.validateContractPeriods([
       { vertrag_id: 'V_INVALID', einheit_id: 'WE_1', start_datum: '2026-02-30', end_datum: '' },
       { vertrag_id: 'V_REVERSED', einheit_id: 'WE_2', start_datum: '2026-04-01', end_datum: '2026-03-31' },
-      { vertrag_id: 'V_MISSING', einheit_id: 'WE_3', start_datum: '' }
+      { vertrag_id: 'V_MISSING', einheit_id: 'WE_3', aktiv: true, hauptperson_id: 'P3', soll_gesamt: 500, start_datum: '' }
     ]);
     expect(result.valid).toBe(false);
     expect(result.errors.map(error => error.code)).toEqual(['PERIOD_DATE_INVALID', 'PERIOD_END_BEFORE_START', 'PERIOD_DATE_INVALID']);
+  });
+
+  it('ignores inactive vacancy placeholders without a start date', () => {
+    const result = service.validateContractPeriods([
+      { vertrag_id: 'VACANCY', einheit_id: 'WE_1', aktiv: false, start_datum: '', soll_gesamt: 0 },
+      { vertrag_id: 'ACTIVE_MISSING_START', einheit_id: 'WE_2', aktiv: true, start_datum: '', soll_gesamt: 650 }
+    ]);
+
+    expect(result.errors).toEqual([
+      expect.objectContaining({ code: 'PERIOD_DATE_INVALID', vertragId: 'ACTIVE_MISSING_START' })
+    ]);
+  });
+
+  it('erkennt einen leeren Platzhalter auch bei leerem oder stale Aktiv-Flag', () => {
+    expect(service.isVacancyPlaceholder({
+      vertrag_id: 'VACANCY_STALE_FLAG', einheit_id: 'WE_1', aktiv: true, start_datum: '', soll_gesamt: 0
+    })).toBe(true);
+    expect(service.validateContractPeriods([
+      { vertrag_id: 'VACANCY_STALE_FLAG', einheit_id: 'WE_1', aktiv: true, start_datum: '', soll_gesamt: 0 }
+    ]).errors).toEqual([]);
+  });
+
+  it('ignores inactive contracts without a start date', () => {
+    const result = service.validateContractPeriods([
+      { vertrag_id: 'HISTORICAL_MISSING_START', einheit_id: 'WE_1', aktiv: false, start_datum: '', soll_gesamt: 650 }
+    ]);
+
+    expect(result.errors).toEqual([]);
   });
 
   it('findet Überschneidungen gegen das laufende maximale Vertragsende', () => {

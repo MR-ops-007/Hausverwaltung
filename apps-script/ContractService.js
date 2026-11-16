@@ -68,6 +68,23 @@ const contractService = {
 
   blank(value) { return value === undefined || value === null || String(value).trim() === ''; },
 
+  isActive(value) {
+    return !([false, 0, '0', 'false', 'FALSE', 'nein', 'NEIN', 'falsch', 'FALSCH'].includes(value));
+  },
+
+  isVacancyPlaceholder(contract) {
+    if (!contract || !this.blank(contract.start_datum)) return false;
+    const amountIsZero = value => {
+      if (this.blank(value)) return true;
+      const number = typeof value === 'number' ? value : Number(String(value).trim().replace(',', '.'));
+      return Number.isFinite(number) && Math.abs(number) < 0.005;
+    };
+    return this.blank(contract.hauptperson_id)
+      && amountIsZero(contract.soll_gesamt)
+      && amountIsZero(contract.kaution_soll)
+      && amountIsZero(contract.kaution_ist);
+  },
+
   paymentDeadlineType(value) {
     const type = this.blank(value) ? 'WERKTAG' : String(value).trim().toUpperCase();
     if (!['WERKTAG', 'KALENDERTAG'].includes(type)) throw new Error('Zahlungszieltyp ungueltig.');
@@ -122,7 +139,13 @@ const contractService = {
       let start;
       let end = '';
       try {
-        if (this.blank(contract.start_datum)) throw new Error('Startdatum fehlt.');
+        if (this.blank(contract.start_datum)) {
+          // Empty rows represent vacancies, even if the sheet's activation
+          // flag is blank or stale. A real active contract without a start
+          // date remains a period data error.
+          if (this.isVacancyPlaceholder(contract) || !this.isActive(contract.aktiv)) return;
+          throw new Error('Startdatum fehlt.');
+        }
         start = this.iso(this.date(contract.start_datum));
         if (!this.blank(contract.end_datum)) end = this.iso(this.date(contract.end_datum));
       } catch (error) {
