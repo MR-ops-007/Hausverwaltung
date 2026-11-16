@@ -162,11 +162,22 @@ bewusst nicht zugeordneten Rest als Guthaben. Vertrag 32 für TEST_WE_02 ist Mic
 gemeinsam zugeordnet und enthält verspätete Vollzahlungen, eine Teilzahlung, eine teilweise
 gezahlte Kaution und eine negative Erstattung. Daisy (Vertrag 33) bleibt ohne Zahlung, Dagobert
 (Vertrag 34) hat wiederholte Verspätungen und eine Teilzahlung, Gustav (Vertrag 35) eine
-Überzahlung mit Erstattung, Tick und Trick (Vertrag 36) getrennte Teilzahlungen und Vertrag 37
-bildet einen Leerstand ohne Sollmiete ab. Damit lassen sich die Statusfarben, verspätete
-Zahlungen, die Kautionsanzeige, Guthaben, Erstattungen und mehrere Vertragsparteien direkt im
-echten TEST-Backend prüfen. Die Buchungen sind Testdaten und dürfen bei Bedarf zurückgesetzt
-oder durch neue Fixture-IDs ergänzt werden.
+Überzahlung mit Erstattung und Tick und Trick (Vertrag 36) getrennte Teilzahlungen.
+
+Für den Mieterwechsel ist `TEST_WE_08` als echter TEST-Datensatz angelegt: Vertrag 37 gehört
+Pluto und läuft vom 01.06.2025 bis 31.05.2026; Vertrag 38 gehört Goofy und beginnt am
+01.06.2026. Beide Verträge haben eigene Mietzahlungen, Vertragsparteien und Kautionen.
+Vertrag 37 ist **kein Leerstand**. Der dauerhaft leere Bestandstest ist `TEST_WE_07`.
+Zusätzlich enthält Vertrag 26 für Track Duck einen historischen, vollständig bezahlten
+Verlauf ab 01.02.2013 mit 850,00 EUR Monatsmiete und 1.700,00 EUR Kaution. Damit lassen
+sich aktive Altverträge, historische Vertragszeilen, echte Leerstände, Statusfarben,
+Kautionsanzeige, Guthaben, Erstattungen und mehrere Vertragsparteien direkt im echten
+TEST-Backend prüfen. Die Buchungen sind Testdaten und dürfen bei Bedarf zurückgesetzt oder
+durch neue Fixture-IDs ergänzt werden.
+
+Der zuletzt geprüfte TEST-Snapshot umfasst 17 Verträge, 41 Einheiten und 446 Zahlungen.
+Die Datenprüfung ergab keine fehlenden Vertrags-Startdaten, keine unbekannten Einheiten,
+keine aktiven Verträge ohne Sollmiete und keine Verträge ohne Vertragspartei.
 
 Das detaillierte Testprotokoll mit getrennten automatisierten und visuellen Ergebnissen steht
 in [`docs/p6-testprotokoll-20261113.md`](p6-testprotokoll-20261113.md). Es dokumentiert auch

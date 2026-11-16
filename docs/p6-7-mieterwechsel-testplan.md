@@ -36,6 +36,45 @@ und eine teilweise hinterlegte Kaution. Die aktive Mieteransicht zeigt für die
 Einheit nur Goofy; in der Mieteingangskontrolle bleiben Pluto und seine Zahlungen
 als eigene historische Vertragszeile sichtbar.
 
+### Persistierter TEST-Datensatz
+
+Die Fixture ist zusätzlich in der echten TEST-Tabelle `Hausverwaltung_Daten_TEST_Entenhausen`
+angelegt. Dort entsprechen die Vertrags-IDs 37 und 38 dem beschriebenen Wechsel Pluto → Goofy;
+die TEST-Zahlungen und Kautionen sind über die jeweiligen `vertrag_id`s verknüpft. `TEST_WE_07`
+ist der separate Leerstandstest ohne Vertrag. Ein aktiver Altvertrag ist außerdem mit Vertrag 26
+für Track Duck ab 01.02.2013 hinterlegt: 850,00 EUR Monatsmiete, durchgehende Zahlungen bis
+November 2026 und 1.700,00 EUR Kaution. Er dient dazu, sicherzustellen, dass ein lang laufender
+Vertrag nicht versehentlich als Leerstand erscheint.
+
+Der am 16.11.2026 geprüfte TEST-Snapshot enthält 17 Verträge, 41 Einheiten und 446 Zahlungen.
+Dabei wurden keine fehlenden Vertrags-Startdaten, keine unbekannten Einheiten, keine aktiven
+Verträge ohne Sollmiete und keine Verträge ohne Vertragspartei gefunden. Die Browserprüfung
+bestätigt für 2026: Pluto erscheint auf `TEST_WE_08` von Januar bis Mai mit bezahlten Monaten,
+Goofy ab Juni als eigene Vertragszeile; Monate außerhalb der jeweiligen Vertragsperiode bleiben
+neutral. Die übrigen Testpersonen bilden weiterhin Teilzahlung, Überzahlung, Erstattung,
+Nachzahlung, wiederholte Verspätung, Mitmieter und offene Kautionen ab.
+
+### Abnahmecheckliste für den echten TEST-Server
+
+| Prüffall | Erwartetes Ergebnis |
+|---|---|
+| TEST-Objekt, Jahr 2026, `TEST_WE_08` | Pluto steht für Januar bis Mai als historische Vertragszeile, Goofy ab Juni als eigene aktive Vertragszeile. |
+| Pluto, April-Nachzahlung und Storno | Der fachliche Mietmonat bleibt April; der alte Vertrag bleibt getrennt vom Goofy-Vertrag. |
+| Goofy, Juli | `400,00 / 800,00 EUR`, Status Teilbezahlt; die Kaution zeigt `900,00 / 1.800,00 EUR`. |
+| `TEST_WE_07` | Alle Monate zeigen neutralen Leerstand; es entsteht kein offener Mietbetrag. |
+| Track Duck, Vertrag 26 | Ab 2013 stehen 850,00 EUR Sollmiete und die gespeicherten Zahlungseingänge zur Verfügung; der aktive Altvertrag wird nicht als Leerstand dargestellt. |
+| Teilzahlung, Überzahlung, Erstattung, Nachzahlung, Mitmieter | Die Fälle erscheinen in den jeweils zugeordneten Vertragszeilen und beeinflussen keine andere Vertragsperiode. |
+| Kautionen | Kautionen werden je Vertrag separat ausgewertet und nicht als Monatsmiete verbucht. |
+| Jahreswechsel | Die Jahresauswahl zeigt historische Verträge im Jahr ihrer Vertragsperiode, nicht nur Verträge mit aktuellem `aktiv`-Flag. |
+| Datenqualität | Keine `PERIOD_DATE_INVALID`-, `UNKNOWN_UNIT`- oder `OBJECT_ID_CONFLICT`-Meldung im gepflegten TEST-Bestand. |
+
+Beim Altvertrag ist zusätzlich bewusst zu prüfen, ob es seit 2013 dokumentierte Zeilen in
+`Mietanpassungen` gibt. Fehlen solche Einträge trotz zwischenzeitlich geänderter Miete, muss
+die Anwendung die Sollhistorie als unvollständig kennzeichnen; sie darf die fehlende Historie
+nicht stillschweigend als fachlich bestätigt behandeln. Der TEST-Bestand verwendet fiktive
+Entenhausen-Personen. Reale Kontodaten oder nicht anonymisierte Personendaten gehören nicht in
+die TEST-Tabelle.
+
 ## Abnahmekriterien für die spätere UI-Umsetzung
 
 1. Ein Mieterwechsel wird als neuer Vertrag mit neuer `vertrag_id` gespeichert;
@@ -90,7 +129,7 @@ Vertragszeiträumen bleibt deshalb ebenfalls Bestandteil der späteren Umsetzung
 
 ## Technische Prüfung der Vorbereitung
 
-- `npm test`: 518 Tests in 20 Testdateien grün.
+- `npm test`: 520 Tests in 20 Testdateien grün.
 - `npm run check:frontend-assets`: erfolgreich.
 - `node --check` für Mock-Server und Fixture: erfolgreich.
 - Mock-API-Lauf: Für `TEST_WE_08` wurden beide Verträge, beide Parteien, die
