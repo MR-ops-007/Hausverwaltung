@@ -101,7 +101,8 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Einheiten ohne Vertrag bleiben als Leerstand sichtbar. Offene Posten ehemaliger Verträge
   fließen in die Übersicht ein. Alte Vertragsperioden sind als eigene Zeilen direkt
   bearbeitbar; Monate außerhalb der jeweiligen Vertragsperiode bleiben neutral und nicht
-  klickbar. Die Verbrauchsview und die atomare
+  klickbar. Einheiten mit Vertrag werden unabhängig vom Typ angezeigt; die Typregel
+  wirkt nur auf vertragsfreie Leerstände. Die Verbrauchsview und die atomare
   Schreiboperation sind der
   verbleibende Implementierungsumfang von P6.7. Die gemeinsame
   `contractService.validateContractPeriods()` prüft jetzt Überschneidungen, Lücken und

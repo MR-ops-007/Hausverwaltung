@@ -90,7 +90,7 @@ Vertragszeiträumen bleibt deshalb ebenfalls Bestandteil der späteren Umsetzung
 
 ## Technische Prüfung der Vorbereitung
 
-- `npm test`: 515 Tests in 20 Testdateien grün.
+- `npm test`: 518 Tests in 20 Testdateien grün.
 - `npm run check:frontend-assets`: erfolgreich.
 - `node --check` für Mock-Server und Fixture: erfolgreich.
 - Mock-API-Lauf: Für `TEST_WE_08` wurden beide Verträge, beide Parteien, die
@@ -101,6 +101,7 @@ Vertragszeiträumen bleibt deshalb ebenfalls Bestandteil der späteren Umsetzung
   gegen das laufende maximale Vertragsende, erkennt dadurch auch indirekte
   Überschneidungen und offene Vorgänger. Die UI zeigt die Codes `PERIOD_OVERLAP`,
   `PERIOD_GAP`, `MID_MONTH_CHANGE`, `UNKNOWN_UNIT` und `OBJECT_ID_CONFLICT` an.
-- Die Matrix verwendet für mietrelevante Einheiten eine positive Typregel
-  (`Wohnung`, `Gewerbe` oder explizit `mietrelevant`). `Allgemein` und
-  `Gemeinschaft` werden nicht als Miet-Leerstand dargestellt.
+- Die Typregel entscheidet nur über vertragsfreie Einheiten: `Wohnung`, `Gewerbe`
+  oder explizit `mietrelevant` dürfen als Leerstand erscheinen. Eine Einheit mit
+  Vertrag wird unabhängig von ihrem Typ angezeigt; `Allgemein` und `Gemeinschaft`
+  werden ohne Vertrag nicht als Miet-Leerstand dargestellt.

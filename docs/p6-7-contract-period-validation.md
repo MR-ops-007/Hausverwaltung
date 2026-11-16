@@ -28,10 +28,17 @@ Die Validierung wird deshalb in diesem Paket noch nicht pauschal vor jeden
 Stammdaten- oder Indexschreibvorgang geschaltet. Das würde auch bereits vorhandene
 historische Daten mit bekannten Auffälligkeiten für harmlose Notizänderungen sperren.
 
-Die UI ruft dieselbe Funktion für die ausgewählten Vertragsperioden auf und zeigt
+Die UI ruft dieselbe Funktion für die Vertragsperioden des ausgewählten Objekts auf und zeigt
 die Codes als strukturierte Datenprüfung an. `UNKNOWN_UNIT` und
 `OBJECT_ID_CONFLICT` kommen ergänzend aus der Bestandszuordnung; die Einheit ist
 dabei die führende Quelle für das Objekt.
+
+Die Typregel entscheidet nur, ob eine vertragsfreie Einheit als Leerstand in der
+Mietmatrix erscheint. Eine Einheit mit einem Vertrag wird unabhängig von ihrem
+Typ angezeigt; dadurch werden z. B. Stellplätze oder abweichend benannte
+Gewerbeeinheiten nicht als unbekannt gemeldet oder unterschlagen. Die Prüfung
+kann über alle Vertragszeiträume des Objekts laufen; die UI filtert die Hinweise
+nach dem ausgewählten Jahr.
 
 Die serverseitige Durchsetzung erfolgt im nächsten Schritt zusammen mit einer
 atomaren, idempotenten Mieterwechsel-Operation: alter Vertrag beenden, neuen Vertrag
@@ -53,6 +60,9 @@ Die wiederverwendbare Entenhausen-Fixture prüft:
 - Offener Vorgängervertrag mit späterem Vertrag: Überschneidung wird erkannt.
 - UI-Hinweise für Monatsmitte, unbekannte Einheit und widersprüchliche
   Objektzuordnung werden mit Code und Schweregrad dargestellt.
+- Vertrag auf einer Einheit vom Typ `Stellplatz`: Die Vertragszeile bleibt sichtbar,
+  ohne `UNKNOWN_UNIT`; dieselbe vertragsfreie Einheit erzeugt keinen künstlichen
+  Leerstand in der Mietmatrix.
 
 Die Funktion ist Teil des gemeinsam geladenen `ContractService.js` und steht damit
 für Browser- und Apps-Script-Code an derselben Stelle bereit. Für dieses Paket ist

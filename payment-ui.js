@@ -248,20 +248,28 @@ const paymentUiService = {
   },
 
   getUnits(objectId = '') {
-    return (dataService.state.einheiten || [])
-      .filter(unit => this.isRentRelevantUnit(unit))
+    const allUnits = dataService.state.einheiten || [];
+    const contractUnitIds = new Set((dataService.state.vertraege || [])
+      .filter(contract => !objectId || this.objectId(contract) === String(objectId))
+      .map(contract => String(contract.einheit_id || '')));
+    return allUnits
       .filter(unit => !objectId || String(unit.objekt_id || '') === String(objectId))
+      .filter(unit => this.isRentRelevantUnit(unit) || contractUnitIds.has(String(unit.einheit_id || '')))
       .sort((a, b) => this.sortUnitRecords(a, b));
   },
 
   buildUnitRows(units = [], contracts = [], year = this.selectedYear) {
     const normalizedUnits = Array.isArray(units) ? units : [];
+    const visibleUnits = normalizedUnits.length ? normalizedUnits : (dataService.state.einheiten || []);
     const candidates = (Array.isArray(contracts) ? contracts : [])
       .filter(contract => this.contractIntersectsYear(contract, year));
-    const knownUnitIds = new Set(normalizedUnits.map(unit => String(unit.einheit_id || '')));
+    const knownUnitIds = new Set([
+      ...(dataService.state.einheiten || []).map(unit => String(unit.einheit_id || '')),
+      ...visibleUnits.map(unit => String(unit.einheit_id || ''))
+    ]);
     const rows = [];
 
-    normalizedUnits.forEach(unit => {
+    visibleUnits.forEach(unit => {
       const unitId = String(unit.einheit_id || '');
       const unitContracts = candidates
         .filter(contract => String(contract.einheit_id || '') === unitId)
@@ -293,7 +301,10 @@ const paymentUiService = {
 
   buildContractWarnings(units = [], contracts = [], year = this.selectedYear, rows = null) {
     const unitRows = rows || this.buildUnitRows(units, contracts, year);
-    const knownUnits = new Map((Array.isArray(units) ? units : []).map(unit => [String(unit.einheit_id || ''), unit]));
+    const knownUnits = new Map([
+      ...(dataService.state.einheiten || []),
+      ...(Array.isArray(units) ? units : [])
+    ].map(unit => [String(unit.einheit_id || ''), unit]));
     const warnings = [];
     const push = (entry) => {
       const normalized = typeof entry === 'string'
@@ -311,7 +322,7 @@ const paymentUiService = {
     (Array.isArray(contracts) ? contracts : []).forEach(contract => {
       const unitId = String(contract.einheit_id || '');
       const unit = knownUnits.get(unitId);
-      if (unit && contract.objekt_id && unit.objekt_id && String(contract.objekt_id) !== String(unit.objekt_id)) {
+      if (unit && this.contractIntersectsYear(contract, year) && contract.objekt_id && unit.objekt_id && String(contract.objekt_id) !== String(unit.objekt_id)) {
         push({
           severity: 'error', code: 'OBJECT_ID_CONFLICT', unitId, vertragId: contract.vertrag_id,
           message: `Vertrag ${contract.vertrag_id} verweist auf Objekt ${contract.objekt_id}, die Einheit gehört aber zu ${unit.objekt_id}.`
@@ -323,10 +334,21 @@ const paymentUiService = {
       push({ severity: 'error', code: 'CONTRACT_RULES_UNAVAILABLE', message: 'Die zentrale Vertragszeitraumprüfung ist nicht verfügbar.' });
     } else {
       const validation = contractService.validateContractPeriods(contracts);
-      (validation.errors || []).forEach(error => push({ severity: 'error', ...error }));
-      (validation.warnings || []).forEach(warning => push({ severity: 'warning', ...warning }));
+      (validation.errors || []).filter(error => this.periodWarningAffectsYear(error, year)).forEach(error => push({ severity: 'error', ...error }));
+      (validation.warnings || []).filter(warning => this.periodWarningAffectsYear(warning, year)).forEach(warning => push({ severity: 'warning', ...warning }));
     }
     return warnings.map(({ _key, ...warning }) => warning);
+  },
+
+  periodWarningAffectsYear(warning, year) {
+    const normalizedYear = String(year || '').slice(0, 4);
+    if (!/^\d{4}$/.test(normalizedYear)) return true;
+    if (warning && warning.month) return String(warning.month).startsWith(`${normalizedYear}-`);
+    const periodIntersects = (start, end) => this.contractIntersectsYear({ start_datum: start, end_datum: end }, normalizedYear);
+    if (warning && (warning.previousStart || warning.previousEnd) && periodIntersects(warning.previousStart, warning.previousEnd)) return true;
+    if (warning && (warning.start || warning.end) && periodIntersects(warning.start, warning.end)) return true;
+    if (warning && warning.from && warning.to) return periodIntersects(warning.from, warning.to);
+    return true;
   },
 
   contractPeriodLabel(contract) {
@@ -894,11 +916,12 @@ const paymentUiService = {
       this.selectedObject = objectIds.includes(currentObject) ? currentObject : (objectIds[0] || '');
     }
     const units = this.getUnits(this.selectedObject);
-    const contracts = this.getContractsForYear(this.selectedObject, this.selectedYear);
+    const allContracts = this.getContracts(this.selectedObject, true);
+    const contracts = allContracts.filter(contract => this.contractIntersectsYear(contract, this.selectedYear));
     const unitRows = this.buildUnitRows(units, contracts, this.selectedYear);
     const matrix = this.buildMatrix({ rows: unitRows, payments: dataService.state.zahlungen || [], year: this.selectedYear });
     const overviewMatrix = matrix;
-    const dataWarnings = this.buildContractWarnings(units, contracts, this.selectedYear, unitRows);
+    const dataWarnings = this.buildContractWarnings(units, allContracts, this.selectedYear, unitRows);
     const overview = this.summarizeOverview(overviewMatrix, this.selectedYear);
     const depositSummary = overview.depositRemaining > 0
       ? `⚠ ${this.formatMoney(overview.depositRemaining)} EUR Kaution offen`

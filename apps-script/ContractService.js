@@ -169,8 +169,8 @@ const contractService = {
             previousStart: coveragePeriod.start, previousEnd: coveragePeriod.end, start: period.start, end: period.end,
             message: 'Vertragszeiträume derselben Einheit überschneiden sich.'
           });
-        } else if (index > 0) {
-          const previous = unitPeriods[index - 1];
+        } else if (coveragePeriod) {
+          const previous = coveragePeriod;
           const gapStart = new Date(previous.endTime + day);
           const gapEnd = new Date(period.startTime - day);
           if (previous.end && gapStart.getTime() <= gapEnd.getTime()) {

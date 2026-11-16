@@ -170,6 +170,17 @@ describe('contract domain rules', () => {
     expect(result.valid).toBe(false);
     expect(result.errors).toEqual([expect.objectContaining({ code: 'PERIOD_OVERLAP', previousVertragId: 'V_OPEN', vertragId: 'V_NEXT' })]);
   });
+
+  it('berechnet eine Lücke nach einem überlappenden Zwischenvertrag über die echte Abdeckung', () => {
+    const result = service.validateContractPeriods([
+      { vertrag_id: 'V_LONG', einheit_id: 'WE_3', start_datum: '2020-01-01', end_datum: '2026-12-31' },
+      { vertrag_id: 'V_SHORT', einheit_id: 'WE_3', start_datum: '2021-01-01', end_datum: '2021-06-30' },
+      { vertrag_id: 'V_LATE', einheit_id: 'WE_3', start_datum: '2027-01-01', end_datum: '' }
+    ]);
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.warnings).toEqual([]);
+  });
 });
 
 function backendFixture({ token = 'test-only', writeFailure = false } = {}) {
