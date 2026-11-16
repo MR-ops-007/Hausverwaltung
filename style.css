@@ -544,19 +544,32 @@ input[type="text"] {
 .payment-legend-item.is-open { border-radius: 8px; }
 .payment-legend-item.is-open small { display: block; }
 .payment-table-wrap { overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; }
-.payment-table { width: 100%; min-width: 1120px; border-collapse: separate; border-spacing: 0; }
+.payment-table { width: 100%; min-width: 1474px; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+.payment-unit-col { width: 82px; }
+.payment-tenant-col { width: 240px; }
+.payment-month-col { width: 96px; }
 .payment-table th,
-.payment-table td { padding: 7px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #eef2f7; vertical-align: top; text-align: left; }
+.payment-table td { box-sizing: border-box; padding: 7px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #eef2f7; vertical-align: top; text-align: left; }
+.payment-table th { box-sizing: border-box; }
 .payment-table thead th { position: sticky; top: 0; z-index: 1; background: #f8fafc; color: #334155; font-size: .8rem; }
-.payment-table th:first-child { position: sticky; left: 0; z-index: 2; min-width: 220px; background: #f8fafc; }
-.payment-unit-group th { position: sticky; left: 0; z-index: 2; padding: 9px 10px; background: #e8eef8; color: #243b63; font-size: .82rem; border-top: 2px solid #c7d5eb; }
+.payment-table th.payment-unit-cell,
+.payment-table th.payment-unit-header { position: sticky; left: 0; z-index: 6; width: 82px; min-width: 82px; max-width: 82px; background: #f8fafc; }
+.payment-table th.payment-tenant-cell,
+.payment-table th.payment-tenant-header { position: sticky; left: 82px; z-index: 5; width: 240px; min-width: 240px; max-width: 240px; background: #f8fafc; box-shadow: 3px 0 5px rgba(51, 65, 85, .12); }
+.payment-unit-cell { color: #334e7d; font-size: .82rem; font-weight: 800; letter-spacing: .02em; }
+.payment-unit-cell-grouped-first { border-top: 2px solid #c7d5eb; background: #e8eef8 !important; }
+.payment-unit-cell-grouped { vertical-align: top; padding-top: 11px !important; }
+.payment-row-after-change th,
+.payment-row-after-change td { border-top: 1px dashed #cbd5e1; }
+.payment-change-marker { display: block; margin: 0 0 5px; color: #64748b; font-size: .72rem; font-weight: 700; }
 .payment-row-vacancy th,
 .payment-row-vacancy td { background: #fff; }
-.payment-row-historical th:first-child { background: #f8fafc; }
+.payment-row-historical .payment-tenant-cell { background: #f8fafc; }
 .payment-tenant-cell { font-weight: 700; }
 .payment-tenant-cell strong,
 .payment-tenant-cell span,
 .payment-tenant-cell small { display: block; }
+.payment-tenant-name { font-size: 1rem; }
 .payment-tenant-cell span { margin-top: 3px; color: #475569; font-weight: 600; }
 .payment-tenant-cell small { margin-top: 7px; color: #64748b; font-weight: 600; }
 .payment-tenant-cell-historical { border-left:4px solid #94a3b8; }
@@ -569,10 +582,10 @@ input[type="text"] {
 .payment-deposit-action { width:fit-content; margin-top:7px; padding:4px 8px; border:1px solid #2f67d8; border-radius:5px; color:#2456bc; background:#f4f7ff; cursor:pointer; font-size:.75rem; }
 .payment-deposit-action:hover { background:#e8efff; }
 .payment-month-number { display: block; color: #94a3b8; font-size: .7rem; font-weight: 600; }
-.payment-cell { display: flex; flex-direction: column; gap: 4px; width: 100%; min-width: 74px; min-height: 62px; padding: 7px 6px; border: 1px solid #cbd5e1; border-radius: 7px !important; background: #fff; color: #334155; cursor: pointer; text-align: left; font-size: .72rem !important; }
+.payment-cell { display: flex; flex-direction: column; gap: 4px; width: 100%; min-width: 0; min-height: 62px; overflow: hidden; padding: 7px 6px; border: 1px solid #cbd5e1; border-radius: 7px !important; background: #fff; color: #334155; cursor: pointer; text-align: left; font-size: .72rem !important; }
 .payment-cell:hover { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,.12); }
-.payment-cell strong { font-size: .72rem; }
-.payment-cell span { font-size: .68rem; font-weight: 600; white-space: nowrap; }
+.payment-cell strong { font-size: .72rem; line-height: 1.15; overflow-wrap: anywhere; }
+.payment-cell span { font-size: .68rem; font-weight: 600; line-height: 1.15; white-space: normal; overflow-wrap: anywhere; }
 .payment-cell-late { box-shadow:inset 0 0 0 2px #f0a11a; }
 .payment-cell strong small { display:block; color:#9a5c00; font-size:.7rem; }
 .payment-status-bezahlt { color: #166534; background: #dcfce7; border-color: #86efac !important; }
@@ -583,6 +596,17 @@ input[type="text"] {
 .payment-status-leerstand { color: #64748b; background: #fff; border-color: #e2e8f0 !important; }
 .payment-status-vor_mietbeginn,
 .payment-status-nach_mietende { color: #64748b; background: #f8fafc; border-color: #cbd5e1 !important; }
+
+@media (max-width: 700px) {
+    .payment-table { min-width: 1434px; }
+    .payment-unit-col { width: 72px; }
+    .payment-tenant-col { width: 210px; }
+    .payment-month-col { width: 96px; }
+    .payment-table th.payment-unit-cell,
+    .payment-table th.payment-unit-header { width: 72px; min-width: 72px; max-width: 72px; }
+    .payment-table th.payment-tenant-cell,
+    .payment-table th.payment-tenant-header { left: 72px; width: 210px; min-width: 210px; max-width: 210px; }
+}
 .payment-deposit-nicht_vereinbart { color:#64748b; }
 .payment-contract-summary { margin: 0 0 14px; padding: 14px; border: 1px solid #dbe4ee; border-radius: 8px; background: #fff; }
 .payment-contract-summary > summary { display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; color:#334155; list-style:none; }

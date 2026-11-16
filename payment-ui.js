@@ -167,6 +167,12 @@ const paymentUiService = {
     return !([false, 0, '0', 'false', 'FALSE', 'nein', 'NEIN', 'falsch', 'FALSCH'].includes(value));
   },
 
+  isVacancyPlaceholder(contract) {
+    return typeof contractService !== 'undefined'
+      && typeof contractService.isVacancyPlaceholder === 'function'
+      && contractService.isVacancyPlaceholder(contract);
+  },
+
   objectId(contract) {
     const unit = (dataService.state.einheiten || []).find(row => String(row.einheit_id) === String(contract.einheit_id));
     if (unit && unit.objekt_id) return String(unit.objekt_id);
@@ -213,6 +219,7 @@ const paymentUiService = {
   getContracts(objectId = '', includeHistorical = false) {
     return (dataService.state.vertraege || [])
       .filter(contract => contract.vertrag_id !== '' && contract.vertrag_id !== null)
+      .filter(contract => !this.isVacancyPlaceholder(contract))
       .filter(contract => includeHistorical || this.isActive(contract.aktiv))
       .filter(contract => !objectId || this.objectId(contract) === String(objectId))
       .sort((a, b) => this.unitName(a).localeCompare(this.unitName(b), 'de', { numeric: true, sensitivity: 'base' })
@@ -227,6 +234,15 @@ const paymentUiService = {
     const startMonth = this.monthKey(contract && contract.start_datum);
     const endMonth = this.monthKey(contract && contract.end_datum);
     return (!startMonth || startMonth <= yearEnd) && (!endMonth || endMonth >= yearStart);
+  },
+
+  contractsAreAdjacent(previousContract, nextContract) {
+    const previousEnd = this.startOfDay(previousContract && previousContract.end_datum);
+    const nextStart = this.startOfDay(nextContract && nextContract.start_datum);
+    if (!previousEnd || !nextStart) return false;
+    const expectedStart = new Date(previousEnd.getTime());
+    expectedStart.setDate(expectedStart.getDate() + 1);
+    return nextStart.getTime() === expectedStart.getTime();
   },
 
   getContractsForYear(objectId = '', year = this.selectedYear) {
@@ -250,6 +266,7 @@ const paymentUiService = {
   getUnits(objectId = '', year = '') {
     const allUnits = dataService.state.einheiten || [];
     const contractUnitIds = new Set((dataService.state.vertraege || [])
+      .filter(contract => !this.isVacancyPlaceholder(contract))
       .filter(contract => !objectId || this.objectId(contract) === String(objectId))
       .filter(contract => !year || this.contractIntersectsYear(contract, year))
       .map(contract => String(contract.einheit_id || '')));
@@ -263,6 +280,7 @@ const paymentUiService = {
     const normalizedUnits = Array.isArray(units) ? units : [];
     const visibleUnits = Array.isArray(allUnits) ? allUnits : normalizedUnits;
     const candidates = (Array.isArray(contracts) ? contracts : [])
+      .filter(contract => !this.isVacancyPlaceholder(contract))
       .filter(contract => this.contractIntersectsYear(contract, year));
     const knownUnits = new Map([
       ...(dataService.state.einheiten || []),
@@ -351,7 +369,9 @@ const paymentUiService = {
     if (typeof contractService === 'undefined' || typeof contractService.validateContractPeriods !== 'function') {
       push({ severity: 'error', code: 'CONTRACT_RULES_UNAVAILABLE', message: 'Die zentrale Vertragszeitraumprüfung ist nicht verfügbar.' });
     } else {
-      const validation = contractService.validateContractPeriods(contracts);
+      const validationContracts = (Array.isArray(contracts) ? contracts : [])
+        .filter(contract => !this.isVacancyPlaceholder(contract));
+      const validation = contractService.validateContractPeriods(validationContracts);
       (validation.errors || []).filter(error => this.periodWarningAffectsYear(error, year)).forEach(error => push({ severity: 'error', ...error }));
       (validation.warnings || []).filter(warning => this.periodWarningAffectsYear(warning, year)).forEach(warning => push({ severity: 'warning', ...warning }));
     }
@@ -946,16 +966,28 @@ const paymentUiService = {
       : '✓ Kautionen vollständig hinterlegt oder nicht vereinbart';
     const contractSummary = overviewMatrix.filter(item => item.contract).map(item => '<div class="payment-contract-summary-item' + (this.isActive(item.contract.aktiv) ? '' : ' payment-contract-summary-item-historical') + (item.rowType === 'vertrag_warnung' ? ' payment-contract-summary-item-warning' : '') + '"><strong>' + this.escape(item.unit) + ' · ' + this.escape(item.tenant) + '</strong><span>' + (this.isActive(item.contract.aktiv) ? 'Aktueller Vertrag' : 'Historischer Vertrag') + ' · ' + this.escape(this.contractPeriodLabel(item.contract)) + '</span><span>' + this.formatMoney(item.due) + ' EUR / Monat · ' + (this.isActive(item.contract.aktiv) ? 'aktuell' : 'historisch') + '</span>' + this.depositStatusHtml(item.deposit) + '</div>').join('');
     const monthHeaders = this.MONTH_NAMES.map((name, index) => `<th scope="col">${name}<span class="payment-month-number">${index + 1}</span></th>`).join('');
-    let previousUnitId = null;
-    const rows = matrix.map(item => {
-      const newUnit = item.unitId !== previousUnitId;
-      previousUnitId = item.unitId;
-      const groupHeader = newUnit
-        ? `<tr class="payment-unit-group"><th colspan="${this.MONTH_NAMES.length + 1}">${this.escape(item.unit)}${item.rowType === 'leerstand' ? ' · Leerstand' : ''}</th></tr>`
-        : '';
+    const rowGroupKey = (item, index) => {
+      if (item.rowType === 'vertrag_warnung' || !item.unitId) {
+        return `contract:${String(item.contract && item.contract.vertrag_id || index)}`;
+      }
+      return `unit:${String(item.unitId)}`;
+    };
+    const rowGroupKeys = matrix.map(rowGroupKey);
+    const unitRowCounts = new Map();
+    rowGroupKeys.forEach(key => unitRowCounts.set(key, (unitRowCounts.get(key) || 0) + 1));
+    let previousGroupKey = null;
+    const rows = matrix.map((item, index) => {
+      const groupKey = rowGroupKeys[index];
+      const newUnit = groupKey !== previousGroupKey;
+      previousGroupKey = groupKey;
+      const groupedUnit = (unitRowCounts.get(groupKey) || 0) > 1;
       const hasContract = Boolean(item.contract);
       const historical = hasContract && !this.isActive(item.contract.aktiv);
-      const rowClass = item.rowType === 'leerstand' ? ' payment-row-vacancy' : historical ? ' payment-row-historical' : '';
+      const rowClass = item.rowType === 'leerstand'
+        ? ' payment-row-vacancy'
+        : historical ? ' payment-row-historical' : '';
+      const groupedFirst = groupedUnit && newUnit;
+      const rowSpan = groupedFirst ? ` rowspan="${unitRowCounts.get(groupKey)}"` : '';
       const warningBadge = item.rowType === 'vertrag_warnung' ? '<span class="payment-data-warning-badge" title="Vertrag verweist auf eine unbekannte Einheit">Daten prüfen</span>' : '';
       const contractInfo = hasContract
         ? `<span>${historical ? 'Historischer Vertrag' : 'Aktueller Vertrag'} · ${this.escape(this.contractPeriodLabel(item.contract))}</span><small>${this.formatMoney(item.due)} EUR / Monat · ${historical ? 'historisch' : 'aktuell'}</small><span class="payment-deposit payment-deposit-${item.deposit.status}">${item.deposit.due > 0 ? 'Kaution: ' + this.formatMoney(item.deposit.paid) + ' / ' + this.formatMoney(item.deposit.due) + ' EUR' : 'Keine Kaution vereinbart'}</span>${item.deposit.due > 0 && item.deposit.status !== 'vollständig' ? `<button class="payment-deposit-action" type="button" onclick="paymentUiService.openPaymentDialog('${this.escape(item.contract.vertrag_id)}','','Kaution')">Kaution erfassen</button>` : ''}`
@@ -966,10 +998,32 @@ const paymentUiService = {
         const disabled = actionable ? '' : ' disabled';
         return `<td><button class="payment-cell ${this.statusClass(month.status)}${month.verspaetet ? ' payment-cell-late' : ''}" type="button"${action ? ` onclick="${action}"` : ''}${disabled} title="${this.escape(this.statusTitle(month) + (month.verspaetet ? ' Zusätzlich verspätet beglichen oder aktuell überfällig.' : ''))}"><strong>${this.escape(this.statusLabel(month.status))}${month.verspaetet ? '<small>verspätet</small>' : ''}</strong><span>${this.formatMoney(month.paid)} / ${this.formatMoney(month.due)} EUR</span></button></td>`;
       }).join('');
-      return `${groupHeader}<tr class="${rowClass}"><th scope="row" class="payment-tenant-cell${historical ? ' payment-tenant-cell-historical' : ''}${item.rowType === 'vertrag_warnung' ? ' payment-tenant-cell-warning' : ''}"><strong>${this.escape(item.unit)}</strong><span>${this.escape(item.tenant)}</span>${warningBadge}${contractInfo}</th>${monthCells}</tr>`;
+      const unitCell = groupedFirst || !groupedUnit
+        ? `<th scope="rowgroup"${rowSpan} class="payment-unit-cell${groupedUnit ? ' payment-unit-cell-grouped' : ''}${groupedFirst ? ' payment-unit-cell-grouped-first' : ''}">${this.escape(item.unit)}</th>`
+        : '';
+      const previousItem = index > 0 ? matrix[index - 1] : null;
+      const isContractTransition = previousItem
+        && previousItem.rowType === 'vertrag'
+        && item.rowType === 'vertrag'
+        && String(previousItem.unitId || '') === String(item.unitId || '')
+        && this.contractsAreAdjacent(previousItem.contract, item.contract);
+      const changeMarker = isContractTransition
+        ? `<span class="payment-change-marker">Mieterwechsel · ${this.escape(this.formatDate(item.contract.start_datum))}</span>`
+        : '';
+      return `<tr class="${rowClass}${groupedUnit && !groupedFirst ? ' payment-row-after-change' : ''}">${unitCell}<th scope="row" class="payment-tenant-cell${historical ? ' payment-tenant-cell-historical' : ''}${item.rowType === 'vertrag_warnung' ? ' payment-tenant-cell-warning' : ''}"><strong class="payment-tenant-name">${this.escape(item.tenant)}</strong>${changeMarker}${warningBadge}${contractInfo}</th>${monthCells}</tr>`;
+    }).join('');
+    const warningLines = dataWarnings.map(warning => {
+      const unit = warning.unitId
+        ? (dataService.state.einheiten || []).find(row => String(row.einheit_id) === String(warning.unitId))
+        : null;
+      const unitLabel = warning.unitId
+        ? `${unit ? this.unitNameFromRecord(unit) : 'Einheit unbekannt'}${unit && unit.einheit_id ? ` (${unit.einheit_id})` : warning.unitId ? ` (${warning.unitId})` : ''}`
+        : '';
+      const context = [unitLabel, warning.vertragId ? `Vertrag ${warning.vertragId}` : ''].filter(Boolean).join(' · ');
+      return `<span class="payment-data-warning-${warning.severity}"><b>${this.escape(warning.code)}</b> ${context ? `<strong>${this.escape(context)}:</strong> ` : ''}${this.escape(warning.message)}</span>`;
     }).join('');
     const warningHtml = dataWarnings.length
-      ? `<div class="payment-data-warnings" role="${dataWarnings.some(warning => warning.severity === 'error') ? 'alert' : 'status'}"><strong>Datenprüfung erforderlich</strong>${dataWarnings.map(warning => `<span class="payment-data-warning-${warning.severity}"><b>${this.escape(warning.code)}</b> ${this.escape(warning.message)}</span>`).join('')}</div>`
+      ? `<div class="payment-data-warnings" role="${dataWarnings.some(warning => warning.severity === 'error') ? 'alert' : 'status'}"><strong>Datenprüfung erforderlich</strong>${warningLines}</div>`
       : '';
     output.innerHTML = `
       <div class="payment-page-heading"><div><h2>Mieteingänge</h2><p>Monatliche Zahlungseingänge für ${this.escape(this.selectedYear)}. Alle Einheiten des Objekts bleiben sichtbar; je Vertragszeitraum wird eine eigene Zeile angezeigt. Offene Posten ehemaliger Verträge fließen bereits in die Übersicht ein.</p></div></div>
@@ -982,7 +1036,7 @@ const paymentUiService = {
       <p class="payment-help"><strong>So wird zugeordnet:</strong> Das Eingangsdatum dokumentiert den tatsächlichen Geldfluss. Der ausgewählte Mietmonat bestimmt die fachliche Zuordnung. <strong>Miete</strong> ist der reguläre Monatsbetrag; eine <strong>Nachzahlung</strong> gleicht einen zusätzlich offenen Betrag für den zugeordneten Monat aus. Eine <strong>Erstattung</strong> wird als negative Rückzahlung geführt und verändert den Zahlungsstatus der Miete nicht. Die Frist wird je Vertrag als 3. Werktag oder individueller Kalendertag berechnet. Dokumentierte Mietanpassungen werden ab ihrem Wirksamkeitsmonat berücksichtigt; solche Monate sind als historisches Soll gekennzeichnet. Nach dem letzten vergangenen Historieneintrag gilt der aktuelle Vertragssatz. Abweichungen oder geschätzte Wirksamkeitsdaten werden als Prüfhinweis angezeigt.</p>
       ${this.legendHtml()}
       ${warningHtml}
-      ${matrix.length ? `<div class="payment-table-wrap"><table class="payment-table"><thead><tr><th scope="col">Mieter / Einheit</th>${monthHeaders}</tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="payment-empty">Keine Verträge für diese Auswahl vorhanden.</p>'}
+      ${matrix.length ? `<div class="payment-table-wrap"><table class="payment-table"><colgroup><col class="payment-unit-col"><col class="payment-tenant-col">${this.MONTH_NAMES.map(() => '<col class="payment-month-col">').join('')}</colgroup><thead><tr><th scope="col" class="payment-unit-header">Einheit</th><th scope="col" class="payment-tenant-header">Mieter / Vertrag</th>${monthHeaders}</tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="payment-empty">Keine Verträge für diese Auswahl vorhanden.</p>'}
       <section class="payment-import-section"><div class="payment-section-heading"><div><h3>Kontoauszug als CSV</h3><p>Die Datei wird lokal gelesen. Buchungen werden erst nach deiner Zuordnung gespeichert.</p></div><label class="payment-file-button">CSV auswählen<input type="file" accept=".csv,text/csv,text/plain" onchange="paymentUiService.handleImportFile(this.files && this.files[0])"></label></div><div id="payment-import-output"></div></section>`;
     if (this.importRows.length > 0) this.renderImportRows();
   },

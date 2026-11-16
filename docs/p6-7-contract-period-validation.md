@@ -13,7 +13,11 @@ für historische Verträge derselben Einheit.
 - Ein Wechsel innerhalb desselben Monats ist ein Hinweis
   (`MID_MONTH_CHANGE`). Die Zeiträume bleiben gültig, aber eine fachliche Regel
   für anteiliges Soll und gegebenenfalls eine Zwischenablesung ist erforderlich.
-- Fehlende, ungültige oder umgekehrte Datumswerte werden als Fehler gemeldet.
+- Fehlende Startdaten werden bei echten aktiven Verträgen als Fehler gemeldet.
+  Eine leere Zeile ohne Mietpartei, Sollmiete und Kaution wird unabhängig vom
+  Aktiv-Flag als Leerstands-Platzhalter behandelt und erzeugt keinen
+  `PERIOD_DATE_INVALID`-Fehler. Ungültige oder umgekehrte Datumswerte bleiben
+  Fehler.
 - Die Überschneidungsprüfung vergleicht jeden neuen Zeitraum mit dem bisher
   größten Vertragsende. Dadurch werden auch indirekte Überschneidungen erkannt,
   wenn ein langer Vorgängervertrag bereits durch einen kürzeren Zwischenvertrag
@@ -72,6 +76,10 @@ Die wiederverwendbare Entenhausen-Fixture prüft:
   damit Vertragszeilen nicht still verschwinden.
 - Unbekannte Warncodes bleiben sichtbar und werden konservativ dem ausgewählten
   Jahr zugeordnet.
+- Leere Zeilen ohne Startdatum, Mietpartei, Sollmiete und Kaution werden nicht
+  als Vertragsperiode geprüft und als Leerstand dargestellt; ein leeres oder
+  veraltetes Aktiv-Flag ändert daran nichts. Ein aktiver Vertrag mit echter
+  Mietpartei oder Sollmiete bleibt dagegen mit `PERIOD_DATE_INVALID` sichtbar.
 
 Die Funktion ist Teil des gemeinsam geladenen `ContractService.js` und steht damit
 für Browser- und Apps-Script-Code an derselben Stelle bereit. Für dieses Paket ist

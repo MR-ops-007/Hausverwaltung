@@ -219,6 +219,34 @@ describe('paymentUiService Monatsstatus', () => {
     ]);
   });
 
+  it('behandelt inaktive leere Vertragszeilen als Leerstand ohne Datumswarnung', () => {
+    const unit = { einheit_id: 'O1_WE_07', objekt_id: 'O1', nummer: 'Wohnung 7' };
+    const placeholder = {
+      vertrag_id: 'VACANCY_07', einheit_id: unit.einheit_id, aktiv: true,
+      start_datum: '', end_datum: '', soll_gesamt: 0, kaution_soll: 0
+    };
+    const service = loadPaymentService(baseState({ einheiten: [unit], vertraege: [placeholder] }));
+
+    expect(service.getContractsForYear('O1', '2026')).toEqual([]);
+    expect(service.buildUnitRows([unit], [placeholder], '2026')).toEqual([
+      expect.objectContaining({ rowType: 'leerstand', unitId: unit.einheit_id, contract: null })
+    ]);
+    expect(service.buildContractWarnings([unit], [placeholder], '2026')).toEqual([]);
+  });
+
+  it('meldet einen aktiven Vertrag ohne Startdatum weiterhin', () => {
+    const unit = { einheit_id: 'O1_WE_08', objekt_id: 'O1', nummer: 'Wohnung 8' };
+    const contract = {
+      vertrag_id: 'ACTIVE_MISSING_START', einheit_id: unit.einheit_id, objekt_id: 'O1',
+      aktiv: true, start_datum: '', end_datum: '', soll_gesamt: 650, hauptperson_id: 'P1'
+    };
+    const service = loadPaymentService(baseState({ einheiten: [unit], vertraege: [contract] }));
+
+    expect(service.buildContractWarnings([unit], [contract], '2026')).toEqual([
+      expect.objectContaining({ code: 'PERIOD_DATE_INVALID', vertragId: contract.vertrag_id, unitId: unit.einheit_id })
+    ]);
+  });
+
   it('nutzt die zentrale Zeitraumprüfung für Hinweise und schließt nicht mietrelevante Einheiten aus', () => {
     const units = [
       { einheit_id: 'O1_WE_01', objekt_id: 'O1', nummer: 'Wohnung 1', typ: 'Wohnung' },
@@ -588,11 +616,14 @@ describe('paymentUiService Monatsstatus', () => {
   });
 
   it('führt Leerstand sichtbar, aber ohne offene Sollmiete', () => {
+    const placeholder = { vertrag_id: 'V7', einheit_id: 'O1_WE_01', hauptperson_id: '', aktiv: true, soll_gesamt: 0 };
     const service = loadPaymentService(baseState({
-      vertraege: [{ vertrag_id: 'V7', einheit_id: 'O1_WE_01', hauptperson_id: '', aktiv: true, soll_gesamt: 0 }]
+      vertraege: [placeholder]
     }));
-    const summary = service.summarizeMonth(service.getContracts()[0], '2026-11', new Date(2026, 10, 11));
-    expect(summary).toMatchObject({ due: 0, remaining: 0, status: 'leerstand', verspaetet: false });
+    expect(service.getContracts()).toEqual([]);
+    expect(service.buildUnitRows(baseState().einheiten, [placeholder], '2026')).toEqual([
+      expect.objectContaining({ rowType: 'leerstand', unitId: 'O1_WE_01', contract: null })
+    ]);
   });
 
   it('berücksichtigt Stornos append-only als Gegenbuchung', () => {
@@ -1060,6 +1091,7 @@ describe('paymentUiService CSV-Import', () => {
     expect(output.innerHTML).toContain('Überfällig');
     expect(output.innerHTML).toContain('Guthaben / Überzahlungen');
     expect(output.innerHTML).toContain('Kontoauszug als CSV');
+    expect((output.innerHTML.match(/payment-unit-group/g) || []).length).toBe(0);
   });
 
   it('zeigt historische Verträge und verlinkt den Vorgängermonat zur Erfassung', () => {
@@ -1086,7 +1118,73 @@ describe('paymentUiService CSV-Import', () => {
     expect(output.innerHTML).not.toContain('openHistoricalMonth');
     expect(output.innerHTML).toContain('Offene Posten ehemaliger Verträge fließen bereits in die Übersicht ein.');
     expect((output.innerHTML.match(/payment-row-historical/g) || []).length).toBe(1);
-    expect((output.innerHTML.match(/payment-unit-group/g) || []).length).toBe(1);
+    expect((output.innerHTML.match(/payment-unit-group/g) || []).length).toBe(0);
+    expect(output.innerHTML).toContain('<th scope="col" class="payment-unit-header">Einheit</th><th scope="col" class="payment-tenant-header">Mieter / Vertrag</th>');
+    expect(output.innerHTML).toContain('<th scope="rowgroup" rowspan="2" class="payment-unit-cell payment-unit-cell-grouped payment-unit-cell-grouped-first">Wohnung 8</th>');
+    expect(output.innerHTML).toContain('<span class="payment-change-marker">Mieterwechsel · 01.06.2026</span>');
+    expect((output.innerHTML.match(/>Wohnung 8</g) || []).length).toBe(1);
+  });
+
+  it('gruppiert Verträge ohne Einheit nicht als Mieterwechsel', () => {
+    const output = { innerHTML: '' };
+    const service = loadPaymentService(baseState({
+      vertraege: [
+        { vertrag_id: 'MISSING_A', objekt_id: 'O1', einheit_id: '', start_datum: '2026-01-01', end_datum: '', aktiv: true, soll_gesamt: 500 },
+        { vertrag_id: 'MISSING_B', objekt_id: 'O1', einheit_id: '', start_datum: '2026-06-01', end_datum: '', aktiv: true, soll_gesamt: 600 }
+      ]
+    }), {
+      getElementById(id) {
+        return id === 'payments-output' ? output : null;
+      }
+    });
+    service.selectedObject = 'O1';
+    service.selectedYear = '2026';
+    service.render();
+
+    expect((output.innerHTML.match(/payment-change-marker/g) || []).length).toBe(0);
+    expect((output.innerHTML.match(/payment-data-warning-badge/g) || []).length).toBe(2);
+    expect((output.innerHTML.match(/rowspan=/g) || []).length).toBe(0);
+  });
+
+  it('markiert überlappende Vertragsperioden nicht als Mieterwechsel', () => {
+    const output = { innerHTML: '' };
+    const unit = { einheit_id: 'O1_WE_01', objekt_id: 'O1', nummer: 'Wohnung 1', typ: 'Wohnung' };
+    const service = loadPaymentService(baseState({
+      einheiten: [unit],
+      vertraege: [
+        { vertrag_id: 'OVERLAP_A', objekt_id: 'O1', einheit_id: unit.einheit_id, start_datum: '2026-01-01', end_datum: '2026-06-30', aktiv: false, soll_gesamt: 500 },
+        { vertrag_id: 'OVERLAP_B', objekt_id: 'O1', einheit_id: unit.einheit_id, start_datum: '2026-06-01', end_datum: '', aktiv: true, soll_gesamt: 600 }
+      ]
+    }), {
+      getElementById(id) {
+        return id === 'payments-output' ? output : null;
+      }
+    });
+    service.selectedObject = 'O1';
+    service.selectedYear = '2026';
+    service.render();
+
+    expect((output.innerHTML.match(/payment-change-marker/g) || []).length).toBe(0);
+    expect(output.innerHTML).toContain('rowspan="2"');
+    expect(output.innerHTML).toContain('PERIOD_OVERLAP');
+  });
+
+  it('zeigt Datenwarnungen mit Einheit und Vertragskontext', () => {
+    const output = { innerHTML: '' };
+    const service = loadPaymentService(baseState({
+      vertraege: [
+        { vertrag_id: 'UNKNOWN', objekt_id: 'O1', einheit_id: 'O1_WE_99', start_datum: '2026-01-01', end_datum: '', aktiv: true, soll_gesamt: 500 }
+      ]
+    }), {
+      getElementById(id) {
+        return id === 'payments-output' ? output : null;
+      }
+    });
+    service.selectedObject = 'O1';
+    service.selectedYear = '2026';
+    service.render();
+
+    expect(output.innerHTML).toContain('Einheit unbekannt (O1_WE_99) · Vertrag UNKNOWN:');
   });
 
   it('zeigt im Vorjahr Pluto und nicht den erst später eingezogenen Goofy', () => {
