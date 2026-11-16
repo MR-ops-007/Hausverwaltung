@@ -535,7 +535,7 @@ function doPost(e) {
   } catch (err) {
     return sendJSON({
       status: "error",
-      message: err.toString()
+      message: err && err.message ? err.message : String(err)
     });
   }
 
@@ -559,7 +559,7 @@ function doPost(e) {
     } catch (err) {
       return sendJSON({
         status: "error",
-        message: err.toString()
+        message: err && err.message ? err.message : String(err)
       });
     }
   }
@@ -615,7 +615,7 @@ function doPost(e) {
   } catch (err) {
     const response = {
       status: "error",
-      message: err.toString()
+      message: err && err.message ? err.message : String(err)
     };
     if (err && err.code) response.code = err.code;
     if (err && err.details) response.details = err.details;
@@ -3086,7 +3086,7 @@ function updateAktiveMieterView() {
   einheiten.forEach(e => {
     const v = vertraege.find(v =>
       String(v.einheit_id) === String(e.einheit_id) &&
-      String(v.aktiv) === "true"
+      contractService.isCurrentlyActive(v)
     );
 
     if (v) {

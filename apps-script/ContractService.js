@@ -77,6 +77,23 @@ const contractService = {
     return !([false, 0, '0', 'false', 'FALSE', 'nein', 'NEIN', 'falsch', 'FALSCH'].includes(value));
   },
 
+  /**
+   * Derives current activity from the contract period. Legacy rows without a
+   * start date keep their explicit flag so they remain visible for repair.
+   */
+  isCurrentlyActive(contract, now = new Date()) {
+    if (!contract) return false;
+    if (this.blank(contract.start_datum)) return this.isActive(contract.aktiv);
+    try {
+      const today = this.iso(this.date(now));
+      const start = this.iso(this.date(contract.start_datum));
+      const end = this.blank(contract.end_datum) ? '' : this.iso(this.date(contract.end_datum));
+      return start <= today && (!end || end >= today);
+    } catch (error) {
+      return false;
+    }
+  },
+
   isVacancyPlaceholder(contract) {
     if (!contract || !this.blank(contract.start_datum)) return false;
     const amountIsZero = value => {
@@ -148,19 +165,19 @@ const contractService = {
     const cold = this.money(this.number(source.soll_kaltmiete, 'Nettokaltmiete'));
     const costs = this.money(this.number(source.soll_nebenkosten, 'Nebenkosten'));
     const depositSoll = Object.prototype.hasOwnProperty.call(input, 'kaution_soll') ? input.kaution_soll : source.kaution_soll;
-    const depositIst = Object.prototype.hasOwnProperty.call(input, 'kaution_ist') ? input.kaution_ist : 0;
     const result = Object.assign({}, source, {
       vertrag_id: String(input.vertrag_id).trim(),
       einheit_id: String(input.einheit_id).trim(),
       hauptperson_id: String(input.hauptperson_id).trim(),
       start_datum: start,
       end_datum: end,
-      aktiv: true,
+      aktiv: this.isCurrentlyActive({ start_datum: start, end_datum: end, aktiv: true }),
       soll_kaltmiete: cold,
       soll_nebenkosten: costs,
       soll_gesamt: this.money(cold + costs),
       kaution_soll: this.number(this.blank(depositSoll) ? 0 : depositSoll, 'Kaution Soll'),
-      kaution_ist: this.number(this.blank(depositIst) ? 0 : depositIst, 'Kaution Ist')
+      // The paid deposit is derived from payment rows, never trusted from the client.
+      kaution_ist: 0
     });
     if (Object.prototype.hasOwnProperty.call(input, 'letzte_anpassung') && !this.blank(input.letzte_anpassung)) {
       result.letzte_anpassung = this.iso(this.date(input.letzte_anpassung));

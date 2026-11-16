@@ -424,20 +424,27 @@ Bankanbindung werden daraus abgeleitet.
    `MIETERWECHSEL_ANLEGEN` wird als Admin-only-Operation im bestehenden Script-Lock
    umgesetzt. Der Vorgänger wird am Tag vor dem neuen Mietbeginn beendet, der neue Vertrag
    und seine Vertragsparteien werden mit eigener ID angelegt. Erwarteter Vertragsstand,
-   Zeitraumprüfung, Person-/Einheitenreferenzen, Idempotenz und Rollback sind Teil des
-   Schreibwegs. Die UI-Maske zum Erfassen eines neuen Vertrags bleibt bewusst ein Folgepaket;
-   bis dahin kann die Operation nur über einen autorisierten API-Client aufgerufen werden.
-6. **P6.2 Gemeinsame Zahlungsregeln:** Die fachlichen Pure Functions für Mietmonat, Guthaben,
+   Zeitraumprüfung, Person-/Einheitenreferenzen, erweiterte Idempotenz und Rollback sind Teil
+   des Schreibwegs. `aktiv` wird aus Start- und Enddatum für den aktuellen Tag abgeleitet;
+   `kaution_ist` wird nicht vom Client übernommen, sondern startet als aus Zahlungen
+   abgeleiteter Wert bei null. Doppelte Vertragsparteien werden abgewiesen. Die UI-Maske zum
+   Erfassen eines neuen Vertrags bleibt bewusst ein Folgepaket; bis dahin kann die Operation
+   nur über einen autorisierten API-Client aufgerufen werden.
+6. **P6.7c Neuvermietung einer leerstehenden Einheit:** Folgepaket für den Fall, dass kein
+   aktiver Vorgängervertrag existiert. Der aktuelle Mieterwechsel-Schreibweg verlangt bewusst
+   einen aktiven Vorgänger; eine neue Vermietung braucht einen eigenen, ebenfalls idempotenten
+   Erfassungsvorgang mit Zeitraumprüfung.
+7. **P6.2 Gemeinsame Zahlungsregeln:** Die fachlichen Pure Functions für Mietmonat, Guthaben,
    Erstattung, Storno und Statusberechnung zwischen Backend und Mock vereinheitlichen oder
    aus einer gemeinsamen testbaren Quelle ableiten. Ziel ist, Copy-Paste-Abweichungen zu
    vermeiden, ohne die Apps-Script-Architektur unnötig umzubauen.
-7. **P7.1 CSV-Monatsparser:** Verwendungszwecke wie `Miete Februar 2026` und `02/2026`
+8. **P7.1 CSV-Monatsparser:** Verwendungszwecke wie `Miete Februar 2026` und `02/2026`
    erkennen, Datumsangaben nicht fälschlich als Mietmonat interpretieren und die Quelle des
    Vorschlags anzeigen. Unklare Fälle bleiben bestätigungspflichtig.
-8. **P6.4 Zahlungsfristen:** Werktagsregeln belastbar machen. Samstag und Sonntag bleiben
+9. **P6.4 Zahlungsfristen:** Werktagsregeln belastbar machen. Samstag und Sonntag bleiben
    ausgeschlossen; gesetzliche Feiertage werden nur für das relevante Bundesland und Objekt
    berücksichtigt. Individuelle Vertragsvereinbarungen bleiben vorrangig.
-9. **P6.5 Kautionslebenszyklus:** Kaution nach Auszug, Rückzahlung und teilweise einbehaltene
+10. **P6.5 Kautionslebenszyklus:** Kaution nach Auszug, Rückzahlung und teilweise einbehaltene
    Beträge separat abbilden. Die bestehende Kautionsübersicht bleibt von Mietstatus und
    Mietmonaten getrennt.
 

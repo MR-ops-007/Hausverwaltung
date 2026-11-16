@@ -167,6 +167,12 @@ const paymentUiService = {
     return !([false, 0, '0', 'false', 'FALSE', 'nein', 'NEIN', 'falsch', 'FALSCH'].includes(value));
   },
 
+  isCurrentlyActive(contract, now = new Date()) {
+    return typeof contractService !== 'undefined' && typeof contractService.isCurrentlyActive === 'function'
+      ? contractService.isCurrentlyActive(contract, now)
+      : this.isActive(contract && contract.aktiv);
+  },
+
   isVacancyPlaceholder(contract) {
     return typeof contractService !== 'undefined'
       && typeof contractService.isVacancyPlaceholder === 'function'
@@ -220,7 +226,7 @@ const paymentUiService = {
     return (dataService.state.vertraege || [])
       .filter(contract => contract.vertrag_id !== '' && contract.vertrag_id !== null)
       .filter(contract => !this.isVacancyPlaceholder(contract))
-      .filter(contract => includeHistorical || this.isActive(contract.aktiv))
+      .filter(contract => includeHistorical || this.isCurrentlyActive(contract))
       .filter(contract => !objectId || this.objectId(contract) === String(objectId))
       .sort((a, b) => this.unitName(a).localeCompare(this.unitName(b), 'de', { numeric: true, sensitivity: 'base' })
         || this.monthKey(a.start_datum).localeCompare(this.monthKey(b.start_datum)));
@@ -964,7 +970,7 @@ const paymentUiService = {
     const depositSummary = overview.depositRemaining > 0
       ? `⚠ ${this.formatMoney(overview.depositRemaining)} EUR Kaution offen`
       : '✓ Kautionen vollständig hinterlegt oder nicht vereinbart';
-    const contractSummary = overviewMatrix.filter(item => item.contract).map(item => '<div class="payment-contract-summary-item' + (this.isActive(item.contract.aktiv) ? '' : ' payment-contract-summary-item-historical') + (item.rowType === 'vertrag_warnung' ? ' payment-contract-summary-item-warning' : '') + '"><strong>' + this.escape(item.unit) + ' · ' + this.escape(item.tenant) + '</strong><span>' + (this.isActive(item.contract.aktiv) ? 'Aktueller Vertrag' : 'Historischer Vertrag') + ' · ' + this.escape(this.contractPeriodLabel(item.contract)) + '</span><span>' + this.formatMoney(item.due) + ' EUR / Monat · ' + (this.isActive(item.contract.aktiv) ? 'aktuell' : 'historisch') + '</span>' + this.depositStatusHtml(item.deposit) + '</div>').join('');
+    const contractSummary = overviewMatrix.filter(item => item.contract).map(item => '<div class="payment-contract-summary-item' + (this.isCurrentlyActive(item.contract) ? '' : ' payment-contract-summary-item-historical') + (item.rowType === 'vertrag_warnung' ? ' payment-contract-summary-item-warning' : '') + '"><strong>' + this.escape(item.unit) + ' · ' + this.escape(item.tenant) + '</strong><span>' + (this.isCurrentlyActive(item.contract) ? 'Aktueller Vertrag' : 'Historischer Vertrag') + ' · ' + this.escape(this.contractPeriodLabel(item.contract)) + '</span><span>' + this.formatMoney(item.due) + ' EUR / Monat · ' + (this.isCurrentlyActive(item.contract) ? 'aktuell' : 'historisch') + '</span>' + this.depositStatusHtml(item.deposit) + '</div>').join('');
     const monthHeaders = this.MONTH_NAMES.map((name, index) => `<th scope="col">${name}<span class="payment-month-number">${index + 1}</span></th>`).join('');
     const rowGroupKey = (item, index) => {
       if (item.rowType === 'vertrag_warnung' || !item.unitId) {
@@ -982,7 +988,7 @@ const paymentUiService = {
       previousGroupKey = groupKey;
       const groupedUnit = (unitRowCounts.get(groupKey) || 0) > 1;
       const hasContract = Boolean(item.contract);
-      const historical = hasContract && !this.isActive(item.contract.aktiv);
+      const historical = hasContract && !this.isCurrentlyActive(item.contract);
       const rowClass = item.rowType === 'leerstand'
         ? ' payment-row-vacancy'
         : historical ? ' payment-row-historical' : '';

@@ -127,7 +127,7 @@ const contractUiService = {
         ).join('')}</select></label>
       </div>
       ${!this.unit(contract) ? '<p role="status">Dieser Vertrag verweist auf eine nicht mehr vorhandene Einheit. Bitte die Zuordnung in den Stammdaten klären.</p>' : ''}
-      <p><strong>${this.escape(tenant)}</strong> · ${uiService.isTrueValue(contract.aktiv) ? 'Aktiv' : 'Inaktiv'}</p>
+      <p><strong>${this.escape(tenant)}</strong> · ${contractService.isCurrentlyActive(contract) ? 'Aktiv' : 'Inaktiv'}</p>
       <div class="contract-documents">${link('vertragsdokument_url', 'Mietvertrag öffnen')} ${link('sondervereinbarungen_url', 'Sondervereinbarungen öffnen')}</div>
       ${!schemaReady ? '<p class="contract-notice">Speichern ist noch nicht freigeschaltet: Die Vertrags-Erweiterung muss zuerst im Backend eingerichtet werden. Die Indexvorschau kannst du bereits ausprobieren.</p>' : ''}
       <form id="contract-form" onsubmit="event.preventDefault(); contractUiService.save(false)">

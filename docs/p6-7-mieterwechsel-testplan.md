@@ -114,21 +114,31 @@ ein `CONTRACT_WRITE_TOKEN` bleibt zusätzlich erforderlich. Der Aufruf erwartet:
   `Hauptmieter` angelegt.
 
 Vor dem ersten Schreiben werden Einheit, Personen, Zeitraum und erwarteter Stand geprüft.
-Der bisherige Vertrag wird am Vortag des neuen Mietbeginns beendet und auf `aktiv = false`
-gesetzt. Der neue Vertrag und die Parteien werden anschließend angehängt. Ein Fehler beim
-zweiten Schreibschritt setzt die bereits geänderten Zellen zurück.
+Der bisherige Vertrag wird am Vortag des neuen Mietbeginns beendet; beide `aktiv`-Werte
+werden für den aktuellen Tag aus den Vertragsdaten abgeleitet. Der neue Vertrag und die
+Parteien werden anschließend angehängt. Ein Fehler beim zweiten Schreibschritt setzt die
+bereits geänderten Zellen zurück.
 
 | Prüffall | Erwartetes Ergebnis |
 |---|---|
 | Wechsel vom offenen Vertrag zu einem neuen Vertrag am Folgetag | Alter Vertrag endet am Vortag, neuer Vertrag ist aktiv, Parteien sind verknüpft. |
 | Derselbe Request erneut | Erfolg mit `bereits_vorhanden`, keine weitere Vertrags- oder Parteienzeile. |
-| Neue ID mit abweichenden Daten | `TENANT_CHANGE_ID_CONFLICT`, keine Änderung. |
+| Neue ID mit abweichender Miete, Kaution, Laufzeit oder Partei | `TENANT_CHANGE_ID_CONFLICT`, keine Änderung. |
 | Veralteter `erwarteter_stand` | `TENANT_CHANGE_STALE`, keine Änderung. |
 | Neuer Beginn vor oder am alten Ende | `CONTRACT_PERIOD_OVERLAP`, keine Änderung. |
 | Unbekannte Person oder Einheit | Schreibfehler, keine Änderung. |
 | Fehler beim Anhängen der Parteien | Rollback des alten Vertrags und der neuen Vertragszeile. |
+| Doppelte Person in `parteien` | `TENANT_CHANGE_PARTIES_DUPLICATE`, keine Änderung. |
 | Gerät mit Rolle `erfassen` | `FORBIDDEN`; `tenant_change_writes` bleibt `false`. |
 | Start innerhalb eines Monats | Nur der fachliche Hinweis `MID_MONTH_CHANGE`; keine automatische anteilige Berechnung. |
+| Neuer Beginn in der Zukunft | Vorgänger bleibt bis zum Ende aktiv, neuer Vertrag erhält bis zum Beginn `aktiv = false`. |
+| `kaution_ist` im Client manipuliert | Der gespeicherte Wert bleibt `0`; die tatsächliche Kaution wird aus Zahlungen abgeleitet. |
+
+Die aktive Mieteransicht wertet Start- und Enddatum ebenfalls aus. Dadurch wird ein
+zukünftiger Vertrag am Stichtag automatisch aktiv, auch wenn kein separater Schreibvorgang
+die Flag-Spalte erneut ändern muss. Ein Mieterwechsel ohne aktiven Vorgänger, etwa die
+Neuvermietung eines echten Leerstands, ist bewusst nicht Teil dieser Operation und wird als
+P6.7c separat umgesetzt.
 
 Die Operation ist in `tests/contracts.test.js` und `tests/access.test.js` automatisiert
 abgesichert. Für die echte Abnahme wird Apps Script 4.8.13 zuerst in TEST bereitgestellt;
@@ -163,7 +173,9 @@ Vertragszeiträumen bleibt deshalb ebenfalls Bestandteil der späteren Umsetzung
 
 ## Technische Prüfung der Vorbereitung
 
-- `npm test`: 535 Tests in 20 Testdateien grün (inklusive der P6.7b-Backend-Regressionen).
+- `npm test`: Die Testzahl wird beim Commit aktualisiert; die P6.7b-Regressionen decken
+  Zeitraum-Aktivität, vollständige Idempotenz, Kautionsableitung, doppelte Parteien und
+  falsche Tokens ab.
 - `npm run check:frontend-assets`: erfolgreich.
 - `node --check` für Mock-Server und Fixture: erfolgreich.
 - Mock-API-Lauf: Für `TEST_WE_08` wurden beide Verträge, beide Parteien, die

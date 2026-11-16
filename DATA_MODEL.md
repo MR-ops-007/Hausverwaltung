@@ -260,11 +260,14 @@ Kautionen und Mietanpassungen bleiben über die jeweilige Vertrags-ID getrennt.
 
 Der Vorgang läuft im zentralen Apps-Script-Lock, benötigt den erwarteten Snapshot des
 alten Vertrags und prüft vor dem Schreiben `contractService.validateContractPeriods()`.
-Eine Wiederholung derselben neuen Vertrags-ID ist idempotent; eine abweichende Wiederholung,
-eine Überschneidung oder eine unbekannte Fremdschlüsselreferenz wird abgewiesen. Ein
-Mieterwechsel innerhalb eines Monats wird nicht automatisch anteilig berechnet, sondern
-als fachlicher Hinweis zurückgegeben. Eine UI-Maske zum Anlegen des Vorgangs folgt in
-einem eigenen Paket.
+Eine Wiederholung derselben neuen Vertrags-ID ist nur bei identischen Vertragsdaten und
+identischen Parteien idempotent; eine abweichende Wiederholung, eine Überschneidung oder eine
+unbekannte Fremdschlüsselreferenz wird abgewiesen. `aktiv` wird für den aktuellen Tag aus
+`start_datum` und `end_datum` abgeleitet. `kaution_ist` wird beim Anlegen nicht aus dem Client
+übernommen, sondern aus den Zahlungsdaten abgeleitet. Doppelte Personenverknüpfungen werden
+abgewiesen. Ein Mieterwechsel innerhalb eines Monats wird nicht automatisch anteilig berechnet,
+sondern als fachlicher Hinweis zurückgegeben. Eine UI-Maske und die Neuvermietung einer
+leerstehenden Einheit folgen in eigenen Paketen.
 
 Die UI kann ungespeicherte Indexwerte aus der öffentlichen Bundesbank-Reihe
 `BBDP1.M.DE.N.VPI.C.A00000.I20.L` abrufen (Destatis-Daten, VPI Deutschland,

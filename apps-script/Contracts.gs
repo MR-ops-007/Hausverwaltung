@@ -72,10 +72,40 @@ function handleTenantChange(ss, payload) {
   if (newMatches.length) {
     if (newMatches.length !== 1) throw contractWriteFailure('TENANT_CHANGE_ID_CONFLICT', 'Die neue Vertrags-ID ist nicht eindeutig.');
     const existing = contractRecords[newMatches[0]];
-    const sameStart = !contractService.blank(input.start_datum) &&
-      contractService.iso(contractService.date(existing.start_datum)) === contractService.iso(contractService.date(input.start_datum));
-    if (sameStart && String(existing.einheit_id) === String(input.einheit_id) &&
-        String(existing.hauptperson_id) === String(input.hauptperson_id)) {
+    let candidate;
+    try {
+      // The predecessor is closed after the first write. Reset that derived
+      // field so a retry with omitted end_datum has the same input defaults.
+      candidate = contractService.prepareTenantChange(Object.assign({}, current, { end_datum: '' }), input);
+    } catch (error) {
+      throw contractWriteFailure('TENANT_CHANGE_ID_CONFLICT', 'Die neue Vertrags-ID ist bereits mit ungueltigen oder abweichenden Daten gespeichert.');
+    }
+    const dateFields = ['start_datum', 'end_datum', 'letzte_anpassung'];
+    const compareFields = ['einheit_id', 'hauptperson_id', 'start_datum', 'end_datum', 'mietmodell',
+      'erhoehungs_typ', 'letzte_anpassung', 'soll_kaltmiete', 'soll_nebenkosten', 'soll_gesamt',
+      'kaution_soll', 'kaution_ist', 'zahlungsziel_typ', 'zahlungsziel_wert', 'vertragsdokument_url',
+      'sondervereinbarungen_url', 'vertrag_hinweis', 'nk_betriebskosten', 'nk_heizung_warmwasser',
+      'index_basis_monat', 'index_basis_wert', 'index_reihe'];
+    const normalize = (field, value) => {
+      if (contractService.blank(value)) return '';
+      if (dateFields.indexOf(field) >= 0) {
+        try { return contractService.iso(contractService.date(value)); } catch (error) { return String(value).trim(); }
+      }
+      return value;
+    };
+    const sameContract = compareFields.every(field => contractService.same(normalize(field, existing[field]), normalize(field, candidate[field])));
+    const requestedParties = Array.isArray(payload.parteien) ? payload.parteien : [{
+      person_id: candidate.hauptperson_id, rolle: 'Hauptmieter', ordnet: 1, vollmacht: false
+    }];
+    const partySignature = parties => parties.map((party, index) => ({
+      person_id: String(party && party.person_id || '').trim(),
+      rolle: String(party && party.rolle || '').trim() || (index === 0 ? 'Hauptmieter' : 'Mitmieter'),
+      ordnet: Number(party && party.ordnet) || index + 1,
+      vollmacht: party && (party.vollmacht === true || String(party.vollmacht).toLowerCase() === 'true')
+    })).sort((a, b) => `${a.person_id}|${a.rolle}|${a.ordnet}`.localeCompare(`${b.person_id}|${b.rolle}|${b.ordnet}`));
+    const existingPartyRows = getSheetData(partySheet).filter(row => String(row.vertrag_id) === newId);
+    const sameParties = JSON.stringify(partySignature(existingPartyRows)) === JSON.stringify(partySignature(requestedParties));
+    if (sameContract && sameParties) {
       return { status: 'success', message: 'Mieterwechsel war bereits gespeichert.', bereits_vorhanden: true,
         vertrag_alt: current, vertrag_neu: existing };
     }
@@ -85,7 +115,7 @@ function handleTenantChange(ss, payload) {
   if (payload.erwarteter_stand !== contractService.snapshot(current)) {
     throw contractWriteFailure('TENANT_CHANGE_STALE', 'Der bisherige Vertrag wurde inzwischen geändert. Bitte neu laden.');
   }
-  if (!contractService.isActive(current.aktiv)) {
+  if (!contractService.isCurrentlyActive(current)) {
     throw contractWriteFailure('TENANT_CHANGE_SOURCE_INACTIVE', 'Der bisherige Vertrag ist nicht aktiv.');
   }
 
@@ -120,7 +150,11 @@ function handleTenantChange(ss, payload) {
     throw contractWriteFailure('TENANT_CHANGE_UNIT_UNKNOWN', 'Die Einheit des Mieterwechsels ist nicht bekannt.');
   }
 
-  const closed = Object.assign({}, current, { end_datum: oldEnd || contractService.iso(new Date(contractService.date(newStart).getTime() - 24 * 60 * 60 * 1000)), aktiv: false });
+  const closedEnd = oldEnd || contractService.iso(new Date(contractService.date(newStart).getTime() - 24 * 60 * 60 * 1000));
+  const closed = Object.assign({}, current, {
+    end_datum: closedEnd,
+    aktiv: contractService.isCurrentlyActive({ start_datum: current.start_datum, end_datum: closedEnd, aktiv: current.aktiv })
+  });
   const proposed = contractRecords.map((item, index) => index === oldIndex ? closed : item).concat([next]);
   const periodResult = contractService.validateContractPeriods(proposed.filter(item => String(item.einheit_id) === String(current.einheit_id)));
   if (!periodResult.valid) {
@@ -139,6 +173,13 @@ function handleTenantChange(ss, payload) {
     const role = String(party && party.rolle || '').trim() || (index === 0 ? 'Hauptmieter' : 'Mitmieter');
     if (!personId || !knownPeople[personId]) throw contractWriteFailure('TENANT_CHANGE_PERSON_UNKNOWN', 'Vertragspartei verweist auf eine unbekannte Person.');
     return { vertrag_id: newId, person_id: personId, rolle: role, ordnet: party.ordnet || index + 1, vollmacht: party.vollmacht === true || String(party.vollmacht).toLowerCase() === 'true' };
+  });
+  const partyPersonIds = {};
+  parties.forEach(party => {
+    if (partyPersonIds[party.person_id]) {
+      throw contractWriteFailure('TENANT_CHANGE_PARTIES_DUPLICATE', 'Eine Person darf im neuen Vertrag nur einmal als Vertragspartei vorkommen.');
+    }
+    partyPersonIds[party.person_id] = true;
   });
   if (!parties.some(party => party.person_id === String(next.hauptperson_id) && party.rolle.toLowerCase() === 'hauptmieter')) {
     throw contractWriteFailure('TENANT_CHANGE_PARTIES_INVALID', 'Die Hauptperson muss als Hauptmieter verknüpft werden.');
@@ -175,7 +216,7 @@ function handleTenantChange(ss, payload) {
   }
 
   let viewWarning = '';
-  try { updateAktiveMieterView(); } catch (error) { viewWarning = String(error); }
+  try { updateAktiveMieterView(); } catch (error) { viewWarning = error && error.message ? error.message : String(error); }
   const warnings = periodResult.warnings || [];
   return { status: 'success', message: 'Mieterwechsel gespeichert.', vertrag_alt: closed, vertrag_neu: next,
     parteien: parties, warnings, view_warning: viewWarning };
@@ -202,7 +243,7 @@ function handleContractWrite(ss, payload) {
   const patch = isIndex
     ? contractService.prepareIndex(current, input, unit)
     : contractService.preparePatch(current, input);
-  if (isIndex && !(current.aktiv === true || String(current.aktiv).toLowerCase() === 'true')) throw new Error('Vertrag ist nicht aktiv.');
+  if (isIndex && !contractService.isCurrentlyActive(current)) throw new Error('Vertrag ist nicht aktiv.');
   const rentChanged = String(patch.soll_kaltmiete) !== String(current.soll_kaltmiete);
   if (!isIndex && rentChanged && current.soll_kaltmiete !== '' && current.soll_kaltmiete != null) {
     patch.letzte_anpassung = contractService.iso(contractService.date(new Date()));
@@ -244,6 +285,6 @@ function handleContractWrite(ss, payload) {
     throw error;
   }
   let viewWarning = '';
-  try { updateAktiveMieterView(); } catch (error) { viewWarning = String(error); }
+  try { updateAktiveMieterView(); } catch (error) { viewWarning = error && error.message ? error.message : String(error); }
   return { status: 'success', vertrag: next, anpassung: entry, view_warning: viewWarning };
 }

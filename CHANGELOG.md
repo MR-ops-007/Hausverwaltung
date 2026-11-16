@@ -56,6 +56,9 @@ P6.7b: Serverseitige Grundlage für einen sicheren Mieterwechsel.
   dem ersten Schreiben.
 - Wiederholungen mit derselben neuen Vertrags-ID werden idempotent bestätigt; abweichende
   Daten, Überschneidungen, unbekannte Personen oder fehlende Stammdaten werden abgewiesen.
+- `aktiv` wird aus Start- und Enddatum abgeleitet, `kaution_ist` wird nicht aus dem Client
+  übernommen und doppelte Vertragsparteien werden abgewiesen. Eine Neuvermietung ohne aktiven
+  Vorgänger bleibt als eigenes Folgepaket abgegrenzt.
 - Der Schreibweg enthält einen Rollback für Fehler beim Anhängen der neuen Vertrags- oder
   Parteienzeilen. Eine UI-Maske für das Anlegen des Wechsels ist bewusst ein Folgepaket.
 - Apps Script muss nach dem Merge als 4.8.13 in TEST und anschließend PROD bereitgestellt

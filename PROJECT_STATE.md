@@ -109,11 +109,13 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 - P6.7b wird im Branch `codex/p6-7-server-enforcement` umgesetzt: Der Admin-only-Schreibtyp
   `MIETERWECHSEL_ANLEGEN` beendet den Vorgängervertrag am Tag vor dem neuen Mietbeginn,
   legt den neuen Vertrag und seine Vertragsparteien an und verwendet dafür den bestehenden
-  Script-Lock. Erwarteter Vertragsstand, Zeitraumprüfung, Einheiten-/Personenreferenzen,
-  Idempotenz und Rollback sind automatisiert getestet. Die UI-Maske für den Vorgang bleibt
-  ein Folgepaket. Der Branch hebt das Apps-Script-Backend auf 4.8.13; Deployment in TEST und
-  PROD ist erst nach Merge und manueller Abnahme erforderlich. Der Branch-Lauf umfasst 535
-  Tests in 20 Testdateien; Asset-Prüfung, Syntaxprüfung und `git diff --check` sind grün.
+  Script-Lock. Die Aktivität wird aus dem Vertragszeitraum abgeleitet, Wiederholungen werden
+  über die vollständigen Vertragsdaten und Parteien abgeglichen, `kaution_ist` wird nicht aus
+  dem Client übernommen und doppelte Parteien werden abgewiesen. Erwarteter Vertragsstand,
+  Zeitraumprüfung, Einheiten-/Personenreferenzen und Rollback sind automatisiert getestet.
+  Die UI-Maske und die Neuvermietung einer leerstehenden Einheit bleiben Folgepakete.
+  Der Branch hebt das Apps-Script-Backend auf 4.8.13; Deployment in TEST und PROD ist erst
+  nach Merge und manueller Abnahme erforderlich.
 - Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
   erzeugt und veröffentlicht ausschließlich `runtime-config.js`; `runtime-secrets.js` bleibt lokal und
   wird durch einen negativen Workflow-Test gegen versehentliche Veröffentlichung geschützt.

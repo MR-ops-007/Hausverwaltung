@@ -38,11 +38,13 @@ Details: [Vertragskonzept und Rollback](../docs/contracts-index-plan.md).
 Der Mieterwechsel-Schreibtyp `MIETERWECHSEL_ANLEGEN` ist ab Backend 4.8.13
 Admin-only. Er schließt den bisherigen Vertrag am Vortag des neuen Mietbeginns,
 legt den neuen Vertrag und dessen Vertragsparteien an und prüft dabei den erwarteten
-Snapshot sowie `contractService.validateContractPeriods()`. Der Vorgang läuft im
-zentralen Script-Lock und ist über die neue Vertrags-ID idempotent. Die UI-Maske für
-den Vorgang ist noch nicht enthalten; bis dahin bleibt der API-Aufruf ein vorbereiteter
-Backend-Schreibweg. Vor TEST/PROD muss die neue Apps-Script-Version bereitgestellt und
-mit einem isolierten Testobjekt abgenommen werden.
+Snapshot sowie `contractService.validateContractPeriods()`. `aktiv` wird aus dem
+Vertragszeitraum abgeleitet, die bezahlte Kaution wird nicht aus dem Client übernommen
+und doppelte Parteien werden abgewiesen. Ein Retry ist nur bei identischen Vertragsdaten
+und Parteien idempotent. Der Vorgang läuft im zentralen Script-Lock. Die UI-Maske und die
+Neuvermietung einer leerstehenden Einheit sind noch nicht enthalten; bis dahin bleibt der
+API-Aufruf ein vorbereiteter Backend-Schreibweg. Vor TEST/PROD muss die neue Apps-Script-
+Version bereitgestellt und mit einem isolierten Testobjekt abgenommen werden.
 
 `preparePaymentSchema()` ist die ebenfalls manuell aufzurufende Vorbereitung für das
 Blatt `Zahlungen`. Sie ergänzt unter anderem `zahlungsgruppe_id` für aufgeteilte
