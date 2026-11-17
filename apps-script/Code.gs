@@ -1,7 +1,7 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.12
- * Stand: 2026-11-13
+ * Version: 4.8.13
+ * Stand: 2026-11-16
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
  * Änderungen seit v4.1:
@@ -123,8 +123,12 @@
  *
  * Änderungen seit v4.8.11:
  * - Neue mietmonat-Werte werden beim Schreiben ausdrücklich als Text YYYY-MM gespeichert
+ *
+ * Änderungen seit v4.8.12:
+ * - Mieterwechsel werden als atomarer, idempotenter Admin-Schreibvorgang mit geschlossenem
+ *   Vorgängervertrag, neuer Vertragspartei und zentraler Zeitraumprüfung gespeichert
  */
-const BACKEND_VERSION = "4.8.12";
+const BACKEND_VERSION = "4.8.13";
 
 function sendJSON(obj) {
   return ContentService
@@ -202,7 +206,7 @@ function hasValidAccessKey(providedKey) {
 
 function canWriteType(principal, type) {
   if (!principal) return false;
-  if (type === 'VERTRAG_AKTUALISIEREN' || type === 'INDEX_ANWENDEN') {
+  if (type === 'VERTRAG_AKTUALISIEREN' || type === 'INDEX_ANWENDEN' || type === 'MIETERWECHSEL_ANLEGEN') {
     return principal.role === 'admin';
   }
   return principal.role === 'admin' || principal.role === 'erfassen';
@@ -223,6 +227,7 @@ function readView(ss, view, principal) {
     return {
       backend_version: BACKEND_VERSION,
       contract_writes: Boolean(principal && principal.role === 'admin'),
+      tenant_change_writes: Boolean(principal && principal.role === 'admin'),
       payment_writes: Boolean(principal && (principal.role === 'admin' || principal.role === 'erfassen')),
       payment_schema_ready: paymentSchema.ready,
       payment_schema_missing: paymentSchema.missing,
@@ -530,7 +535,7 @@ function doPost(e) {
   } catch (err) {
     return sendJSON({
       status: "error",
-      message: err.toString()
+      message: err && err.message ? err.message : String(err)
     });
   }
 
@@ -554,7 +559,7 @@ function doPost(e) {
     } catch (err) {
       return sendJSON({
         status: "error",
-        message: err.toString()
+        message: err && err.message ? err.message : String(err)
       });
     }
   }
@@ -578,6 +583,10 @@ function doPost(e) {
 
     if (payload.typ === 'VERTRAG_AKTUALISIEREN' || payload.typ === 'INDEX_ANWENDEN') {
       return sendJSON(handleContractWrite(ss, payload));
+    }
+
+    if (payload.typ === 'MIETERWECHSEL_ANLEGEN') {
+      return sendJSON(handleTenantChange(ss, payload));
     }
 
     if (BACKEND_ACTION_TYPES.indexOf(payload.typ) !== -1) {
@@ -604,10 +613,13 @@ function doPost(e) {
 
     return sendJSON(writePayments(ss, payload.data));
   } catch (err) {
-    return sendJSON({
+    const response = {
       status: "error",
-      message: err.toString()
-    });
+      message: err && err.message ? err.message : String(err)
+    };
+    if (err && err.code) response.code = err.code;
+    if (err && err.details) response.details = err.details;
+    return sendJSON(response);
   } finally {
     lock.releaseLock();
   }
@@ -3019,8 +3031,9 @@ function getSheetData(sheet) {
 /**
  * Kernfunktion für die Performance-View (Caching-Logik)
  */
-function updateAktiveMieterView() {
+function updateAktiveMieterView(now) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const asOf = now instanceof Date ? now : undefined;
 
   const getSheet = (name) => ss.getSheetByName(name);
 
@@ -3074,7 +3087,7 @@ function updateAktiveMieterView() {
   einheiten.forEach(e => {
     const v = vertraege.find(v =>
       String(v.einheit_id) === String(e.einheit_id) &&
-      String(v.aktiv) === "true"
+      contractService.isCurrentlyActive(v, asOf)
     );
 
     if (v) {
@@ -3105,4 +3118,53 @@ function updateAktiveMieterView() {
       .getRange(1, 1, output.length, output[0].length)
       .setValues(output);
   }
+}
+
+/** Refresh entry point for the time trigger; Apps Script passes an event object. */
+function refreshAktiveMieterViewDaily() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) {
+    if (typeof Logger !== 'undefined') Logger.log('refreshAktiveMieterViewDaily übersprungen: Script-Lock ist belegt.');
+    return { status: 'skipped', reason: 'LOCK_BUSY' };
+  }
+  try {
+    updateAktiveMieterView();
+    return { status: 'success' };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Installs the single daily refresh trigger for the date-derived active view. */
+function installDailyViewTrigger() {
+  const triggers = ScriptApp.getProjectTriggers();
+  const handler = 'refreshAktiveMieterViewDaily';
+  const legacyHandler = 'updateAktiveMieterView';
+  let exists = false;
+  let removedLegacy = 0;
+  let removedDuplicate = 0;
+  triggers.forEach(trigger => {
+    if (trigger.getEventType() !== ScriptApp.EventType.CLOCK) return;
+    const triggerHandler = trigger.getHandlerFunction();
+    if (triggerHandler === legacyHandler) {
+      ScriptApp.deleteTrigger(trigger);
+      removedLegacy++;
+    } else if (triggerHandler === handler) {
+      if (exists) {
+        ScriptApp.deleteTrigger(trigger);
+        removedDuplicate++;
+      } else {
+        exists = true;
+      }
+    }
+  });
+  if (!exists) {
+    ScriptApp.newTrigger(handler)
+      .timeBased()
+      .atHour(0)
+      .nearMinute(15)
+      .everyDays(1)
+      .create();
+  }
+  return { status: 'success', already_present: exists, handler, removed_legacy: removedLegacy, removed_duplicates: removedDuplicate };
 }

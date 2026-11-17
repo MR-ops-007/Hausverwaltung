@@ -3,7 +3,7 @@
 Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklungspakete.
 `PROJECT_STATE.md` beschreibt den aktuellen Systemstand, `CHANGELOG.md` die Releases.
 
-**Stand: 2026-11-15**
+**Stand: 2026-11-17**
 
 ## Arbeitsregeln
 
@@ -20,7 +20,7 @@ Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklun
 
 ## Erledigt auf `main`
 
-Remote `origin/main` enthält aktuell PR #41 und den produktiven Backend-Stand 4.8.12.
+Remote `origin/main` enthält aktuell PR #46 und den produktiven Backend-Stand 4.8.12.
 
 | PR | Inhalt |
 | --- | --- |
@@ -41,6 +41,7 @@ Remote `origin/main` enthält aktuell PR #41 und den produktiven Backend-Stand 4
 | #38 | Dashboard-Datenqualität: fehlende, veraltete und dauerhafte Null-Ablesungen sichtbar machen |
 | #39 | P6/P7 Mieteingänge, CSV-MVP, Backend-Hardening und fachliche TEST-Abnahme |
 | #41 | P6.1 weiche Dublettenwarnung für manuelle und CSV-Zahlungsübernahme |
+| #46 | P6.7 Einheitenbasierte Jahresmatrix und historische Vertragszeiträume |
 
 Der lokale Branch `main` muss nach einem Merge weiterhin mit `origin/main` synchronisiert
 werden, bevor ein neues Feature darauf aufgebaut wird.
@@ -396,7 +397,7 @@ Bankanbindung werden daraus abgeleitet.
    Zunächst ist eine sichtbare Übersicht ohne E-Mail- oder Push-Versand vorgesehen. Das
    System macht keinen automatischen rechtlichen Anspruch geltend und schreibt keine
    Vertragsdaten ohne ausdrückliche Nutzeraktion.
-4. **P6.7 Mieterwechsel und historische Vertragszeiträume: in Umsetzung.**
+4. **P6.7 Mieterwechsel und historische Vertragszeiträume: abgeschlossen in PR #46.**
    Ein Mieterwechsel wird über einen neuen Vertrag mit eigener `vertrag_id`,
    neuem Mietbeginn und eigener Vertragsparteien-Verknüpfung abgebildet; der alte Vertrag
    erhält ein Mietende und bleibt historisch erhalten. Die Mieteingangskontrolle baut ihre
@@ -416,20 +417,39 @@ Bankanbindung werden daraus abgeleitet.
    und zeigt alte Vertragsperioden als eigene Zeilen; Monate außerhalb der jeweiligen
    Vertragsperiode bleiben neutral und nicht klickbar. Eine Einheit mit Vertrag wird
    unabhängig von ihrem Typ angezeigt; nur vertragsfreie Nicht-Miet-Einheiten werden
-   aus der Leerstandsdarstellung ausgeschlossen. Die atomare Schreiboperation und die historische
-   Verbrauchsaufteilung bleiben offen. Details stehen in
+   aus der Leerstandsdarstellung ausgeschlossen. Die atomare Schreiboperation ist als P6.7b
+   separat abgegrenzt; die historische Verbrauchsaufteilung bleibt offen. Details stehen in
    `docs/p6-7-contract-period-validation.md`.
-5. **P6.2 Gemeinsame Zahlungsregeln:** Die fachlichen Pure Functions für Mietmonat, Guthaben,
+5. **P6.7b Serverseitiger Mieterwechsel: in Umsetzung in diesem Branch.**
+   `MIETERWECHSEL_ANLEGEN` wird als Admin-only-Operation im bestehenden Script-Lock
+   umgesetzt. Der Vorgänger wird am Tag vor dem neuen Mietbeginn beendet, der neue Vertrag
+   und seine Vertragsparteien werden mit eigener ID angelegt. Erwarteter Vertragsstand,
+   Zeitraumprüfung, Person-/Einheitenreferenzen, erweiterte Idempotenz und Rollback sind Teil
+   des Schreibwegs. `aktiv` wird aus Start- und Enddatum für den aktuellen Tag abgeleitet;
+   die aktive Mieter-View wird über `refreshAktiveMieterViewDaily` und einen einmalig
+   installierten täglichen Trigger aktualisiert. Der Wrapper verwirft das Trigger-Ereignisobjekt
+   und schützt den Refresh mit dem Script-Lock.
+   Die normalisierte Anfrage wird im append-only `MieterwechselProtokoll` gespeichert, damit
+   Retries von späteren Miet- oder Kautionsänderungen unabhängig bleiben. `kaution_ist` wird
+   nicht vom Client übernommen, sondern startet als aus Zahlungen abgeleiteter Wert bei null.
+   Doppelte Vertragsparteien werden abgewiesen. Die UI-Maske zum Erfassen eines neuen Vertrags
+   bleibt bewusst ein Folgepaket; bis dahin kann die Operation nur über einen autorisierten
+   API-Client aufgerufen werden.
+6. **P6.7c Neuvermietung einer leerstehenden Einheit:** Folgepaket für den Fall, dass kein
+   aktiver Vorgängervertrag existiert. Der aktuelle Mieterwechsel-Schreibweg verlangt bewusst
+   einen aktiven Vorgänger; eine neue Vermietung braucht einen eigenen, ebenfalls idempotenten
+   Erfassungsvorgang mit Zeitraumprüfung.
+7. **P6.2 Gemeinsame Zahlungsregeln:** Die fachlichen Pure Functions für Mietmonat, Guthaben,
    Erstattung, Storno und Statusberechnung zwischen Backend und Mock vereinheitlichen oder
    aus einer gemeinsamen testbaren Quelle ableiten. Ziel ist, Copy-Paste-Abweichungen zu
    vermeiden, ohne die Apps-Script-Architektur unnötig umzubauen.
-5. **P7.1 CSV-Monatsparser:** Verwendungszwecke wie `Miete Februar 2026` und `02/2026`
+8. **P7.1 CSV-Monatsparser:** Verwendungszwecke wie `Miete Februar 2026` und `02/2026`
    erkennen, Datumsangaben nicht fälschlich als Mietmonat interpretieren und die Quelle des
    Vorschlags anzeigen. Unklare Fälle bleiben bestätigungspflichtig.
-6. **P6.4 Zahlungsfristen:** Werktagsregeln belastbar machen. Samstag und Sonntag bleiben
+9. **P6.4 Zahlungsfristen:** Werktagsregeln belastbar machen. Samstag und Sonntag bleiben
    ausgeschlossen; gesetzliche Feiertage werden nur für das relevante Bundesland und Objekt
    berücksichtigt. Individuelle Vertragsvereinbarungen bleiben vorrangig.
-7. **P6.5 Kautionslebenszyklus:** Kaution nach Auszug, Rückzahlung und teilweise einbehaltene
+10. **P6.5 Kautionslebenszyklus:** Kaution nach Auszug, Rückzahlung und teilweise einbehaltene
    Beträge separat abbilden. Die bestehende Kautionsübersicht bleibt von Mietstatus und
    Mietmonaten getrennt.
 

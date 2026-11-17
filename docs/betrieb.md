@@ -1,6 +1,6 @@
 # Betrieb, Testumgebungen und Wiederherstellung
 
-Stand: 2026-11-14
+Stand: 2026-11-17
 
 ## Mieteingänge und Backend 4.8.12
 
@@ -338,9 +338,22 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
    und verlangt die zusätzliche Bestätigung.
 4. Neue Version der bestehenden Bereitstellung veröffentlichen; bei einer neuen
    Bereitstellung die API-URL aktualisieren.
-5. Mit dem passenden Umgebungsschlüssel einen geschützten Lese- und Schreibtest
+5. `prepareContractSchema()` einmal manuell ausführen. Die Funktion legt bei 4.8.13
+   zusätzlich `MieterwechselProtokoll` an; sie wird nicht automatisch durch einen API-Aufruf
+   gestartet.
+6. `installDailyViewTrigger()` einmal manuell ausführen und die Rückmeldung
+   `already_present` prüfen. Die Funktion legt nur einen täglichen Trigger für
+   `refreshAktiveMieterViewDaily()` an und entfernt einen alten Trigger auf
+   `updateAktiveMieterView()`. Der Wrapper wartet bis zu 30 Sekunden auf den Script-Lock
+   und schützt damit den vollständigen View-Refresh; ein wegen eines belegten Locks
+   übersprungener Lauf wird protokolliert. Die Apps-Script-Zeitzone muss auf `Europe/Berlin`
+   stehen.
+7. Den täglichen Handler einmal manuell auslösen und `_view_aktive_mieter` prüfen. Die
+   aktuellen Mieter müssen weiterhin enthalten sein. Das Ereignisobjekt eines Zeit-Triggers
+   darf nicht als Stichtag an die Datumslogik weitergereicht werden.
+8. Mit dem passenden Umgebungsschlüssel einen geschützten Lese- und Schreibtest
    durchführen.
-6. Ergebnis und Rollback-Stand in `CHANGELOG.md` beziehungsweise diesem Dokument
+9. Ergebnis und Rollback-Stand in `CHANGELOG.md` beziehungsweise diesem Dokument
    ergänzen.
 
 ## Sicherheitsgrenzen

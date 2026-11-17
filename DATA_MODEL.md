@@ -250,6 +250,31 @@ Vertragszustand. Etage/Kündigungsverzicht sind nicht Bestandteil dieses Ausbaus
 Vollständige Analyse, Fristen, Einschränkungen und reversibler Migrationsplan:
 [Vertragskonzept](docs/contracts-index-plan.md).
 
+### Mieterwechsel (P6.7b)
+
+Ein Mieterwechsel überschreibt keinen bestehenden Vertrag. Der Admin-only-Schreibtyp
+`MIETERWECHSEL_ANLEGEN` beendet den bisherigen Vertrag mit `end_datum` am Tag vor dem
+neuen `start_datum` und legt eine neue Zeile mit eigener `vertrag_id` sowie neue Zeilen
+in `Vertragsparteien` an. Beide Verträge behalten dieselbe `einheit_id`; Zahlungen,
+Kautionen und Mietanpassungen bleiben über die jeweilige Vertrags-ID getrennt.
+
+Der Vorgang läuft im zentralen Apps-Script-Lock, benötigt den erwarteten Snapshot des
+alten Vertrags und prüft vor dem Schreiben `contractService.validateContractPeriods()`.
+Eine Wiederholung derselben neuen Vertrags-ID ist nur bei identischen Vertragsdaten und
+identischen Parteien idempotent; eine abweichende Wiederholung, eine Überschneidung oder eine
+unbekannte Fremdschlüsselreferenz wird abgewiesen. `aktiv` wird für den aktuellen Tag aus
+`start_datum` und `end_datum` abgeleitet. `kaution_ist` wird beim Anlegen nicht aus dem Client
+übernommen, sondern aus den Zahlungsdaten abgeleitet. Doppelte Personenverknüpfungen werden
+abgewiesen. Ein Mieterwechsel innerhalb eines Monats wird nicht automatisch anteilig berechnet,
+sondern als fachlicher Hinweis zurückgegeben. Eine UI-Maske und die Neuvermietung einer
+leerstehenden Einheit folgen in eigenen Paketen.
+
+Das append-only Blatt `MieterwechselProtokoll` speichert `mieterwechsel_id`, die alte und neue
+Vertrags-ID, den Fingerabdruck der normalisierten Anlageanfrage und `erfasst_am`. Dieser
+Fingerabdruck ist die Idempotenzquelle für Wiederholungen; spätere Mietanpassungen oder
+Kautionszahlungen verändern ihn nicht. Das Blatt wird ausschließlich über
+`prepareContractSchema()` angelegt.
+
 Die UI kann ungespeicherte Indexwerte aus der öffentlichen Bundesbank-Reihe
 `BBDP1.M.DE.N.VPI.C.A00000.I20.L` abrufen (Destatis-Daten, VPI Deutschland,
 monatlicher Gesamtindex, unbereinigt, 2020=100). Indexstände werden abgerufen,

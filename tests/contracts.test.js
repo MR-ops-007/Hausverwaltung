@@ -6,10 +6,11 @@ const shared = readFileSync(new URL('../apps-script/ContractService.js', import.
 const service = new Function(`${shared}; return contractService;`)();
 const now = new Date('2026-10-21T12:00:00Z');
 const current = {
-  vertrag_id: 'V_TEST', einheit_id: 'TEST_WE_01', aktiv: true,
-  start_datum: '2024-03-01', mietmodell: 'Pauschal', erhoehungs_typ: 'Index',
+  vertrag_id: 'V_TEST', einheit_id: 'TEST_WE_01', hauptperson_id: 'P_OLD', start_datum: '2024-03-01',
+  end_datum: '', aktiv: true, mietmodell: 'Pauschal', erhoehungs_typ: 'Index',
   letzte_anpassung: '',
   soll_kaltmiete: 600, soll_nebenkosten: 200, soll_gesamt: 800,
+  kaution_soll: 1200, kaution_ist: 1200,
   index_basis_monat: '2024-03', index_basis_wert: 100, index_reihe: 'VPI Deutschland 2020=100'
 };
 const input = {
@@ -138,6 +139,37 @@ describe('contract domain rules', () => {
     expect(overlap.warnings).toEqual([]);
   });
 
+  it('prepares the new contract side of a tenant change without mutating the predecessor', () => {
+    const next = service.prepareTenantChange(current, {
+      vertrag_id: 'V_NEW', einheit_id: current.einheit_id, hauptperson_id: 'P_NEW',
+      start_datum: '2026-06-01', end_datum: '', mietmodell: 'Pauschal', erhoehungs_typ: 'Normal',
+      soll_kaltmiete: '650', soll_nebenkosten: '210', kaution_soll: '1300', kaution_ist: '0'
+    });
+    expect(next).toMatchObject({ vertrag_id: 'V_NEW', hauptperson_id: 'P_NEW', start_datum: '2026-06-01',
+      aktiv: true, soll_kaltmiete: 650, soll_nebenkosten: 210, soll_gesamt: 860, kaution_soll: 1300, kaution_ist: 0 });
+    expect(current).toMatchObject({ vertrag_id: 'V_TEST', hauptperson_id: 'P_OLD', aktiv: true });
+  });
+
+  it('leitet Aktivität aus dem Vertragszeitraum ab und ignoriert kaution_ist aus dem Client', () => {
+    expect(service.isCurrentlyActive({ start_datum: '2026-01-01', end_datum: '2026-12-31', aktiv: false }, now)).toBe(true);
+    expect(service.isCurrentlyActive({ start_datum: '2027-01-01', end_datum: '', aktiv: true }, now)).toBe(false);
+    expect(service.isCurrentlyActive({ start_datum: '2025-01-01', end_datum: '2025-12-31', aktiv: true }, now)).toBe(false);
+    const next = service.prepareTenantChange(current, {
+      vertrag_id: 'V_DEPOSIT', einheit_id: current.einheit_id, hauptperson_id: 'P_NEW', start_datum: '2026-06-01',
+      kaution_ist: 999
+    });
+    expect(next.kaution_ist).toBe(0);
+  });
+
+  it('rejects a tenant change with a different unit or invalid period', () => {
+    expect(() => service.prepareTenantChange(current, {
+      vertrag_id: 'V_NEW', einheit_id: 'OTHER_UNIT', hauptperson_id: 'P_NEW', start_datum: '2026-06-01'
+    })).toThrow(/Einheit/);
+    expect(() => service.prepareTenantChange(current, {
+      vertrag_id: 'V_NEW', einheit_id: current.einheit_id, hauptperson_id: 'P_NEW', start_datum: '2026-06-01', end_datum: '2026-05-31'
+    })).toThrow(/Vertragsende/);
+  });
+
   it('reports invalid and incomplete contract periods without throwing', () => {
     const result = service.validateContractPeriods([
       { vertrag_id: 'V_INVALID', einheit_id: 'WE_1', start_datum: '2026-02-30', end_datum: '' },
@@ -211,7 +243,7 @@ describe('contract domain rules', () => {
   });
 });
 
-function backendFixture({ token = 'test-only', writeFailure = false } = {}) {
+function backendFixture({ token = 'test-only', writeFailure = false, partyWriteFailure = false } = {}) {
   const headers = Object.keys(current).concat(service.fields.filter(key => !(key in current)), ['kaution_ist']);
   const row = headers.map(key => current[key] === undefined ? '' : current[key]);
   const grid = [headers, row];
@@ -226,24 +258,33 @@ function backendFixture({ token = 'test-only', writeFailure = false } = {}) {
         setValue(value) { values[r - 1][c - 1] = value; },
         setValues(rows) {
           if (values === log && writeFailure) throw new Error('History write failed');
+          if (values === parties && partyWriteFailure) throw new Error('Party write failed');
           rows.forEach((row, i) => { values[r - 1 + i] ||= []; row.forEach((value, j) => { values[r - 1 + i][c - 1 + j] = value; }); });
         },
         clearContent() { if (r <= values.length) values.splice(r - 1, 1); }
       };
     }
   });
-  const sheets = { Vertraege: makeSheet(grid), Mietanpassungen: makeSheet(log), Einheiten: makeSheet([Object.keys(unit), Object.values(unit)]) };
+  const people = [['person_id', 'name', 'vorname'], ['P_OLD', 'Alt', 'Mieter'], ['P_NEW', 'Neu', 'Mieter']];
+  const parties = [['vertrag_id', 'person_id', 'rolle', 'ordnet', 'vollmacht'],
+    [current.vertrag_id, current.hauptperson_id, 'Hauptmieter', 1, true]];
+  const protocol = [service.tenantChangeProtocolHeaders.slice()];
+  const sheets = {
+    Vertraege: makeSheet(grid), Mietanpassungen: makeSheet(log), Einheiten: makeSheet([Object.keys(unit), Object.values(unit)]),
+    Personen: makeSheet(people), Vertragsparteien: makeSheet(parties), MieterwechselProtokoll: makeSheet(protocol), _view_aktive_mieter: makeSheet([['vertrag_id']])
+  };
   let viewUpdates = 0;
   const source = readFileSync(new URL('../apps-script/Contracts.gs', import.meta.url), 'utf8');
-  const factory = new Function('PropertiesService', 'Utilities', 'SpreadsheetApp', 'getSheetData', 'updateAktiveMieterView', `${shared};${source};return handleContractWrite;`);
-  const write = factory({ getScriptProperties: () => ({ getProperty: () => token }) }, { getUuid: () => 'test-history-id' }, { flush() {} },
+  const factory = new Function('PropertiesService', 'Utilities', 'SpreadsheetApp', 'getSheetData', 'updateAktiveMieterView', `${shared};${source};return { handleContractWrite, handleTenantChange };`);
+  const handlers = factory({ getScriptProperties: () => ({ getProperty: () => token }) }, { getUuid: () => 'test-history-id' }, { flush() {} },
     sheet => { const rows = sheet.getDataRange().getValues(); return rows.slice(1).map(row => Object.fromEntries(rows[0].map((key, i) => [key, row[i]]))); },
     () => { viewUpdates++; });
   const ss = { getSheetByName: name => sheets[name] };
   const original = Object.fromEntries(headers.map((key, i) => [key, row[i]]));
-  return { grid, log, original, headers, updates: () => viewUpdates,
-    write: payload => write(ss, { token: 'test-only', vertrag_id: current.vertrag_id,
-      erwarteter_stand: service.snapshot(original), ...payload }) };
+  return { grid, log, parties, protocol, people, original, headers, sheets, updates: () => viewUpdates,
+    write: payload => handlers.handleContractWrite(ss, { token: 'test-only', vertrag_id: current.vertrag_id,
+      erwarteter_stand: service.snapshot(original), ...payload }),
+    tenantChange: payload => handlers.handleTenantChange(ss, { ...payload, token: payload.token === undefined ? 'test-only' : payload.token }) };
 }
 
 describe('contract backend persistence', () => {
@@ -318,6 +359,163 @@ describe('contract backend persistence', () => {
     expect(() => fixture.write({ data: { vertrag_hinweis: 'No save' } })).toThrow(/History/);
     expect(Object.fromEntries(fixture.headers.map((key, i) => [key, fixture.grid[1][i]]))).toEqual(fixture.original);
     expect(fixture.log).toHaveLength(1);
+  });
+
+  it('speichert einen Mieterwechsel atomar mit beendetem Vorgänger und neuen Vertragsparteien', () => {
+    const fixture = backendFixture();
+    const result = fixture.tenantChange({
+      vertrag_id: current.vertrag_id,
+      erwarteter_stand: service.snapshot(fixture.original),
+      data: {
+        vertrag_id: 'V_NEW', einheit_id: current.einheit_id, hauptperson_id: 'P_NEW',
+        start_datum: '2026-06-01', mietmodell: 'Pauschal', erhoehungs_typ: 'Normal',
+        soll_kaltmiete: 650, soll_nebenkosten: 210, kaution_soll: 1300, kaution_ist: 0
+      }
+    });
+    expect(result.status).toBe('success');
+    expect(result.vertrag_alt).toMatchObject({ vertrag_id: current.vertrag_id, end_datum: '2026-05-31', aktiv: false });
+    expect(result.vertrag_neu).toMatchObject({ vertrag_id: 'V_NEW', start_datum: '2026-06-01', aktiv: true, soll_gesamt: 860 });
+    expect(fixture.grid).toHaveLength(3);
+    expect(fixture.grid[1][fixture.headers.indexOf('end_datum')]).toBe('2026-05-31');
+    expect(fixture.grid[1][fixture.headers.indexOf('aktiv')]).toBe(false);
+    expect(fixture.parties).toContainEqual(['V_NEW', 'P_NEW', 'Hauptmieter', 1, false]);
+    expect(fixture.updates()).toBe(1);
+  });
+
+  it('macht einen identischen Mieterwechsel-Retry idempotent und weist eine andere neue ID ab', () => {
+    const fixture = backendFixture();
+    const payload = {
+      vertrag_id: current.vertrag_id, erwarteter_stand: service.snapshot(fixture.original),
+      data: { vertrag_id: 'V_NEW', einheit_id: current.einheit_id, hauptperson_id: 'P_NEW', start_datum: '2026-06-01' }
+    };
+    expect(fixture.tenantChange(payload).status).toBe('success');
+    const newContract = fixture.grid.find(row => row[fixture.headers.indexOf('vertrag_id')] === 'V_NEW');
+    newContract[fixture.headers.indexOf('soll_kaltmiete')] = 999;
+    newContract[fixture.headers.indexOf('soll_gesamt')] = 1199;
+    newContract[fixture.headers.indexOf('kaution_ist')] = 300;
+    fixture.grid[1][fixture.headers.indexOf('vertrag_hinweis')] = 'Vorgänger nachträglich korrigiert';
+    const retry = fixture.tenantChange({ ...payload, data: { ...payload.data, end_datum: '' } });
+    expect(retry).toMatchObject({ status: 'success', bereits_vorhanden: true });
+    expect(fixture.grid).toHaveLength(3);
+    expect(fixture.parties).toHaveLength(3);
+    expect(fixture.protocol).toHaveLength(2);
+    expect(() => fixture.tenantChange({ ...payload, data: { ...payload.data, vertrag_id: 'V_OTHER' } })).toThrow(/bisherige Vertrag wurde inzwischen geändert|Stale|geändert/);
+  });
+
+  it('weist denselben Mieterwechsel mit abweichender Miete oder Kaution als ID-Konflikt ab', () => {
+    const fixture = backendFixture();
+    const payload = {
+      vertrag_id: current.vertrag_id, erwarteter_stand: service.snapshot(fixture.original),
+      data: { vertrag_id: 'V_NEW', einheit_id: current.einheit_id, hauptperson_id: 'P_NEW', start_datum: '2026-06-01', soll_kaltmiete: 650, kaution_soll: 1300 }
+    };
+    fixture.tenantChange(payload);
+    expect(() => fixture.tenantChange({ ...payload, data: { ...payload.data, soll_kaltmiete: 651 } })).toThrow(/bereits mit anderen Daten/);
+    expect(() => fixture.tenantChange({ ...payload, data: { ...payload.data, kaution_soll: 1400 } })).toThrow(/bereits mit anderen Daten/);
+    expect(fixture.grid).toHaveLength(3);
+  });
+
+  it('setzt einen zukünftigen Mieterwechsel erst zum Vertragsbeginn aktiv', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-21T12:00:00Z'));
+    try {
+      const fixture = backendFixture();
+      const result = fixture.tenantChange({
+        vertrag_id: current.vertrag_id, erwarteter_stand: service.snapshot(fixture.original),
+        data: { vertrag_id: 'V_FUTURE', einheit_id: current.einheit_id, hauptperson_id: 'P_NEW', start_datum: '2027-01-01' }
+      });
+      expect(result.vertrag_alt).toMatchObject({ end_datum: '2026-12-31', aktiv: true });
+      expect(result.vertrag_neu).toMatchObject({ start_datum: '2027-01-01', aktiv: false });
+      expect(fixture.grid[1][fixture.headers.indexOf('aktiv')]).toBe(true);
+      expect(fixture.grid[2][fixture.headers.indexOf('aktiv')]).toBe(false);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('verhindert Überschneidungen, unbekannte Personen und veraltete Vertragsstände vor jedem Schreiben', () => {
+    const overlap = backendFixture();
+    overlap.original.end_datum = '2027-06-30';
+    overlap.grid[1][overlap.headers.indexOf('end_datum')] = '2027-06-30';
+    expect(() => overlap.tenantChange({
+      vertrag_id: current.vertrag_id, erwarteter_stand: service.snapshot(overlap.original),
+      data: { vertrag_id: 'V_NEW', einheit_id: current.einheit_id, hauptperson_id: 'P_NEW', start_datum: '2027-06-01' }
+    })).toThrow(/überschneidet/);
+    expect(overlap.grid).toHaveLength(2);
+    expect(overlap.parties).toHaveLength(2);
+
+    const unknown = backendFixture();
+    expect(() => unknown.tenantChange({
+      vertrag_id: current.vertrag_id, erwarteter_stand: service.snapshot(unknown.original),
+      data: { vertrag_id: 'V_NEW', einheit_id: current.einheit_id, hauptperson_id: 'P_UNKNOWN', start_datum: '2026-06-01' }
+    })).toThrow(/unbekannte Person/);
+    expect(unknown.grid).toHaveLength(2);
+
+    const stale = backendFixture();
+    expect(() => stale.tenantChange({
+      vertrag_id: current.vertrag_id, erwarteter_stand: 'stale',
+      data: { vertrag_id: 'V_NEW', einheit_id: current.einheit_id, hauptperson_id: 'P_NEW', start_datum: '2026-06-01' }
+    })).toThrow(/inzwischen geändert/);
+    expect(stale.grid).toHaveLength(2);
+  });
+
+  it('rollt den Wechsel zurück, wenn die neuen Vertragsparteien nicht geschrieben werden können', () => {
+    const fixture = backendFixture({ partyWriteFailure: true });
+    expect(() => fixture.tenantChange({
+      vertrag_id: current.vertrag_id, erwarteter_stand: service.snapshot(fixture.original),
+      data: { vertrag_id: 'V_NEW', einheit_id: current.einheit_id, hauptperson_id: 'P_NEW', start_datum: '2026-06-01' }
+    })).toThrow(/Party write failed/);
+    expect(fixture.grid).toHaveLength(2);
+    expect(fixture.grid[1][fixture.headers.indexOf('end_datum')]).toBe('');
+    expect(fixture.grid[1][fixture.headers.indexOf('aktiv')]).toBe(true);
+    expect(fixture.parties).toHaveLength(2);
+    expect(fixture.updates()).toBe(0);
+  });
+
+  it('weist doppelte Vertragsparteien und falsche Tokens ab', () => {
+    const duplicate = backendFixture();
+    expect(() => duplicate.tenantChange({
+      vertrag_id: current.vertrag_id, erwarteter_stand: service.snapshot(duplicate.original),
+      data: { vertrag_id: 'V_DUPLICATE', einheit_id: current.einheit_id, hauptperson_id: 'P_NEW', start_datum: '2026-06-01' },
+      parteien: [
+        { person_id: 'P_NEW', rolle: 'Hauptmieter' },
+        { person_id: 'P_NEW', rolle: 'Mitmieter' }
+      ]
+    })).toThrow(/nur einmal/);
+
+    const forbidden = backendFixture();
+    expect(() => forbidden.tenantChange({
+      token: 'wrong-token', vertrag_id: current.vertrag_id, erwarteter_stand: service.snapshot(forbidden.original),
+      data: { vertrag_id: 'V_FORBIDDEN', einheit_id: current.einheit_id, hauptperson_id: 'P_NEW', start_datum: '2026-06-01' }
+    })).toThrow(/freigeschaltet/);
+  });
+});
+
+describe('contract schema preparation', () => {
+  it('legt das Protokollblatt für idempotente Mieterwechsel explizit an', () => {
+    const contractCode = readFileSync(new URL('../apps-script/ContractService.js', import.meta.url), 'utf8');
+    const contractsCode = readFileSync(new URL('../apps-script/Contracts.gs', import.meta.url), 'utf8');
+    const schemaHeaders = [...service.fields];
+    const sheets = {
+      Vertraege: {
+        getLastColumn: () => schemaHeaders.length,
+        getMaxColumns: () => schemaHeaders.length,
+        getRange: () => ({ getValues: () => [schemaHeaders] })
+      }
+    };
+    const insertSheet = name => {
+      const sheet = { headers: [], getRange: () => ({ setValues: values => { sheet.headers = values[0]; } }) };
+      sheets[name] = sheet;
+      return sheet;
+    };
+    const SpreadsheetApp = {
+      getActiveSpreadsheet: () => ({
+        getSheetByName: name => sheets[name],
+        insertSheet
+      })
+    };
+    const prepareContractSchema = new Function('SpreadsheetApp', `${contractCode};${contractsCode};return prepareContractSchema;`)(SpreadsheetApp);
+
+    prepareContractSchema();
+
+    expect(sheets.MieterwechselProtokoll.headers).toEqual(service.tenantChangeProtocolHeaders);
   });
 });
 

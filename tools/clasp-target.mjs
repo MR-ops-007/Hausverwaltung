@@ -34,7 +34,7 @@ function writeClaspConfig(profile) {
     fs.writeFileSync(claspConfigPath, `${JSON.stringify({
         scriptId: profile.scriptId,
         rootDir: 'apps-script',
-        fileExtension: 'gs'
+    scriptExtensions: ['gs', 'js']
     }, null, 2)}\n`);
 }
 

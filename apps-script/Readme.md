@@ -35,6 +35,28 @@ die lokale Script Property `CONTRACT_WRITE_TOKEN`. Keine Freigabewerte committen
 Vor Push produktiven Stand in separater Arbeitskopie pullen und Diff prüfen.
 Details: [Vertragskonzept und Rollback](../docs/contracts-index-plan.md).
 
+Der Mieterwechsel-Schreibtyp `MIETERWECHSEL_ANLEGEN` ist ab Backend 4.8.13
+Admin-only. Er schließt den bisherigen Vertrag am Vortag des neuen Mietbeginns,
+legt den neuen Vertrag und dessen Vertragsparteien an und prüft dabei den erwarteten
+Snapshot sowie `contractService.validateContractPeriods()`. `aktiv` wird aus dem
+Vertragszeitraum abgeleitet, die bezahlte Kaution wird nicht aus dem Client übernommen
+und doppelte Parteien werden abgewiesen. Ein Retry ist nur bei identischen Vertragsdaten
+und Parteien idempotent. Der Vorgang läuft im zentralen Script-Lock. Die UI-Maske und die
+Neuvermietung einer leerstehenden Einheit sind noch nicht enthalten; bis dahin bleibt der
+API-Aufruf ein vorbereiteter Backend-Schreibweg. Vor TEST/PROD muss die neue Apps-Script-
+Version bereitgestellt und mit einem isolierten Testobjekt abgenommen werden.
+
+`prepareContractSchema()` legt zusätzlich das append-only Blatt
+`MieterwechselProtokoll` an. Darin wird der Fingerabdruck der normalisierten Anlageanfrage
+gespeichert; leere optionale Felder werden dabei nicht als eigene Werte unterschieden.
+Vor dem Deployment muss die Funktion deshalb einmal manuell ausgeführt werden.
+Die Funktion `installDailyViewTrigger()` richtet einmalig einen täglichen Trigger für
+`refreshAktiveMieterViewDaily()` ein. Der Wrapper verwirft das von Apps Script gelieferte
+Ereignisobjekt, wartet bis zu 30 Sekunden auf den Script-Lock und ruft die View ohne
+künstlichen Stichtag auf. Ein übersprungener Lauf wird protokolliert.
+Vorhandene Trigger auf dem alten Handler werden dabei entfernt; doppelte Trigger auf dem
+neuen Handler werden bereinigt.
+
 `preparePaymentSchema()` ist die ebenfalls manuell aufzurufende Vorbereitung für das
 Blatt `Zahlungen`. Sie ergänzt unter anderem `zahlungsgruppe_id` für aufgeteilte
 Mieteingänge und verändert keine bestehenden Buchungen.

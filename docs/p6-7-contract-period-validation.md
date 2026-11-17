@@ -45,10 +45,23 @@ kann über alle Vertragszeiträume des Objekts laufen; die UI filtert die Hinwei
 nach dem ausgewählten Jahr. Nicht mietrelevante Einheiten mit einem abgeschlossenen
 Vertrag erscheinen nur in den Jahren, die dieser Vertrag berührt.
 
-Die serverseitige Durchsetzung erfolgt im nächsten Schritt zusammen mit einer
-atomaren, idempotenten Mieterwechsel-Operation: alter Vertrag beenden, neuen Vertrag
-anlegen, Überschneidung ablehnen und View erst nach erfolgreicher Gesamtänderung
-aktualisieren.
+Die serverseitige Durchsetzung ist als P6.7b umgesetzt. Der Admin-only-Schreibtyp
+`MIETERWECHSEL_ANLEGEN` beendet den bisherigen aktiven Vertrag am Tag vor dem neuen
+Mietbeginn, legt den neuen Vertrag mit eigener `vertrag_id` an und schreibt die neuen
+Vertragsparteien. Die Operation läuft im bestehenden Apps-Script-Lock, prüft den vom
+Client gelieferten erwarteten Vertragsstand und ruft vor dem ersten Schreiben dieselbe
+Zeitraumprüfung auf. Überschneidungen, unbekannte Einheiten oder Personen und unvollständige
+Schemas werden abgewiesen. Ein Retry mit derselben neuen Vertrags-ID wird als bereits
+gespeichert bestätigt; bei einem Fehler beim Anhängen wird der Vorgänger zurückgesetzt und
+die neue Zeile geleert.
+
+Der Schreibweg erwartet ein vollständiges `data`-Objekt für den neuen Vertrag. Nicht
+angegebene Vertragsfelder werden aus dem Vorgänger übernommen, `kaution_ist` startet ohne
+Angabe mit `0`. `parteien` ist optional; ohne Angabe wird `hauptperson_id` als
+`Hauptmieter` verknüpft. Eine UI-Maske zum Anlegen des Wechsels ist bewusst nicht Teil
+von P6.7b. Bis dahin ist die Operation eine sichere Backend-Grundlage für den späteren
+Erfassungsdialog. Apps Script 4.8.13 muss nach dem Merge in TEST und anschließend PROD
+bereitgestellt werden; die URL bleibt unverändert.
 
 ## Tests
 
@@ -80,8 +93,15 @@ Die wiederverwendbare Entenhausen-Fixture prüft:
   als Vertragsperiode geprüft und als Leerstand dargestellt; ein leeres oder
   veraltetes Aktiv-Flag ändert daran nichts. Ein aktiver Vertrag mit echter
   Mietpartei oder Sollmiete bleibt dagegen mit `PERIOD_DATE_INVALID` sichtbar.
+- Ein gültiger Mieterwechsel schreibt Vorgänger, neue Vertragszeile und Vertragsparteien
+  gemeinsam; der Vorgänger endet am 2026-05-31, wenn der neue Vertrag am 2026-06-01 beginnt.
+- Ein identischer Retry erzeugt weder eine zweite Vertrags- noch eine zweite Parteienzeile.
+- Ein falscher erwarteter Stand, eine Überschneidung, eine unbekannte Person oder ein
+  Fehler beim Schreiben der Parteien führt zu keinem teilweise gespeicherten Wechsel.
+- Ein Erfassungs-Gerät erhält für `MIETERWECHSEL_ANLEGEN` `FORBIDDEN`; die Capability
+  `tenant_change_writes` ist nur für Admin-Geräte wahr.
 
 Die Funktion ist Teil des gemeinsam geladenen `ContractService.js` und steht damit
-für Browser- und Apps-Script-Code an derselben Stelle bereit. Für dieses Paket ist
-kein Apps-Script-Deployment erforderlich, weil noch kein neuer Schreibweg aktiviert
-wird.
+für Browser- und Apps-Script-Code an derselben Stelle bereit. Für den neuen Schreibweg
+ist das Apps-Script-Deployment 4.8.13 erforderlich; bestehende Vertrags- und Zahlungsdaten
+werden dabei nicht migriert.
