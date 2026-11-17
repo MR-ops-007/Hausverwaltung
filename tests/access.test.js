@@ -316,6 +316,35 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     })).toMatchObject({ status: 'error' });
   });
 
+  it('weist leere und ungültige Beträge im echten Apps-Script-Schreibweg ab', () => {
+    const headers = ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id'];
+    for (const [index, betrag] of [undefined, '', ' ', null, 'abc', 0, '0,00'].entries()) {
+      const api = backend({ key: KEY, paymentRows: [headers] });
+      const data = { zahlung_id: `INVALID_AMOUNT_${index}`, vertrag_id: 'V1', datum: '2026-11-17', mietmonat: '2026-11', art: 'Miete' };
+      if (betrag !== undefined) data.betrag = betrag;
+
+      expect(api.post({ typ: 'ZAHLUNG', key: KEY, data })).toMatchObject({
+        status: 'error',
+        code: 'PAYMENT_AMOUNT_INVALID'
+      });
+      expect(api.rows.Zahlungen).toHaveLength(1);
+    }
+
+    const valid = backend({ key: KEY, paymentRows: [headers] });
+    expect(valid.post({
+      typ: 'ZAHLUNG', key: KEY,
+      data: { zahlung_id: 'GERMAN_THOUSANDS', vertrag_id: 'V1', datum: '2026-11-17', mietmonat: '2026-11', betrag: '1.250', art: 'Miete' }
+    })).toMatchObject({ status: 'success', angelegt: 1 });
+    expect(valid.rows.Zahlungen[1][3]).toBe(1250);
+
+    const deposit = backend({ key: KEY, paymentRows: [headers] });
+    expect(deposit.post({
+      typ: 'ZAHLUNG', key: KEY,
+      data: { zahlung_id: 'DEPOSIT_MONTH', vertrag_id: 'V1', datum: '2026-11-17', mietmonat: '2026-11', betrag: '2.000,00', art: 'Kaution' }
+    })).toMatchObject({ status: 'success', angelegt: 1 });
+    expect(deposit.rows.Zahlungen[1][5]).toBe('');
+  });
+
   it('speichert neue Mietmonate als Text und nicht als Sheet-Datum', () => {
     const api = backend({
       key: KEY,

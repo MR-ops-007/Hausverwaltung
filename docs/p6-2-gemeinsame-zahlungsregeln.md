@@ -25,11 +25,11 @@ Zeitzonenformatierung in Apps Script.
 | Regel | Verhalten |
 | :--- | :--- |
 | Zahlungsart | `Miete`, `Kaution`, `Nachzahlung`, `Erstattung` und `Storno` werden unabhängig von Groß-/Kleinschreibung auf einen kanonischen Wert gebracht. Leere Art bedeutet `Miete`. |
-| Betrag | Deutsches Dezimalformat wird akzeptiert und auf Cent gerundet. |
+| Betrag | Deutsches Dezimalformat wird akzeptiert und auf Cent gerundet. Ein Tausenderpunkt ohne Dezimalkomma, zum Beispiel `1.250`, wird als 1.250 EUR gelesen; leere oder ungültige Beträge werden abgewiesen. |
 | Fachlicher Mietmonat | `YYYY-MM` und deutsche Datumswerte werden normalisiert; ein ISO-Zeitstempel wird in der lokalen Zeitzone ausgewertet. |
 | Legacy-Zahlung | Leerer `mietmonat` ohne Zahlungsgruppe wird dem Eingangsmonat zugeordnet. |
 | Guthaben | Leerer `mietmonat` mit `zahlungsgruppe_id` bleibt bewusst nicht zugeordnet und erscheint separat als Guthaben. |
-| Kaution | Hat keinen Mietmonat und wird nicht in den Monatsstatus eingerechnet. |
+| Kaution | Hat keinen Mietmonat. Ein mitgeschickter Mietmonat wird bei der Eingangsnormalisierung verworfen; Kautionen werden nicht in den Monatsstatus eingerechnet. |
 | Erstattung | Ist eine eigene, negative Zahlungsart und verschlechtert den Mietstatus nicht. |
 | Storno | Monat, Gegenart und Zahlungsgruppe werden aus dem Original abgeleitet; Client-Metadaten können diese Zuordnung nicht überschreiben. |
 | Status | `bezahlt`, `teilbezahlt`, `offen`, `überfällig`, `zukünftig` und `leerstand` verwenden dieselbe Cent-Toleranz und Verspätungsregel. |
@@ -54,11 +54,12 @@ die Payment-UI-, Apps-Script- und Zugriffstests dieselbe Datei. Damit werden sow
 die Browserverwendung als auch der echte Apps-Script-Schreibweg mit dem gemeinsamen
 Regelcode geprüft.
 
-Der lokale Prüfstand dieses Branches ist vollständig grün: `npm test` läuft mit 548
+Der lokale Prüfstand dieses Branches ist vollständig grün: `npm test` läuft mit 550
 Tests in 21 Testdateien, die Frontend-Asset-Prüfung, JavaScript-Syntaxprüfung und
 `git diff --check` sind ebenfalls erfolgreich. Zusätzlich wurde der Mock-Server per
 HTTP mit einer deutschen Betragsangabe, einem Retry, einem ID-Konflikt und einem
-Storno mit serverseitig abgeleiteten Metadaten geprüft.
+Storno mit serverseitig abgeleiteten Metadaten geprüft. Der Apps-Script-Schreibweg
+weist leere, ungültige und nullwertige Beträge ebenfalls direkt ab.
 
 Abnahmekriterien für TEST:
 

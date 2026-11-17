@@ -49,11 +49,14 @@ P6.2: Gemeinsame Zahlungsregeln für Browser, Apps Script und den synthetischen 
 
 - `apps-script/PaymentRules.js` normalisiert Zahlungsarten, Beträge, fachliche Monate,
   Legacy-Zahlungen, explizites Guthaben und Storno-Metadaten an einer Stelle.
+- Leere oder ungültige Beträge werden im echten Apps-Script-Schreibweg abgewiesen;
+  deutsche Tausenderpunkte wie `1.250` werden als 1.250 EUR interpretiert. Ein bei einer
+  Kaution mitgesendeter Mietmonat wird verworfen.
 - Die Monatsstatusberechnung verwendet dieselbe Cent-Toleranz und dieselben Regeln für
   Kaution, Erstattung, Storno und Verspätung.
 - `payment-ui.js`, `Code.gs` und `tools/mock-backend-server.mjs` verwenden die gemeinsame
   Quelle; der Apps-Script-Schreibweg bleibt idempotent und lock-/schema-geschützt.
-- Lokal geprüft: 548 Tests in 21 Testdateien sowie Asset-Prüfung, Syntaxprüfung und
+- Lokal geprüft: 550 Tests in 21 Testdateien sowie Asset-Prüfung, Syntaxprüfung und
   `git diff --check` erfolgreich. Der Mock-Server wurde zusätzlich per HTTP mit Retry,
   ID-Konflikt und Storno-Metadaten geprüft.
 - TEST- und PROD-Deployment sind noch nicht geändert. PROD bleibt auf 4.8.13, Deployment

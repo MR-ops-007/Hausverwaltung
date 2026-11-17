@@ -74,12 +74,16 @@ var paymentRules = (() => {
     return art === 'Miete' || art === 'Nachzahlung'
       || (art === 'Storno' && against !== 'Kaution' && against !== 'Erstattung');
   };
+  const roundCents = amount => Math.round((amount + Math.sign(amount) * Number.EPSILON) * 100) / 100;
   const normalizeAmount = value => {
+    if (typeof value === 'number') return Number.isFinite(value) ? roundCents(value) : null;
     const text = String(value === undefined || value === null ? '' : value).trim().replace(/\s/g, '');
     if (!text) return null;
-    const normalized = text.includes(',') ? text.replace(/\./g, '').replace(',', '.') : text;
+    const normalized = text.includes(',')
+      ? text.replace(/\./g, '').replace(',', '.')
+      : /^-?\d{1,3}(?:\.\d{3})+$/.test(text) ? text.replace(/\./g, '') : text;
     const amount = Number(normalized);
-    return Number.isFinite(amount) ? Math.round(amount * 100) / 100 : null;
+    return Number.isFinite(amount) ? roundCents(amount) : null;
   };
   const comparable = (item, field, dateFormatter) => {
     if (field === 'betrag') return normalizeAmount(item && item[field]);

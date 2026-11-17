@@ -678,6 +678,9 @@ function writePayments(ss, payloadData) {
   });
 
   const normalized = [];
+  const berlinDate = value => typeof Utilities !== 'undefined' && typeof Utilities.formatDate === 'function'
+    ? Utilities.formatDate(value, 'Europe/Berlin', 'yyyy-MM-dd')
+    : paymentRules.normalizeDate(value);
   for (let index = 0; index < items.length; index++) {
     const item = items[index];
     const result = Object.assign({}, item);
@@ -688,12 +691,12 @@ function writePayments(ss, payloadData) {
     }
     const amount = paymentRules.normalizeAmount(item.betrag);
     const normalizedArt = result.art.toLowerCase();
-    if (!isFinite(amount) || amount === 0 || (amount < 0 && ['storno', 'erstattung'].indexOf(normalizedArt) < 0) || (normalizedArt === 'erstattung' && amount > 0)) {
+    if (amount === null || !Number.isFinite(amount) || amount === 0 || (amount < 0 && ['storno', 'erstattung'].indexOf(normalizedArt) < 0) || (normalizedArt === 'erstattung' && amount > 0)) {
       return paymentError('PAYMENT_AMOUNT_INVALID', 'Zahlungsbetrag muss ungleich 0 sein; Erstattungen müssen negativ sein, andere Zahlungsarten dürfen nicht negativ sein.');
     }
     result.betrag = Math.round(amount * 100) / 100;
     if (Object.prototype.hasOwnProperty.call(item, 'mietmonat')) {
-      const month = paymentRules.normalizeAssignedMonth(result);
+      const month = paymentRules.normalizeAssignedMonth(result, berlinDate);
       if (month === null) return paymentError('PAYMENT_MONTH_INVALID', 'Der fachliche Mietmonat muss leer oder im Format YYYY-MM angegeben werden.');
       result.mietmonat = month;
     }
@@ -705,9 +708,6 @@ function writePayments(ss, payloadData) {
     normalized.push(result);
   }
 
-  const berlinDate = value => typeof Utilities !== 'undefined' && typeof Utilities.formatDate === 'function'
-    ? Utilities.formatDate(value, 'Europe/Berlin', 'yyyy-MM-dd')
-    : paymentRules.normalizeDate(value);
   const getComparable = (item, header) => paymentRules.comparable(item, header, berlinDate);
   const rowComparable = (row, header) => paymentRules.comparable(
     headers.reduce((item, name, index) => { item[name] = row[index]; return item; }, {}),

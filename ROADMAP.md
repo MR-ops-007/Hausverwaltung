@@ -444,7 +444,7 @@ Bankanbindung werden daraus abgeleitet.
 7. **P6.2 Gemeinsame Zahlungsregeln: in Umsetzung in diesem Branch.** Die fachlichen Pure Functions für Mietmonat, Guthaben,
    Erstattung, Storno und Statusberechnung zwischen Backend und Mock vereinheitlichen oder
    aus einer gemeinsamen testbaren Quelle ableiten. `apps-script/PaymentRules.js` ist die
-   gemeinsame Quelle für Browser, Apps Script und Mock. Der Branch-Lauf ist mit 548 Tests
+   gemeinsame Quelle für Browser, Apps Script und Mock. Der Branch-Lauf ist mit 550 Tests
    grün; TEST-Abnahme und Deployment folgen nach dem Review.
 8. **P7.1 CSV-Monatsparser:** Verwendungszwecke wie `Miete Februar 2026` und `02/2026`
    erkennen, Datumsangaben nicht fälschlich als Mietmonat interpretieren und die Quelle des

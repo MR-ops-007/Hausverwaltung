@@ -9,6 +9,9 @@ describe('gemeinsame Zahlungsregeln', () => {
     expect(rules.normalizeArt(' erstattung ')).toBe('Erstattung');
     expect(rules.normalizeArt('')).toBe('Miete');
     expect(rules.normalizeAmount('1.250,50')).toBe(1250.5);
+    expect(rules.normalizeAmount('1.250')).toBe(1250);
+    expect(rules.normalizeAmount(1.005)).toBe(1.01);
+    expect(rules.normalizeAmount('abc')).toBeNull();
     expect(rules.normalizeMonth('29.02.2026')).toBe('2026-02');
     expect(rules.normalizeMonth('2026-13')).toBeNull();
     expect(rules.normalizeMonth('2026-02-28T23:00:00Z')).toBe('2026-03');

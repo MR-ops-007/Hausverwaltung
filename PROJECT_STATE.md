@@ -123,7 +123,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
 - P6.2 ist im Branch `codex/p6-2-payment-rules` in Umsetzung: `PaymentRules.js` ist die
   gemeinsame Pure-Function-Quelle für Zahlungsart, Mietmonat, Guthaben, Erstattung, Storno
   und Monatsstatus in Browser, Mock und Apps Script. Die Tests laden dieselbe Quelle in allen
-  drei Pfaden. Der Branch-Lauf umfasst 548 Tests in 21 Testdateien; Asset-Prüfung,
+  drei Pfaden. Der Branch-Lauf umfasst 550 Tests in 21 Testdateien; Asset-Prüfung,
   Syntaxprüfung und `git diff --check` sind grün. TEST-Deployment und fachliche Abnahme folgen
   nach dem Review; PROD bleibt bis dahin auf 4.8.13.
 - Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
