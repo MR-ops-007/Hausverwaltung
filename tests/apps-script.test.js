@@ -44,10 +44,12 @@ describe('Apps Script Zaehlerstaende helpers', () => {
 
   it('installiert genau einen täglichen Trigger für die aktive Mieter-View', () => {
     const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
-    const triggers = [];
+    const triggers = [{ getHandlerFunction: () => 'updateAktiveMieterView', getEventType: () => 'CLOCK' }];
+    const deleted = [];
     const ScriptApp = {
       EventType: { CLOCK: 'CLOCK' },
       getProjectTriggers: () => triggers,
+      deleteTrigger: trigger => { deleted.push(trigger); triggers.splice(triggers.indexOf(trigger), 1); },
       newTrigger: handler => {
         const builder = {
           timeBased: () => builder,
@@ -63,9 +65,31 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     };
     const installDailyViewTrigger = new Function('ScriptApp', `${code}; return installDailyViewTrigger;`)(ScriptApp);
 
-    expect(installDailyViewTrigger()).toMatchObject({ status: 'success', already_present: false });
+    expect(installDailyViewTrigger()).toMatchObject({ status: 'success', already_present: false, removed_legacy: 1 });
     expect(installDailyViewTrigger()).toMatchObject({ status: 'success', already_present: true });
     expect(triggers).toHaveLength(1);
+    expect(deleted).toHaveLength(1);
+    expect(triggers[0].getHandlerFunction()).toBe('refreshAktiveMieterViewDaily');
+  });
+
+  it('überspringt den täglichen View-Refresh bei einem belegten Script-Lock', () => {
+    const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
+    let locked = false;
+    let released = false;
+    const lock = {
+      tryLock: () => !locked,
+      releaseLock: () => { released = true; }
+    };
+    const LockService = { getScriptLock: () => lock };
+    const SpreadsheetApp = { getActiveSpreadsheet: () => ({ getSheetByName: () => null }) };
+    const refresh = new Function('LockService', 'SpreadsheetApp', `${code}; return refreshAktiveMieterViewDaily;`)(LockService, SpreadsheetApp);
+
+    expect(refresh()).toEqual({ status: 'success' });
+    expect(released).toBe(true);
+    released = false;
+    locked = true;
+    expect(refresh()).toEqual({ status: 'skipped', reason: 'LOCK_BUSY' });
+    expect(released).toBe(false);
   });
 
   it('wechselt die aktive Mieter-View anhand eines reproduzierbaren Stichtags', () => {
@@ -94,6 +118,8 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     updateAktiveMieterView(new Date('2026-05-31T12:00:00Z'));
     expect(sheets._view_aktive_mieter.getDataRange().getValues()[1][1]).toBe('V_OLD');
     updateAktiveMieterView(new Date('2026-06-01T12:00:00Z'));
+    expect(sheets._view_aktive_mieter.getDataRange().getValues()[1][1]).toBe('V_NEW');
+    updateAktiveMieterView({ year: 2026, month: 6, 'day-of-month': 1 });
     expect(sheets._view_aktive_mieter.getDataRange().getValues()[1][1]).toBe('V_NEW');
   });
 

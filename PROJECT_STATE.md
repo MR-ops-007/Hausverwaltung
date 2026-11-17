@@ -110,7 +110,9 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   `MIETERWECHSEL_ANLEGEN` beendet den Vorgängervertrag am Tag vor dem neuen Mietbeginn,
   legt den neuen Vertrag und seine Vertragsparteien an und verwendet dafür den bestehenden
   Script-Lock. Die Aktivität wird aus dem Vertragszeitraum abgeleitet und die aktive Mieter-View
-  wird über einen einmalig installierten täglichen Trigger aktualisiert. Wiederholungen werden
+  wird über einen einmalig installierten täglichen Trigger (`refreshAktiveMieterViewDaily`)
+  aktualisiert. Der Handler verwirft das Apps-Script-Ereignisobjekt und verwendet den Script-Lock.
+  Wiederholungen werden
   über einen gespeicherten Fingerabdruck der normalisierten Anfrage und Parteien abgeglichen,
   `kaution_ist` wird nicht aus dem Client übernommen und doppelte Parteien werden abgewiesen.
   Erwarteter Vertragsstand, Zeitraumprüfung, Einheiten-/Personenreferenzen und Rollback sind

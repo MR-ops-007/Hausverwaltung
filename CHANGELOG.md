@@ -60,6 +60,8 @@ P6.7b: Serverseitige Grundlage für einen sicheren Mieterwechsel.
   übernommen und doppelte Vertragsparteien werden abgewiesen. Eine Neuvermietung ohne aktiven
   Vorgänger bleibt als eigenes Folgepaket abgegrenzt.
 - Die aktive Mieter-View kann über `installDailyViewTrigger()` täglich aktualisiert werden.
+  Der installierte Handler `refreshAktiveMieterViewDaily()` verwirft das Trigger-Ereignisobjekt
+  und serialisiert den vollständigen Refresh mit dem Script-Lock.
   Ein append-only `MieterwechselProtokoll` hält den Fingerabdruck der normalisierten
   Anlageanfrage für belastbare Retries fest.
 - Der Schreibweg enthält einen Rollback für Fehler beim Anhängen der neuen Vertrags- oder

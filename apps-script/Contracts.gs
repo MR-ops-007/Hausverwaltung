@@ -39,14 +39,36 @@ function normalizeTenantChangeParties(parties) {
   })).sort((a, b) => `${a.person_id}|${a.rolle}|${a.ordnet}`.localeCompare(`${b.person_id}|${b.rolle}|${b.ordnet}`));
 }
 
-function tenantChangeRequestFingerprint(contract, parties) {
-  const stableContract = {};
-  contractService.tenantChangeFields.forEach(field => {
-    if (field !== 'aktiv' && field !== 'kaution_ist') {
-      stableContract[field] = contract[field] === undefined ? '' : contract[field];
+function normalizeTenantChangeRequest(input) {
+  const dateFields = ['start_datum', 'end_datum', 'letzte_anpassung'];
+  const numberFields = ['soll_kaltmiete', 'soll_nebenkosten', 'kaution_soll', 'zahlungsziel_wert',
+    'nk_betriebskosten', 'nk_heizung_warmwasser', 'index_basis_wert', 'index_neu_wert'];
+  const ignoredFields = ['aktiv', 'kaution_ist', 'soll_gesamt'];
+  const normalized = {};
+  Object.keys(input || {}).sort().forEach(field => {
+    if (ignoredFields.indexOf(field) >= 0) return;
+    let value = input[field];
+    if (contractService.blank(value)) {
+      value = '';
+    } else if (dateFields.indexOf(field) >= 0) {
+      try { value = contractService.iso(contractService.date(value)); } catch (error) { value = String(value).trim(); }
+    } else if (numberFields.indexOf(field) >= 0) {
+      const number = Number(String(value).trim().replace(',', '.'));
+      value = Number.isFinite(number) ? number : String(value).trim();
+    } else if (typeof value === 'string') {
+      value = value.trim();
     }
+    normalized[field] = value;
   });
-  return contractService.snapshot({ contract: stableContract, parteien: parties });
+  return normalized;
+}
+
+function tenantChangeRequestFingerprint(oldId, input, parties) {
+  return contractService.snapshot({
+    vertrag_alt_id: String(oldId),
+    data: normalizeTenantChangeRequest(input),
+    parteien: parties
+  });
 }
 
 /**
@@ -133,7 +155,7 @@ function handleTenantChange(ss, payload) {
       person_id: candidate.hauptperson_id, rolle: 'Hauptmieter', ordnet: 1, vollmacht: false
     }];
     const partySignature = normalizeTenantChangeParties(requestedParties);
-    const requestFingerprint = tenantChangeRequestFingerprint(candidate, partySignature);
+    const requestFingerprint = tenantChangeRequestFingerprint(oldId, input, partySignature);
     const protocol = protocolRecords.find(row => String(row.vertrag_neu_id) === newId);
     const sameProtocol = protocol && String(protocol.request_fingerprint) === requestFingerprint;
     const existingPartyRows = getSheetData(partySheet).filter(row => String(row.vertrag_id) === newId);
@@ -200,7 +222,7 @@ function handleTenantChange(ss, payload) {
   const requestedParties = Array.isArray(payload.parteien) ? payload.parteien : [{
     person_id: next.hauptperson_id, rolle: 'Hauptmieter', ordnet: 1, vollmacht: false
   }];
-  const requestFingerprint = tenantChangeRequestFingerprint(next, normalizeTenantChangeParties(requestedParties));
+  const requestFingerprint = tenantChangeRequestFingerprint(oldId, input, normalizeTenantChangeParties(requestedParties));
   if (!requestedParties.length) throw contractWriteFailure('TENANT_CHANGE_PARTIES_MISSING', 'Mindestens eine Vertragspartei ist erforderlich.');
   const parties = requestedParties.map((party, index) => {
     const personId = String(party && party.person_id || '').trim();

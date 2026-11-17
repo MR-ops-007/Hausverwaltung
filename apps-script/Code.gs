@@ -3033,6 +3033,7 @@ function getSheetData(sheet) {
  */
 function updateAktiveMieterView(now) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const asOf = now instanceof Date ? now : undefined;
 
   const getSheet = (name) => ss.getSheetByName(name);
 
@@ -3086,7 +3087,7 @@ function updateAktiveMieterView(now) {
   einheiten.forEach(e => {
     const v = vertraege.find(v =>
       String(v.einheit_id) === String(e.einheit_id) &&
-      contractService.isCurrentlyActive(v, now)
+      contractService.isCurrentlyActive(v, asOf)
     );
 
     if (v) {
@@ -3119,20 +3120,50 @@ function updateAktiveMieterView(now) {
   }
 }
 
+/** Refresh entry point for the time trigger; Apps Script passes an event object. */
+function refreshAktiveMieterViewDaily() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) {
+    return { status: 'skipped', reason: 'LOCK_BUSY' };
+  }
+  try {
+    updateAktiveMieterView();
+    return { status: 'success' };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 /** Installs the single daily refresh trigger for the date-derived active view. */
 function installDailyViewTrigger() {
   const triggers = ScriptApp.getProjectTriggers();
-  const exists = triggers.some(trigger =>
-    trigger.getHandlerFunction() === 'updateAktiveMieterView' &&
-    trigger.getEventType() === ScriptApp.EventType.CLOCK
-  );
+  const handler = 'refreshAktiveMieterViewDaily';
+  const legacyHandler = 'updateAktiveMieterView';
+  let exists = false;
+  let removedLegacy = 0;
+  let removedDuplicate = 0;
+  triggers.forEach(trigger => {
+    if (trigger.getEventType() !== ScriptApp.EventType.CLOCK) return;
+    const triggerHandler = trigger.getHandlerFunction();
+    if (triggerHandler === legacyHandler) {
+      ScriptApp.deleteTrigger(trigger);
+      removedLegacy++;
+    } else if (triggerHandler === handler) {
+      if (exists) {
+        ScriptApp.deleteTrigger(trigger);
+        removedDuplicate++;
+      } else {
+        exists = true;
+      }
+    }
+  });
   if (!exists) {
-    ScriptApp.newTrigger('updateAktiveMieterView')
+    ScriptApp.newTrigger(handler)
       .timeBased()
       .atHour(0)
       .nearMinute(15)
       .everyDays(1)
       .create();
   }
-  return { status: 'success', already_present: exists, handler: 'updateAktiveMieterView' };
+  return { status: 'success', already_present: exists, handler, removed_legacy: removedLegacy, removed_duplicates: removedDuplicate };
 }

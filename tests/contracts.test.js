@@ -393,6 +393,7 @@ describe('contract backend persistence', () => {
     newContract[fixture.headers.indexOf('soll_kaltmiete')] = 999;
     newContract[fixture.headers.indexOf('soll_gesamt')] = 1199;
     newContract[fixture.headers.indexOf('kaution_ist')] = 300;
+    fixture.grid[1][fixture.headers.indexOf('vertrag_hinweis')] = 'Vorgänger nachträglich korrigiert';
     const retry = fixture.tenantChange(payload);
     expect(retry).toMatchObject({ status: 'success', bereits_vorhanden: true });
     expect(fixture.grid).toHaveLength(3);

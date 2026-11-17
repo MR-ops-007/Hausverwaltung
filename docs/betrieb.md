@@ -343,10 +343,15 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
    gestartet.
 6. `installDailyViewTrigger()` einmal manuell ausführen und die Rückmeldung
    `already_present` prüfen. Die Funktion legt nur einen täglichen Trigger für
-   `updateAktiveMieterView()` an; die Apps-Script-Zeitzone muss auf `Europe/Berlin` stehen.
-7. Mit dem passenden Umgebungsschlüssel einen geschützten Lese- und Schreibtest
+   `refreshAktiveMieterViewDaily()` an und entfernt einen alten Trigger auf
+   `updateAktiveMieterView()`. Der Wrapper schützt den vollständigen View-Refresh mit dem
+   Script-Lock; die Apps-Script-Zeitzone muss auf `Europe/Berlin` stehen.
+7. Den täglichen Handler einmal manuell auslösen und `_view_aktive_mieter` prüfen. Die
+   aktuellen Mieter müssen weiterhin enthalten sein. Das Ereignisobjekt eines Zeit-Triggers
+   darf nicht als Stichtag an die Datumslogik weitergereicht werden.
+8. Mit dem passenden Umgebungsschlüssel einen geschützten Lese- und Schreibtest
    durchführen.
-8. Ergebnis und Rollback-Stand in `CHANGELOG.md` beziehungsweise diesem Dokument
+9. Ergebnis und Rollback-Stand in `CHANGELOG.md` beziehungsweise diesem Dokument
    ergänzen.
 
 ## Sicherheitsgrenzen

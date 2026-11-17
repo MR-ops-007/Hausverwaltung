@@ -426,7 +426,9 @@ Bankanbindung werden daraus abgeleitet.
    und seine Vertragsparteien werden mit eigener ID angelegt. Erwarteter Vertragsstand,
    Zeitraumprüfung, Person-/Einheitenreferenzen, erweiterte Idempotenz und Rollback sind Teil
    des Schreibwegs. `aktiv` wird aus Start- und Enddatum für den aktuellen Tag abgeleitet;
-   die aktive Mieter-View wird über einen einmalig installierten täglichen Trigger aktualisiert.
+   die aktive Mieter-View wird über `refreshAktiveMieterViewDaily` und einen einmalig
+   installierten täglichen Trigger aktualisiert. Der Wrapper verwirft das Trigger-Ereignisobjekt
+   und schützt den Refresh mit dem Script-Lock.
    Die normalisierte Anfrage wird im append-only `MieterwechselProtokoll` gespeichert, damit
    Retries von späteren Miet- oder Kautionsänderungen unabhängig bleiben. `kaution_ist` wird
    nicht vom Client übernommen, sondern startet als aus Zahlungen abgeleiteter Wert bei null.

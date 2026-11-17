@@ -50,8 +50,10 @@ Version bereitgestellt und mit einem isolierten Testobjekt abgenommen werden.
 `MieterwechselProtokoll` an. Darin wird der Fingerabdruck der normalisierten Anlageanfrage
 gespeichert. Vor dem Deployment muss die Funktion deshalb einmal manuell ausgeführt werden.
 Die Funktion `installDailyViewTrigger()` richtet einmalig einen täglichen Trigger für
-`updateAktiveMieterView()` ein. Sie legt keinen zweiten Trigger an, wenn bereits einer für
-dieselbe Funktion vorhanden ist.
+`refreshAktiveMieterViewDaily()` ein. Der Wrapper verwirft das von Apps Script gelieferte
+Ereignisobjekt, verwendet den Script-Lock und ruft die View ohne künstlichen Stichtag auf.
+Vorhandene Trigger auf dem alten Handler werden dabei entfernt; doppelte Trigger auf dem
+neuen Handler werden bereinigt.
 
 `preparePaymentSchema()` ist die ebenfalls manuell aufzurufende Vorbereitung für das
 Blatt `Zahlungen`. Sie ergänzt unter anderem `zahlungsgruppe_id` für aufgeteilte
