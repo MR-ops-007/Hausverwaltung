@@ -1,8 +1,11 @@
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
 import { createMockConsumptionData } from './mock-consumption-fixtures.mjs';
 import { baselineRentalFixture, tenantChangeFixture } from './mock-rental-fixtures.mjs';
 
 const port = Number(process.env.PORT || 8787);
+const paymentRulesSource = readFileSync(new URL('../apps-script/PaymentRules.js', import.meta.url), 'utf8');
+const paymentRules = new Function(`${paymentRulesSource}; return paymentRules;`)();
 
 const rent = (zahlung_id, vertrag_id, mietmonat, betrag, datum, art = 'Miete', extra = {}) => ({
   zahlung_id, vertrag_id, mietmonat, betrag, datum, art, ...extra
@@ -105,24 +108,17 @@ function writePayments(items) {
   if (!input.length || input.some(item => !item || !String(item.zahlung_id || '').trim())) {
     return { status: 'error', code: 'PAYMENT_ID_MISSING', message: 'Jede Zahlung benötigt eine eindeutige zahlung_id.' };
   }
-  const allowedArts = new Map([['miete', 'Miete'], ['kaution', 'Kaution'], ['nachzahlung', 'Nachzahlung'], ['erstattung', 'Erstattung'], ['storno', 'Storno']]);
-  const normalizeMonth = value => {
-    const text = String(value ?? '').trim();
-    if (!text) return '';
-    const match = text.match(/^(\d{4})-(\d{2})(?:-\d{2})?/);
-    return match && Number(match[2]) >= 1 && Number(match[2]) <= 12 ? `${match[1]}-${match[2]}` : null;
-  };
   const normalized = [];
   for (const raw of input) {
-    const art = allowedArts.get(String(raw.art || 'Miete').trim().toLowerCase());
+    const art = paymentRules.normalizeArt(raw.art);
     if (!art) return { status: 'error', code: 'PAYMENT_ART_INVALID', message: 'Unbekannte Zahlungsart.' };
-    const amount = Math.round(Number(String(raw.betrag ?? '').replace(',', '.')) * 100) / 100;
+    const amount = paymentRules.normalizeAmount(raw.betrag);
     if (!Number.isFinite(amount) || amount === 0 || (amount < 0 && !['Storno', 'Erstattung'].includes(art)) || (art === 'Erstattung' && amount > 0)) {
       return { status: 'error', code: 'PAYMENT_AMOUNT_INVALID', message: 'Erstattungen müssen negativ sein; andere Zahlungsarten dürfen nicht negativ sein.' };
     }
     const item = { ...raw, zahlung_id: String(raw.zahlung_id).trim(), art, betrag: amount };
     if (Object.prototype.hasOwnProperty.call(raw, 'mietmonat')) {
-      item.mietmonat = normalizeMonth(raw.mietmonat);
+      item.mietmonat = paymentRules.normalizeAssignedMonth(item);
       if (item.mietmonat === null) return { status: 'error', code: 'PAYMENT_MONTH_INVALID', message: 'Der fachliche Mietmonat ist ungültig.' };
     }
     normalized.push(item);
@@ -133,12 +129,7 @@ function writePayments(items) {
   normalized.forEach(item => recordsById.set(item.zahlung_id, item));
   let alreadyPresent = 0;
   const append = [];
-  const comparable = (row, field) => {
-    if (field === 'betrag') return Math.round(Number(row?.[field] || 0) * 100) / 100;
-    if (field === 'art') return allowedArts.get(String(row?.[field] || 'Miete').trim().toLowerCase()) || String(row?.[field] || '').trim();
-    if (field === 'mietmonat') return normalizeMonth(row?.[field]) || '';
-    return String(row?.[field] ?? '').trim();
-  };
+  const comparable = (row, field) => paymentRules.comparable(row, field);
   for (const item of normalized) {
     if (item.art === 'Storno') {
       const originalId = String(item.storno_von || '').trim();
@@ -147,13 +138,7 @@ function writePayments(items) {
       if (String(original.vertrag_id || '') !== String(item.vertrag_id || '')) return { status: 'error', code: 'STORNO_CONTRACT_MISMATCH', message: 'Originalzahlung und Storno müssen zum selben Vertrag gehören.' };
       if (Math.abs(Number(original.betrag || 0) + Number(item.betrag || 0)) > 0.009) return { status: 'error', code: 'STORNO_AMOUNT_MISMATCH', message: 'Das Storno muss den Originalbetrag mit umgekehrtem Vorzeichen ausgleichen.' };
       if (stornoByOriginal.has(originalId) && stornoByOriginal.get(originalId) !== item.zahlung_id) return { status: 'error', code: 'PAYMENT_ALREADY_STORNOED', message: 'Diese Zahlung wurde bereits storniert.' };
-      item.mietmonat = normalizeMonth(original.mietmonat);
-      if (!item.mietmonat && !String(original.zahlungsgruppe_id || '').trim() && String(original.art || '').trim().toLowerCase() !== 'kaution') {
-        const originalDate = String(original.datum || '').trim();
-        if (/^\d{4}-\d{2}-\d{2}/.test(originalDate)) item.mietmonat = originalDate.slice(0, 7);
-      }
-      item.gegen_art = String(original.gegen_art || original.art || '').trim();
-      item.zahlungsgruppe_id = String(original.zahlungsgruppe_id || '').trim();
+      Object.assign(item, paymentRules.stornoMetadata(original));
       stornoByOriginal.set(originalId, item.zahlung_id);
     }
     const existing = existingById.get(item.zahlung_id);

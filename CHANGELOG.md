@@ -34,17 +34,32 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - P6.1 (2026-11-14, PR #41, in `main`): weiche Dublettenwarnung vor manueller
   und CSV-Zahlungsübernahme. Keine Backend- oder Schemaänderung; der PROD-Test
   beschränkte Schreibvorgänge auf das isolierte Objekt `TEST`.
-- P6.3 (2026-11-15, Branch `codex/p6-3-soll-historie`, lokal): historische
+- P6.3 (2026-11-15, PR #43, in `main`): historische
   monatliche Sollbeträge werden aus den dokumentierten `Mietanpassungen`-Snapshots
   abgeleitet und in Monatsstatus, Zahlungseingangsdialog und Überzahlungsverteilung
   verwendet. Keine Backend- oder Schemaänderung; ein Apps-Script-Deployment ist nicht
   erforderlich.
 
 Diese Einträge ändern die produktive Apps-Script-Version nicht. Die produktive Version ist
-seit PR #39 und dem anschließenden Deployment 4.8.12; 4.8.5 bleibt als dokumentierter
-Rollback-Stand erhalten.
+4.8.13; 4.8.5 bleibt als dokumentierter Rollback-Stand erhalten.
 
-## 4.8.13 · 2026-11-17 · lokal
+## 4.8.14 · 2026-11-17 · lokal
+
+P6.2: Gemeinsame Zahlungsregeln für Browser, Apps Script und den synthetischen Mock.
+
+- `apps-script/PaymentRules.js` normalisiert Zahlungsarten, Beträge, fachliche Monate,
+  Legacy-Zahlungen, explizites Guthaben und Storno-Metadaten an einer Stelle.
+- Die Monatsstatusberechnung verwendet dieselbe Cent-Toleranz und dieselben Regeln für
+  Kaution, Erstattung, Storno und Verspätung.
+- `payment-ui.js`, `Code.gs` und `tools/mock-backend-server.mjs` verwenden die gemeinsame
+  Quelle; der Apps-Script-Schreibweg bleibt idempotent und lock-/schema-geschützt.
+- Lokal geprüft: 548 Tests in 21 Testdateien sowie Asset-Prüfung, Syntaxprüfung und
+  `git diff --check` erfolgreich. Der Mock-Server wurde zusätzlich per HTTP mit Retry,
+  ID-Konflikt und Storno-Metadaten geprüft.
+- TEST- und PROD-Deployment sind noch nicht geändert. PROD bleibt auf 4.8.13, Deployment
+  `@43`, bis P6.2 fachlich abgenommen ist.
+
+## 4.8.13 · 2026-11-17 · produktiv
 
 P6.7b: Serverseitige Grundlage für einen sicheren Mieterwechsel.
 
@@ -66,10 +81,12 @@ P6.7b: Serverseitige Grundlage für einen sicheren Mieterwechsel.
   Anlageanfrage für belastbare Retries fest.
 - Der Schreibweg enthält einen Rollback für Fehler beim Anhängen der neuen Vertrags- oder
   Parteienzeilen. Eine UI-Maske für das Anlegen des Wechsels ist bewusst ein Folgepaket.
-- Apps Script muss nach dem Merge als 4.8.13 in TEST und anschließend PROD bereitgestellt
-  werden; die URL bleibt unverändert.
+- TEST läuft auf Deployment `@8`, PROD auf Deployment `@43`; die bestehenden URLs bleiben
+  unverändert. `prepareContractSchema()` und `installDailyViewTrigger()` wurden in beiden
+  Umgebungen ausgeführt und geprüft. Der Status wurde nach der PROD-Bereitstellung auf
+  `produktiv` gesetzt.
 
-## 4.8.12 · 2026-11-13 · produktiv
+## 4.8.12 · 2026-11-13 · ersetzt
 
 Korrektur der fachlichen Mietmonate im Zahlungs-Schreibweg.
 

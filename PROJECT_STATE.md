@@ -2,19 +2,20 @@
 
 ## Stand: 2026-11-17
 
-`main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz und der Zahlungsweg 4.8.12 sind in TEST und PROD produktiv aktiviert.
+`main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz und der Zahlungsweg 4.8.13 sind in TEST und PROD produktiv aktiviert.
 
 Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die nächsten sinnvollen Arbeitspakete.
 
-### Aktueller Stand nach PR #46
+### Aktueller Stand nach PR #47
 
-- `main` steht auf dem Stand nach PR #46 und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
+- `main` steht auf dem Stand nach PR #47 und enthält die abgeschlossenen Pakete Z0 Überlaufklassifikation,
   Z1 Speicherrückmeldung und Z2 Heizöl-Verbrauch.
 - Die Überlaufklassifikation, die Diagramm-Fehlerbehandlung, die Heizöl-Tankbilanz und
   der Speichervorgang sind gemeinsam regressionsgetestet.
-- Der dokumentierte Testlauf des letzten `main`-Stands umfasst 483 Tests in 20 Testdateien. Apps Script 4.8.12
-  ist in PROD (bestehende Bereitstellung, Deployment-Version 42) und TEST (bestehende Bereitstellung)
-  veröffentlicht; die jeweiligen URLs blieben unverändert. 4.8.5 bleibt als Rollback-Stand dokumentiert.
+- Der dokumentierte Testlauf des letzten `main`-Stands umfasst 483 Tests in 20 Testdateien. Apps Script 4.8.13
+  ist in PROD (bestehende Bereitstellung, Deployment-Version 43) und TEST (bestehende Bereitstellung,
+  Deployment-Version 8) veröffentlicht; die jeweiligen URLs blieben unverändert. 4.8.5 bleibt als
+  Rollback-Stand dokumentiert.
 - Die lokale Auswahl von TEST und PROD sowie die GitHub-Pages-/Home-Screen-Grundlage sind in PR #35
   enthalten. Die mobile Installation wurde bestätigt; die Persistenz des Zugangsschlüssels über
   URL-Änderungen bleibt als eigener Abnahmepunkt offen, weil ein erneuter Dialog auch durch eine
@@ -106,7 +107,7 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   atomare Schreiboperation sind bewusst als Folgepaket P6.7b getrennt. Die gemeinsame
   `contractService.validateContractPeriods()` prüft jetzt Überschneidungen, Lücken und
   Wechsel innerhalb eines Monats. Details: `docs/p6-7-contract-period-validation.md`.
-- P6.7b wird im Branch `codex/p6-7-server-enforcement` umgesetzt: Der Admin-only-Schreibtyp
+- P6.7b ist mit PR #47 abgeschlossen: Der Admin-only-Schreibtyp
   `MIETERWECHSEL_ANLEGEN` beendet den Vorgängervertrag am Tag vor dem neuen Mietbeginn,
   legt den neuen Vertrag und seine Vertragsparteien an und verwendet dafür den bestehenden
   Script-Lock. Die Aktivität wird aus dem Vertragszeitraum abgeleitet und die aktive Mieter-View
@@ -116,10 +117,15 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   über einen gespeicherten Fingerabdruck der normalisierten Anfrage und Parteien abgeglichen,
   `kaution_ist` wird nicht aus dem Client übernommen und doppelte Parteien werden abgewiesen.
   Erwarteter Vertragsstand, Zeitraumprüfung, Einheiten-/Personenreferenzen und Rollback sind
-  automatisiert getestet.
-  Die UI-Maske und die Neuvermietung einer leerstehenden Einheit bleiben Folgepakete.
-  Der Branch hebt das Apps-Script-Backend auf 4.8.13; Deployment in TEST und PROD ist erst
-  nach Merge und manueller Abnahme erforderlich.
+  automatisiert getestet. TEST und PROD laufen auf Apps Script 4.8.13; die Trigger- und
+  Schemafunktionen wurden in beiden Umgebungen manuell ausgeführt und geprüft. Die UI-Maske
+  und die Neuvermietung einer leerstehenden Einheit bleiben Folgepakete.
+- P6.2 ist im Branch `codex/p6-2-payment-rules` in Umsetzung: `PaymentRules.js` ist die
+  gemeinsame Pure-Function-Quelle für Zahlungsart, Mietmonat, Guthaben, Erstattung, Storno
+  und Monatsstatus in Browser, Mock und Apps Script. Die Tests laden dieselbe Quelle in allen
+  drei Pfaden. Der Branch-Lauf umfasst 548 Tests in 21 Testdateien; Asset-Prüfung,
+  Syntaxprüfung und `git diff --check` sind grün. TEST-Deployment und fachliche Abnahme folgen
+  nach dem Review; PROD bleibt bis dahin auf 4.8.13.
 - Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
   erzeugt und veröffentlicht ausschließlich `runtime-config.js`; `runtime-secrets.js` bleibt lokal und
   wird durch einen negativen Workflow-Test gegen versehentliche Veröffentlichung geschützt.
@@ -383,7 +389,7 @@ Dieser Bereich erlaubt produktive Schreibtests, ohne reale Objekt-, Einheiten- o
 ## Google Apps Script
 
 Das Backend wird über `clasp` aus dem versionierten Repository synchronisiert. Backend
-4.8.12 ist in der bestehenden PROD-Bereitstellung (Deployment-Version 42) und in der
+4.8.13 ist in der bestehenden PROD-Bereitstellung (Deployment-Version 43) und in der
 getrennten TEST-Bereitstellung veröffentlicht; beide URLs blieben unverändert. Ein anonymer
 GET-Aufruf gegen beide Endpunkte liefert nach dem Deploy
 `UNAUTHORIZED`.

@@ -45,6 +45,14 @@ describe('GitHub-Pages-Build', () => {
     expect(workflow).toContain('node tools/check-frontend-assets.mjs --root=dist-site');
   });
 
+  it('lädt die gemeinsame Zahlungsregelquelle vor der Zahlungsansicht', () => {
+    const rulesIndex = index.indexOf('apps-script/PaymentRules.js');
+    const paymentUiIndex = index.indexOf('payment-ui.js');
+
+    expect(rulesIndex).toBeGreaterThan(-1);
+    expect(paymentUiIndex).toBeGreaterThan(rulesIndex);
+  });
+
   it('aktualisiert sichtbare Verträge und Mieteingänge nach dem Hintergrundladen', () => {
     const fullDataIndex = index.indexOf('dataService.setInitialData(fullData)');
     const contractRefreshIndex = index.indexOf('contractUiService.render()', fullDataIndex);

@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 const ACCESS_KEY = 'zaehlerstand-test-key';
 
 function backend({ lockFails = false, failLogAppend = false } = {}) {
+  const paymentRules = readFileSync(new URL('../apps-script/PaymentRules.js', import.meta.url), 'utf8');
   const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
   const calls = { viewUpdates: 0 };
   const sheetsData = {
@@ -51,7 +52,7 @@ function backend({ lockFails = false, failLogAppend = false } = {}) {
     SpreadsheetApp: { getActiveSpreadsheet: () => ss, flush: () => { calls.flushes = (calls.flushes || 0) + 1; } },
     Utilities: { formatDate: () => '2026-10-30 09:05:00' }
   };
-  const factory = new Function(...Object.keys(globals), 'calls', `${code}
+  const factory = new Function(...Object.keys(globals), 'calls', `${paymentRules}; ${code}
     updateAktiveMieterView = () => { calls.viewUpdates++; };
     return { doPost };`);
   const api = factory(...Object.values(globals), calls);

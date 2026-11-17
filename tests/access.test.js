@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 const KEY = 'test-only-key';
 
 function backend({ key, accessKeys, paymentRows } = {}) {
+  const paymentRules = readFileSync(new URL('../apps-script/PaymentRules.js', import.meta.url), 'utf8');
   const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
   const calls = { locks: 0, viewUpdates: 0, contractWrites: [], tenantChanges: [] };
   const rows = {
@@ -47,7 +48,7 @@ function backend({ key, accessKeys, paymentRows } = {}) {
     LockService: { getScriptLock: () => { calls.locks++; return { waitLock() {}, releaseLock() {} }; } },
     SpreadsheetApp: { getActiveSpreadsheet: () => ss }
   };
-  const factory = new Function(...Object.keys(globals), 'calls', `${code}
+  const factory = new Function(...Object.keys(globals), 'calls', `${paymentRules}; ${code}
     updateAktiveMieterView = () => { calls.viewUpdates++; };
     updateVerbrauchViews = () => { calls.viewUpdates++; return { status: 'success', message: 'Verbrauchsviews aktualisiert' }; };
     handleContractWrite = (spreadsheet, payload) => { calls.contractWrites.push(payload); return { status: 'success', vertrag: {}, anpassung: {} }; };

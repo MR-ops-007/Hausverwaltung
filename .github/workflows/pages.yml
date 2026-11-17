@@ -50,7 +50,7 @@ jobs:
              environment-service.js heating-oil-service.js payment-ui.js ui-service.js \
             validation-service.js vpi-service.js \
             favicon.png manifest.webmanifest dist-site/
-          cp apps-script/ContractService.js dist-site/apps-script/
+          cp apps-script/ContractService.js apps-script/PaymentRules.js dist-site/apps-script/
           cp assets/*.svg assets/*.png dist-site/assets/
           touch dist-site/.nojekyll
 

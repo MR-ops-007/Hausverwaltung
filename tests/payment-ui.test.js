@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { tenantChangeFixture } from '../tools/mock-rental-fixtures.mjs';
 
 const paymentCode = readFileSync(new URL('../payment-ui.js', import.meta.url), 'utf8');
+const paymentRulesCode = readFileSync(new URL('../apps-script/PaymentRules.js', import.meta.url), 'utf8');
 const contractCode = readFileSync(new URL('../apps-script/ContractService.js', import.meta.url), 'utf8');
 const contractService = new Function(`${contractCode}; return contractService;`)();
 
@@ -10,7 +11,7 @@ function loadPaymentService(state, document = {}, cloudService = {}, uiOptions =
   const dataService = { state: { ...state } };
   const uiService = { escapeHtml: value => String(value ?? ''), setNavigationState() {}, closeModal() {}, ...uiOptions };
   const confirm = typeof uiOptions.confirm === 'function' ? uiOptions.confirm : () => true;
-  const factory = new Function('dataService', 'uiService', 'document', 'cloudService', 'confirm', 'contractService', `${paymentCode}; return paymentUiService;`);
+  const factory = new Function('dataService', 'uiService', 'document', 'cloudService', 'confirm', 'contractService', `${paymentRulesCode}; ${paymentCode}; return paymentUiService;`);
   return factory(dataService, uiService, document, cloudService, confirm, contractService);
 }
 
