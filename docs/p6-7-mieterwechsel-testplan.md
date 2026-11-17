@@ -143,8 +143,9 @@ P6.7c separat umgesetzt.
 Vor der echten Abnahme müssen `prepareContractSchema()` und einmalig
 `installDailyViewTrigger()` im Apps-Script-Projekt ausgeführt werden. Das erste legt das
 append-only Blatt `MieterwechselProtokoll` an; das zweite installiert den täglichen Handler
-`refreshAktiveMieterViewDaily()`. Dieser Wrapper schützt den Refresh mit dem Script-Lock und
-ruft `updateAktiveMieterView()` ohne das von Apps Script gelieferte Ereignisobjekt auf.
+`refreshAktiveMieterViewDaily()`. Dieser Wrapper wartet bis zu 30 Sekunden auf den
+Script-Lock, schützt damit den Refresh und ruft `updateAktiveMieterView()` ohne das von
+Apps Script gelieferte Ereignisobjekt auf.
 Für automatisierte Stichtagstests akzeptiert `updateAktiveMieterView(now)` weiterhin ein
 echtes `Date`-Objekt; ein Trigger-Ereignis darf dabei nicht als Stichtag verwendet werden.
 Nach der Installation ist der Handler einmal manuell auszulösen und `_view_aktive_mieter`

@@ -48,10 +48,12 @@ Version bereitgestellt und mit einem isolierten Testobjekt abgenommen werden.
 
 `prepareContractSchema()` legt zusätzlich das append-only Blatt
 `MieterwechselProtokoll` an. Darin wird der Fingerabdruck der normalisierten Anlageanfrage
-gespeichert. Vor dem Deployment muss die Funktion deshalb einmal manuell ausgeführt werden.
+gespeichert; leere optionale Felder werden dabei nicht als eigene Werte unterschieden.
+Vor dem Deployment muss die Funktion deshalb einmal manuell ausgeführt werden.
 Die Funktion `installDailyViewTrigger()` richtet einmalig einen täglichen Trigger für
 `refreshAktiveMieterViewDaily()` ein. Der Wrapper verwirft das von Apps Script gelieferte
-Ereignisobjekt, verwendet den Script-Lock und ruft die View ohne künstlichen Stichtag auf.
+Ereignisobjekt, wartet bis zu 30 Sekunden auf den Script-Lock und ruft die View ohne
+künstlichen Stichtag auf. Ein übersprungener Lauf wird protokolliert.
 Vorhandene Trigger auf dem alten Handler werden dabei entfernt; doppelte Trigger auf dem
 neuen Handler werden bereinigt.
 

@@ -58,7 +58,7 @@ function normalizeTenantChangeRequest(input) {
     } else if (typeof value === 'string') {
       value = value.trim();
     }
-    normalized[field] = value;
+    if (value !== '') normalized[field] = value;
   });
   return normalized;
 }

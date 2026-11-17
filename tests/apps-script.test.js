@@ -76,8 +76,9 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
     let locked = false;
     let released = false;
+    let waitMs = 0;
     const lock = {
-      tryLock: () => !locked,
+      tryLock: timeout => { waitMs = timeout; return !locked; },
       releaseLock: () => { released = true; }
     };
     const LockService = { getScriptLock: () => lock };
@@ -85,6 +86,7 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     const refresh = new Function('LockService', 'SpreadsheetApp', `${code}; return refreshAktiveMieterViewDaily;`)(LockService, SpreadsheetApp);
 
     expect(refresh()).toEqual({ status: 'success' });
+    expect(waitMs).toBe(30000);
     expect(released).toBe(true);
     released = false;
     locked = true;

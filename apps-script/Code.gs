@@ -3123,7 +3123,8 @@ function updateAktiveMieterView(now) {
 /** Refresh entry point for the time trigger; Apps Script passes an event object. */
 function refreshAktiveMieterViewDaily() {
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(1000)) {
+  if (!lock.tryLock(30000)) {
+    if (typeof Logger !== 'undefined') Logger.log('refreshAktiveMieterViewDaily übersprungen: Script-Lock ist belegt.');
     return { status: 'skipped', reason: 'LOCK_BUSY' };
   }
   try {
