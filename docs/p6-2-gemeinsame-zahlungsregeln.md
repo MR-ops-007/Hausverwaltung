@@ -25,7 +25,7 @@ Zeitzonenformatierung in Apps Script.
 | Regel | Verhalten |
 | :--- | :--- |
 | Zahlungsart | `Miete`, `Kaution`, `Nachzahlung`, `Erstattung` und `Storno` werden unabhängig von Groß-/Kleinschreibung auf einen kanonischen Wert gebracht. Leere Art bedeutet `Miete`. |
-| Betrag | Deutsches Dezimalformat wird akzeptiert und auf Cent gerundet. Ein Tausenderpunkt ohne Dezimalkomma, zum Beispiel `1.250`, wird als 1.250 EUR gelesen; leere oder ungültige Beträge werden abgewiesen. |
+| Betrag | Deutsches Dezimalformat wird akzeptiert und auf Cent gerundet. Ein Tausenderpunkt ohne Dezimalkomma, zum Beispiel `1.250`, wird als 1.250 EUR gelesen; leere, ungültige oder nicht auf Cent darstellbare Beträge werden abgewiesen. |
 | Fachlicher Mietmonat | `YYYY-MM` und deutsche Datumswerte werden normalisiert; ein ISO-Zeitstempel wird in der lokalen Zeitzone ausgewertet. |
 | Legacy-Zahlung | Leerer `mietmonat` ohne Zahlungsgruppe wird dem Eingangsmonat zugeordnet. |
 | Guthaben | Leerer `mietmonat` mit `zahlungsgruppe_id` bleibt bewusst nicht zugeordnet und erscheint separat als Guthaben. |

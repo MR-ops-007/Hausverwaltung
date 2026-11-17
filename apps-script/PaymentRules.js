@@ -76,12 +76,18 @@ var paymentRules = (() => {
   };
   const roundCents = amount => Math.round((amount + Math.sign(amount) * Number.EPSILON) * 100) / 100;
   const normalizeAmount = value => {
-    if (typeof value === 'number') return Number.isFinite(value) ? roundCents(value) : null;
+    const numericInput = typeof value === 'number';
     const text = String(value === undefined || value === null ? '' : value).trim().replace(/\s/g, '');
     if (!text) return null;
+    const fraction = text.includes(',')
+      ? text.split(',').pop()
+      : text.match(/^-?\d+\.(\d+)$/)?.[1] || '';
+    const hasMoreThanTwoCents = fraction.replace(/0+$/, '').length > 2;
+    const germanThousands = !numericInput && !text.includes(',') && /^-?[1-9]\d{0,2}(?:\.\d{3})+$/.test(text);
+    if (hasMoreThanTwoCents && !germanThousands) return null;
     const normalized = text.includes(',')
       ? text.replace(/\./g, '').replace(',', '.')
-      : /^-?\d{1,3}(?:\.\d{3})+$/.test(text) ? text.replace(/\./g, '') : text;
+      : germanThousands ? text.replace(/\./g, '') : text;
     const amount = Number(normalized);
     return Number.isFinite(amount) ? roundCents(amount) : null;
   };
