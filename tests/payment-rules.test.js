@@ -11,8 +11,15 @@ describe('gemeinsame Zahlungsregeln', () => {
     expect(rules.normalizeAmount('1.250,50')).toBe(1250.5);
     expect(rules.normalizeAmount('1.250')).toBe(1250);
     expect(rules.normalizeAmount('0.500')).toBe(0.5);
+    expect(rules.normalizeAmount('1.234.567')).toBe(1234567);
+    expect(rules.normalizeAmount('123.456')).toBe(123456);
+    expect(rules.normalizeAmount('12,500')).toBe(12.5);
+    expect(rules.normalizeAmount('\u00a01\u00a0250,00\u00a0')).toBe(1250);
+    expect(rules.normalizeAmount('-1.250,50')).toBe(-1250.5);
     expect(rules.normalizeAmount(1.005)).toBeNull();
     expect(rules.normalizeAmount('1.234,565')).toBeNull();
+    expect(rules.normalizeAmount('1,234.56')).toBeNull();
+    expect(rules.normalizeAmount('12345.678')).toBeNull();
     expect(rules.normalizeAmount('abc')).toBeNull();
     expect(rules.normalizeMonth('29.02.2026')).toBe('2026-02');
     expect(rules.normalizeMonth('2026-13')).toBeNull();
