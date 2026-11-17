@@ -445,7 +445,8 @@ Bankanbindung werden daraus abgeleitet.
    Erstattung, Storno und Statusberechnung zwischen Backend und Mock vereinheitlichen oder
    aus einer gemeinsamen testbaren Quelle ableiten. `apps-script/PaymentRules.js` ist die
    gemeinsame Quelle für Browser, Apps Script und Mock. Der Branch-Lauf ist mit 550 Tests
-   grün; TEST-Abnahme und Deployment folgen nach dem Review.
+   grün; TEST läuft auf Deployment `@9`, die fachliche Abnahme folgt. PROD bleibt bis dahin
+   auf 4.8.13 / `@43`.
 8. **P7.1 CSV-Monatsparser:** Verwendungszwecke wie `Miete Februar 2026` und `02/2026`
    erkennen, Datumsangaben nicht fälschlich als Mietmonat interpretieren und die Quelle des
    Vorschlags anzeigen. Unklare Fälle bleiben bestätigungspflichtig.

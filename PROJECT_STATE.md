@@ -124,8 +124,9 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   gemeinsame Pure-Function-Quelle für Zahlungsart, Mietmonat, Guthaben, Erstattung, Storno
   und Monatsstatus in Browser, Mock und Apps Script. Die Tests laden dieselbe Quelle in allen
   drei Pfaden. Der Branch-Lauf umfasst 550 Tests in 21 Testdateien; Asset-Prüfung,
-  Syntaxprüfung und `git diff --check` sind grün. TEST-Deployment und fachliche Abnahme folgen
-  nach dem Review; PROD bleibt bis dahin auf 4.8.13.
+  Syntaxprüfung und `git diff --check` sind grün. TEST läuft auf Deployment `@9`, der
+  geschützte Endpunkt liefert 4.8.14 und weist ungültige Beträge ab. Die fachliche Abnahme
+  folgt; PROD bleibt bis dahin auf 4.8.13 / `@43`.
 - Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
   erzeugt und veröffentlicht ausschließlich `runtime-config.js`; `runtime-secrets.js` bleibt lokal und
   wird durch einen negativen Workflow-Test gegen versehentliche Veröffentlichung geschützt.

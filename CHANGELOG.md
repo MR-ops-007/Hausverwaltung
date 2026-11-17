@@ -43,7 +43,7 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 Diese Einträge ändern die produktive Apps-Script-Version nicht. Die produktive Version ist
 4.8.13; 4.8.5 bleibt als dokumentierter Rollback-Stand erhalten.
 
-## 4.8.14 · 2026-11-17 · lokal
+## 4.8.14 · 2026-11-17 · test
 
 P6.2: Gemeinsame Zahlungsregeln für Browser, Apps Script und den synthetischen Mock.
 
@@ -60,8 +60,9 @@ P6.2: Gemeinsame Zahlungsregeln für Browser, Apps Script und den synthetischen 
 - Lokal geprüft: 550 Tests in 21 Testdateien sowie Asset-Prüfung, Syntaxprüfung und
   `git diff --check` erfolgreich. Der Mock-Server wurde zusätzlich per HTTP mit Retry,
   ID-Konflikt und Storno-Metadaten geprüft.
-- TEST- und PROD-Deployment sind noch nicht geändert. PROD bleibt auf 4.8.13, Deployment
-  `@43`, bis P6.2 fachlich abgenommen ist.
+- TEST läuft auf Deployment `@9`; PROD bleibt auf 4.8.13, Deployment `@43`, bis P6.2
+  fachlich abgenommen ist. Der geschützte TEST-Endpunkt liefert 4.8.14 und weist eine
+  bewusst ungültige Zahlung mit `PAYMENT_AMOUNT_INVALID` ab.
 
 ## 4.8.13 · 2026-11-17 · produktiv
 

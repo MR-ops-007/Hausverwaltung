@@ -75,7 +75,8 @@ Abnahmekriterien für TEST:
 7. UI und Backend zeigen für bezahlt, teilbezahlt, überfällig und Leerstand dieselben
    Statusgrundlagen.
 
-Ein Apps-Script-Deployment ist für die Dokumentation dieses Branches noch nicht
-ausgeführt. Vor dem Merge muss `PaymentRules.js` zusammen mit `Code.gs` als neue
-Backend-Version in TEST bereitgestellt und dort mit dem isolierten Testobjekt
-abgenommen werden. PROD 4.8.13 bleibt bis dahin unverändert.
+Apps Script 4.8.14 ist in TEST auf Deployment `@9` bereitgestellt. `clasp status` bestätigt,
+dass `PaymentRules.js` als Datei im TEST-Projekt verfolgt wird. Der geschützte Endpunkt
+liefert `backend_version: 4.8.14`, `payment_schema_ready: true` und weist eine bewusst
+ungültige Zahlung mit `PAYMENT_AMOUNT_INVALID` ab. Die fachliche TEST-Abnahme der positiven
+Schreibfälle folgt noch; PROD 4.8.13 auf Deployment `@43` bleibt bis dahin unverändert.
