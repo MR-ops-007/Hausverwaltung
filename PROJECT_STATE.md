@@ -1,8 +1,8 @@
 # PROJECT_STATE - Hausverwaltung
 
-## Stand: 2026-11-17
+## Stand: 2026-11-18
 
-`main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz und der Zahlungsweg 4.8.13 sind in TEST und PROD produktiv aktiviert.
+`main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz und der Zahlungsweg 4.8.14 sind in TEST und PROD produktiv aktiviert.
 
 Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die nächsten sinnvollen Arbeitspakete.
 
@@ -12,9 +12,9 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Z1 Speicherrückmeldung und Z2 Heizöl-Verbrauch.
 - Die Überlaufklassifikation, die Diagramm-Fehlerbehandlung, die Heizöl-Tankbilanz und
   der Speichervorgang sind gemeinsam regressionsgetestet.
-- Der dokumentierte Testlauf des letzten `main`-Stands umfasst 483 Tests in 20 Testdateien. Apps Script 4.8.13
-  ist in PROD (bestehende Bereitstellung, Deployment-Version 43) und TEST (bestehende Bereitstellung,
-  Deployment-Version 8) veröffentlicht; die jeweiligen URLs blieben unverändert. 4.8.5 bleibt als
+- Der dokumentierte Testlauf des letzten `main`-Stands umfasst 483 Tests in 20 Testdateien. Apps Script 4.8.14
+  ist in PROD und TEST in den bestehenden Bereitstellungen aktiv; die jeweiligen URLs und
+  Deployment-IDs blieben unverändert. 4.8.13 bleibt als
   Rollback-Stand dokumentiert.
 - Die lokale Auswahl von TEST und PROD sowie die GitHub-Pages-/Home-Screen-Grundlage sind in PR #35
   enthalten. Die mobile Installation wurde bestätigt; die Persistenz des Zugangsschlüssels über
@@ -117,10 +117,11 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   über einen gespeicherten Fingerabdruck der normalisierten Anfrage und Parteien abgeglichen,
   `kaution_ist` wird nicht aus dem Client übernommen und doppelte Parteien werden abgewiesen.
   Erwarteter Vertragsstand, Zeitraumprüfung, Einheiten-/Personenreferenzen und Rollback sind
-  automatisiert getestet. TEST und PROD laufen auf Apps Script 4.8.13; die Trigger- und
+  automatisiert getestet. TEST und PROD laufen auf Apps Script 4.8.14; die Trigger- und
   Schemafunktionen wurden in beiden Umgebungen manuell ausgeführt und geprüft. Die UI-Maske
   und die Neuvermietung einer leerstehenden Einheit bleiben Folgepakete.
-- P6.2 ist im Branch `codex/p6-2-payment-rules` umgesetzt und fachlich in TEST abgenommen:
+- P6.2 ist im Branch `codex/p6-2-payment-rules` umgesetzt, fachlich in TEST abgenommen und
+  im PROD-Apps-Script bereitgestellt:
   `PaymentRules.js` ist die
   gemeinsame Pure-Function-Quelle für Zahlungsart, Mietmonat, Guthaben, Erstattung, Storno
   und Monatsstatus in Browser, Mock und Apps Script. Die Tests laden dieselbe Quelle in allen
@@ -128,7 +129,8 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Syntaxprüfung und `git diff --check` sind grün. Die echte TEST-Abnahme am 2026-11-18
   umfasste 25 Checks gegen Vertrag 35, inklusive Persistenz nach Reload, Retry,
   Teil-/Überzahlung, Kaution, Erstattung, Storno und Betragsgrenzen. TEST läuft auf
-  Deployment `@9`; PROD bleibt auf 4.8.13 / `@43`.
+  Deployment `@9`; PROD läuft auf 4.8.14 über die bestehende Deployment-ID. 4.8.13 bleibt
+  als dokumentierter Rollback-Stand erhalten.
 - Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
   erzeugt und veröffentlicht ausschließlich `runtime-config.js`; `runtime-secrets.js` bleibt lokal und
   wird durch einen negativen Workflow-Test gegen versehentliche Veröffentlichung geschützt.
@@ -392,8 +394,8 @@ Dieser Bereich erlaubt produktive Schreibtests, ohne reale Objekt-, Einheiten- o
 ## Google Apps Script
 
 Das Backend wird über `clasp` aus dem versionierten Repository synchronisiert. Backend
-4.8.13 ist in der bestehenden PROD-Bereitstellung (Deployment-Version 43) und in der
-getrennten TEST-Bereitstellung veröffentlicht; beide URLs blieben unverändert. Ein anonymer
+4.8.14 ist in der bestehenden PROD-Bereitstellung und in der getrennten
+TEST-Bereitstellung veröffentlicht; URLs und Deployment-IDs blieben unverändert. Ein anonymer
 GET-Aufruf gegen beide Endpunkte liefert nach dem Deploy
 `UNAUTHORIZED`.
 

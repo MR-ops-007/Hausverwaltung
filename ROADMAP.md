@@ -3,7 +3,7 @@
 Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklungspakete.
 `PROJECT_STATE.md` beschreibt den aktuellen Systemstand, `CHANGELOG.md` die Releases.
 
-**Stand: 2026-11-17**
+**Stand: 2026-11-18**
 
 ## Arbeitsregeln
 
@@ -20,7 +20,8 @@ Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklun
 
 ## Erledigt auf `main`
 
-Remote `origin/main` enthält aktuell PR #47 und den produktiven Backend-Stand 4.8.13.
+Remote `origin/main` enthält aktuell PR #47; das produktive Backend wurde anschließend auf
+4.8.14 aktualisiert.
 
 | PR | Inhalt |
 | --- | --- |
@@ -322,7 +323,7 @@ Erfassungsmodul, kein Mahnwesen und keine Nebenkostenabrechnung.
 - `vertrag_capabilities` meldet, ob das Zahlungsschema vollständig vorbereitet ist;
   die UI schreibt nicht, wenn `payment_schema_ready` fehlt. Mock und Apps-Script prüfen
   die gleichen Zahlungsarten, Mietmonate, Konflikte und Storno-Regeln.
-- Der produktive Backend-Schreibweg läuft auf 4.8.13. Die frühere produktive 4.8.5 bleibt als
+- Der produktive Backend-Schreibweg läuft auf 4.8.14. Die frühere produktive 4.8.13 bleibt als
   Rollback-Stand erhalten.
 
 **Voraussetzung:** P1.1/P1.2 Rollen und Geräteeinrichtung sind produktiv geprüft.
@@ -446,8 +447,8 @@ Bankanbindung werden daraus abgeleitet.
    aus einer gemeinsamen testbaren Quelle ableiten. `apps-script/PaymentRules.js` ist die
    gemeinsame Quelle für Browser, Apps Script und Mock. Der Branch-Lauf ist mit 550 Tests
    grün; die echte TEST-Abnahme am 2026-11-18 umfasste 25 Checks gegen Vertrag 35.
-   TEST läuft auf Deployment `@9`; PROD bleibt bis zum Merge und PROD-Rollout auf
-   4.8.13 / `@43`.
+   TEST läuft auf Deployment `@9`; PROD wurde am 2026-11-18 über die bestehende Deployment-ID
+   auf 4.8.14 aktualisiert. 4.8.13 bleibt als Rollback-Stand dokumentiert.
 8. **P7.1 CSV-Monatsparser:** Verwendungszwecke wie `Miete Februar 2026` und `02/2026`
    erkennen, Datumsangaben nicht fälschlich als Mietmonat interpretieren und die Quelle des
    Vorschlags anzeigen. Unklare Fälle bleiben bestätigungspflichtig.

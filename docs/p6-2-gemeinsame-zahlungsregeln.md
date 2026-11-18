@@ -96,4 +96,6 @@ einzelne Storno-Gegenbuchungen neutralisiert; zwei Fälle wurden bereits im Test
 fachlich storniert. Die append-only Stornozeilen bleiben als nachvollziehbares
 Abnahmeprotokoll im TEST-Sheet. Ein Netzwerk-Retry, der eine bereits gespeicherte Zahlung
 zurücklieferte, wurde korrekt als idempotenter Erfolg (`bereits_vorhanden`) bewertet.
-PROD 4.8.13 auf Deployment `@43` blieb unverändert.
+Anschließend wurde das PROD-Apps-Script über die bestehende Deployment-ID auf 4.8.14
+aktualisiert; URL und Deployment-ID blieben unverändert. 4.8.13 bleibt als Rollback-Stand
+dokumentiert.

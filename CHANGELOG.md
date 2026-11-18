@@ -41,9 +41,9 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
   erforderlich.
 
 Diese Einträge ändern die produktive Apps-Script-Version nicht. Die produktive Version ist
-4.8.13; 4.8.5 bleibt als dokumentierter Rollback-Stand erhalten.
+4.8.14; 4.8.13 und 4.8.5 bleiben als dokumentierte Rollback-Stände erhalten.
 
-## 4.8.14 · 2026-11-17 · test
+## 4.8.14 · 2026-11-18 · produktiv
 
 P6.2: Gemeinsame Zahlungsregeln für Browser, Apps Script und den synthetischen Mock.
 
@@ -62,10 +62,11 @@ P6.2: Gemeinsame Zahlungsregeln für Browser, Apps Script und den synthetischen 
   ID-Konflikt und Storno-Metadaten geprüft.
 - Die echte TEST-Abnahme lief am 2026-11-18 mit 25 grünen Checks auf TEST-Vertrag 35;
   Persistenz nach Reload, Retry, Teil-/Überzahlung, Kaution, Erstattung, Storno und
-  deutsche Betragsgrenzen sind geprüft. Die Testbuchungen wurden per Storno neutralisiert;
-  PROD bleibt auf 4.8.13, Deployment `@43`.
+  deutsche Betragsgrenzen sind geprüft. Die Testbuchungen wurden per Storno neutralisiert.
+- Die bestehende PROD-Bereitstellung wurde am 2026-11-18 auf 4.8.14 aktualisiert;
+  URL und Deployment-ID bleiben unverändert. 4.8.13 ist der dokumentierte Rollback-Stand.
 
-## 4.8.13 · 2026-11-17 · produktiv
+## 4.8.13 · 2026-11-17 · ersetzt
 
 P6.7b: Serverseitige Grundlage für einen sicheren Mieterwechsel.
 
