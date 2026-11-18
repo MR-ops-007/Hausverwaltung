@@ -60,9 +60,10 @@ P6.2: Gemeinsame Zahlungsregeln für Browser, Apps Script und den synthetischen 
 - Lokal geprüft: 550 Tests in 21 Testdateien sowie Asset-Prüfung, Syntaxprüfung und
   `git diff --check` erfolgreich. Der Mock-Server wurde zusätzlich per HTTP mit Retry,
   ID-Konflikt und Storno-Metadaten geprüft.
-- TEST läuft auf Deployment `@9`; PROD bleibt auf 4.8.13, Deployment `@43`, bis P6.2
-  fachlich abgenommen ist. Der geschützte TEST-Endpunkt liefert 4.8.14 und weist eine
-  bewusst ungültige Zahlung mit `PAYMENT_AMOUNT_INVALID` ab.
+- Die echte TEST-Abnahme lief am 2026-11-18 mit 25 grünen Checks auf TEST-Vertrag 35;
+  Persistenz nach Reload, Retry, Teil-/Überzahlung, Kaution, Erstattung, Storno und
+  deutsche Betragsgrenzen sind geprüft. Die Testbuchungen wurden per Storno neutralisiert;
+  PROD bleibt auf 4.8.13, Deployment `@43`.
 
 ## 4.8.13 · 2026-11-17 · produktiv
 

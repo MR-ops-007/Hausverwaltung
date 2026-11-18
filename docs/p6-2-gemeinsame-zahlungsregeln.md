@@ -61,6 +61,9 @@ HTTP mit einer deutschen Betragsangabe, einem Retry, einem ID-Konflikt und einem
 Storno mit serverseitig abgeleiteten Metadaten geprüft. Der Apps-Script-Schreibweg
 weist leere, ungültige und nullwertige Beträge ebenfalls direkt ab.
 
+Das wiederholbare Skript `npm run qa:p6-2:test` verwendet ausschließlich den lokalen
+TEST-Schlüssel und eindeutige `P62_LIVE_...`-IDs. Es schreibt keine PROD-Daten.
+
 Abnahmekriterien für TEST:
 
 1. Eine Zahlung mit `mietmonat = 2026-02` und Eingangsdatum im November bleibt dem
@@ -75,8 +78,22 @@ Abnahmekriterien für TEST:
 7. UI und Backend zeigen für bezahlt, teilbezahlt, überfällig und Leerstand dieselben
    Statusgrundlagen.
 
+## Echte TEST-Abnahme am 2026-11-18
+
 Apps Script 4.8.14 ist in TEST auf Deployment `@9` bereitgestellt. `clasp status` bestätigt,
 dass `PaymentRules.js` als Datei im TEST-Projekt verfolgt wird. Der geschützte Endpunkt
-liefert `backend_version: 4.8.14`, `payment_schema_ready: true` und weist eine bewusst
-ungültige Zahlung mit `PAYMENT_AMOUNT_INVALID` ab. Die fachliche TEST-Abnahme der positiven
-Schreibfälle folgt noch; PROD 4.8.13 auf Deployment `@43` bleibt bis dahin unverändert.
+lieferte `backend_version: 4.8.14`, `payment_schema_ready: true` und `payment_writes: true`.
+
+Der vollständige Lauf mit `npm run qa:p6-2:test` wurde auf dem TEST-Vertrag `35` ausgeführt.
+Ergebnis: **PASS, 25 Checks grün**. Geprüft wurden fachlicher Mietmonat, Legacy-/Guthaben-
+Zuordnung, Retry und ID-Konflikt, Teilzahlung, Überzahlung mit gemeinsamer
+`zahlungsgruppe_id`, Kaution mit verworfenem Mietmonat, negative Erstattung, Storno einer
+Teilzahlung, zweites Storno, Storno einer Erstattung, deutsche Beträge `1.250,50` und
+`1.250`, ungültige Beträge sowie das Berliner Eingangsdatum nach Reload.
+
+Die neun positiven Testzeilen waren nach dem Reload vorhanden. Sieben davon wurden durch
+einzelne Storno-Gegenbuchungen neutralisiert; zwei Fälle wurden bereits im Testablauf
+fachlich storniert. Die append-only Stornozeilen bleiben als nachvollziehbares
+Abnahmeprotokoll im TEST-Sheet. Ein Netzwerk-Retry, der eine bereits gespeicherte Zahlung
+zurücklieferte, wurde korrekt als idempotenter Erfolg (`bereits_vorhanden`) bewertet.
+PROD 4.8.13 auf Deployment `@43` blieb unverändert.

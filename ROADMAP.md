@@ -441,12 +441,13 @@ Bankanbindung werden daraus abgeleitet.
    aktiver Vorgängervertrag existiert. Der aktuelle Mieterwechsel-Schreibweg verlangt bewusst
    einen aktiven Vorgänger; eine neue Vermietung braucht einen eigenen, ebenfalls idempotenten
    Erfassungsvorgang mit Zeitraumprüfung.
-7. **P6.2 Gemeinsame Zahlungsregeln: in Umsetzung in diesem Branch.** Die fachlichen Pure Functions für Mietmonat, Guthaben,
+7. **P6.2 Gemeinsame Zahlungsregeln: umgesetzt und in TEST abgenommen.** Die fachlichen Pure Functions für Mietmonat, Guthaben,
    Erstattung, Storno und Statusberechnung zwischen Backend und Mock vereinheitlichen oder
    aus einer gemeinsamen testbaren Quelle ableiten. `apps-script/PaymentRules.js` ist die
    gemeinsame Quelle für Browser, Apps Script und Mock. Der Branch-Lauf ist mit 550 Tests
-   grün; TEST läuft auf Deployment `@9`, die fachliche Abnahme folgt. PROD bleibt bis dahin
-   auf 4.8.13 / `@43`.
+   grün; die echte TEST-Abnahme am 2026-11-18 umfasste 25 Checks gegen Vertrag 35.
+   TEST läuft auf Deployment `@9`; PROD bleibt bis zum Merge und PROD-Rollout auf
+   4.8.13 / `@43`.
 8. **P7.1 CSV-Monatsparser:** Verwendungszwecke wie `Miete Februar 2026` und `02/2026`
    erkennen, Datumsangaben nicht fälschlich als Mietmonat interpretieren und die Quelle des
    Vorschlags anzeigen. Unklare Fälle bleiben bestätigungspflichtig.

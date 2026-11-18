@@ -19,7 +19,8 @@
     "check:frontend-assets": "node tools/check-frontend-assets.mjs",
     "dev:mock-backend": "node tools/mock-backend-server.mjs",
     "qa:consumption-matrix": "node tools/qa-consumption-matrix.mjs",
-    "qa:consumption-snapshot": "node tools/fetch-verbrauch-snapshot.mjs"
+    "qa:consumption-snapshot": "node tools/fetch-verbrauch-snapshot.mjs",
+    "qa:p6-2:test": "node tools/qa-p6-2-test-acceptance.mjs"
   },
   "devDependencies": {
     "@google/clasp": "^3.3.0",

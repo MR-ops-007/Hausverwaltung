@@ -120,13 +120,15 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   automatisiert getestet. TEST und PROD laufen auf Apps Script 4.8.13; die Trigger- und
   Schemafunktionen wurden in beiden Umgebungen manuell ausgeführt und geprüft. Die UI-Maske
   und die Neuvermietung einer leerstehenden Einheit bleiben Folgepakete.
-- P6.2 ist im Branch `codex/p6-2-payment-rules` in Umsetzung: `PaymentRules.js` ist die
+- P6.2 ist im Branch `codex/p6-2-payment-rules` umgesetzt und fachlich in TEST abgenommen:
+  `PaymentRules.js` ist die
   gemeinsame Pure-Function-Quelle für Zahlungsart, Mietmonat, Guthaben, Erstattung, Storno
   und Monatsstatus in Browser, Mock und Apps Script. Die Tests laden dieselbe Quelle in allen
   drei Pfaden. Der Branch-Lauf umfasst 550 Tests in 21 Testdateien; Asset-Prüfung,
-  Syntaxprüfung und `git diff --check` sind grün. TEST läuft auf Deployment `@9`, der
-  geschützte Endpunkt liefert 4.8.14 und weist ungültige Beträge ab. Die fachliche Abnahme
-  folgt; PROD bleibt bis dahin auf 4.8.13 / `@43`.
+  Syntaxprüfung und `git diff --check` sind grün. Die echte TEST-Abnahme am 2026-11-18
+  umfasste 25 Checks gegen Vertrag 35, inklusive Persistenz nach Reload, Retry,
+  Teil-/Überzahlung, Kaution, Erstattung, Storno und Betragsgrenzen. TEST läuft auf
+  Deployment `@9`; PROD bleibt auf 4.8.13 / `@43`.
 - Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
   erzeugt und veröffentlicht ausschließlich `runtime-config.js`; `runtime-secrets.js` bleibt lokal und
   wird durch einen negativen Workflow-Test gegen versehentliche Veröffentlichung geschützt.
