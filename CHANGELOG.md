@@ -43,6 +43,16 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 Diese Einträge ändern die produktive Apps-Script-Version nicht. Die produktive Version ist
 4.8.14; 4.8.13 und 4.8.5 bleiben als dokumentierte Rollback-Stände erhalten.
 
+## Frontend P6.6 · 2026-11-19 · lokal
+
+Interne Prüfübersicht für mögliche Mieterhöhungen. Die Berechnung liegt zentral in
+`contractService.rentIncreaseReminder()` und zeigt je Vertrag die letzte dokumentierte
+Anpassung, den frühesten internen Prüfungstermin, die Anpassungsart und einen Status.
+Fehlende Indexbasis, fehlende Staffeltermine und unvollständige Historien werden als
+`Prüfung erforderlich` sichtbar. Die Funktion schreibt keine Vertragsdaten und versendet
+keine Benachrichtigungen. Ein Apps-Script-Deployment ist für dieses Paket nicht nötig;
+der Stand ist bis zum Merge lokal.
+
 ## 4.8.14 · 2026-11-18 · produktiv
 
 P6.2: Gemeinsame Zahlungsregeln für Browser, Apps Script und den synthetischen Mock.

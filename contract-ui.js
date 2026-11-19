@@ -54,6 +54,60 @@ const contractUiService = {
     return parties.length ? parties.join(' / ') : name(contract.hauptperson_id) || 'Keine Person zugeordnet';
   },
 
+  selectContractFromOverview(id) {
+    this.selectedId = String(id || '');
+    this.render();
+  },
+
+  renderRentIncreaseOverview(contracts) {
+    const adjustments = dataService.state.mietanpassungen || [];
+    const rows = (contracts || [])
+      .filter(contract => contractService.isCurrentlyActive(contract))
+      .map(contract => ({
+        contract,
+        tenant: this.tenantLabel(contract),
+        unit: this.unitLabel(contract),
+        reminder: contractService.rentIncreaseReminder(contract, adjustments)
+      }))
+      .sort((left, right) => (
+        String(left.unit).localeCompare(String(right.unit), 'de', { numeric: true })
+        || String(left.tenant).localeCompare(String(right.tenant), 'de')
+      ));
+
+    if (!rows.length) return '';
+    return `
+      <section class="rent-increase-overview" aria-labelledby="rent-increase-overview-title">
+        <div class="rent-increase-overview-heading">
+          <div>
+            <h3 id="rent-increase-overview-title">Mieterhöhungsübersicht</h3>
+            <p>Interne Prüferinnerung auf Basis von Vertrag und Soll-Historie. Es wird nichts automatisch geändert.</p>
+          </div>
+          <span class="rent-increase-overview-note">Keine rechtliche Bewertung</span>
+        </div>
+        <div class="rent-increase-list">
+          ${rows.map(({ contract, tenant, unit, reminder }) => `
+            <article class="rent-increase-item rent-increase-status-${reminder.status.toLowerCase()}${String(contract.vertrag_id) === this.selectedId ? ' is-selected' : ''}">
+              <div class="rent-increase-item-main">
+                <strong>${this.escape(unit)} · ${this.escape(tenant)}</strong>
+                <span>${this.escape(reminder.typeLabel)}</span>
+              </div>
+              <span class="rent-increase-status">${this.escape(reminder.statusLabel)}</span>
+              <div class="rent-increase-item-meta">
+                <span>${reminder.lastAdjustment
+                  ? `Letzte dokumentierte Anpassung: ${this.escape(reminder.lastAdjustment.split('-').reverse().join('.'))}`
+                  : 'Letzte Anpassung: keine dokumentiert'}</span>
+                <span>${reminder.earliestReview
+                  ? `Früheste interne Prüfung: ${this.escape(reminder.earliestReview.split('-').reverse().join('.'))}`
+                  : 'Termin nicht aus den Vertragsdaten ableitbar'}</span>
+              </div>
+              <p>${this.escape(reminder.reason)}</p>
+              <button type="button" class="contract-button-secondary" data-vertrag-id="${this.escape(contract.vertrag_id)}" onclick="contractUiService.selectContractFromOverview(this.dataset.vertragId)">Vertrag anzeigen</button>
+            </article>
+          `).join('')}
+        </div>
+      </section>`;
+  },
+
   startLabel(contract) {
     try { return contractService.iso(contractService.date(contract.start_datum)).split('-').reverse().join('.'); }
     catch (error) { return 'Mietbeginn fehlt'; }
@@ -111,7 +165,9 @@ const contractUiService = {
     const deadlineType = contract.zahlungsziel_typ || 'WERKTAG';
     const deadlineValue = contract.zahlungsziel_wert || (deadlineType === 'WERKTAG' ? 3 : 1);
     this.loadedSnapshot = contractService.snapshot(contract);
+    const rentIncreaseOverview = this.renderRentIncreaseOverview(objectContracts);
     output.innerHTML = `
+      ${rentIncreaseOverview}
       <div class="contract-fields">
         <label>Objekt<select id="contract-object-selector" onchange="contractUiService.selectObject(this.value)">${objectIds.map(id => {
           const object = (dataService.state.objekte || []).find(row => String(row.objekt_id) === id);

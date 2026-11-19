@@ -76,6 +76,91 @@ describe('contract domain rules', () => {
   it('uses an assumed access today for preview without claiming an old effective date', () => {
     expect(service.previewIndex(current, { ...input, zugang_datum: '' }, unit, now).fruehestens_ab).toBe('2026-12-01');
   });
+  it('marks a long-running contract without an adjustment history as due', () => {
+    const reminder = service.rentIncreaseReminder({
+      ...current, erhoehungs_typ: 'Normal', start_datum: '2024-03-01', letzte_anpassung: ''
+    }, [], now);
+    expect(reminder).toMatchObject({
+      status: 'DUE',
+      statusLabel: 'Prüfung fällig',
+      lastAdjustment: '',
+      earliestReview: '2025-03-01'
+    });
+  });
+  it('keeps the no-adjustment status when the first review date is in the future', () => {
+    const reminder = service.rentIncreaseReminder({
+      ...current, erhoehungs_typ: 'Normal', start_datum: '2026-06-01', letzte_anpassung: ''
+    }, [], now);
+    expect(reminder).toMatchObject({
+      status: 'NO_ADJUSTMENT',
+      statusLabel: 'Keine Anpassung dokumentiert',
+      earliestReview: '2027-06-01'
+    });
+  });
+  it('handles a leap-day contract anniversary without throwing', () => {
+    const reminder = service.rentIncreaseReminder({
+      ...current, erhoehungs_typ: 'Normal', start_datum: '2024-02-29', letzte_anpassung: ''
+    }, [], new Date('2025-03-01T12:00:00Z'));
+    expect(reminder).toMatchObject({ status: 'DUE', earliestReview: '2025-03-01' });
+  });
+  it('marks a documented adjustment as pending before the next review date', () => {
+    const reminder = service.rentIncreaseReminder({ ...current, letzte_anpassung: '2026-06-01' }, [{
+      vertrag_id: current.vertrag_id,
+      wirksam_ab: '2026-06-01',
+      nachher_json: JSON.stringify({ letzte_anpassung: '2026-06-01' })
+    }], now);
+    expect(reminder).toMatchObject({
+      status: 'PENDING',
+      statusLabel: 'Noch nicht möglich',
+      earliestReview: '2027-06-01'
+    });
+  });
+  it('uses the annual index rule and marks a due documented adjustment', () => {
+    const reminder = service.rentIncreaseReminder({ ...current, letzte_anpassung: '2025-01-15' }, [{
+      vertrag_id: current.vertrag_id,
+      wirksam_ab: '2025-01-15',
+      erfasst_am: '2025-01-10',
+      nachher_json: JSON.stringify({ letzte_anpassung: '2025-01-15' })
+    }], now);
+    expect(reminder).toMatchObject({
+      status: 'DUE',
+      statusLabel: 'Prüfung fällig',
+      lastAdjustment: '2025-01-15',
+      earliestReview: '2026-02-01'
+    });
+  });
+  it('requires explicit schedule data for staffel contracts', () => {
+    const reminder = service.rentIncreaseReminder({ ...current, erhoehungs_typ: 'Staffel' }, [], now);
+    expect(reminder).toMatchObject({
+      status: 'REQUIRED',
+      statusLabel: 'Prüfung erforderlich',
+      earliestReview: ''
+    });
+    expect(reminder.reason).toContain('Staffeltermine');
+  });
+  it('marks missing contract dates, index data and incomplete history for review', () => {
+    expect(service.rentIncreaseReminder({ ...current, erhoehungs_typ: 'Normal', start_datum: '' }, [], now))
+      .toMatchObject({ status: 'REQUIRED', statusLabel: 'Prüfung erforderlich' });
+    expect(service.rentIncreaseReminder({ ...current, index_basis_wert: '' }, [], now))
+      .toMatchObject({ status: 'REQUIRED', statusLabel: 'Prüfung erforderlich' });
+    expect(service.rentIncreaseReminder({ ...current, letzte_anpassung: '2025-01-15' }, [], now))
+      .toMatchObject({ status: 'REQUIRED', statusLabel: 'Prüfung erforderlich', historyIncomplete: true });
+  });
+  it('uses the latest documented history entry and marks fallback dates', () => {
+    const reminder = service.rentIncreaseReminder({ ...current, letzte_anpassung: '' }, [{
+      vertrag_id: current.vertrag_id,
+      wirksam_ab: '',
+      erfasst_am: '2026-02-03',
+      nachher_json: JSON.stringify({ letzte_anpassung: '' })
+    }], now);
+    expect(reminder).toMatchObject({
+      lastAdjustment: '2026-02-03',
+      lastAdjustmentEstimated: true,
+      earliestReview: '2027-03-01',
+      status: 'PENDING'
+    });
+    expect(reminder.reason).toContain('geschätzt');
+  });
   it('rejects identity changes, unsafe links and direct index rent edits', () => {
     expect(() => service.preparePatch(current, { vertrag_id: 'OTHER' })).toThrow();
     expect(() => service.preparePatch(current, { vertragsdokument_url: 'javascript:alert(1)' })).toThrow();
@@ -682,7 +767,31 @@ describe('contract view', () => {
     expect(html).not.toContain('oeffnen');
     expect(html).toContain('Mieteingang spätestens am');
     expect(html).toContain('Werktag oder Kalendertag');
+    expect(html).toContain('Mieterhöhungsübersicht');
+    expect(html).toContain('Keine rechtliche Bewertung');
+    expect(html).toContain('Vertrag anzeigen');
     expect(html).toContain('600 → 660 EUR');
     expect(html).toContain('noch nicht freigeschaltet');
+  });
+  it('shows rent-increase reminders only for currently active contracts', () => {
+    const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
+    const oldContract = { ...current, vertrag_id: 'V_OLD', end_datum: '2026-01-31', hauptperson_id: 'P_OLD' };
+    const activeContract = { ...current, vertrag_id: 'V_ACTIVE', start_datum: '2026-02-01', hauptperson_id: 'P_ACTIVE' };
+    const dataService = { state: {
+      vertraege: [oldContract, activeContract],
+      einheiten: [unit],
+      personen: [
+        { person_id: 'P_OLD', vorname: 'Historischer', name: 'Mieter' },
+        { person_id: 'P_ACTIVE', vorname: 'Aktiver', name: 'Mieter' }
+      ],
+      vertragsparteien: [],
+      mietanpassungen: []
+    } };
+    const ui = new Function('dataService', 'contractService', 'uiService', `${source};return contractUiService;`)(
+      dataService, service, { escapeHtml: value => String(value ?? '') }
+    );
+    const html = ui.renderRentIncreaseOverview([oldContract, activeContract]);
+    expect(html).toContain('data-vertrag-id="V_ACTIVE"');
+    expect(html).not.toContain('data-vertrag-id="V_OLD"');
   });
 });
