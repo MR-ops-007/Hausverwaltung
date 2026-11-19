@@ -113,15 +113,26 @@ Backend-Deployment. Der Frontend-Teil von P6.2 wird erst mit dem Merge von PR #4
 dem anschließenden GitHub-Pages-Deploy produktiv. 4.8.13 bleibt als Rollback-Stand
 dokumentiert.
 
-Eine geschützte PROD-Capability-Gegenprobe ist in diesem Abnahmelauf noch offen, weil
-der lokale PROD-Schlüssel bewusst nicht hinterlegt ist. Das Deployment selbst wurde
-über `clasp push` und `clasp deploy` aktualisiert; die Gegenprobe mit
-`backend_version: 4.8.14` und `payment_schema_ready: true` muss nach dem Eintragen des
-PROD-Schlüssels einmal nachgeholt werden. Sie ist ausdrücklich nicht auf einen
-lesenden Smoke-Test beschränkt: Nach dem Merge von PR #48 und dem GitHub-Pages-Deploy
-wird die vollständige fachliche Abnahme auch im PROD-Testobjekt `TEST` durchgeführt.
-Dort sind temporäre Schreibvorgänge erlaubt und vorgesehen, einschließlich Mietzahlung,
-Teil- und Überzahlung mit Aufteilung, Kaution, Erstattung, Storno, Retry und Reload-
-Prüfung. Die erzeugten Testbuchungen werden anschließend wieder storniert bzw. anhand
-ihres Präfixes nachvollziehbar dokumentiert. Reale PROD-Objekte werden bei diesem Lauf
-nicht verändert.
+Eine geschützte PROD-Capability-Gegenprobe ist in diesem Abnahmelauf noch offen. Der
+PROD-Schlüssel wird weder in `runtime-secrets.js` noch in einer lokalen Runtime-
+Konfiguration abgelegt: Für die GUI-Abnahme wird er im Zugriffsdialog eingegeben. Für
+den einmaligen lesenden API-Check wird er ausschließlich über `APP_ACCESS_KEY` an den
+Shell-Aufruf übergeben und nicht als CLI-Argument verwendet. Das Deployment selbst
+wurde über `clasp push` und `clasp deploy` aktualisiert; zu prüfen sind
+`backend_version: 4.8.14` und `payment_schema_ready: true`.
+
+Vor der PROD-Abnahme wird die Sheet-Datei kopiert. Zusätzlich erstellt
+`npm run qa:prod:payment-baseline -- --output=/private/tmp/prod-before.json` einen
+Nur-Lese-Bestand der Zahlungszeilen je `vertrag_id`. Nach der Abnahme prüft
+`npm run qa:prod:payment-baseline -- --compare=/private/tmp/prod-before.json
+--output=/private/tmp/prod-after.json`, dass sich außerhalb der Verträge des Objekts
+`TEST` keine Zählung verändert hat. Die GUI erzeugt UUIDs; die Testbuchungen werden
+deshalb über Objekt, Testvertrag, Datum und die tatsächlichen Zahlungs-IDs identifiziert,
+nicht über das Präfix des CLI-Abnahmeskripts.
+
+Die vollständige fachliche Abnahme wird nach dem Merge von PR #48 und dem GitHub-Pages-
+Deploy auch im PROD-Testobjekt `TEST` durchgeführt. Dort sind temporäre Schreibvorgänge
+erlaubt und vorgesehen, einschließlich Mietzahlung, Teil- und Überzahlung mit Aufteilung,
+Kaution, Erstattung, Storno, Retry und Reload-Prüfung. Die erzeugten Testbuchungen werden
+anschließend storniert bzw. anhand des Vorher-/Nachher-Snapshots dokumentiert. Reale
+PROD-Objekte werden bei diesem Lauf nicht verändert.
