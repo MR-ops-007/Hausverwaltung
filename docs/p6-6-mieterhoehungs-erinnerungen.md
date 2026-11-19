@@ -111,6 +111,9 @@ fallen dabei nicht aus der Übersicht.
 - Die Monatsgranularität der Soll-Historie bleibt unverändert.
 - Die vollständige Staffeltermin-Verwaltung und eine spätere Erinnerung an
   konkrete Staffelstufen bleiben Folgeaufgaben.
+- Ein lokal erledigter Fall wird nicht automatisch nach zwölf Monaten wieder
+  vorgelegt. Eine Wiedervorlage und ein geräteübergreifender Prüfstatus sind
+  eigene Folgepakete.
 
 ## Testabdeckung
 

@@ -145,7 +145,7 @@ const contractUiService = {
     const rows = this.rentIncreaseRows(contracts);
     const due = rows.filter(row => row.reminder.status === 'DUE' && !this.rentIncreaseReviewedAt(row.contract, row.reminder));
     const required = rows.filter(row => row.reminder.status === 'REQUIRED');
-    const open = required.concat(due);
+    const open = due.concat(required);
     const objectCount = new Set(open.map(row => this.objectId(row.contract))).size;
     if (!open.length) {
       return `<aside class="rent-increase-global-reminder rent-increase-global-reminder-ok" role="status">
@@ -158,7 +158,7 @@ const contractUiService = {
     if (required.length) parts.push(`${required.length} ${required.length === 1 ? 'Prüfung wegen Stammdaten offen' : 'Prüfungen wegen Stammdaten offen'}`);
     const first = open[0];
     return `<aside class="rent-increase-global-reminder rent-increase-global-reminder-open" role="status">
-      <div><strong>${this.escape(parts.join(' · '))}</strong><span>${objectCount} ${objectCount === 1 ? 'Objekt ist' : 'Objekte sind'} betroffen. Die Übersicht unten zeigt nur Verträge mit Handlungsbedarf.</span></div>
+      <div><strong>${this.escape(parts.join(' · '))}</strong><span>${objectCount} ${objectCount === 1 ? 'Objekt ist' : 'Objekte sind'} betroffen. Die folgende Übersicht zeigt die Handlungsfälle des aktuell ausgewählten Objekts.</span></div>
       <button type="button" class="contract-button-secondary" data-vertrag-id="${this.escape(first.contract.vertrag_id)}" onclick="contractUiService.selectContractFromOverview(this.dataset.vertragId)">Erste offene Prüfung öffnen</button>
     </aside>`;
   },
