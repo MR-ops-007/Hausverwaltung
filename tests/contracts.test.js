@@ -858,6 +858,7 @@ describe('contract view', () => {
     );
     ui.render = vi.fn();
     ui.completeRentIncreaseReview(current.vertrag_id);
+    expect(values.size).toBe(1);
     const changed = { ...dataService.state.vertraege[0], start_datum: '2023-03-01' };
     const changedReminder = service.rentIncreaseReminder(changed, [], new Date());
     expect(changedReminder.status).toBe('DUE');
