@@ -132,6 +132,9 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Deployment `@9`; PROD läuft auf 4.8.14 über die bestehende Deployment-ID. 4.8.13 bleibt
   als dokumentierter Rollback-Stand erhalten. Der Backend-Deploy ist abgeschlossen; der
   Frontend-Teil wartet bis zum Merge von PR #48 und dem anschließenden GitHub-Pages-Deploy.
+  Danach folgt die vollständige fachliche PROD-Abnahme im isolierten Objekt `TEST` mit
+  ausdrücklich erlaubten temporären Schreibvorgängen; reale PROD-Objekte bleiben dabei
+  unverändert.
 - Der lokale TEST-Zugangsschlüssel wird außerhalb der TEST-Umgebung hart ignoriert. Der Pages-Workflow
   erzeugt und veröffentlicht ausschließlich `runtime-config.js`; `runtime-secrets.js` bleibt lokal und
   wird durch einen negativen Workflow-Test gegen versehentliche Veröffentlichung geschützt.

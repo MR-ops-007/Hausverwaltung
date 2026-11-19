@@ -117,4 +117,11 @@ Eine geschützte PROD-Capability-Gegenprobe ist in diesem Abnahmelauf noch offen
 der lokale PROD-Schlüssel bewusst nicht hinterlegt ist. Das Deployment selbst wurde
 über `clasp push` und `clasp deploy` aktualisiert; die Gegenprobe mit
 `backend_version: 4.8.14` und `payment_schema_ready: true` muss nach dem Eintragen des
-PROD-Schlüssels einmal lesend nachgeholt werden.
+PROD-Schlüssels einmal nachgeholt werden. Sie ist ausdrücklich nicht auf einen
+lesenden Smoke-Test beschränkt: Nach dem Merge von PR #48 und dem GitHub-Pages-Deploy
+wird die vollständige fachliche Abnahme auch im PROD-Testobjekt `TEST` durchgeführt.
+Dort sind temporäre Schreibvorgänge erlaubt und vorgesehen, einschließlich Mietzahlung,
+Teil- und Überzahlung mit Aufteilung, Kaution, Erstattung, Storno, Retry und Reload-
+Prüfung. Die erzeugten Testbuchungen werden anschließend wieder storniert bzw. anhand
+ihres Präfixes nachvollziehbar dokumentiert. Reale PROD-Objekte werden bei diesem Lauf
+nicht verändert.
