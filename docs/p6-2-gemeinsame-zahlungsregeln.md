@@ -148,7 +148,9 @@ und Inhaltsänderung. Auch bei einer festgestellten Abweichung wird der Nachher-
 `ok: false` geschrieben; der Prozess endet zusätzlich mit einem Fehlercode. So bleibt der
 Beleg für die Diagnose erhalten. Wird eine Objekt-ID ohne passende Einheit oder Vertrag
 angegeben, bricht der Lauf vor dem Snapshot mit einer eindeutigen Fehlermeldung ab. Die
-API-Abfrage hat ein Timeout von 30 Sekunden.
+API-Abfrage hat ein Timeout von 30 Sekunden. Die Baseline prüft ausschließlich Zahlungen;
+Änderungen an Verträgen, Einheiten oder Personen gehören in den separaten Nur-Lese-Audit
+der Stammdaten und werden von diesem Skript nicht bewertet.
 Eine legitime Buchung eines anderen Nutzers während der Abnahme ist ein echter False Positive:
 Abnahme pausieren, Ursache anhand der ausgegebenen Vertrags-ID klären und die Baseline nicht
 blind überschreiben. Die GUI erzeugt UUIDs; die Testbuchungen werden

@@ -131,6 +131,11 @@ if (comparisonError) {
 }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+function isDirectInvocation() {
+  if (!process.argv[1]) return false;
+  return import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href;
+}
+
+if (isDirectInvocation()) {
   await main();
 }
