@@ -305,6 +305,122 @@ const contractService = {
     return { valid: errors.length === 0, errors, warnings, periods };
   },
 
+  /**
+   * Calculates a conservative reminder for the next rent-increase review.
+   * This is an internal reminder, not a legal entitlement or an automatic change.
+   */
+  rentIncreaseReminder(contract, adjustments = [], now = new Date()) {
+    const type = String(contract && contract.erhoehungs_typ || '').trim() || 'Normal';
+    const today = this.iso(this.date(now));
+    const parseDate = value => {
+      if (this.blank(value)) return null;
+      try { return this.date(value); } catch (error) { return null; }
+    };
+    const entries = (Array.isArray(adjustments) ? adjustments : [])
+      .filter(row => String(row && row.vertrag_id || '') === String(contract && contract.vertrag_id || ''))
+      .map(row => {
+        let after = {};
+        try { after = row && row.nachher_json ? JSON.parse(row.nachher_json) : {}; } catch (error) { after = {}; }
+        const effective = parseDate(row && row.wirksam_ab)
+          || parseDate(after.letzte_anpassung)
+          || parseDate(row && row.erfasst_am);
+        return effective ? { date: effective, estimated: !row.wirksam_ab, source: row } : null;
+      })
+      .filter(Boolean)
+      .sort((left, right) => left.date.getTime() - right.date.getTime());
+    const contractDate = parseDate(contract && contract.letzte_anpassung);
+    const historyDate = entries.length ? entries[entries.length - 1] : null;
+    const last = contractDate && (!historyDate || contractDate.getTime() >= historyDate.date.getTime())
+      ? { date: contractDate, estimated: !historyDate, source: 'Vertrag' }
+      : historyDate;
+    const start = parseDate(contract && contract.start_datum);
+    const base = last ? last.date : start;
+    const historyIncomplete = Boolean(contractDate && (!historyDate
+      || contractDate.getTime() !== historyDate.date.getTime()));
+    const dateLabel = date => date ? this.iso(date) : '';
+    const internalReviewDate = date => {
+      if (!date) return null;
+      const result = new Date(Date.UTC(date.getUTCFullYear() + 1, date.getUTCMonth(), date.getUTCDate()));
+      return result;
+    };
+    const indexReviewDate = date => {
+      if (!date) return null;
+      const anniversary = new Date(Date.UTC(date.getUTCFullYear() + 1, date.getUTCMonth(), date.getUTCDate()));
+      return new Date(Date.UTC(
+        anniversary.getUTCFullYear(),
+        anniversary.getUTCMonth() + (anniversary.getUTCDate() === 1 ? 0 : 1),
+        1
+      ));
+    };
+    const result = {
+      vertragId: String(contract && contract.vertrag_id || ''),
+      type,
+      typeLabel: type === 'Index' ? 'Indexmiete' : type === 'Staffel' ? 'Staffelmiete' : 'Normale Mieterhöhung',
+      lastAdjustment: last ? dateLabel(last.date) : '',
+      lastAdjustmentEstimated: Boolean(last && last.estimated),
+      historyIncomplete,
+      earliestReview: '',
+      status: 'NO_ADJUSTMENT',
+      statusLabel: 'Keine Anpassung dokumentiert',
+      reason: '',
+      today
+    };
+
+    if (!start) {
+      result.status = 'REQUIRED';
+      result.statusLabel = 'Prüfung erforderlich';
+      result.reason = 'Startdatum fehlt oder ist ungültig.';
+      return result;
+    }
+
+    if (!base) {
+      result.status = 'REQUIRED';
+      result.statusLabel = 'Prüfung erforderlich';
+      result.reason = 'Startdatum und letzte Anpassung fehlen.';
+      return result;
+    }
+
+    if (type === 'Staffel') {
+      result.status = 'REQUIRED';
+      result.statusLabel = 'Prüfung erforderlich';
+      result.reason = 'Staffeltermine sind im Vertragsmodell noch nicht hinterlegt.';
+      return result;
+    }
+
+    if (type === 'Index' && (this.blank(contract.index_basis_monat)
+      || this.blank(contract.index_basis_wert)
+      || this.blank(contract.index_reihe))) {
+      result.status = 'REQUIRED';
+      result.statusLabel = 'Prüfung erforderlich';
+      result.reason = 'Indexbasis ist unvollständig hinterlegt.';
+      return result;
+    }
+
+    const earliest = type === 'Index' ? indexReviewDate(base) : internalReviewDate(base);
+    result.earliestReview = dateLabel(earliest);
+    if (!last) {
+      result.status = 'NO_ADJUSTMENT';
+      result.statusLabel = 'Keine Anpassung dokumentiert';
+    } else if (historyIncomplete) {
+      result.status = 'REQUIRED';
+      result.statusLabel = 'Prüfung erforderlich';
+    } else {
+      result.status = result.earliestReview <= today ? 'DUE' : 'PENDING';
+      result.statusLabel = result.status === 'DUE' ? 'Prüfung fällig' : 'Noch nicht möglich';
+    }
+    result.reason = type === 'Index'
+      ? 'Früheste interne Prüfung nach der jährlichen Bindungsfrist.'
+      : 'Früheste interne Prüfung nach zwölf Monaten unverändertem Soll.';
+    if (!last) result.reason = 'Seit Vertragsbeginn ist keine Mieterhöhung dokumentiert.';
+    if (historyIncomplete) {
+      result.reason += historyDate
+        ? ' Anpassungsdatum am Vertrag stimmt nicht mit der letzten Historienzeile überein.'
+        : ' Anpassungsdatum am Vertrag vorhanden, aber kein vollständiger Historieneintrag.';
+    }
+    if (result.lastAdjustmentEstimated) result.reason += ' Das letzte Anpassungsdatum ist geschätzt.';
+    return result;
+  },
+
   snapshot(contract) {
     return JSON.stringify(Object.keys(contract).sort().reduce((result, key) => {
       const value = contract[key];
