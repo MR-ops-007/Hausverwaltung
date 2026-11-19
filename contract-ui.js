@@ -62,6 +62,7 @@ const contractUiService = {
   renderRentIncreaseOverview(contracts) {
     const adjustments = dataService.state.mietanpassungen || [];
     const rows = (contracts || [])
+      .filter(contract => contractService.isCurrentlyActive(contract))
       .map(contract => ({
         contract,
         tenant: this.tenantLabel(contract),

@@ -397,7 +397,10 @@ Bankanbindung werden daraus abgeleitet.
    dokumentierter Anpassung, frühestem internen Prüfungstermin, Anpassungsart und Status
    (`keine Anpassung dokumentiert`, `noch nicht möglich`, `Prüfung fällig` oder
    `Prüfung erforderlich`). Die Berechnung liegt zentral in
-   `contractService.rentIncreaseReminder()` und verwendet die Soll-Historie. Indexmieten
+   `contractService.rentIncreaseReminder()` und verwendet die Soll-Historie. Die Übersicht
+   zeigt nur aktuell laufende Verträge; historische Verträge bleiben auswählbar, erzeugen
+   aber keine laufende Erinnerung. Bei einem Vertrag ohne bisherige Anpassung wird die
+   Prüfung nach zwölf Monaten fällig, sofern dieser Termin erreicht ist. Indexmieten
    benötigen eine vollständige Indexbasis; Staffelmieten bleiben ohne hinterlegte
    Staffeltermine ausdrücklich prüfpflichtig. Es gibt keinen E-Mail-/Push-Versand, keine
    automatische rechtliche Bewertung und keine automatische Vertragsänderung. Details und

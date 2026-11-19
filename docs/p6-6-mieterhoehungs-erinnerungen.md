@@ -18,9 +18,11 @@ Die Übersicht enthält:
   `Prüfung fällig` oder `Prüfung erforderlich`.
 - einen direkten Link zum ausgewählten Vertrag.
 
-Die Liste wird für die Verträge des ausgewählten Objekts angezeigt und nach
-Einheit und Mieter sortiert. Ein Klick auf „Vertrag anzeigen“ öffnet die
-Vertragsbearbeitung für genau diesen Vertrag.
+Die Liste wird für die aktuell laufenden Verträge des ausgewählten Objekts
+angezeigt und nach Einheit und Mieter sortiert. Beendete historische Verträge
+bleiben über die Vertragsauswahl bearbeitbar, erzeugen aber keine laufende
+Erinnerung. Ein Klick auf „Vertrag anzeigen“ öffnet die Vertragsbearbeitung
+für genau diesen Vertrag.
 
 ## Zentrale Berechnung
 
@@ -49,9 +51,11 @@ ein belastbarer Termin wirkt.
 ### Normale Mieterhöhung
 
 Als konservative interne Orientierung wird zwölf Monate nach Vertragsbeginn
-oder der letzten dokumentierten Anpassung geprüft. Das ist eine technische
-Erinnerungsregel und keine Aussage darüber, ob eine Erhöhung rechtlich oder
-vertraglich zulässig ist.
+oder der letzten dokumentierten Anpassung geprüft. Gibt es noch keine
+Anpassung, wird nach Ablauf dieser ersten zwölf Monate `Prüfung fällig`
+angezeigt; vor diesem Termin bleibt der Status `Keine Anpassung dokumentiert`.
+Das ist eine technische Erinnerungsregel und keine Aussage darüber, ob eine
+Erhöhung rechtlich oder vertraglich zulässig ist.
 
 ### Indexmiete
 
@@ -90,8 +94,9 @@ fallen dabei nicht aus der Übersicht.
 Automatisiert geprüft werden:
 
 - Vertrag ohne Anpassungshistorie mit sichtbarem Status und abgeleitetem
-  frühestem Termin.
+  frühestem Termin; nach Ablauf der ersten zwölf Monate wird er fällig.
 - zukünftiger erster Prüfungstermin.
+- beendeter historischer Vertrag ohne Eintrag in der laufenden Erinnerungsübersicht.
 - dokumentierte Indexanpassung mit fälligem Termin.
 - Staffelmiete ohne Terminmodell.
 - fehlendes Startdatum, fehlende Indexbasis und Vertragsdatum ohne

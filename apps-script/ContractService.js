@@ -373,13 +373,6 @@ const contractService = {
       return result;
     }
 
-    if (!base) {
-      result.status = 'REQUIRED';
-      result.statusLabel = 'Prüfung erforderlich';
-      result.reason = 'Startdatum und letzte Anpassung fehlen.';
-      return result;
-    }
-
     if (type === 'Staffel') {
       result.status = 'REQUIRED';
       result.statusLabel = 'Prüfung erforderlich';
@@ -399,8 +392,10 @@ const contractService = {
     const earliest = type === 'Index' ? indexReviewDate(base) : internalReviewDate(base);
     result.earliestReview = dateLabel(earliest);
     if (!last) {
-      result.status = 'NO_ADJUSTMENT';
-      result.statusLabel = 'Keine Anpassung dokumentiert';
+      const todayDate = this.date(today);
+      const due = earliest && earliest.getTime() <= todayDate.getTime();
+      result.status = due ? 'DUE' : 'NO_ADJUSTMENT';
+      result.statusLabel = due ? 'Prüfung fällig' : 'Keine Anpassung dokumentiert';
     } else if (historyIncomplete) {
       result.status = 'REQUIRED';
       result.statusLabel = 'Prüfung erforderlich';

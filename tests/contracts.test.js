@@ -76,13 +76,13 @@ describe('contract domain rules', () => {
   it('uses an assumed access today for preview without claiming an old effective date', () => {
     expect(service.previewIndex(current, { ...input, zugang_datum: '' }, unit, now).fruehestens_ab).toBe('2026-12-01');
   });
-  it('marks a contract without an adjustment history explicitly', () => {
+  it('marks a long-running contract without an adjustment history as due', () => {
     const reminder = service.rentIncreaseReminder({
       ...current, erhoehungs_typ: 'Normal', start_datum: '2024-03-01', letzte_anpassung: ''
     }, [], now);
     expect(reminder).toMatchObject({
-      status: 'NO_ADJUSTMENT',
-      statusLabel: 'Keine Anpassung dokumentiert',
+      status: 'DUE',
+      statusLabel: 'Prüfung fällig',
       lastAdjustment: '',
       earliestReview: '2025-03-01'
     });
@@ -96,6 +96,12 @@ describe('contract domain rules', () => {
       statusLabel: 'Keine Anpassung dokumentiert',
       earliestReview: '2027-06-01'
     });
+  });
+  it('handles a leap-day contract anniversary without throwing', () => {
+    const reminder = service.rentIncreaseReminder({
+      ...current, erhoehungs_typ: 'Normal', start_datum: '2024-02-29', letzte_anpassung: ''
+    }, [], new Date('2025-03-01T12:00:00Z'));
+    expect(reminder).toMatchObject({ status: 'DUE', earliestReview: '2025-03-01' });
   });
   it('marks a documented adjustment as pending before the next review date', () => {
     const reminder = service.rentIncreaseReminder({ ...current, letzte_anpassung: '2026-06-01' }, [{
@@ -766,5 +772,26 @@ describe('contract view', () => {
     expect(html).toContain('Vertrag anzeigen');
     expect(html).toContain('600 → 660 EUR');
     expect(html).toContain('noch nicht freigeschaltet');
+  });
+  it('shows rent-increase reminders only for currently active contracts', () => {
+    const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
+    const oldContract = { ...current, vertrag_id: 'V_OLD', end_datum: '2026-01-31', hauptperson_id: 'P_OLD' };
+    const activeContract = { ...current, vertrag_id: 'V_ACTIVE', start_datum: '2026-02-01', hauptperson_id: 'P_ACTIVE' };
+    const dataService = { state: {
+      vertraege: [oldContract, activeContract],
+      einheiten: [unit],
+      personen: [
+        { person_id: 'P_OLD', vorname: 'Historischer', name: 'Mieter' },
+        { person_id: 'P_ACTIVE', vorname: 'Aktiver', name: 'Mieter' }
+      ],
+      vertragsparteien: [],
+      mietanpassungen: []
+    } };
+    const ui = new Function('dataService', 'contractService', 'uiService', `${source};return contractUiService;`)(
+      dataService, service, { escapeHtml: value => String(value ?? '') }
+    );
+    const html = ui.renderRentIncreaseOverview([oldContract, activeContract]);
+    expect(html).toContain('data-vertrag-id="V_ACTIVE"');
+    expect(html).not.toContain('data-vertrag-id="V_OLD"');
   });
 });
