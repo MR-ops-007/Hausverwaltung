@@ -3,7 +3,7 @@
 Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklungspakete.
 `PROJECT_STATE.md` beschreibt den aktuellen Systemstand, `CHANGELOG.md` die Releases.
 
-**Stand: 2026-11-17**
+**Stand: 2026-11-18**
 
 ## Arbeitsregeln
 
@@ -20,7 +20,8 @@ Diese Liste ist die verbindliche Arbeitsübersicht für die nächsten Entwicklun
 
 ## Erledigt auf `main`
 
-Remote `origin/main` enthält aktuell PR #46 und den produktiven Backend-Stand 4.8.12.
+Remote `origin/main` enthält aktuell PR #47; das produktive Backend wurde anschließend auf
+4.8.14 aktualisiert.
 
 | PR | Inhalt |
 | --- | --- |
@@ -41,7 +42,9 @@ Remote `origin/main` enthält aktuell PR #46 und den produktiven Backend-Stand 4
 | #38 | Dashboard-Datenqualität: fehlende, veraltete und dauerhafte Null-Ablesungen sichtbar machen |
 | #39 | P6/P7 Mieteingänge, CSV-MVP, Backend-Hardening und fachliche TEST-Abnahme |
 | #41 | P6.1 weiche Dublettenwarnung für manuelle und CSV-Zahlungsübernahme |
+| #43 | P6.3 historische Soll-Historie für Monatsstatus und Überzahlungsverteilung |
 | #46 | P6.7 Einheitenbasierte Jahresmatrix und historische Vertragszeiträume |
+| #47 | P6.7b serverseitige Grundlage für atomare Mieterwechsel |
 
 Der lokale Branch `main` muss nach einem Merge weiterhin mit `origin/main` synchronisiert
 werden, bevor ein neues Feature darauf aufgebaut wird.
@@ -320,7 +323,7 @@ Erfassungsmodul, kein Mahnwesen und keine Nebenkostenabrechnung.
 - `vertrag_capabilities` meldet, ob das Zahlungsschema vollständig vorbereitet ist;
   die UI schreibt nicht, wenn `payment_schema_ready` fehlt. Mock und Apps-Script prüfen
   die gleichen Zahlungsarten, Mietmonate, Konflikte und Storno-Regeln.
-- Der Backend-Schreibweg läuft auf 4.8.12. Die frühere produktive 4.8.5 bleibt als
+- Der produktive Backend-Schreibweg läuft auf 4.8.14. Die frühere produktive 4.8.13 bleibt als
   Rollback-Stand erhalten.
 
 **Voraussetzung:** P1.1/P1.2 Rollen und Geräteeinrichtung sind produktiv geprüft.
@@ -439,10 +442,15 @@ Bankanbindung werden daraus abgeleitet.
    aktiver Vorgängervertrag existiert. Der aktuelle Mieterwechsel-Schreibweg verlangt bewusst
    einen aktiven Vorgänger; eine neue Vermietung braucht einen eigenen, ebenfalls idempotenten
    Erfassungsvorgang mit Zeitraumprüfung.
-7. **P6.2 Gemeinsame Zahlungsregeln:** Die fachlichen Pure Functions für Mietmonat, Guthaben,
+7. **P6.2 Gemeinsame Zahlungsregeln: umgesetzt und in TEST abgenommen.** Die fachlichen Pure Functions für Mietmonat, Guthaben,
    Erstattung, Storno und Statusberechnung zwischen Backend und Mock vereinheitlichen oder
-   aus einer gemeinsamen testbaren Quelle ableiten. Ziel ist, Copy-Paste-Abweichungen zu
-   vermeiden, ohne die Apps-Script-Architektur unnötig umzubauen.
+   aus einer gemeinsamen testbaren Quelle ableiten. `apps-script/PaymentRules.js` ist die
+   gemeinsame Quelle für Browser, Apps Script und Mock. Der Branch-Lauf ist mit 550 Tests
+   grün; die echte TEST-Abnahme am 2026-11-18 umfasste 25 Checks gegen Vertrag 35.
+   TEST läuft auf Deployment `@9`; PROD wurde am 2026-11-18 über die bestehende Deployment-ID
+   auf 4.8.14 aktualisiert. Der Backend-Deploy ist damit abgeschlossen; der Frontend-Teil
+   wartet bis zum Merge von PR #48 und dem anschließenden GitHub-Pages-Deploy. 4.8.13
+   bleibt als Rollback-Stand dokumentiert.
 8. **P7.1 CSV-Monatsparser:** Verwendungszwecke wie `Miete Februar 2026` und `02/2026`
    erkennen, Datumsangaben nicht fälschlich als Mietmonat interpretieren und die Quelle des
    Vorschlags anzeigen. Unklare Fälle bleiben bestätigungspflichtig.

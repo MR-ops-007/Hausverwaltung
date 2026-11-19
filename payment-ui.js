@@ -406,54 +406,35 @@ const paymentUiService = {
   },
 
   normalizePaymentMonth(value) {
-    if (value instanceof Date && !Number.isNaN(value.getTime())) return this.monthKey(value);
-    const text = String(value ?? '').trim();
-    if (!text) return '';
-    if (/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:?\d{2})$/.test(text)) {
-      const timestamp = this.parseDate(text);
-      return timestamp ? this.monthKey(timestamp) : '';
-    }
-    const iso = text.match(/^(\d{4})-(\d{2})(?:-\d{2})?/);
-    if (iso && Number(iso[2]) >= 1 && Number(iso[2]) <= 12) return `${iso[1]}-${iso[2]}`;
-    const german = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
-    if (german && Number(german[2]) >= 1 && Number(german[2]) <= 12) return `${german[3]}-${String(german[2]).padStart(2, '0')}`;
-    return '';
+    return paymentRules.normalizeMonth(value);
   },
 
   isExplicitCredit(payment) {
-    return !this.getPaymentMonth(payment)
-      && Boolean(String(payment && payment.zahlungsgruppe_id || '').trim());
+    return paymentRules.explicitCredit(payment);
   },
 
   getEffectivePaymentMonth(payment) {
-    const assigned = this.getPaymentMonth(payment);
-    if (assigned) return assigned;
-    // Legacy rows may now contain an empty optional column after the schema
-    // migration. Only an explicit allocation row with a group ID represents
-    // intentional, unassigned credit; legacy rows retain their receipt month.
-    return this.isExplicitCredit(payment) ? '' : this.getReceiptMonth(payment);
+    return paymentRules.effectiveMonth(payment);
   },
 
   getReceiptMonth(payment) {
-    return this.monthKey(payment && (payment.datum || payment.buchungsdatum || payment.zahlungsdatum));
+    return paymentRules.receiptMonth(payment);
   },
 
   paymentArt(payment) {
-    return String(payment && payment.art || 'Miete').trim().toLowerCase();
+    return paymentRules.paymentArt(payment).toLowerCase();
   },
 
   isDepositPayment(payment) {
-    const art = this.paymentArt(payment);
-    return art === 'kaution' || (art === 'storno' && String(payment.gegen_art || '').trim().toLowerCase() === 'kaution');
+    return paymentRules.isDeposit(payment);
   },
 
   isRentSettlementPayment(payment) {
-    const art = this.paymentArt(payment);
-    return art === 'miete' || art === 'nachzahlung' || (art === 'storno' && String(payment.gegen_art || '').trim().toLowerCase() !== 'kaution' && String(payment.gegen_art || '').trim().toLowerCase() !== 'erstattung');
+    return paymentRules.isRentSettlement(payment);
   },
 
   isRefundPayment(payment) {
-    return this.paymentArt(payment) === 'erstattung';
+    return paymentRules.isRefund(payment);
   },
 
   getPaymentsFor(contractId, month) {
@@ -478,8 +459,7 @@ const paymentUiService = {
   },
 
   normalizePaymentDate(value) {
-    const date = this.parseDate(value);
-    return date ? this.todayInput(date) : '';
+    return paymentRules.normalizeDate(value);
   },
 
   paymentDuplicateKey(payment) {
@@ -686,16 +666,9 @@ const paymentUiService = {
     const currentDay = this.startOfDay(current);
     const dueDay = this.startOfDay(dueDate);
     const settled = this.settledDate(payments, due);
-    let status = outsidePeriod || (due <= 0 ? 'leerstand' : 'offen');
-    if (due > 0) {
-      if (paid >= due - 0.009) status = 'bezahlt';
-      else if (paid > 0) status = 'teilbezahlt';
-      else if (dueDay && currentDay > dueDay) status = 'überfällig';
-      else if (dueDay && dueDay > currentDay) status = 'zukünftig';
-    }
-    const settledLate = settled && dueDay && this.startOfDay(settled) > dueDay;
-    const stillOpenLate = dueDay && currentDay > dueDay && ['offen', 'teilbezahlt', 'überfällig'].includes(status);
-    const verspaetet = due > 0 && (settledLate || stillOpenLate);
+    const statusResult = paymentRules.paymentStatus({ outsidePeriod, due, paid, dueDate: dueDay, currentDate: currentDay, settledDate: settled });
+    const status = statusResult.status;
+    const verspaetet = statusResult.verspaetet;
     return {
       month,
       paid,
@@ -1292,11 +1265,12 @@ const paymentUiService = {
     if (!confirm(`Zahlung ${this.formatMoney(amount)} EUR wirklich stornieren? Es wird eine Gegenbuchung angelegt.`)) return;
     const stornoAmount = amount >= 0 ? -Math.abs(amount) : Math.abs(amount);
     const original = (dataService.state.zahlungen || []).find(payment => String(payment.zahlung_id) === String(paymentId));
-    const originalMonth = original
-      ? (this.isDepositPayment(original) || this.isExplicitCredit(original) ? '' : this.getEffectivePaymentMonth(original))
-      : originalArt === 'Kaution' ? '' : assignedMonth || month;
-    const payload = { zahlung_id: this.makeStornoId(paymentId), vertrag_id: contractId, datum: this.todayInput(), mietmonat: originalMonth, betrag: stornoAmount, art: 'Storno', storno_von: paymentId, gegen_art: originalArt };
-    if (original && Object.prototype.hasOwnProperty.call(original, 'zahlungsgruppe_id')) payload.zahlungsgruppe_id = String(original.zahlungsgruppe_id || '');
+    const metadata = paymentRules.stornoMetadata(original || {
+      art: originalArt,
+      mietmonat: originalArt === 'Kaution' ? '' : assignedMonth || month,
+      datum: this.todayInput()
+    });
+    const payload = { zahlung_id: this.makeStornoId(paymentId), vertrag_id: contractId, datum: this.todayInput(), ...metadata, betrag: stornoAmount, art: 'Storno', storno_von: paymentId };
     await this.persistPayment(payload);
   },
 

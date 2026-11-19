@@ -1,7 +1,7 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.13
- * Stand: 2026-11-16
+ * Version: 4.8.14
+ * Stand: 2026-11-17
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
  * Änderungen seit v4.1:
@@ -128,7 +128,7 @@
  * - Mieterwechsel werden als atomarer, idempotenter Admin-Schreibvorgang mit geschlossenem
  *   Vorgängervertrag, neuer Vertragspartei und zentraler Zeitraumprüfung gespeichert
  */
-const BACKEND_VERSION = "4.8.13";
+const BACKEND_VERSION = "4.8.14";
 
 function sendJSON(obj) {
   return ContentService
@@ -678,6 +678,9 @@ function writePayments(ss, payloadData) {
   });
 
   const normalized = [];
+  const berlinDate = value => typeof Utilities !== 'undefined' && typeof Utilities.formatDate === 'function'
+    ? Utilities.formatDate(value, 'Europe/Berlin', 'yyyy-MM-dd')
+    : paymentRules.normalizeDate(value);
   for (let index = 0; index < items.length; index++) {
     const item = items[index];
     const result = Object.assign({}, item);
@@ -686,14 +689,14 @@ function writePayments(ss, payloadData) {
     if (!result.art) {
       return paymentError('PAYMENT_ART_INVALID', `Unbekannte Zahlungsart in Zeile ${index + 1}.`);
     }
-    const amount = Number(String(item.betrag === undefined ? '' : item.betrag).replace(',', '.'));
+    const amount = paymentRules.normalizeAmount(item.betrag);
     const normalizedArt = result.art.toLowerCase();
-    if (!isFinite(amount) || amount === 0 || (amount < 0 && ['storno', 'erstattung'].indexOf(normalizedArt) < 0) || (normalizedArt === 'erstattung' && amount > 0)) {
+    if (amount === null || !Number.isFinite(amount) || amount === 0 || (amount < 0 && ['storno', 'erstattung'].indexOf(normalizedArt) < 0) || (normalizedArt === 'erstattung' && amount > 0)) {
       return paymentError('PAYMENT_AMOUNT_INVALID', 'Zahlungsbetrag muss ungleich 0 sein; Erstattungen müssen negativ sein, andere Zahlungsarten dürfen nicht negativ sein.');
     }
     result.betrag = Math.round(amount * 100) / 100;
     if (Object.prototype.hasOwnProperty.call(item, 'mietmonat')) {
-      const month = normalizePaymentMonth(item.mietmonat);
+      const month = paymentRules.normalizeAssignedMonth(result, berlinDate);
       if (month === null) return paymentError('PAYMENT_MONTH_INVALID', 'Der fachliche Mietmonat muss leer oder im Format YYYY-MM angegeben werden.');
       result.mietmonat = month;
     }
@@ -705,22 +708,12 @@ function writePayments(ss, payloadData) {
     normalized.push(result);
   }
 
-  const getComparable = (item, header) => {
-    if (header === 'betrag') return Math.round(Number(item.betrag) * 100) / 100;
-    if (header === 'art') return normalizePaymentArt(item.art) || 'Miete';
-    if (header === 'zahlung_id') return String(item.zahlung_id).trim();
-    if (header === 'datum') return normalizePaymentDate(item.datum);
-    if (header === 'mietmonat') return normalizePaymentMonth(item.mietmonat) || '';
-    return String(item[header] === undefined || item[header] === null ? '' : item[header]).trim();
-  };
-  const rowComparable = (row, header) => {
-    const value = row[headers.indexOf(header)];
-    if (header === 'betrag') return Math.round(Number(value) * 100) / 100;
-    if (header === 'datum') return normalizePaymentDate(value);
-    if (header === 'mietmonat') return normalizePaymentMonth(value) || '';
-    if (header === 'art') return normalizePaymentArt(value) || 'Miete';
-    return String(value === undefined || value === null ? '' : value).trim();
-  };
+  const getComparable = (item, header) => paymentRules.comparable(item, header, berlinDate);
+  const rowComparable = (row, header) => paymentRules.comparable(
+    headers.reduce((item, name, index) => { item[name] = row[index]; return item; }, {}),
+    header,
+    berlinDate
+  );
 
   normalized.forEach(item => {
     recordsById[item.zahlung_id] = item;
@@ -751,21 +744,10 @@ function writePayments(ss, payloadData) {
       // Storno-Metadaten stammen fachlich immer aus dem Original. Dadurch kann
       // ein fehlerhafter Client das Storno nicht einem anderen Mietmonat oder
       // einer anderen Zahlungsgruppe zuordnen.
-      if (headers.indexOf('mietmonat') >= 0) {
-        item.mietmonat = normalizePaymentMonth(original.mietmonat) || '';
-        const originalArt = normalizePaymentArt(original.art);
-        const originalGroup = String(original.zahlungsgruppe_id || '').trim();
-        if (!item.mietmonat && !originalGroup && originalArt !== 'Kaution') {
-          const originalDate = normalizePaymentDate(original.datum);
-          if (/^\d{4}-\d{2}-\d{2}$/.test(originalDate)) item.mietmonat = originalDate.slice(0, 7);
-        }
-      }
-      if (headers.indexOf('gegen_art') >= 0) {
-        item.gegen_art = normalizePaymentArt(original.gegen_art) || normalizePaymentArt(original.art) || '';
-      }
-      if (headers.indexOf('zahlungsgruppe_id') >= 0) {
-        item.zahlungsgruppe_id = String(original.zahlungsgruppe_id || '').trim();
-      }
+      const stornoMetadata = paymentRules.stornoMetadata(original, berlinDate);
+      if (headers.indexOf('mietmonat') >= 0) item.mietmonat = stornoMetadata.mietmonat;
+      if (headers.indexOf('gegen_art') >= 0) item.gegen_art = stornoMetadata.gegen_art;
+      if (headers.indexOf('zahlungsgruppe_id') >= 0) item.zahlungsgruppe_id = stornoMetadata.zahlungsgruppe_id;
       stornoByOriginal[originalId] = item.zahlung_id;
     }
 
@@ -810,32 +792,21 @@ function paymentError(code, message, extra) {
 }
 
 function normalizePaymentArt(value) {
-  const text = isBlankValue(value) ? 'miete' : String(value).trim().toLowerCase();
-  const values = { miete: 'Miete', kaution: 'Kaution', nachzahlung: 'Nachzahlung', erstattung: 'Erstattung', storno: 'Storno' };
-  return values[text] || '';
+  return paymentRules.normalizeArt(value);
 }
 
 function normalizePaymentMonth(value) {
-  if (isBlankValue(value)) return '';
-  if (value instanceof Date && !isNaN(value.getTime())) {
-    return Utilities.formatDate(value, 'Europe/Berlin', 'yyyy-MM');
-  }
-  const text = String(value).trim();
-  const iso = text.match(/^(\d{4})-(\d{2})(?:-\d{2})?/);
-  if (iso && Number(iso[2]) >= 1 && Number(iso[2]) <= 12) return `${iso[1]}-${pad2(iso[2])}`;
-  const german = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
-  if (german && Number(german[2]) >= 1 && Number(german[2]) <= 12) return `${german[3]}-${pad2(german[2])}`;
-  return null;
+  const formatter = typeof Utilities !== 'undefined' && typeof Utilities.formatDate === 'function'
+    ? date => Utilities.formatDate(date, 'Europe/Berlin', 'yyyy-MM')
+    : undefined;
+  return paymentRules.normalizeMonth(value, formatter);
 }
 
 function normalizePaymentDate(value) {
-  if (value instanceof Date && !isNaN(value.getTime())) {
-    return Utilities.formatDate(value, 'Europe/Berlin', 'yyyy-MM-dd');
-  }
-  const text = String(value === undefined || value === null ? '' : value).trim();
-  const german = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
-  if (german) return `${german[3]}-${pad2(german[2])}-${pad2(german[1])}`;
-  return text.slice(0, 10);
+  const formatter = typeof Utilities !== 'undefined' && typeof Utilities.formatDate === 'function'
+    ? date => Utilities.formatDate(date, 'Europe/Berlin', 'yyyy-MM-dd')
+    : undefined;
+  return paymentRules.normalizeDate(value, formatter);
 }
 
 function isBlankValue(value) {

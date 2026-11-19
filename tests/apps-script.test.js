@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 function loadAppsScriptHelpers() {
+  const paymentRulesCode = readFileSync(
+    new URL('../apps-script/PaymentRules.js', import.meta.url),
+    'utf8'
+  );
   const code = readFileSync(
     new URL('../apps-script/Code.gs', import.meta.url),
     'utf8'
@@ -12,7 +16,7 @@ function loadAppsScriptHelpers() {
   );
 
   const factory = new Function(
-    `${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeCanonicalZaehlerstandMigrationRows, analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildLokZaehlerId, buildMigratedZaehlerstandItem, buildStandId, buildVerbrauchViewData, calculateVerbrauchDifference, deactivateObsoleteLokShortCodeMeters, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedConsumptionMeterSeedDataFromRows, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getLokEinheitEntranceMapping, getLokEinheitSeedData, getLokReplacementZaehlerId, getLokSeedData, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
+    `${paymentRulesCode}; ${code}; ${standIdMigrationCode}; return { BACKEND_VERSION, analyzeCanonicalZaehlerstandMigrationRows, analyzeStandIdDuplicateRows, analyzeStandIdMigrationRows, appendIfMissingByKeys, buildExistingEinheitMappingFromRows, buildLokZaehlerId, buildMigratedZaehlerstandItem, buildStandId, buildVerbrauchViewData, calculateVerbrauchDifference, deactivateObsoleteLokShortCodeMeters, deriveEinheitIdFromLegacyZaehlerId, formatStandIdTimestamp, getHistoricalCalculatedConsumptionMeterSeedDataFromRows, getHistoricalCalculatedMeterSeedData, getItemValueForHeader, getLokEinheitEntranceMapping, getLokEinheitSeedData, getLokReplacementZaehlerId, getLokSeedData, getMieterNameForVertrag, getProdTestSeedData, normalizeZaehlerstandItem };`
   );
 
   return factory();
