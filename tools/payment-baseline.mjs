@@ -23,16 +23,40 @@ function rowsByContract(payload) {
   }, {});
 }
 
+export function objectScope(payload, objectId) {
+  const unitIds = new Set((payload?.Einheiten || [])
+    .filter(row => String(row?.objekt_id || '').trim() === String(objectId || '').trim())
+    .map(row => String(row?.einheit_id || '').trim())
+    .filter(Boolean));
+  const contractIds = (payload?.Vertraege || [])
+    .filter(row => unitIds.has(String(row?.einheit_id || '').trim())
+      || String(row?.objekt_id || '').trim() === String(objectId || '').trim())
+    .map(row => String(row?.vertrag_id || '').trim())
+    .filter(Boolean);
+  return { unitIds: [...unitIds].sort(), contractIds: [...new Set(contractIds)].sort() };
+}
+
 export function countPaymentsByContract(payload) {
   return Object.fromEntries(Object.entries(rowsByContract(payload))
     .map(([contractId, rows]) => [contractId, rows.length]));
+}
+
+export function paymentIdsByContract(payload) {
+  return Object.fromEntries(Object.entries(rowsByContract(payload)).map(([contractId, rows]) => [
+    contractId,
+    rows.map(row => String(row?.zahlung_id || '').trim()).filter(Boolean).sort()
+  ]));
 }
 
 export function fingerprintPaymentsByContract(payload) {
   return Object.fromEntries(Object.entries(rowsByContract(payload)).map(([contractId, rows]) => {
     const normalizedRows = rows
       .map(canonicalValue)
-      .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+      .sort((left, right) => {
+        const leftText = JSON.stringify(left);
+        const rightText = JSON.stringify(right);
+        return leftText < rightText ? -1 : leftText > rightText ? 1 : 0;
+      });
     const hash = createHash('sha256')
       .update(JSON.stringify(normalizedRows), 'utf8')
       .digest('hex');
@@ -46,6 +70,7 @@ export function buildPaymentBaseline(payload, { objectId, capturedAt = new Date(
     objectId,
     paymentRows: Array.isArray(payload?.Zahlungen) ? payload.Zahlungen.length : 0,
     countsByContract: countPaymentsByContract(payload),
+    paymentIdsByContract: paymentIdsByContract(payload),
     fingerprintsByContract: fingerprintPaymentsByContract(payload),
     hashAlgorithm: PAYMENT_BASELINE_HASH_ALGORITHM
   };
@@ -56,6 +81,8 @@ export function changedPaymentContracts(before, after) {
   const afterCounts = after?.countsByContract || {};
   const beforeFingerprints = before?.fingerprintsByContract;
   const afterFingerprints = after?.fingerprintsByContract;
+  const beforePaymentIds = before?.paymentIdsByContract || {};
+  const afterPaymentIds = after?.paymentIdsByContract || {};
   const canCompareContent = before?.hashAlgorithm === PAYMENT_BASELINE_HASH_ALGORITHM
     && after?.hashAlgorithm === PAYMENT_BASELINE_HASH_ALGORITHM
     && beforeFingerprints && afterFingerprints;
@@ -73,11 +100,19 @@ export function changedPaymentContracts(before, after) {
     const contentChanged = canCompareContent
       && beforeFingerprints[contractId] !== afterFingerprints[contractId];
     if (!countChanged && !contentChanged) return [];
+    const canCompareIds = before?.paymentIdsByContract
+      && after?.paymentIdsByContract
+      && typeof before.paymentIdsByContract === 'object'
+      && typeof after.paymentIdsByContract === 'object';
+    const beforeIds = new Set(canCompareIds ? beforePaymentIds[contractId] : []);
+    const afterIds = new Set(canCompareIds ? afterPaymentIds[contractId] : []);
     return [{
       contractId,
       before: beforeCount,
       after: afterCount,
-      reason: countChanged && contentChanged ? 'count_and_content' : countChanged ? 'count' : 'content'
+      reason: countChanged && contentChanged ? 'count_and_content' : countChanged ? 'count' : 'content',
+      addedPaymentIds: canCompareIds ? [...afterIds].filter(id => !beforeIds.has(id)).sort() : [],
+      removedPaymentIds: canCompareIds ? [...beforeIds].filter(id => !afterIds.has(id)).sort() : []
     }];
   });
 }

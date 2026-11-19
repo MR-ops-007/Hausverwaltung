@@ -138,12 +138,17 @@ Ausgabe zusätzlich um den Schlüssel bereinigt. Das Deployment selbst wurde üb
 Vor der PROD-Abnahme wird die Sheet-Datei kopiert. Zusätzlich erstellt
 `npm run qa:prod:payment-baseline -- --output=/private/tmp/prod-before.json` einen
 Nur-Lese-Bestand der Zahlungszeilen je `vertrag_id`. Die Datei enthält keine Rohzeilen und
-keine Namen oder IBANs, sondern nur Zählwerte und SHA-256-Fingerprints je Vertrag. Damit
+keine Namen oder IBANs, sondern nur Zählwerte, Zahlungs-IDs und SHA-256-Fingerprints je Vertrag. Damit
 werden auch inhaltliche Ersetzungen bei gleicher Zeilenzahl erkannt. Nach der Abnahme prüft
 `npm run qa:prod:payment-baseline -- --compare=/private/tmp/prod-before.json
 --output=/private/tmp/prod-after.json`, dass sich außerhalb der Verträge des Objekts
 `TEST` keine Zahlungszeile verändert, hinzugefügt oder gelöscht hat. Die Ausgabe nennt im
-Fehlerfall die abweichenden `vertrag_id`s und unterscheidet Zähl- und Inhaltsänderung.
+Fehlerfall die abweichenden `vertrag_id`s, die betroffenen Zahlungs-IDs und unterscheidet Zähl-
+und Inhaltsänderung. Auch bei einer festgestellten Abweichung wird der Nachher-Snapshot mit
+`ok: false` geschrieben; der Prozess endet zusätzlich mit einem Fehlercode. So bleibt der
+Beleg für die Diagnose erhalten. Wird eine Objekt-ID ohne passende Einheit oder Vertrag
+angegeben, bricht der Lauf vor dem Snapshot mit einer eindeutigen Fehlermeldung ab. Die
+API-Abfrage hat ein Timeout von 30 Sekunden.
 Eine legitime Buchung eines anderen Nutzers während der Abnahme ist ein echter False Positive:
 Abnahme pausieren, Ursache anhand der ausgegebenen Vertrags-ID klären und die Baseline nicht
 blind überschreiben. Die GUI erzeugt UUIDs; die Testbuchungen werden

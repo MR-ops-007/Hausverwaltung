@@ -56,11 +56,14 @@ const checks = [];
 async function post(payload) {
   let lastError;
   for (let attempt = 0; attempt < 3; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
     try {
       const response = await fetch(profile.apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ ...payload, key: accessKey })
+        body: JSON.stringify({ ...payload, key: accessKey }),
+        signal: controller.signal
       });
       const text = await response.text();
       let result;
@@ -79,6 +82,8 @@ async function post(payload) {
     } catch (error) {
       lastError = new Error(redactSecret(error instanceof Error ? error.message : error, accessKey));
       if (attempt < 2) await wait(2000 * (attempt + 1));
+    } finally {
+      clearTimeout(timeout);
     }
   }
   throw lastError;
