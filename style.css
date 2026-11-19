@@ -225,15 +225,40 @@ button:active {
     font-weight: 800;
     white-space: nowrap;
 }
+.rent-increase-global-reminder {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin: 0 0 14px;
+    padding: 12px 14px;
+    border: 1px solid #fbbf24;
+    border-left: 5px solid #d97706;
+    border-radius: 8px;
+    background: #fffbeb;
+    color: #78350f;
+}
+.rent-increase-global-reminder-ok {
+    border-color: #86efac;
+    border-left-color: #16a34a;
+    background: #f0fdf4;
+    color: #166534;
+}
+.rent-increase-global-reminder > div { min-width: 0; }
+.rent-increase-global-reminder strong,
+.rent-increase-global-reminder span { display: block; }
+.rent-increase-global-reminder span { margin-top: 3px; font-size: 0.82rem; line-height: 1.4; }
 .rent-increase-list {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 10px;
+    container-type: inline-size;
 }
 .rent-increase-item {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 6px 10px;
+    min-width: 0;
     padding: 12px;
     background: #fff;
     border: 1px solid #cbd5e1;
@@ -244,13 +269,26 @@ button:active {
 .rent-increase-item-main { min-width: 0; }
 .rent-increase-item-main strong,
 .rent-increase-item-main span,
-.rent-increase-item-meta span { display: block; overflow-wrap: anywhere; }
+.rent-increase-item-meta span { display: block; overflow-wrap: break-word; word-break: normal; }
 .rent-increase-item-main strong { color: #1e293b; }
 .rent-increase-item-main span,
 .rent-increase-item-meta { color: #64748b; font-size: 0.78rem; }
 .rent-increase-item-meta { grid-column: 1 / -1; display: grid; gap: 2px; }
 .rent-increase-item p { grid-column: 1 / -1; font-size: 0.78rem; }
-.rent-increase-item .contract-button-secondary { justify-self: end; align-self: start; padding: 6px 9px; font-size: 0.78rem; }
+.rent-increase-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+#contracts-output .rent-increase-actions button,
+#contracts-output .rent-increase-global-reminder button {
+    margin: 0;
+    padding: 7px 10px;
+    font-size: 0.82rem !important;
+    font-weight: 700 !important;
+}
+.contract-button-tertiary {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+    border-radius: 8px !important;
+}
 .rent-increase-status {
     align-self: start;
     padding: 4px 7px;
@@ -267,12 +305,25 @@ button:active {
 .rent-increase-status-required .rent-increase-status { background: #fee2e2; color: #991b1b; }
 .rent-increase-status-no_adjustment { border-left-color: #64748b; }
 .rent-increase-status-no_adjustment .rent-increase-status { background: #f1f5f9; color: #475569; }
+.rent-increase-status-completed { background: #dcfce7; color: #166534; }
+.rent-increase-status-completed small { display: block; margin-top: 2px; font-size: 0.68rem; font-weight: 700; }
+.rent-increase-item.is-completed { border-left-color: #16a34a; }
+.rent-increase-secondary { margin-top: 12px; }
+.rent-increase-secondary summary { cursor: pointer; color: #334155; font-weight: 800; }
+.rent-increase-secondary .rent-increase-list { margin-top: 10px; }
+.rent-increase-empty { margin: 0; color: #475569; }
+.contract-editor-anchor { scroll-margin-top: 18px; outline: none; }
+.contract-editor-anchor:focus { outline: 3px solid #bfdbfe; outline-offset: 5px; border-radius: 8px; }
+@container (max-width: 420px) {
+    .rent-increase-item { grid-template-columns: minmax(0, 1fr); }
+    .rent-increase-status { justify-self: start; white-space: normal; }
+}
 @media (max-width: 620px) {
     .rent-increase-overview-heading { display: block; }
     .rent-increase-overview-note { display: inline-block; margin-top: 8px; }
+    .rent-increase-global-reminder { align-items: stretch; flex-direction: column; }
     .rent-increase-item { grid-template-columns: 1fr; }
     .rent-increase-status { justify-self: start; }
-    .rent-increase-item .contract-button-secondary { justify-self: start; }
 }
 
 /* Design für die Namenseingabe im Mieten-Tab */

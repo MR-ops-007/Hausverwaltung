@@ -39,11 +39,16 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
   abgeleitet und in Monatsstatus, Zahlungseingangsdialog und Überzahlungsverteilung
   verwendet. Keine Backend- oder Schemaänderung; ein Apps-Script-Deployment ist nicht
   erforderlich.
+- P6.6b (2026-11-20, lokal): Die Mieterhöhungsübersicht bündelt offene Prüfungen
+  objektübergreifend, zeigt Informationsfälle eingeklappt und springt beim Öffnen
+  eines Vertrags sichtbar zum Editor. Fällige Prüfungen können als lokaler
+  Arbeitsstatus erledigt und wieder geöffnet werden. Keine Backend- oder
+  Schemaänderung.
 
 Diese Einträge ändern die produktive Apps-Script-Version nicht. Die produktive Version ist
 4.8.14; 4.8.13 und 4.8.5 bleiben als dokumentierte Rollback-Stände erhalten.
 
-## Frontend P6.6 · 2026-11-19 · lokal
+## Frontend P6.6 · 2026-11-19 · main
 
 Interne Prüfübersicht für mögliche Mieterhöhungen. Die Berechnung liegt zentral in
 `contractService.rentIncreaseReminder()` und zeigt je Vertrag die letzte dokumentierte
@@ -51,7 +56,7 @@ Anpassung, den frühesten internen Prüfungstermin, die Anpassungsart und einen 
 Fehlende Indexbasis, fehlende Staffeltermine und unvollständige Historien werden als
 `Prüfung erforderlich` sichtbar. Die Funktion schreibt keine Vertragsdaten und versendet
 keine Benachrichtigungen. Ein Apps-Script-Deployment ist für dieses Paket nicht nötig;
-der Stand ist bis zum Merge lokal.
+der Stand benötigt kein Apps-Script-Deployment.
 
 ## 4.8.14 · 2026-11-18 · produktiv
 
