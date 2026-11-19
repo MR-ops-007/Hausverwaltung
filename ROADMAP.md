@@ -448,7 +448,9 @@ Bankanbindung werden daraus abgeleitet.
    gemeinsame Quelle für Browser, Apps Script und Mock. Der Branch-Lauf ist mit 550 Tests
    grün; die echte TEST-Abnahme am 2026-11-18 umfasste 25 Checks gegen Vertrag 35.
    TEST läuft auf Deployment `@9`; PROD wurde am 2026-11-18 über die bestehende Deployment-ID
-   auf 4.8.14 aktualisiert. 4.8.13 bleibt als Rollback-Stand dokumentiert.
+   auf 4.8.14 aktualisiert. Der Backend-Deploy ist damit abgeschlossen; der Frontend-Teil
+   wartet bis zum Merge von PR #48 und dem anschließenden GitHub-Pages-Deploy. 4.8.13
+   bleibt als Rollback-Stand dokumentiert.
 8. **P7.1 CSV-Monatsparser:** Verwendungszwecke wie `Miete Februar 2026` und `02/2026`
    erkennen, Datumsangaben nicht fälschlich als Mietmonat interpretieren und die Quelle des
    Vorschlags anzeigen. Unklare Fälle bleiben bestätigungspflichtig.

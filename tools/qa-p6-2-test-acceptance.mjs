@@ -2,6 +2,27 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const root = new URL('../', import.meta.url);
+const args = process.argv.slice(2);
+
+function argValue(name) {
+  const prefix = `${name}=`;
+  const token = args.find(value => value.startsWith(prefix));
+  return token ? token.slice(prefix.length).trim() : '';
+}
+
+const expectedVersion = argValue('--expect-version');
+const contractId = argValue('--contract-id') || '35';
+const testDate = argValue('--test-date') || '2026-11-18';
+
+if (!args.includes('--yes')) {
+  throw new Error('Schreibender TEST-Lauf abgebrochen. Zum Bestätigen --yes angeben.');
+}
+if (!expectedVersion) {
+  throw new Error('Erwartete Backend-Version fehlt. Beispiel: --expect-version=4.8.14');
+}
+if (!/^\d{4}-\d{2}-\d{2}$/.test(testDate)) {
+  throw new Error(`Ungültiges Testdatum: ${testDate}. Erwartet wird YYYY-MM-DD.`);
+}
 
 function loadRuntimeFile(name) {
   const context = { globalThis: {}, localStorage: { getItem: () => null } };
@@ -13,15 +34,21 @@ function loadRuntimeFile(name) {
 const runtimeConfig = loadRuntimeFile('config.local.js').HV_RUNTIME_CONFIG;
 const runtimeSecrets = loadRuntimeFile('runtime-secrets.js').HV_RUNTIME_SECRETS;
 const profile = runtimeConfig?.profiles?.test;
+const productionProfile = runtimeConfig?.profiles?.production;
 const accessKey = String(runtimeSecrets?.test || '').trim();
+const normalizeUrl = value => String(value || '').trim().replace(/\/+$/, '');
 
 if (!profile?.apiUrl || !accessKey) {
   throw new Error('TEST-Laufzeitkonfiguration oder lokaler TEST-Schlüssel fehlt.');
 }
+if (!productionProfile?.apiUrl) {
+  throw new Error('Produktionsprofil fehlt; Zielumgebung kann nicht sicher geprüft werden.');
+}
+if (normalizeUrl(profile.apiUrl) === normalizeUrl(productionProfile.apiUrl)) {
+  throw new Error('TEST-URL entspricht der PROD-URL. Schreibender Lauf wird abgebrochen.');
+}
 
 const prefix = `P62_LIVE_${new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}`;
-const contractId = '35';
-const testDate = '2026-11-18';
 const created = [];
 const checks = [];
 
@@ -146,9 +173,13 @@ async function run() {
   check('TEST-Vertrag hat gültigen Mietbeginn', /^\d{4}-\d{2}-\d{2}/.test(String(contract?.start_datum || '')));
 
   const capabilities = await post({ typ: 'LESEN', view: 'vertrag_capabilities', data: [] });
-  check('Backend-Version 4.8.14', capabilities.backend_version === '4.8.14', capabilities.backend_version);
+  check(`Backend-Version ${expectedVersion}`, capabilities.backend_version === expectedVersion, capabilities.backend_version);
   check('Zahlungsschreibweg freigegeben', capabilities.payment_writes === true);
   check('Zahlungsschema vollständig', capabilities.payment_schema_ready === true, JSON.stringify(capabilities.payment_schema_missing || []));
+  const backendEnvironment = capabilities.environment ?? capabilities.umgebung ?? capabilities.env;
+  if (backendEnvironment) {
+    check('Backend-Zielumgebung ist TEST', String(backendEnvironment).toLowerCase() === 'test', String(backendEnvironment));
+  }
 
   const rent = remember(payment(`${prefix}_MIETE`, '500,00', '2026-12'));
   const rentResult = await write(rent);

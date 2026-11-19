@@ -62,7 +62,17 @@ Storno mit serverseitig abgeleiteten Metadaten geprüft. Der Apps-Script-Schreib
 weist leere, ungültige und nullwertige Beträge ebenfalls direkt ab.
 
 Das wiederholbare Skript `npm run qa:p6-2:test` verwendet ausschließlich den lokalen
-TEST-Schlüssel und eindeutige `P62_LIVE_...`-IDs. Es schreibt keine PROD-Daten.
+TEST-Schlüssel und eindeutige `P62_LIVE_...`-IDs. Vor dem ersten Schreibvorgang prüft es,
+dass TEST- und PROD-URL verschieden sind, verlangt `--yes` und vergleicht die erwartete
+Backend-Version. Der aktuelle Aufruf lautet daher:
+`npm run qa:p6-2:test -- --yes --expect-version=4.8.14`. Bei einem späteren Backend-
+Release wird nur der Parameter angepasst. Der Vertrag `35` und das reproduzierbare
+Testdatum `2026-11-18` sind die Standardwerte; sie können mit `--contract-id` und
+`--test-date=YYYY-MM-DD` überschrieben werden. Es schreibt keine PROD-Daten. Das
+Skript ist append-only: Jeder Lauf erzeugt positive Testzeilen und
+anschließende Stornozeilen im TEST-Sheet. Der Nettoeffekt ist neutral, die Auditzeilen
+bleiben erhalten; für wiederholte Abnahmen sollte deshalb ein eigener Abnahmevertrag
+verwendet oder der verwendete Vertrag ausdrücklich dokumentiert werden.
 
 Abnahmekriterien für TEST:
 
@@ -84,7 +94,8 @@ Apps Script 4.8.14 ist in TEST auf Deployment `@9` bereitgestellt. `clasp status
 dass `PaymentRules.js` als Datei im TEST-Projekt verfolgt wird. Der geschützte Endpunkt
 lieferte `backend_version: 4.8.14`, `payment_schema_ready: true` und `payment_writes: true`.
 
-Der vollständige Lauf mit `npm run qa:p6-2:test` wurde auf dem TEST-Vertrag `35` ausgeführt.
+Der vollständige Lauf mit `npm run qa:p6-2:test -- --yes --expect-version=4.8.14` wurde
+auf dem TEST-Vertrag `35` ausgeführt.
 Ergebnis: **PASS, 25 Checks grün**. Geprüft wurden fachlicher Mietmonat, Legacy-/Guthaben-
 Zuordnung, Retry und ID-Konflikt, Teilzahlung, Überzahlung mit gemeinsamer
 `zahlungsgruppe_id`, Kaution mit verworfenem Mietmonat, negative Erstattung, Storno einer
@@ -97,5 +108,13 @@ fachlich storniert. Die append-only Stornozeilen bleiben als nachvollziehbares
 Abnahmeprotokoll im TEST-Sheet. Ein Netzwerk-Retry, der eine bereits gespeicherte Zahlung
 zurücklieferte, wurde korrekt als idempotenter Erfolg (`bereits_vorhanden`) bewertet.
 Anschließend wurde das PROD-Apps-Script über die bestehende Deployment-ID auf 4.8.14
-aktualisiert; URL und Deployment-ID blieben unverändert. 4.8.13 bleibt als Rollback-Stand
+aktualisiert; URL und Deployment-ID blieben unverändert. Dieser Eintrag beschreibt das
+Backend-Deployment. Der Frontend-Teil von P6.2 wird erst mit dem Merge von PR #48 und
+dem anschließenden GitHub-Pages-Deploy produktiv. 4.8.13 bleibt als Rollback-Stand
 dokumentiert.
+
+Eine geschützte PROD-Capability-Gegenprobe ist in diesem Abnahmelauf noch offen, weil
+der lokale PROD-Schlüssel bewusst nicht hinterlegt ist. Das Deployment selbst wurde
+über `clasp push` und `clasp deploy` aktualisiert; die Gegenprobe mit
+`backend_version: 4.8.14` und `payment_schema_ready: true` muss nach dem Eintragen des
+PROD-Schlüssels einmal lesend nachgeholt werden.

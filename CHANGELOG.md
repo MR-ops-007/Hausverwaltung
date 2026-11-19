@@ -64,7 +64,9 @@ P6.2: Gemeinsame Zahlungsregeln für Browser, Apps Script und den synthetischen 
   Persistenz nach Reload, Retry, Teil-/Überzahlung, Kaution, Erstattung, Storno und
   deutsche Betragsgrenzen sind geprüft. Die Testbuchungen wurden per Storno neutralisiert.
 - Die bestehende PROD-Bereitstellung wurde am 2026-11-18 auf 4.8.14 aktualisiert;
-  URL und Deployment-ID bleiben unverändert. 4.8.13 ist der dokumentierte Rollback-Stand.
+  URL und Deployment-ID bleiben unverändert. Dieser Eintrag beschreibt das Backend;
+  der Frontend-Teil von P6.2 wird erst mit dem Merge von PR #48 und dem anschließenden
+  GitHub-Pages-Deploy produktiv. 4.8.13 ist der dokumentierte Rollback-Stand.
 
 ## 4.8.13 · 2026-11-17 · ersetzt
 
