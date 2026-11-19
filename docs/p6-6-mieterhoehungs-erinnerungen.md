@@ -22,7 +22,30 @@ Die Liste wird für die aktuell laufenden Verträge des ausgewählten Objekts
 angezeigt und nach Einheit und Mieter sortiert. Beendete historische Verträge
 bleiben über die Vertragsauswahl bearbeitbar, erzeugen aber keine laufende
 Erinnerung. Ein Klick auf „Vertrag anzeigen“ öffnet die Vertragsbearbeitung
-für genau diesen Vertrag.
+für genau diesen Vertrag, scrollt dorthin und setzt den Tastaturfokus auf den
+Editor.
+
+## Arbeitsablauf und Prüfabschluss
+
+Die Übersicht unterscheidet zwischen Handlungsbedarf und Information:
+
+- `Prüfung fällig` und `Prüfung erforderlich` stehen als offene Fälle oben.
+- `Noch nicht möglich` und `Keine Anpassung dokumentiert` bleiben erreichbar,
+  sind aber in „Weitere Verträge anzeigen“ eingeklappt.
+- Ein globaler Hinweis zählt offene Fälle über alle Objekte. Damit muss nicht
+  jedes Objekt einzeln geöffnet werden, um den Arbeitsvorrat zu erkennen.
+- Eine fällige Prüfung kann mit „Prüfung als erledigt markieren“ bestätigt
+  werden. Sie erscheint danach unter „Prüfungen abgeschlossen“ und kann dort
+  wieder geöffnet werden.
+
+Der Prüfabschluss ist zunächst ein lokaler Arbeitsstatus im Browser. Er wird
+getrennt nach Umgebung, Objekt und Vertrag gespeichert und enthält eine
+Signatur der relevanten Erinnerungsdaten. Ändern sich diese Daten, wird die
+Bestätigung automatisch ungültig und der Fall erscheint wieder als offen.
+Der Status wird nicht in Google Sheets geschrieben und ist keine rechtliche
+Bestätigung oder Dokumentation einer Mieterhöhung. Für eine geräteübergreifende
+oder revisionssichere Abnahme wäre später ein eigenes Backend-Feld mit Akteur,
+Zeitpunkt und Notiz erforderlich.
 
 ## Zentrale Berechnung
 
@@ -88,6 +111,9 @@ fallen dabei nicht aus der Übersicht.
 - Die Monatsgranularität der Soll-Historie bleibt unverändert.
 - Die vollständige Staffeltermin-Verwaltung und eine spätere Erinnerung an
   konkrete Staffelstufen bleiben Folgeaufgaben.
+- Ein lokal erledigter Fall wird nicht automatisch nach zwölf Monaten wieder
+  vorgelegt. Eine Wiedervorlage und ein geräteübergreifender Prüfstatus sind
+  eigene Folgepakete.
 
 ## Testabdeckung
 
@@ -104,6 +130,9 @@ Automatisiert geprüft werden:
 - Historieneintrag ohne `wirksam_ab` mit Kennzeichnung als geschätzt.
 - Darstellung der Übersicht, Statushinweis, rechtlicher Vorbehalt und Link
   zum Vertrag.
+- globaler Reminder über mehrere Objekte, eingeklappte Informationsfälle,
+  Fokus-/Scroll-Sprung zum Vertragseditor sowie lokales Markieren und
+  Wiederöffnen einer fälligen Prüfung.
 
 Die Tests verwenden den zentralen `ContractService`-Code. Ein Backend- oder
 Apps-Script-Deployment ist für P6.6 nicht erforderlich, weil keine neue

@@ -120,7 +120,8 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   automatisiert getestet. TEST und PROD laufen auf Apps Script 4.8.14; die Trigger- und
   Schemafunktionen wurden in beiden Umgebungen manuell ausgeführt und geprüft. Die UI-Maske
   und die Neuvermietung einer leerstehenden Einheit bleiben Folgepakete.
-- P6.6 wird im Branch `codex/p6-6-rent-increase-reminders` umgesetzt: Die Vertragsansicht
+- P6.6 ist in `main` umgesetzt; P6.6b wird im Branch `codex/p6-6b-rent-increase-review-ux`
+  nachgeschärft: Die Vertragsansicht
   zeigt je Vertrag eine interne Prüferinnerung mit letzter dokumentierter Anpassung,
   frühestem internen Prüfungstermin, Anpassungsart und Status. Die zentrale Berechnung
   liegt in `contractService.rentIncreaseReminder()` und schreibt keine Vertragsdaten.

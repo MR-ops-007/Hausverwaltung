@@ -392,7 +392,7 @@ Bankanbindung werden daraus abgeleitet.
    bleiben ein eigenes Folgepaket. Ergänzend sind CSV-Beträge gegen den historischen
    Mietmonat geprüft, aktuelle Vertragswerte nach dem letzten Eintrag abgesichert und
    geschätzte bzw. unvollständige Historien sichtbar gekennzeichnet.
-3. **P6.6 Erinnerungen für Mieterhöhungen: in Umsetzung in diesem Branch.** Die
+3. **P6.6 Erinnerungen für Mieterhöhungen: abgeschlossen; P6.6b in Umsetzung.** Die
    Vertragsansicht erhält je Vertrag eine sichtbare interne Prüfübersicht mit letzter
    dokumentierter Anpassung, frühestem internen Prüfungstermin, Anpassungsart und Status
    (`keine Anpassung dokumentiert`, `noch nicht möglich`, `Prüfung fällig` oder
@@ -404,7 +404,12 @@ Bankanbindung werden daraus abgeleitet.
    benötigen eine vollständige Indexbasis; Staffelmieten bleiben ohne hinterlegte
    Staffeltermine ausdrücklich prüfpflichtig. Es gibt keinen E-Mail-/Push-Versand, keine
    automatische rechtliche Bewertung und keine automatische Vertragsänderung. Details und
-   Abnahmekriterien stehen in `docs/p6-6-mieterhoehungs-erinnerungen.md`.
+   Abnahmekriterien stehen in `docs/p6-6-mieterhoehungs-erinnerungen.md`. P6.6b ergänzt
+   den Arbeitsablauf: offene Fälle werden objektübergreifend gezählt, Informationsfälle
+   eingeklappt, der Vertragssprung setzt Fokus und Scrollposition, und fällige Prüfungen
+   können lokal als erledigt markiert und wieder geöffnet werden. Als Folgepunkte bleiben
+   eine geräteübergreifende/revisionssichere Prüfbestätigung und eine zeitgesteuerte
+   Wiedervorlage nach einer erledigten Prüfung offen.
 4. **P6.7 Mieterwechsel und historische Vertragszeiträume: abgeschlossen in PR #46.**
    Ein Mieterwechsel wird über einen neuen Vertrag mit eigener `vertrag_id`,
    neuem Mietbeginn und eigener Vertragsparteien-Verknüpfung abgebildet; der alte Vertrag

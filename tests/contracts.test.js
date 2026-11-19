@@ -794,4 +794,96 @@ describe('contract view', () => {
     expect(html).toContain('data-vertrag-id="V_ACTIVE"');
     expect(html).not.toContain('data-vertrag-id="V_OLD"');
   });
+  it('focuses the contract editor after opening a reminder', () => {
+    const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
+    const anchor = { scrollIntoView: vi.fn(), focus: vi.fn() };
+    const ui = new Function('dataService', 'contractService', 'document', 'requestAnimationFrame', `${source};return contractUiService;`)(
+      {}, service, { getElementById: id => id === 'contract-editor' ? anchor : null }, callback => callback()
+    );
+    ui.render = vi.fn();
+    ui.selectContractFromOverview('V_TEST');
+    expect(ui.render).toHaveBeenCalledOnce();
+    expect(anchor.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+    expect(anchor.focus).toHaveBeenCalledWith({ preventScroll: true });
+  });
+  it('summarizes open rent-increase reviews across objects', () => {
+    const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
+    const other = { ...current, vertrag_id: 'V_OTHER', einheit_id: 'OTHER_WE_01', hauptperson_id: 'P_OTHER' };
+    const dataService = { state: {
+      vertraege: [current, other],
+      einheiten: [unit, { einheit_id: 'OTHER_WE_01', objekt_id: 'OTHER', typ: 'Wohnung', nummer: 'WE 01' }],
+      personen: [], vertragsparteien: [], mietanpassungen: []
+    } };
+    const ui = new Function('dataService', 'contractService', 'uiService', `${source};return contractUiService;`)(
+      dataService, service, { escapeHtml: value => String(value ?? '') }
+    );
+    const html = ui.renderRentIncreaseGlobalReminder(dataService.state.vertraege);
+    expect(html).toContain('Prüfungen fällig');
+    expect(html).toContain('2 Objekte sind betroffen');
+    expect(html).toContain('Erste offene Prüfung öffnen');
+  });
+  it('stores and reopens a completed due review locally', () => {
+    const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
+    const values = new Map();
+    const storage = {
+      getItem: key => values.get(key) || null,
+      setItem: (key, value) => values.set(key, value),
+      removeItem: key => values.delete(key)
+    };
+    const dataService = { state: { vertraege: [current], einheiten: [unit], mietanpassungen: [] } };
+    const fields = { 'contract-message': { textContent: '', className: '', setAttribute() {} } };
+    const ui = new Function('dataService', 'contractService', 'uiService', 'document', 'localStorage', `${source};return contractUiService;`)(
+      dataService, service, { escapeHtml: value => String(value ?? '') }, { getElementById: id => fields[id] || null }, storage
+    );
+    ui.render = vi.fn();
+    ui.completeRentIncreaseReview(current.vertrag_id);
+    expect(ui.rentIncreaseReviewedAt(current, service.rentIncreaseReminder(current, [], new Date()))).toBeTruthy();
+    expect(ui.render).toHaveBeenCalledOnce();
+    ui.reopenRentIncreaseReview(current.vertrag_id);
+    expect(values.size).toBe(0);
+    expect(ui.render).toHaveBeenCalledTimes(2);
+  });
+  it('reopens a completed review when the reminder signature changes', () => {
+    const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
+    const values = new Map();
+    const storage = {
+      getItem: key => values.get(key) || null,
+      setItem: (key, value) => values.set(key, value),
+      removeItem: key => values.delete(key)
+    };
+    const dataService = { state: { vertraege: [{ ...current }], einheiten: [unit], mietanpassungen: [] } };
+    const fields = { 'contract-message': { textContent: '', className: '', setAttribute() {} } };
+    const ui = new Function('dataService', 'contractService', 'uiService', 'document', 'localStorage', `${source};return contractUiService;`)(
+      dataService, service, { escapeHtml: value => String(value ?? '') }, { getElementById: id => fields[id] || null }, storage
+    );
+    ui.render = vi.fn();
+    ui.completeRentIncreaseReview(current.vertrag_id);
+    expect(values.size).toBe(1);
+    const changed = { ...dataService.state.vertraege[0], start_datum: '2023-03-01' };
+    const changedReminder = service.rentIncreaseReminder(changed, [], new Date());
+    expect(changedReminder.status).toBe('DUE');
+    expect(ui.rentIncreaseReviewedAt(changed, changedReminder)).toBe('');
+  });
+  it('does not offer or store completion for a required data-fix case', () => {
+    const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
+    const values = new Map();
+    const storage = {
+      getItem: key => values.get(key) || null,
+      setItem: (key, value) => values.set(key, value),
+      removeItem: key => values.delete(key)
+    };
+    const required = { ...current, vertrag_id: 'V_REQUIRED', erhoehungs_typ: 'Normal', start_datum: '' };
+    const dataService = { state: { vertraege: [required], einheiten: [unit], mietanpassungen: [] } };
+    const fields = { 'contract-message': { textContent: '', className: '', setAttribute() {} } };
+    const ui = new Function('dataService', 'contractService', 'uiService', 'document', 'localStorage', `${source};return contractUiService;`)(
+      dataService, service, { escapeHtml: value => String(value ?? '') }, { getElementById: id => fields[id] || null }, storage
+    );
+    ui.render = vi.fn();
+    const html = ui.renderRentIncreaseOverview([required]);
+    ui.completeRentIncreaseReview(required.vertrag_id);
+    expect(html).toContain('Prüfung erforderlich');
+    expect(html).not.toContain('Prüfung als erledigt markieren');
+    expect(values.size).toBe(0);
+    expect(ui.render).not.toHaveBeenCalled();
+  });
 });

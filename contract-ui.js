@@ -57,11 +57,26 @@ const contractUiService = {
   selectContractFromOverview(id) {
     this.selectedId = String(id || '');
     this.render();
+    this.focusContractEditor();
   },
 
-  renderRentIncreaseOverview(contracts) {
+  focusContractEditor() {
+    const focus = () => {
+      const anchor = document.getElementById('contract-editor');
+      if (!anchor) return;
+      if (typeof anchor.scrollIntoView === 'function') {
+        anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      if (typeof anchor.focus === 'function') anchor.focus({ preventScroll: true });
+    };
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(focus);
+    else if (typeof setTimeout === 'function') setTimeout(focus, 0);
+    else focus();
+  },
+
+  rentIncreaseRows(contracts) {
     const adjustments = dataService.state.mietanpassungen || [];
-    const rows = (contracts || [])
+    return (contracts || [])
       .filter(contract => contractService.isCurrentlyActive(contract))
       .map(contract => ({
         contract,
@@ -73,38 +88,134 @@ const contractUiService = {
         String(left.unit).localeCompare(String(right.unit), 'de', { numeric: true })
         || String(left.tenant).localeCompare(String(right.tenant), 'de')
       ));
+  },
+
+  rentIncreaseReviewKey(contract) {
+    const environment = typeof CONFIG !== 'undefined' && CONFIG.ENVIRONMENT ? CONFIG.ENVIRONMENT : 'local';
+    return `hv:rent-increase-review:${environment}:${this.objectId(contract)}:${contract.vertrag_id}`;
+  },
+
+  rentIncreaseReviewSignature(contract, reminder) {
+    return JSON.stringify({
+      vertrag_id: String(contract.vertrag_id),
+      status: reminder.status,
+      earliestReview: reminder.earliestReview || '',
+      lastAdjustment: reminder.lastAdjustment || '',
+      typeLabel: reminder.typeLabel || '',
+      reason: reminder.reason || ''
+    });
+  },
+
+  rentIncreaseReviewedAt(contract, reminder) {
+    if (typeof localStorage === 'undefined') return '';
+    try {
+      const value = JSON.parse(localStorage.getItem(this.rentIncreaseReviewKey(contract)) || 'null');
+      return value && value.signature === this.rentIncreaseReviewSignature(contract, reminder)
+        ? String(value.completedAt || '') : '';
+    } catch (error) { return ''; }
+  },
+
+  completeRentIncreaseReview(id) {
+    const contract = (dataService.state.vertraege || []).find(row => String(row.vertrag_id) === String(id));
+    if (!contract) return;
+    const reminder = contractService.rentIncreaseReminder(contract, dataService.state.mietanpassungen || []);
+    if (reminder.status !== 'DUE' || typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(this.rentIncreaseReviewKey(contract), JSON.stringify({
+        signature: this.rentIncreaseReviewSignature(contract, reminder),
+        completedAt: new Date().toISOString()
+      }));
+    } catch (error) { this.message('Prüfstatus konnte auf diesem Gerät nicht gespeichert werden.', 'error'); return; }
+    this.selectedId = String(id);
+    this.render();
+    this.message('Prüfung als erledigt markiert. Der Status bleibt auf diesem Gerät gespeichert.', 'success');
+  },
+
+  reopenRentIncreaseReview(id) {
+    const contract = (dataService.state.vertraege || []).find(row => String(row.vertrag_id) === String(id));
+    if (!contract || typeof localStorage === 'undefined') return;
+    try { localStorage.removeItem(this.rentIncreaseReviewKey(contract)); }
+    catch (error) { this.message('Prüfstatus konnte nicht zurückgesetzt werden.', 'error'); return; }
+    this.selectedId = String(id);
+    this.render();
+    this.message('Prüfung wieder geöffnet.', 'info');
+  },
+
+  renderRentIncreaseGlobalReminder(contracts) {
+    const rows = this.rentIncreaseRows(contracts);
+    const due = rows.filter(row => row.reminder.status === 'DUE' && !this.rentIncreaseReviewedAt(row.contract, row.reminder));
+    const required = rows.filter(row => row.reminder.status === 'REQUIRED');
+    const open = due.concat(required);
+    const objectCount = new Set(open.map(row => this.objectId(row.contract))).size;
+    if (!open.length) {
+      return `<aside class="rent-increase-global-reminder rent-increase-global-reminder-ok" role="status">
+        <strong>Keine offenen Mieterhöhungsprüfungen</strong>
+        <span>Fällige Prüfungen sind erledigt; weitere Verträge sind derzeit nicht fällig oder nur informativ.</span>
+      </aside>`;
+    }
+    const parts = [];
+    if (due.length) parts.push(`${due.length} ${due.length === 1 ? 'Prüfung fällig' : 'Prüfungen fällig'}`);
+    if (required.length) parts.push(`${required.length} ${required.length === 1 ? 'Prüfung wegen Stammdaten offen' : 'Prüfungen wegen Stammdaten offen'}`);
+    const first = open[0];
+    return `<aside class="rent-increase-global-reminder rent-increase-global-reminder-open" role="status">
+      <div><strong>${this.escape(parts.join(' · '))}</strong><span>${objectCount} ${objectCount === 1 ? 'Objekt ist' : 'Objekte sind'} betroffen. Die folgende Übersicht zeigt die Handlungsfälle des aktuell ausgewählten Objekts.</span></div>
+      <button type="button" class="contract-button-secondary" data-vertrag-id="${this.escape(first.contract.vertrag_id)}" onclick="contractUiService.selectContractFromOverview(this.dataset.vertragId)">Erste offene Prüfung öffnen</button>
+    </aside>`;
+  },
+
+  renderRentIncreaseItem(row, reviewedAt = '') {
+    const { contract, tenant, unit, reminder } = row;
+    const reviewedLabel = reviewedAt ? new Date(reviewedAt).toLocaleDateString('de-DE') : '';
+    const status = reviewedAt
+      ? `<span class="rent-increase-status rent-increase-status-completed">Prüfung abgeschlossen${reviewedLabel ? `<small>am ${this.escape(reviewedLabel)}</small>` : ''}</span>`
+      : `<span class="rent-increase-status">${this.escape(reminder.statusLabel)}</span>`;
+    const actions = [
+      `<button type="button" class="contract-button-secondary" data-vertrag-id="${this.escape(contract.vertrag_id)}" onclick="contractUiService.selectContractFromOverview(this.dataset.vertragId)">Vertrag anzeigen</button>`
+    ];
+    if (reviewedAt) {
+      actions.push(`<button type="button" class="contract-button-tertiary" data-vertrag-id="${this.escape(contract.vertrag_id)}" onclick="contractUiService.reopenRentIncreaseReview(this.dataset.vertragId)">Prüfung wieder öffnen</button>`);
+    } else if (reminder.status === 'DUE') {
+      actions.push(`<button type="button" class="contract-button-tertiary" data-vertrag-id="${this.escape(contract.vertrag_id)}" onclick="contractUiService.completeRentIncreaseReview(this.dataset.vertragId)">Prüfung als erledigt markieren</button>`);
+    }
+    return `<article id="rent-increase-contract-${this.escape(contract.vertrag_id)}" class="rent-increase-item rent-increase-status-${reminder.status.toLowerCase()}${reviewedAt ? ' is-completed' : ''}${String(contract.vertrag_id) === this.selectedId ? ' is-selected' : ''}">
+      <div class="rent-increase-item-main">
+        <strong>${this.escape(unit)} · ${this.escape(tenant)}</strong>
+        <span>${this.escape(reminder.typeLabel)}</span>
+      </div>
+      ${status}
+      <div class="rent-increase-item-meta">
+        <span>${reminder.lastAdjustment
+          ? `Letzte dokumentierte Anpassung: ${this.escape(reminder.lastAdjustment.split('-').reverse().join('.'))}`
+          : 'Letzte Anpassung: keine dokumentiert'}</span>
+        <span>${reminder.earliestReview
+          ? `Früheste interne Prüfung: ${this.escape(reminder.earliestReview.split('-').reverse().join('.'))}`
+          : 'Termin nicht aus den Vertragsdaten ableitbar'}</span>
+      </div>
+      <p>${this.escape(reminder.reason)}</p>
+      <div class="rent-increase-actions">${actions.join('')}</div>
+    </article>`;
+  },
+
+  renderRentIncreaseOverview(contracts) {
+    const rows = this.rentIncreaseRows(contracts);
 
     if (!rows.length) return '';
+    const reviewedRows = rows.map(row => ({ ...row, reviewedAt: this.rentIncreaseReviewedAt(row.contract, row.reminder) }));
+    const openRows = reviewedRows.filter(row => !row.reviewedAt && ['DUE', 'REQUIRED'].includes(row.reminder.status));
+    const completedRows = reviewedRows.filter(row => row.reviewedAt);
+    const informationalRows = reviewedRows.filter(row => !row.reviewedAt && !['DUE', 'REQUIRED'].includes(row.reminder.status));
     return `
       <section class="rent-increase-overview" aria-labelledby="rent-increase-overview-title">
         <div class="rent-increase-overview-heading">
           <div>
             <h3 id="rent-increase-overview-title">Mieterhöhungsübersicht</h3>
-            <p>Interne Prüferinnerung auf Basis von Vertrag und Soll-Historie. Es wird nichts automatisch geändert.</p>
+            <p>Offene Prüfungen stehen oben. Weitere Verträge bleiben erreichbar, erzeugen aber derzeit keinen Handlungsbedarf.</p>
           </div>
           <span class="rent-increase-overview-note">Keine rechtliche Bewertung</span>
         </div>
-        <div class="rent-increase-list">
-          ${rows.map(({ contract, tenant, unit, reminder }) => `
-            <article class="rent-increase-item rent-increase-status-${reminder.status.toLowerCase()}${String(contract.vertrag_id) === this.selectedId ? ' is-selected' : ''}">
-              <div class="rent-increase-item-main">
-                <strong>${this.escape(unit)} · ${this.escape(tenant)}</strong>
-                <span>${this.escape(reminder.typeLabel)}</span>
-              </div>
-              <span class="rent-increase-status">${this.escape(reminder.statusLabel)}</span>
-              <div class="rent-increase-item-meta">
-                <span>${reminder.lastAdjustment
-                  ? `Letzte dokumentierte Anpassung: ${this.escape(reminder.lastAdjustment.split('-').reverse().join('.'))}`
-                  : 'Letzte Anpassung: keine dokumentiert'}</span>
-                <span>${reminder.earliestReview
-                  ? `Früheste interne Prüfung: ${this.escape(reminder.earliestReview.split('-').reverse().join('.'))}`
-                  : 'Termin nicht aus den Vertragsdaten ableitbar'}</span>
-              </div>
-              <p>${this.escape(reminder.reason)}</p>
-              <button type="button" class="contract-button-secondary" data-vertrag-id="${this.escape(contract.vertrag_id)}" onclick="contractUiService.selectContractFromOverview(this.dataset.vertragId)">Vertrag anzeigen</button>
-            </article>
-          `).join('')}
-        </div>
+        ${openRows.length ? `<div class="rent-increase-list">${openRows.map(row => this.renderRentIncreaseItem(row)).join('')}</div>` : '<p class="rent-increase-empty">Für dieses Objekt sind aktuell keine offenen Prüfungen vorhanden.</p>'}
+        ${informationalRows.length ? `<details class="rent-increase-secondary"><summary>Weitere Verträge anzeigen (${informationalRows.length})</summary><div class="rent-increase-list">${informationalRows.map(row => this.renderRentIncreaseItem(row)).join('')}</div></details>` : ''}
+        ${completedRows.length ? `<details class="rent-increase-secondary" open><summary>Prüfungen abgeschlossen (${completedRows.length})</summary><div class="rent-increase-list">${completedRows.map(row => this.renderRentIncreaseItem(row, row.reviewedAt)).join('')}</div></details>` : ''}
       </section>`;
   },
 
@@ -167,8 +278,9 @@ const contractUiService = {
     this.loadedSnapshot = contractService.snapshot(contract);
     const rentIncreaseOverview = this.renderRentIncreaseOverview(objectContracts);
     output.innerHTML = `
+      ${this.renderRentIncreaseGlobalReminder(contracts)}
       ${rentIncreaseOverview}
-      <div class="contract-fields">
+      <div id="contract-editor" class="contract-fields contract-editor-anchor" tabindex="-1">
         <label>Objekt<select id="contract-object-selector" onchange="contractUiService.selectObject(this.value)">${objectIds.map(id => {
           const object = (dataService.state.objekte || []).find(row => String(row.objekt_id) === id);
           const label = id === 'TEST' ? 'TEST · Testdaten' : object && object.bezeichnung || id;
