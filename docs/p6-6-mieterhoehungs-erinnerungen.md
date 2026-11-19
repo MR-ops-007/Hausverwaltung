@@ -38,14 +38,14 @@ Die Übersicht unterscheidet zwischen Handlungsbedarf und Information:
   werden. Sie erscheint danach unter „Prüfungen abgeschlossen“ und kann dort
   wieder geöffnet werden.
 
-Der Prüfabschluss ist zunächst ein lokaler Arbeitsstatus im Browser. Er wird
+Der Prüfabschluss ist im aktuellen P6.6b zunächst ein lokaler Arbeitsstatus im Browser. Er wird
 getrennt nach Umgebung, Objekt und Vertrag gespeichert und enthält eine
 Signatur der relevanten Erinnerungsdaten. Ändern sich diese Daten, wird die
 Bestätigung automatisch ungültig und der Fall erscheint wieder als offen.
 Der Status wird nicht in Google Sheets geschrieben und ist keine rechtliche
 Bestätigung oder Dokumentation einer Mieterhöhung. Für eine geräteübergreifende
 oder revisionssichere Abnahme wäre später ein eigenes Backend-Feld mit Akteur,
-Zeitpunkt und Notiz erforderlich.
+Zeitpunkt und Notiz erforderlich. Diese Umstellung ist als **P6.6c** vorgemerkt.
 
 ## Zentrale Berechnung
 
@@ -112,8 +112,10 @@ fallen dabei nicht aus der Übersicht.
 - Die vollständige Staffeltermin-Verwaltung und eine spätere Erinnerung an
   konkrete Staffelstufen bleiben Folgeaufgaben.
 - Ein lokal erledigter Fall wird nicht automatisch nach zwölf Monaten wieder
-  vorgelegt. Eine Wiedervorlage und ein geräteübergreifender Prüfstatus sind
-  eigene Folgepakete.
+  vorgelegt. P6.6c soll den Abschluss in einem kleinen eigenen Blatt mit
+  Vertrag, Signatur, Akteur, Abschlussdatum und `wiedervorlage_ab` speichern.
+  Nach zwölf Monaten soll der Fall wieder als Wiedervorlage erscheinen. Bis
+  dahin bleibt die lokale Lösung bewusst nur eine Übergangslösung.
 
 ## Testabdeckung
 
