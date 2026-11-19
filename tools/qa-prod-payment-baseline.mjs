@@ -1,5 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { buildPaymentBaseline, changedPaymentContracts } from './payment-baseline.mjs';
+import { redactSecret } from './qa-secret-utils.mjs';
 
 function option(args, name, fallback = '') {
   const prefix = `--${name}=`;
@@ -9,14 +11,6 @@ function option(args, name, fallback = '') {
 
 function excerpt(value) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 240);
-}
-
-function countPaymentsByContract(payload) {
-  return (payload.Zahlungen || []).reduce((counts, row) => {
-    const contractId = String(row.vertrag_id || '').trim() || '(ohne Vertrag)';
-    counts[contractId] = (counts[contractId] || 0) + 1;
-    return counts;
-  }, {});
 }
 
 function contractIdsForObject(payload, objectId) {
@@ -31,18 +25,6 @@ function contractIdsForObject(payload, objectId) {
     .filter(Boolean);
 }
 
-function changedCounts(before, after) {
-  const ids = new Set([
-    ...Object.keys(before.countsByContract || {}),
-    ...Object.keys(after.countsByContract || {})
-  ]);
-  return [...ids].sort().flatMap(contractId => {
-    const beforeCount = Number(before.countsByContract?.[contractId] || 0);
-    const afterCount = Number(after.countsByContract?.[contractId] || 0);
-    return beforeCount === afterCount ? [] : [{ contractId, before: beforeCount, after: afterCount }];
-  });
-}
-
 const args = process.argv.slice(2);
 const apiUrl = option(args, 'url', process.env.HV_API_URL || '').trim();
 const accessKey = String(process.env.APP_ACCESS_KEY || '').trim();
@@ -53,29 +35,32 @@ const compare = option(args, 'compare', '');
 if (!apiUrl) throw new Error('HV_API_URL oder --url=https://.../exec fehlt.');
 if (!accessKey) throw new Error('APP_ACCESS_KEY fehlt. Der Schlüssel wird nicht als CLI-Argument akzeptiert.');
 
-const response = await fetch(apiUrl, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-  body: JSON.stringify({ typ: 'LESEN', view: 'alle', data: [], key: accessKey })
-});
-const responseText = await response.text();
-if (!response.ok) throw new Error(`Backend antwortete mit HTTP ${response.status}: ${excerpt(responseText)}`);
+let response;
+let responseText;
+try {
+  response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ typ: 'LESEN', view: 'alle', data: [], key: accessKey })
+  });
+  responseText = await response.text();
+} catch (error) {
+  throw new Error(redactSecret(error instanceof Error ? error.message : error, accessKey));
+}
+if (!response.ok) throw new Error(`Backend antwortete mit HTTP ${response.status}: ${redactSecret(excerpt(responseText), accessKey)}`);
 
 let payload;
 try {
   payload = JSON.parse(responseText);
 } catch {
-  throw new Error(`Backend liefert kein JSON: ${excerpt(responseText)}`);
+  throw new Error(`Backend liefert kein JSON: ${redactSecret(excerpt(responseText), accessKey)}`);
 }
 if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
   throw new Error('Backend-Antwort ist kein Datenobjekt.');
 }
 
 const snapshot = {
-  capturedAt: new Date().toISOString(),
-  objectId,
-  paymentRows: Array.isArray(payload.Zahlungen) ? payload.Zahlungen.length : 0,
-  countsByContract: countPaymentsByContract(payload),
+  ...buildPaymentBaseline(payload, { objectId }),
   objectContractIds: contractIdsForObject(payload, objectId)
 };
 
@@ -84,7 +69,7 @@ if (compare) {
   if (baseline.objectId !== objectId) {
     throw new Error(`Baseline gehört zu Objekt ${baseline.objectId}, erwartet wurde ${objectId}.`);
   }
-  const changes = changedCounts(baseline, snapshot);
+  const changes = changedPaymentContracts(baseline, snapshot);
   const allowed = new Set(snapshot.objectContractIds);
   const outsideObject = changes.filter(change => !allowed.has(change.contractId));
   if (outsideObject.length) {
@@ -93,6 +78,7 @@ if (compare) {
   snapshot.comparison = {
     baselineCapturedAt: baseline.capturedAt,
     changedContracts: changes,
+    comparedBy: baseline.hashAlgorithm === snapshot.hashAlgorithm ? 'count_and_content' : 'count_only_legacy_baseline',
     unchangedOutsideObject: true
   };
 }

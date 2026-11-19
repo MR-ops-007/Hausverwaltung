@@ -116,19 +116,48 @@ dokumentiert.
 Eine geschützte PROD-Capability-Gegenprobe ist in diesem Abnahmelauf noch offen. Der
 PROD-Schlüssel wird weder in `runtime-secrets.js` noch in einer lokalen Runtime-
 Konfiguration abgelegt: Für die GUI-Abnahme wird er im Zugriffsdialog eingegeben. Für
-den einmaligen lesenden API-Check wird er ausschließlich über `APP_ACCESS_KEY` an den
-Shell-Aufruf übergeben und nicht als CLI-Argument verwendet. Das Deployment selbst
-wurde über `clasp push` und `clasp deploy` aktualisiert; zu prüfen sind
+den einmaligen lesenden API-Check wird er ausschließlich über eine unsichtbare Shell-
+Eingabe in `APP_ACCESS_KEY` an den Aufruf übergeben und nicht als CLI-Argument verwendet.
+Nicht `export APP_ACCESS_KEY="..."` direkt eintippen, weil der Wert sonst in der
+Shell-History landen kann:
+
+```bash
+printf 'PROD-Zugangsschlüssel eingeben (Eingabe bleibt unsichtbar): '
+read -r -s APP_ACCESS_KEY
+printf '\n'
+export APP_ACCESS_KEY
+```
+
+Nach dem letzten API-Aufruf wird der Wert mit `unset APP_ACCESS_KEY` aus der Shell entfernt.
+Das Skript verwendet ausschließlich POST-Requests; der Schlüssel steht nicht in URL,
+CLI-Argument, Ausgabe oder gespeicherter Snapshot-Datei. Fehlertexte werden vor der
+Ausgabe zusätzlich um den Schlüssel bereinigt. Das Deployment selbst wurde über
+`clasp push` und `clasp deploy` aktualisiert; zu prüfen sind
 `backend_version: 4.8.14` und `payment_schema_ready: true`.
 
 Vor der PROD-Abnahme wird die Sheet-Datei kopiert. Zusätzlich erstellt
 `npm run qa:prod:payment-baseline -- --output=/private/tmp/prod-before.json` einen
-Nur-Lese-Bestand der Zahlungszeilen je `vertrag_id`. Nach der Abnahme prüft
+Nur-Lese-Bestand der Zahlungszeilen je `vertrag_id`. Die Datei enthält keine Rohzeilen und
+keine Namen oder IBANs, sondern nur Zählwerte und SHA-256-Fingerprints je Vertrag. Damit
+werden auch inhaltliche Ersetzungen bei gleicher Zeilenzahl erkannt. Nach der Abnahme prüft
 `npm run qa:prod:payment-baseline -- --compare=/private/tmp/prod-before.json
 --output=/private/tmp/prod-after.json`, dass sich außerhalb der Verträge des Objekts
-`TEST` keine Zählung verändert hat. Die GUI erzeugt UUIDs; die Testbuchungen werden
+`TEST` keine Zahlungszeile verändert, hinzugefügt oder gelöscht hat. Die Ausgabe nennt im
+Fehlerfall die abweichenden `vertrag_id`s und unterscheidet Zähl- und Inhaltsänderung.
+Eine legitime Buchung eines anderen Nutzers während der Abnahme ist ein echter False Positive:
+Abnahme pausieren, Ursache anhand der ausgegebenen Vertrags-ID klären und die Baseline nicht
+blind überschreiben. Die GUI erzeugt UUIDs; die Testbuchungen werden
 deshalb über Objekt, Testvertrag, Datum und die tatsächlichen Zahlungs-IDs identifiziert,
 nicht über das Präfix des CLI-Abnahmeskripts.
+
+Die Baseline wird unmittelbar vor dem ersten Zugriff der neuen App-Version erstellt; im
+Abnahmeprotokoll werden Zeitpunkt, Backend-Version, Commit-SHA und der Name der Sheet-Kopie
+festgehalten. Die Snapshot-Dateien liegen nur temporär unter `/private/tmp` und werden nach
+der Abnahme gelöscht:
+
+```bash
+rm -f /private/tmp/prod-before.json /private/tmp/prod-after.json
+```
 
 Die vollständige fachliche Abnahme wird nach dem Merge von PR #48 und dem GitHub-Pages-
 Deploy auch im PROD-Testobjekt `TEST` durchgeführt. Dort sind temporäre Schreibvorgänge
@@ -136,3 +165,17 @@ erlaubt und vorgesehen, einschließlich Mietzahlung, Teil- und Überzahlung mit 
 Kaution, Erstattung, Storno, Retry und Reload-Prüfung. Die erzeugten Testbuchungen werden
 anschließend storniert bzw. anhand des Vorher-/Nachher-Snapshots dokumentiert. Reale
 PROD-Objekte werden bei diesem Lauf nicht verändert.
+
+## Rollback bei unerwarteter PROD-Abweichung
+
+Bei einer Abweichung außerhalb von `TEST` werden keine weiteren Schreibvorgänge gestartet
+und keine Gegenbuchungen auf realen Objekten erzeugt. Die ausgegebenen Vertrags-IDs,
+Baseline-Dateien, Sheet-Kopie, Commit-SHA und Backend-Version werden gesichert. Die
+Sheet-Kopie wird zuerst in eine separate nicht produktive Datei eingespielt und geprüft.
+Eine produktive Wiederherstellung erfolgt ausschließlich über den dokumentierten Backup-
+und-Restore-Ablauf; das P6.2-Skript löscht oder überschreibt keine Zahlungszeilen.
+
+Stornos im Objekt `TEST` sind append-only: Nach der GUI-Abnahme ist dort nicht wieder die
+ursprüngliche Zeilenzahl zu erwarten. Die Baseline-Prüfung bewertet deshalb Änderungen
+außerhalb von `TEST`; die Testbuchungen und ihre Storno-Gegenbuchungen bleiben als
+nachvollziehbares Abnahmeprotokoll bestehen.
