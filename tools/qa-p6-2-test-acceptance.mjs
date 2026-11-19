@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
+import { redactSecret } from './qa-secret-utils.mjs';
 
 const root = new URL('../', import.meta.url);
 const args = process.argv.slice(2);
@@ -55,10 +56,14 @@ const checks = [];
 async function post(payload) {
   let lastError;
   for (let attempt = 0; attempt < 3; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
     try {
       const response = await fetch(profile.apiUrl, {
         method: 'POST',
-        body: JSON.stringify({ ...payload, key: accessKey })
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ ...payload, key: accessKey }),
+        signal: controller.signal
       });
       const text = await response.text();
       let result;
@@ -69,14 +74,16 @@ async function post(payload) {
       }
       if (!response.ok) {
         if (response.status >= 500 || response.status === 429) {
-          throw new Error(`TEST-Backend HTTP ${response.status}: ${result.message || text}`);
+          throw new Error(`TEST-Backend HTTP ${response.status}: ${redactSecret(result.message || text, accessKey)}`);
         }
         return result;
       }
       return result;
     } catch (error) {
-      lastError = error;
+      lastError = new Error(redactSecret(error instanceof Error ? error.message : error, accessKey));
       if (attempt < 2) await wait(2000 * (attempt + 1));
+    } finally {
+      clearTimeout(timeout);
     }
   }
   throw lastError;
@@ -87,7 +94,7 @@ async function readAll() {
 }
 
 function assert(condition, message) {
-  if (!condition) throw new Error(message);
+  if (!condition) throw new Error(redactSecret(message, accessKey));
 }
 
 function check(name, condition, detail = '') {
