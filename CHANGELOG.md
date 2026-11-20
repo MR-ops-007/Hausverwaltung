@@ -24,6 +24,15 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - Datumsangaben bis 4.6.4 stammen aus der Git-Historie (Commit, der die Version
   eingeführt hat), nicht aus dem Deployment.
 
+## 4.8.15 · 2026-11-20 · lokal
+
+P6.6c: Prüfabschlüsse für Mieterhöhungen werden im eigenen Backend-Blatt
+`MieterhöhungsPrüfungen` statt nur im Browser gespeichert. Der Status enthält die
+aktuelle Erinnerungs-Signatur, den erfassenden Geräte-Akteur, Abschlussdatum und eine
+Wiedervorlage zwölf Monate später. Das Backend bleibt bis zur TEST-/PROD-Abnahme auf
+4.8.14; für 4.8.15 muss `prepareContractSchema()` erneut ausgeführt und das neue Blatt
+angelegt werden.
+
 ## Frontend- und Betriebsmeilensteine ohne Backend-Versionserhöhung
 
 - PR #35 (2026-11-10): GitHub-Pages-Auslieferung, getrennte TEST-/PROD-Profile,
@@ -41,9 +50,8 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
   erforderlich.
 - P6.6b (2026-11-20, lokal): Die Mieterhöhungsübersicht bündelt offene Prüfungen
   objektübergreifend, zeigt Informationsfälle eingeklappt und springt beim Öffnen
-  eines Vertrags sichtbar zum Editor. Fällige Prüfungen können als lokaler
-  Arbeitsstatus erledigt und wieder geöffnet werden. Keine Backend- oder
-  Schemaänderung.
+  eines Vertrags sichtbar zum Editor. Die zunächst lokale Arbeitsmarkierung wird
+  mit P6.6c durch den geräteübergreifenden Backend-Status ersetzt.
 
 Diese Einträge ändern die produktive Apps-Script-Version nicht. Die produktive Version ist
 4.8.14; 4.8.13 und 4.8.5 bleiben als dokumentierte Rollback-Stände erhalten.

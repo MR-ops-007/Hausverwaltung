@@ -398,6 +398,7 @@ describe('Geräteschlüssel und Rollen', () => {
     expect(api.getAccessPrincipal('capture-key')).toMatchObject({ id: 'ipad-vater', label: 'iPad Vater', role: 'erfassen' });
     expect(api.post({ typ: 'LESEN', view: 'vertrag_capabilities', key: 'capture-key' })).toMatchObject({
       contract_writes: false,
+      rent_increase_review_writes: true,
       access_role: 'erfassen'
     });
     expect(api.post({ typ: 'ZAEHLERSTAND_NEU', data: [meter], key: 'capture-key' }).status).toBe('success');

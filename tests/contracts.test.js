@@ -601,6 +601,7 @@ describe('contract schema preparation', () => {
     prepareContractSchema();
 
     expect(sheets.MieterwechselProtokoll.headers).toEqual(service.tenantChangeProtocolHeaders);
+    expect(sheets['MieterhöhungsPrüfungen'].headers).toEqual(service.rentIncreaseReviewHeaders);
   });
 });
 
@@ -633,6 +634,15 @@ describe('contract client data access', () => {
     expect((await loadCloud(fetch).saveContract(payload)).vertrag).toEqual(current);
     expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({ ...payload, key: 'test-key' });
     expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({ typ: 'LESEN', view: 'vertrag_capabilities', key: 'test-key' });
+  });
+  it('sends rent review completion through the backend capability', async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(reply({ rent_increase_review_writes: true }))
+      .mockResolvedValueOnce(reply({ status: 'success', review: { vertrag_id: current.vertrag_id, status: 'ERLEDIGT' } }));
+    const payload = { typ: 'MIETERHOEHUNG_PRUEFUNG_SPEICHERN', aktion: 'ABSCHLIESSEN', vertrag_id: current.vertrag_id, signatur: 'sig' };
+    const result = await loadCloud(fetch).saveRentIncreaseReview(payload);
+    expect(result.review.status).toBe('ERLEDIGT');
+    expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({ ...payload, key: 'test-key' });
   });
   it('does not turn network or backend failures into queued success', async () => {
     const fetch = vi.fn()
@@ -822,68 +832,73 @@ describe('contract view', () => {
     expect(html).toContain('2 Objekte sind betroffen');
     expect(html).toContain('Erste offene Prüfung öffnen');
   });
-  it('stores and reopens a completed due review locally', () => {
+  it('stores and reopens a completed due review through the backend', async () => {
     const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
-    const values = new Map();
-    const storage = {
-      getItem: key => values.get(key) || null,
-      setItem: (key, value) => values.set(key, value),
-      removeItem: key => values.delete(key)
-    };
-    const dataService = { state: { vertraege: [current], einheiten: [unit], mietanpassungen: [] } };
-    const fields = { 'contract-message': { textContent: '', className: '', setAttribute() {} } };
-    const ui = new Function('dataService', 'contractService', 'uiService', 'document', 'localStorage', `${source};return contractUiService;`)(
-      dataService, service, { escapeHtml: value => String(value ?? '') }, { getElementById: id => fields[id] || null }, storage
+    const dataService = { state: { vertraege: [current], einheiten: [unit], mietanpassungen: [], mieterhoehungspruefungen: [] } };
+    const fields = { 'contract-message': { textContent: '', className: '', setAttribute() {} }, 'contract-token': { value: 'admin-token' } };
+    const saveRentIncreaseReview = vi.fn(async payload => ({ status: 'success', review: {
+      pruefung_id: `VERTRAG:${payload.vertrag_id}`, vertrag_id: payload.vertrag_id, signatur: payload.signatur || '',
+      status: payload.aktion === 'WIEDER_OEFFNEN' ? 'OFFEN' : 'ERLEDIGT', erledigt_am: '2026-11-20 10:00:00',
+      wiedervorlage_ab: '2027-11-20', erfasst_von: 'Admin', aktualisiert_am: '2026-11-20 10:00:00'
+    } }));
+    const ui = new Function('dataService', 'contractService', 'cloudService', 'uiService', 'document', `${source};return contractUiService;`)(
+      dataService, service, { saveRentIncreaseReview }, { escapeHtml: value => String(value ?? '') }, { getElementById: id => fields[id] || null }
     );
     ui.render = vi.fn();
-    ui.completeRentIncreaseReview(current.vertrag_id);
+    await ui.completeRentIncreaseReview(current.vertrag_id);
     expect(ui.rentIncreaseReviewedAt(current, service.rentIncreaseReminder(current, [], new Date()))).toBeTruthy();
     expect(ui.render).toHaveBeenCalledOnce();
-    ui.reopenRentIncreaseReview(current.vertrag_id);
-    expect(values.size).toBe(0);
+    await ui.reopenRentIncreaseReview(current.vertrag_id);
+    expect(saveRentIncreaseReview).toHaveBeenCalledTimes(2);
+    expect(dataService.state.mieterhoehungspruefungen[0].status).toBe('OFFEN');
     expect(ui.render).toHaveBeenCalledTimes(2);
   });
   it('reopens a completed review when the reminder signature changes', () => {
     const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
-    const values = new Map();
-    const storage = {
-      getItem: key => values.get(key) || null,
-      setItem: (key, value) => values.set(key, value),
-      removeItem: key => values.delete(key)
-    };
-    const dataService = { state: { vertraege: [{ ...current }], einheiten: [unit], mietanpassungen: [] } };
+    const reminder = service.rentIncreaseReminder(current, [], new Date());
+    const dataService = { state: { vertraege: [{ ...current }], einheiten: [unit], mietanpassungen: [], mieterhoehungspruefungen: [{
+      vertrag_id: current.vertrag_id, status: 'ERLEDIGT', signatur: JSON.stringify({
+        vertrag_id: current.vertrag_id, status: reminder.status, earliestReview: reminder.earliestReview || '',
+        lastAdjustment: reminder.lastAdjustment || '', typeLabel: reminder.typeLabel || '', reason: reminder.reason || ''
+      }), erledigt_am: '2026-11-20 10:00:00', wiedervorlage_ab: '2027-11-20'
+    }] } };
     const fields = { 'contract-message': { textContent: '', className: '', setAttribute() {} } };
-    const ui = new Function('dataService', 'contractService', 'uiService', 'document', 'localStorage', `${source};return contractUiService;`)(
-      dataService, service, { escapeHtml: value => String(value ?? '') }, { getElementById: id => fields[id] || null }, storage
+    const ui = new Function('dataService', 'contractService', 'uiService', 'document', `${source};return contractUiService;`)(
+      dataService, service, { escapeHtml: value => String(value ?? '') }, { getElementById: id => fields[id] || null }
     );
     ui.render = vi.fn();
-    ui.completeRentIncreaseReview(current.vertrag_id);
-    expect(values.size).toBe(1);
     const changed = { ...dataService.state.vertraege[0], start_datum: '2023-03-01' };
     const changedReminder = service.rentIncreaseReminder(changed, [], new Date());
     expect(changedReminder.status).toBe('DUE');
     expect(ui.rentIncreaseReviewedAt(changed, changedReminder)).toBe('');
   });
+  it('shows a completed review again when the twelve-month resubmission date is reached', () => {
+    const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
+    const dataService = { state: { vertraege: [current], einheiten: [unit], mietanpassungen: [], mieterhoehungspruefungen: [] } };
+    const ui = new Function('dataService', 'contractService', 'uiService', `${source};return contractUiService;`)(
+      dataService, service, { escapeHtml: value => String(value ?? '') }
+    );
+    const reminder = service.rentIncreaseReminder(current, [], new Date('2026-11-20T12:00:00Z'));
+    dataService.state.mieterhoehungspruefungen.push({
+      vertrag_id: current.vertrag_id, status: 'ERLEDIGT', signatur: ui.rentIncreaseReviewSignature(current, reminder),
+      erledigt_am: '2025-11-20 10:00:00', wiedervorlage_ab: '2026-11-20'
+    });
+    expect(ui.rentIncreaseReviewState(current, reminder)).toMatchObject({ reviewedAt: '', dueAgain: true });
+  });
   it('does not offer or store completion for a required data-fix case', () => {
     const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
-    const values = new Map();
-    const storage = {
-      getItem: key => values.get(key) || null,
-      setItem: (key, value) => values.set(key, value),
-      removeItem: key => values.delete(key)
-    };
     const required = { ...current, vertrag_id: 'V_REQUIRED', erhoehungs_typ: 'Normal', start_datum: '' };
-    const dataService = { state: { vertraege: [required], einheiten: [unit], mietanpassungen: [] } };
+    const dataService = { state: { vertraege: [required], einheiten: [unit], mietanpassungen: [], mieterhoehungspruefungen: [] } };
     const fields = { 'contract-message': { textContent: '', className: '', setAttribute() {} } };
-    const ui = new Function('dataService', 'contractService', 'uiService', 'document', 'localStorage', `${source};return contractUiService;`)(
-      dataService, service, { escapeHtml: value => String(value ?? '') }, { getElementById: id => fields[id] || null }, storage
+    const ui = new Function('dataService', 'contractService', 'uiService', 'document', `${source};return contractUiService;`)(
+      dataService, service, { escapeHtml: value => String(value ?? '') }, { getElementById: id => fields[id] || null }
     );
     ui.render = vi.fn();
     const html = ui.renderRentIncreaseOverview([required]);
     ui.completeRentIncreaseReview(required.vertrag_id);
     expect(html).toContain('Prüfung erforderlich');
     expect(html).not.toContain('Prüfung als erledigt markieren');
-    expect(values.size).toBe(0);
+    expect(dataService.state.mieterhoehungspruefungen).toHaveLength(0);
     expect(ui.render).not.toHaveBeenCalled();
   });
 });

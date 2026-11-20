@@ -71,6 +71,7 @@ const state = {
     ...tenantChangeFixture.zahlungen
   ],
   Haustechnik: [],
+  'MieterhöhungsPrüfungen': [],
   _view_aktive_mieter: [1, 2, 3, 4, 5, 6].map(index => ({ objekt_id: 'TEST', einheit_id: `TEST_WE_0${index}`, vertrag_id: `TEST_V${index}`, mieter_name: ['Donald Duck', 'Mickey Mouse', 'Daisy Duck', 'Dagobert Duck', 'Gustav Gans', 'Tick Duck / Trick Duck'][index - 1], soll_gesamt: [650, 900, 750, 1450, 500, 800][index - 1] })).concat({ objekt_id: 'TEST', einheit_id: 'TEST_WE_07', vertrag_id: '', mieter_name: 'Leerstand', soll_gesamt: 0 }, tenantChangeFixture.activeViewRow),
   _view_verbrauch_monat: consumptionFixture._view_verbrauch_monat,
   _view_verbrauch_jahr: consumptionFixture._view_verbrauch_jahr,
@@ -92,15 +93,66 @@ function readView(view) {
   };
   if (view === 'zaehlerstaende') return { Zaehlerstaende: state.Zaehlerstaende };
   if (view === 'vertrag_capabilities') return {
-    backend_version: '4.8.9-mock',
+    backend_version: '4.8.15-mock',
     access_protected: false,
     access_role: 'admin',
     contract_writes: true,
+    tenant_change_writes: true,
+    rent_increase_review_writes: true,
     payment_writes: true,
     payment_schema_ready: true,
     payment_schema_missing: []
   };
   return Object.fromEntries(Object.entries(state).filter(([key]) => !key.startsWith('_')));
+}
+
+function addMonths(dateText, months) {
+  const [year, month, day] = String(dateText).split('-').map(Number);
+  const target = new Date(Date.UTC(year, month - 1 + months, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  return [target.getUTCFullYear(), String(target.getUTCMonth() + 1).padStart(2, '0'), String(Math.min(day, lastDay)).padStart(2, '0')].join('-');
+}
+
+function saveRentIncreaseReview(payload) {
+  const contractId = String(payload?.vertrag_id || '').trim();
+  const action = String(payload?.aktion || 'ABSCHLIESSEN').toUpperCase();
+  const signature = String(payload?.signatur || '').trim();
+  if (!contractId) return { status: 'error', code: 'RENT_REVIEW_CONTRACT_MISSING', message: 'Vertrag für Prüfabschluss fehlt.' };
+  if (action === 'ABSCHLIESSEN' && !signature) return { status: 'error', code: 'RENT_REVIEW_SIGNATURE_MISSING', message: 'Die Prüfsignatur fehlt.' };
+  if (!['ABSCHLIESSEN', 'WIEDER_OEFFNEN'].includes(action)) return { status: 'error', code: 'RENT_REVIEW_ACTION_INVALID', message: 'Unbekannte Aktion für den Prüfstatus.' };
+  const now = new Date();
+  const day = now.toISOString().slice(0, 10);
+  const review = {
+    pruefung_id: `VERTRAG:${contractId}`,
+    vertrag_id: contractId,
+    signatur: action === 'ABSCHLIESSEN' ? signature : '',
+    status: action === 'ABSCHLIESSEN' ? 'ERLEDIGT' : 'OFFEN',
+    erledigt_am: action === 'ABSCHLIESSEN' ? now.toISOString() : '',
+    wiedervorlage_ab: action === 'ABSCHLIESSEN' ? addMonths(day, 12) : '',
+    erfasst_von: 'Mock Admin',
+    notiz: String(payload?.notiz || '').trim().slice(0, 500),
+    aktualisiert_am: now.toISOString()
+  };
+  const index = state['MieterhöhungsPrüfungen'].findIndex(row => row.pruefung_id === review.pruefung_id);
+  if (index >= 0) {
+    const existing = state['MieterhöhungsPrüfungen'][index];
+    const sameCompletion = action === 'ABSCHLIESSEN'
+      && existing.status === 'ERLEDIGT'
+      && existing.signatur === review.signatur
+      && existing.notiz === review.notiz;
+    const sameReopen = action === 'WIEDER_OEFFNEN' && existing.status === 'OFFEN';
+    if (sameCompletion || sameReopen) {
+      return {
+        status: 'success',
+        message: action === 'ABSCHLIESSEN' ? 'Mieterhöhungsprüfung war bereits gespeichert.' : 'Mieterhöhungsprüfung ist bereits offen.',
+        bereits_vorhanden: true,
+        review: existing
+      };
+    }
+  }
+  if (index >= 0) state['MieterhöhungsPrüfungen'][index] = review;
+  else state['MieterhöhungsPrüfungen'].push(review);
+  return { status: 'success', message: action === 'ABSCHLIESSEN' ? 'Mieterhöhungsprüfung gespeichert.' : 'Mieterhöhungsprüfung wieder geöffnet.', review };
 }
 
 function writePayments(items) {
@@ -160,6 +212,7 @@ function handle(payload) {
   if (payload?.typ === 'LESEN') return readView(payload.view);
   if (payload?.typ === 'VERBRAUCH_VIEWS_AKTUALISIEREN') return { status: 'success', message: 'Mock-Verbrauchsviews aktualisiert.' };
   if (payload?.typ === 'ZAHLUNG') return writePayments(Array.isArray(payload.data) ? payload.data : [payload.data]);
+  if (payload?.typ === 'MIETERHOEHUNG_PRUEFUNG_SPEICHERN') return saveRentIncreaseReview(payload);
   if (payload?.typ === 'ZAEHLERSTAND_NEU') {
     const items = Array.isArray(payload.data) ? payload.data : [payload.data];
     state.Zaehlerstaende.push(...items);

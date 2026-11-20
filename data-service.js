@@ -8,6 +8,7 @@ const dataService = {
         personen: [],
         vertraege: [],
         mietanpassungen: [],
+        mieterhoehungspruefungen: [],
         vertragsparteien: [],
         zaehler: [],
         zaehlerstaende: [],
@@ -101,6 +102,7 @@ const dataService = {
         this.state.personen = data.Personen || [];
         this.state.vertraege = data.Vertraege || [];
         this.state.mietanpassungen = data.Mietanpassungen || [];
+        this.state.mieterhoehungspruefungen = data['MieterhöhungsPrüfungen'] || data.MieterhoehungsPruefungen || [];
         this.state.vertragsparteien = data.Vertragsparteien || [];
         this.state.zaehler = data.Zaehler || [];
         this.state.zaehlerstaende = data.Zaehlerstaende || [];

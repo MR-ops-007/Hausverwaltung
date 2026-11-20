@@ -74,6 +74,7 @@ Dieses Verzeichnis dient dazu, den Apps-Script-Code im GitHub-Repository nachvol
 | `Code.gs` | Versionierte Kopie des produktiven Google Apps Script Backends |
 | `PaymentRules.js` | Gemeinsame Pure Functions für Zahlungsart, Mietmonat, Storno und Status |
 | `Payments.gs` | Explizite Vorbereitung der optionalen Zahlungsspalten, einschließlich Zahlungsgruppen |
+| `RentIncreaseReviews.gs` | Backend-Schreibweg für geräteübergreifende Mieterhöhungsprüfungen und Wiedervorlagen |
 | `Migration.gs.gs` | Bestehende historische GAS-Migrationsfunktion aus dem produktiven Projekt |
 | `StandIdMigration.gs` | Preview-/Apply-Migration für `objekt_id`, `einheit_id` und neue `stand_id` in Bestandsdaten |
 | `appsscript.json` | Versioniertes Apps-Script-Manifest |
