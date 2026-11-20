@@ -53,6 +53,36 @@ Beim Abschluss können eine eigene Wiedervorlage und eine Notiz erfasst werden.
 Ohne Datum gilt der Standard von zwölf Monaten; ein vergangener Termin wird
 abgewiesen.
 
+## UI-Abnahmekriterien
+
+Diese Prüfung ist vor jedem Release mit Änderungen an `contract-ui.js`,
+`style.css` oder der Vertragsansicht im echten Browser zu wiederholen. Ein
+grüner Unit-Testlauf reicht dafür nicht aus.
+
+- Desktop, mindestens 1280 px breit: Die Übersicht bleibt lesbar; bei drei
+  oder vier Spalten laufen keine Texte, Status-Pillen, Eingabefelder oder
+  Buttons über die Kartenkante.
+- Breiter Desktop, mindestens 1600 px: Vier Karten dürfen nebeneinander
+  erscheinen, aber jede Karte bleibt mindestens 320 px breit.
+- Mobil, 390 px breit: Die Karten stehen einspaltig. Wiedervorlage und Notiz
+  stehen untereinander; beide Felder und alle Buttons bleiben innerhalb der
+  Karte. Es entsteht kein horizontaler Seiten-Scroll.
+- Lange Inhalte: `Gustav Gans / Trick Duck`, lange Hinweise und der Status
+  `Prüfung erforderlich` umbrechen lesbar und verdecken keine Folgekarten.
+- Interaktion: Datum, Notiz, „Vertrag anzeigen“ und „Prüfung als erledigt
+  markieren“ sind bedienbar. Der Vertragssprung scrollt zum Editor und setzt
+  den Fokus sichtbar.
+- Ladezustand: Wird die Ansicht vor Abschluss des Hintergrundladens geöffnet,
+  zeigt sie einen verständlichen Ladezustand. Nach Abschluss ist kein erneutes
+  Öffnen der Ansicht erforderlich.
+- Cache: Der Browser lädt nach einer CSS- oder Script-Änderung tatsächlich
+  die neue Version; Versionsparameter der geänderten Assets werden angepasst.
+
+Für die Geometrieprüfung gilt zusätzlich: Bei jedem Eingabefeld muss die rechte
+Kante innerhalb der rechten Kante seiner Karte liegen. Diese Prüfung wurde bei
+der ursprünglichen Vier-Spalten-Darstellung verletzt und ist deshalb ein
+eigener Abnahmepunkt.
+
 ## Zentrale Berechnung
 
 Die Berechnung liegt ausschließlich in
