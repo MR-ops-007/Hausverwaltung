@@ -26,6 +26,23 @@ function addRentIncreaseReviewMonths(dateText, months) {
   return [target.getUTCFullYear(), String(target.getUTCMonth() + 1).padStart(2, '0'), String(safeDay).padStart(2, '0')].join('-');
 }
 
+function normalizeRentIncreaseReviewResurface(value, completedDate, now) {
+  const text = String(value || '').trim();
+  if (!text) return addRentIncreaseReviewMonths(completedDate, 12);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    throw rentIncreaseReviewError('RENT_REVIEW_DATE_INVALID', 'Wiedervorlage muss ein gültiges Datum sein.');
+  }
+  const candidate = new Date(text + 'T00:00:00Z');
+  if (!Number.isFinite(candidate.getTime()) || rentIncreaseReviewDate(candidate) !== text) {
+    throw rentIncreaseReviewError('RENT_REVIEW_DATE_INVALID', 'Wiedervorlage muss ein gültiges Kalenderdatum sein.');
+  }
+  const today = rentIncreaseReviewDate(now);
+  if (text < today) {
+    throw rentIncreaseReviewError('RENT_REVIEW_DATE_INVALID', 'Wiedervorlage darf nicht in der Vergangenheit liegen.');
+  }
+  return text;
+}
+
 function rentIncreaseReviewSheet(ss) {
   const sheet = ss.getSheetByName(RENT_INCREASE_REVIEW_SHEET_NAME);
   if (!sheet) throw rentIncreaseReviewError('RENT_REVIEW_SCHEMA_MISSING', 'Mieterhöhungsprüfungen sind im Backend noch nicht eingerichtet.');
@@ -64,7 +81,7 @@ function handleRentIncreaseReviewWrite(ss, payload, principal) {
     signatur: completed ? signature : '',
     status: completed ? 'ERLEDIGT' : 'OFFEN',
     erledigt_am: completed ? rentIncreaseReviewTimestamp(now) : '',
-    wiedervorlage_ab: completed ? addRentIncreaseReviewMonths(completedDate, 12) : '',
+    wiedervorlage_ab: completed ? normalizeRentIncreaseReviewResurface(payload.wiedervorlage_ab, completedDate, now) : '',
     erfasst_von: principal ? String(principal.label || principal.id || '') : '',
     notiz: String(payload.notiz || '').trim().slice(0, 500),
     aktualisiert_am: rentIncreaseReviewTimestamp(now)
@@ -76,7 +93,8 @@ function handleRentIncreaseReviewWrite(ss, payload, principal) {
     prepared.headers.forEach((header, index) => { existing[header] = prepared.rows[rowIndex][index]; });
     const sameCompletion = completed && existing.status === 'ERLEDIGT'
       && String(existing.signatur || '') === record.signatur
-      && String(existing.notiz || '') === record.notiz;
+      && String(existing.notiz || '') === record.notiz
+      && String(existing.wiedervorlage_ab || '') === record.wiedervorlage_ab;
     const sameReopen = !completed && existing.status === 'OFFEN';
     if (sameCompletion || sameReopen) {
       return {
@@ -97,7 +115,7 @@ function handleRentIncreaseReviewWrite(ss, payload, principal) {
   return {
     status: 'success',
     message: completed ? 'Mieterhöhungsprüfung gespeichert.' : 'Mieterhöhungsprüfung wieder geöffnet.',
-    bereits_vorhanden: rowIndex >= 0 && completed,
+    bereits_vorhanden: false,
     review: record
   };
 }

@@ -84,7 +84,9 @@ describe('contract domain rules', () => {
       status: 'DUE',
       statusLabel: 'Prüfung fällig',
       lastAdjustment: '',
-      earliestReview: '2025-03-01'
+      reviewDueDate: '2025-02-01',
+      earliestDemandDate: '2025-03-01',
+      earliestEffectiveDate: '2025-05-01'
     });
   });
   it('keeps the no-adjustment status when the first review date is in the future', () => {
@@ -94,14 +96,16 @@ describe('contract domain rules', () => {
     expect(reminder).toMatchObject({
       status: 'NO_ADJUSTMENT',
       statusLabel: 'Keine Anpassung dokumentiert',
-      earliestReview: '2027-06-01'
+      reviewDueDate: '2027-05-01',
+      earliestDemandDate: '2027-06-01',
+      earliestEffectiveDate: '2027-08-01'
     });
   });
   it('handles a leap-day contract anniversary without throwing', () => {
     const reminder = service.rentIncreaseReminder({
       ...current, erhoehungs_typ: 'Normal', start_datum: '2024-02-29', letzte_anpassung: ''
     }, [], new Date('2025-03-01T12:00:00Z'));
-    expect(reminder).toMatchObject({ status: 'DUE', earliestReview: '2025-03-01' });
+    expect(reminder).toMatchObject({ status: 'DUE', reviewDueDate: '2025-01-29', earliestDemandDate: '2025-02-28' });
   });
   it('marks a documented adjustment as pending before the next review date', () => {
     const reminder = service.rentIncreaseReminder({ ...current, letzte_anpassung: '2026-06-01' }, [{
@@ -112,7 +116,7 @@ describe('contract domain rules', () => {
     expect(reminder).toMatchObject({
       status: 'PENDING',
       statusLabel: 'Noch nicht möglich',
-      earliestReview: '2027-06-01'
+      reviewDueDate: '2027-05-01'
     });
   });
   it('uses the annual index rule and marks a due documented adjustment', () => {
@@ -126,7 +130,9 @@ describe('contract domain rules', () => {
       status: 'DUE',
       statusLabel: 'Prüfung fällig',
       lastAdjustment: '2025-01-15',
-      earliestReview: '2026-02-01'
+      reviewDueDate: '2025-12-01',
+      earliestDemandDate: '2026-01-01',
+      earliestEffectiveDate: '2026-03-01'
     });
   });
   it('requires explicit schedule data for staffel contracts', () => {
@@ -146,6 +152,52 @@ describe('contract domain rules', () => {
     expect(service.rentIncreaseReminder({ ...current, letzte_anpassung: '2025-01-15' }, [], now))
       .toMatchObject({ status: 'REQUIRED', statusLabel: 'Prüfung erforderlich', historyIncomplete: true });
   });
+  it('requires an explicit increase type instead of silently assuming normal rent law', () => {
+    const reminder = service.rentIncreaseReminder({ ...current, erhoehungs_typ: '' }, [], now);
+    expect(reminder).toMatchObject({ status: 'REQUIRED', typeMissing: true, typeLabel: 'Erhöhungstyp fehlt' });
+    expect(reminder.reason).toContain('Erhöhungstyp fehlt');
+  });
+  it('keeps operating-cost and modernization changes out of the normal increase clock', () => {
+    const reminder = service.rentIncreaseReminder({ ...current, erhoehungs_typ: 'Normal', letzte_anpassung: '' }, [{
+      vertrag_id: current.vertrag_id,
+      art: 'Modernisierung',
+      wirksam_ab: '2026-08-01',
+      nachher_json: JSON.stringify({ letzte_anpassung: '2026-08-01' })
+    }], now);
+    expect(reminder).toMatchObject({ lastAdjustment: '', reviewDueDate: '2025-02-01', status: 'DUE' });
+  });
+  it('uses a five-year review interval for commercial units', () => {
+    const reminder = service.rentIncreaseReminder({ ...current, erhoehungs_typ: 'Normal', start_datum: '2020-01-15' }, [], now, {
+      scope: 'GEWERBE', object: { gewerbe_pruefung_intervall_jahre: 5 }
+    });
+    expect(reminder).toMatchObject({ scope: 'GEWERBE', reviewIntervalYears: 5, reviewDueDate: '2025-01-15', status: 'DUE' });
+    expect(reminder.earliestDemandDate).toBe('');
+    expect(reminder.reason).toContain('5 Jahre');
+  });
+  it('recognizes numbered WE labels as residential units', () => {
+    expect(service.rentIncreaseScope(current, { typ: 'WE 04' })).toBe('WOHNRAUM');
+  });
+  it('separates the configured cap from the comparison rent and keeps a legal basis in the result', () => {
+    const reminder = service.rentIncreaseReminder({ ...current, erhoehungs_typ: 'Normal', start_datum: '2024-01-01' }, [], now, {
+      scope: 'WOHNRAUM', object: {
+        kappungsgrenze_prozent: 15,
+        kappungsgrenze_gueltig_ab: '2026-01-01',
+        kappungsgrenze_quelle: 'Hessen-Testgebiet',
+        vergleichsmiete_monatlich: 720,
+        vergleichsmiete_pro_qm: 12.5
+      }
+    });
+    expect(reminder.kappungsgrenze).toMatchObject({ percent: 15, configured: true, source: 'Hessen-Testgebiet' });
+    expect(reminder).toMatchObject({ vergleichsmieteMonatlich: 720, vergleichsmieteProQm: 12.5 });
+    expect(reminder.reviewBasis).toMatchObject({ capPercent: 15, capSource: 'Hessen-Testgebiet', vergleichsmieteMonatlich: 720 });
+  });
+  it('uses the documented 20 percent default without pretending it is locally verified', () => {
+    const reminder = service.rentIncreaseReminder({ ...current, erhoehungs_typ: 'Normal' }, [], now, {
+      scope: 'WOHNRAUM', object: {}
+    });
+    expect(reminder.kappungsgrenze).toMatchObject({ percent: 20, configured: false });
+    expect(reminder.kappungsgrenze.source).toContain('Prüfung ausstehend');
+  });
   it('uses the latest documented history entry and marks fallback dates', () => {
     const reminder = service.rentIncreaseReminder({ ...current, letzte_anpassung: '' }, [{
       vertrag_id: current.vertrag_id,
@@ -156,7 +208,9 @@ describe('contract domain rules', () => {
     expect(reminder).toMatchObject({
       lastAdjustment: '2026-02-03',
       lastAdjustmentEstimated: true,
-      earliestReview: '2027-03-01',
+      reviewDueDate: '2027-01-01',
+      earliestDemandDate: '2027-02-01',
+      earliestEffectiveDate: '2027-04-01',
       status: 'PENDING'
     });
     expect(reminder.reason).toContain('geschätzt');
@@ -583,6 +637,16 @@ describe('contract schema preparation', () => {
         getLastColumn: () => schemaHeaders.length,
         getMaxColumns: () => schemaHeaders.length,
         getRange: () => ({ getValues: () => [schemaHeaders] })
+      },
+      Objekte: {
+        getLastColumn: () => 1,
+        getMaxColumns: () => 1,
+        insertColumnsAfter: vi.fn(),
+        getRange: () => ({
+          getValues: () => [['objekt_id']],
+          setValues: values => { sheets.Objekte.headers = values[0]; }
+        }),
+        headers: []
       }
     };
     const insertSheet = name => {
@@ -602,6 +666,7 @@ describe('contract schema preparation', () => {
 
     expect(sheets.MieterwechselProtokoll.headers).toEqual(service.tenantChangeProtocolHeaders);
     expect(sheets['MieterhöhungsPrüfungen'].headers).toEqual(service.rentIncreaseReviewHeaders);
+    expect(sheets.Objekte.headers).toEqual(service.objectRuleFields);
   });
 });
 
@@ -835,7 +900,12 @@ describe('contract view', () => {
   it('stores and reopens a completed due review through the backend', async () => {
     const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
     const dataService = { state: { vertraege: [current], einheiten: [unit], mietanpassungen: [], mieterhoehungspruefungen: [] } };
-    const fields = { 'contract-message': { textContent: '', className: '', setAttribute() {} }, 'contract-token': { value: 'admin-token' } };
+    const fields = {
+      'contract-message': { textContent: '', className: '', setAttribute() {} },
+      'contract-token': { value: 'admin-token' },
+      ['rent-increase-resurface-' + current.vertrag_id]: { value: '2027-05-15' },
+      ['rent-increase-note-' + current.vertrag_id]: { value: 'Unterlagen geprüft' }
+    };
     const saveRentIncreaseReview = vi.fn(async payload => ({ status: 'success', review: {
       pruefung_id: `VERTRAG:${payload.vertrag_id}`, vertrag_id: payload.vertrag_id, signatur: payload.signatur || '',
       status: payload.aktion === 'WIEDER_OEFFNEN' ? 'OFFEN' : 'ERLEDIGT', erledigt_am: '2026-11-20 10:00:00',
@@ -846,6 +916,9 @@ describe('contract view', () => {
     );
     ui.render = vi.fn();
     await ui.completeRentIncreaseReview(current.vertrag_id);
+    expect(saveRentIncreaseReview).toHaveBeenCalledWith(expect.objectContaining({
+      wiedervorlage_ab: '2027-05-15', notiz: 'Unterlagen geprüft'
+    }));
     expect(ui.rentIncreaseReviewedAt(current, service.rentIncreaseReminder(current, [], new Date()))).toBeTruthy();
     expect(ui.render).toHaveBeenCalledOnce();
     await ui.reopenRentIncreaseReview(current.vertrag_id);
@@ -857,16 +930,15 @@ describe('contract view', () => {
     const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
     const reminder = service.rentIncreaseReminder(current, [], new Date());
     const dataService = { state: { vertraege: [{ ...current }], einheiten: [unit], mietanpassungen: [], mieterhoehungspruefungen: [{
-      vertrag_id: current.vertrag_id, status: 'ERLEDIGT', signatur: JSON.stringify({
-        vertrag_id: current.vertrag_id, status: reminder.status, earliestReview: reminder.earliestReview || '',
-        lastAdjustment: reminder.lastAdjustment || '', typeLabel: reminder.typeLabel || '', reason: reminder.reason || ''
-      }), erledigt_am: '2026-11-20 10:00:00', wiedervorlage_ab: '2027-11-20'
+      vertrag_id: current.vertrag_id, status: 'ERLEDIGT', signatur: '',
+      erledigt_am: '2026-11-20 10:00:00', wiedervorlage_ab: '2027-11-20'
     }] } };
     const fields = { 'contract-message': { textContent: '', className: '', setAttribute() {} } };
     const ui = new Function('dataService', 'contractService', 'uiService', 'document', `${source};return contractUiService;`)(
       dataService, service, { escapeHtml: value => String(value ?? '') }, { getElementById: id => fields[id] || null }
     );
     ui.render = vi.fn();
+    dataService.state.mieterhoehungspruefungen[0].signatur = ui.rentIncreaseReviewSignature(current, reminder);
     const changed = { ...dataService.state.vertraege[0], start_datum: '2023-03-01' };
     const changedReminder = service.rentIncreaseReminder(changed, [], new Date());
     expect(changedReminder.status).toBe('DUE');

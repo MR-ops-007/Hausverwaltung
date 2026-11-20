@@ -13,7 +13,16 @@ const rent = (zahlung_id, vertrag_id, mietmonat, betrag, datum, art = 'Miete', e
 const consumptionFixture = createMockConsumptionData();
 
 const state = {
-  Objekte: [{ objekt_id: 'TEST', bezeichnung: 'TEST · Entenhausen' }],
+  Objekte: [{
+    objekt_id: 'TEST', bezeichnung: 'TEST · Entenhausen',
+    kappungsgrenze_prozent: 15,
+    kappungsgrenze_gueltig_ab: '2026-01-01',
+    kappungsgrenze_gueltig_bis: '2028-12-31',
+    kappungsgrenze_quelle: 'Synthetische TEST-Konfiguration',
+    vergleichsmiete_monatlich: 720,
+    vergleichsmiete_pro_qm: 12.5,
+    gewerbe_pruefung_intervall_jahre: 5
+  }],
   Einheiten: [
     ...baselineRentalFixture.einheiten,
     ...tenantChangeFixture.einheiten,
@@ -93,7 +102,7 @@ function readView(view) {
   };
   if (view === 'zaehlerstaende') return { Zaehlerstaende: state.Zaehlerstaende };
   if (view === 'vertrag_capabilities') return {
-    backend_version: '4.8.15-mock',
+    backend_version: '4.8.16-mock',
     access_protected: false,
     access_role: 'admin',
     contract_writes: true,
@@ -113,6 +122,17 @@ function addMonths(dateText, months) {
   return [target.getUTCFullYear(), String(target.getUTCMonth() + 1).padStart(2, '0'), String(Math.min(day, lastDay)).padStart(2, '0')].join('-');
 }
 
+function normalizeReviewDate(value, fallback, today) {
+  const text = String(value || '').trim();
+  if (!text) return addMonths(fallback, 12);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) throw new Error('Wiedervorlage muss ein gültiges Datum sein.');
+  const parsed = new Date(`${text}T00:00:00Z`);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== text || text < today) {
+    throw new Error('Wiedervorlage muss ein gültiges zukünftiges Datum sein.');
+  }
+  return text;
+}
+
 function saveRentIncreaseReview(payload) {
   const contractId = String(payload?.vertrag_id || '').trim();
   const action = String(payload?.aktion || 'ABSCHLIESSEN').toUpperCase();
@@ -128,7 +148,7 @@ function saveRentIncreaseReview(payload) {
     signatur: action === 'ABSCHLIESSEN' ? signature : '',
     status: action === 'ABSCHLIESSEN' ? 'ERLEDIGT' : 'OFFEN',
     erledigt_am: action === 'ABSCHLIESSEN' ? now.toISOString() : '',
-    wiedervorlage_ab: action === 'ABSCHLIESSEN' ? addMonths(day, 12) : '',
+    wiedervorlage_ab: action === 'ABSCHLIESSEN' ? normalizeReviewDate(payload?.wiedervorlage_ab, day, day) : '',
     erfasst_von: 'Mock Admin',
     notiz: String(payload?.notiz || '').trim().slice(0, 500),
     aktualisiert_am: now.toISOString()
@@ -139,7 +159,8 @@ function saveRentIncreaseReview(payload) {
     const sameCompletion = action === 'ABSCHLIESSEN'
       && existing.status === 'ERLEDIGT'
       && existing.signatur === review.signatur
-      && existing.notiz === review.notiz;
+      && existing.notiz === review.notiz
+      && existing.wiedervorlage_ab === review.wiedervorlage_ab;
     const sameReopen = action === 'WIEDER_OEFFNEN' && existing.status === 'OFFEN';
     if (sameCompletion || sameReopen) {
       return {
@@ -152,7 +173,7 @@ function saveRentIncreaseReview(payload) {
   }
   if (index >= 0) state['MieterhöhungsPrüfungen'][index] = review;
   else state['MieterhöhungsPrüfungen'].push(review);
-  return { status: 'success', message: action === 'ABSCHLIESSEN' ? 'Mieterhöhungsprüfung gespeichert.' : 'Mieterhöhungsprüfung wieder geöffnet.', review };
+  return { status: 'success', message: action === 'ABSCHLIESSEN' ? 'Mieterhöhungsprüfung gespeichert.' : 'Mieterhöhungsprüfung wieder geöffnet.', bereits_vorhanden: false, review };
 }
 
 function writePayments(items) {

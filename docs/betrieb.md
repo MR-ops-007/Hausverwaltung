@@ -339,9 +339,10 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
 4. Neue Version der bestehenden Bereitstellung veröffentlichen; bei einer neuen
    Bereitstellung die API-URL aktualisieren.
 5. `prepareContractSchema()` einmal manuell ausführen. Die Funktion legt bei 4.8.13
-   zusätzlich `MieterwechselProtokoll` und bei 4.8.15 das Blatt
-   `MieterhöhungsPrüfungen` an; sie wird nicht automatisch durch einen API-Aufruf
-   gestartet. Vor dem Ausführen eine Sheet-Kopie als Rückfallstand sichern.
+   zusätzlich `MieterwechselProtokoll`, bei 4.8.15 das Blatt
+   `MieterhöhungsPrüfungen` und bei 4.8.16 die optionalen Regelspalten im Blatt
+   `Objekte` an; sie wird nicht automatisch durch einen API-Aufruf gestartet.
+   Vor dem Ausführen eine Sheet-Kopie als Rückfallstand sichern.
 6. `installDailyViewTrigger()` einmal manuell ausführen und die Rückmeldung
    `already_present` prüfen. Die Funktion legt nur einen täglichen Trigger für
    `refreshAktiveMieterViewDaily()` an und entfernt einen alten Trigger auf

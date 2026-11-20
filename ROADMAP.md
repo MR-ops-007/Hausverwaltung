@@ -392,7 +392,7 @@ Bankanbindung werden daraus abgeleitet.
    bleiben ein eigenes Folgepaket. Ergänzend sind CSV-Beträge gegen den historischen
    Mietmonat geprüft, aktuelle Vertragswerte nach dem letzten Eintrag abgesichert und
    geschätzte bzw. unvollständige Historien sichtbar gekennzeichnet.
-3. **P6.6 Erinnerungen für Mieterhöhungen: abgeschlossen; P6.6b in Umsetzung.** Die
+3. **P6.6 Erinnerungen für Mieterhöhungen: P6.6c abgeschlossen; P6.6d in Umsetzung.** Die
    Vertragsansicht erhält je Vertrag eine sichtbare interne Prüfübersicht mit letzter
    dokumentierter Anpassung, frühestem internen Prüfungstermin, Anpassungsart und Status
    (`keine Anpassung dokumentiert`, `noch nicht möglich`, `Prüfung fällig` oder
@@ -400,7 +400,7 @@ Bankanbindung werden daraus abgeleitet.
    `contractService.rentIncreaseReminder()` und verwendet die Soll-Historie. Die Übersicht
    zeigt nur aktuell laufende Verträge; historische Verträge bleiben auswählbar, erzeugen
    aber keine laufende Erinnerung. Bei einem Vertrag ohne bisherige Anpassung wird die
-   Prüfung nach zwölf Monaten fällig, sofern dieser Termin erreicht ist. Indexmieten
+   Prüfung nach elf internen Monaten fällig, sofern dieser Termin erreicht ist. Indexmieten
    benötigen eine vollständige Indexbasis; Staffelmieten bleiben ohne hinterlegte
    Staffeltermine ausdrücklich prüfpflichtig. Es gibt keinen E-Mail-/Push-Versand, keine
    automatische rechtliche Bewertung und keine automatische Vertragsänderung. Details und
@@ -410,8 +410,12 @@ Bankanbindung werden daraus abgeleitet.
    können wieder geöffnet werden. **P6.6c** setzt den Prüfstatus jetzt geräteübergreifend
    im eigenen Backend-Blatt `MieterhöhungsPrüfungen` um: Vertrag, Signatur, Status,
    Akteur, Abschlussdatum, Notiz und `wiedervorlage_ab` werden gespeichert; die
-   Wiedervorlage erscheint zwölf Monate später automatisch wieder. Vor TEST/PROD ist
-   `prepareContractSchema()` und ein Apps-Script-Deployment auf 4.8.15 erforderlich.
+   Wiedervorlage erscheint zwölf Monate später automatisch wieder. P6.6d ergänzt die
+   getrennten Termine für interne Prüfung, Erhöhungsverlangen und Wirksamkeit,
+   objektbezogene zeitabhängige Kappungsgrenze, getrennte Vergleichsmiete, eine
+   eigene Fünfjahresprüfung für Gewerbe, explizite Erhöhungstypen, Notiz und
+   individuelle Wiedervorlage. Vor TEST/PROD ist `prepareContractSchema()` und ein
+   Apps-Script-Deployment auf 4.8.16 erforderlich.
 4. **P6.7 Mieterwechsel und historische Vertragszeiträume: abgeschlossen in PR #46.**
    Ein Mieterwechsel wird über einen neuen Vertrag mit eigener `vertrag_id`,
    neuem Mietbeginn und eigener Vertragsparteien-Verknüpfung abgebildet; der alte Vertrag

@@ -78,4 +78,19 @@ describe('Apps-Script Mieterhöhungsprüfungen', () => {
     const { runtime } = fixture();
     expect(runtime.addRentIncreaseReviewMonths('2024-02-29', 12)).toBe('2025-02-28');
   });
+  it('übernimmt eine individuelle Wiedervorlage und lehnt vergangene Termine ab', () => {
+    const { runtime, ss } = fixture();
+    const payload = {
+      vertrag_id: 'V_CUSTOM', signatur: 'sig', wiedervorlage_ab: '2027-05-15', notiz: 'Unterlagen prüfen'
+    };
+    const result = runtime.handleRentIncreaseReviewWrite(ss, payload, { id: 'd1', label: 'Admin', role: 'admin' });
+    expect(result.review).toMatchObject({ wiedervorlage_ab: '2027-05-15', notiz: 'Unterlagen prüfen' });
+    expect(runtime.handleRentIncreaseReviewWrite(ss, payload, { id: 'd1', label: 'Admin', role: 'admin' }))
+      .toMatchObject({ bereits_vorhanden: true });
+    expect(runtime.handleRentIncreaseReviewWrite(ss, { ...payload, wiedervorlage_ab: '2027-06-15' }, { id: 'd1', label: 'Admin', role: 'admin' }))
+      .toMatchObject({ bereits_vorhanden: false, review: { wiedervorlage_ab: '2027-06-15' } });
+    expect(() => runtime.handleRentIncreaseReviewWrite(ss, {
+      vertrag_id: 'V_PAST', signatur: 'sig', wiedervorlage_ab: '2020-01-01'
+    }, { id: 'd1', label: 'Admin', role: 'admin' })).toThrow(/Vergangenheit/);
+  });
 });

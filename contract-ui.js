@@ -6,6 +6,18 @@ const contractUiService = {
   escape(value) { return uiService.escapeHtml(value); },
   current() { return dataService.state.vertraege.find(row => String(row.vertrag_id) === this.selectedId); },
   unit(contract) { return dataService.state.einheiten.find(row => String(row.einheit_id) === String(contract.einheit_id)); },
+  object(contract) {
+    const objectId = this.objectId(contract);
+    return (dataService.state.objekte || []).find(row => String(row.objekt_id) === objectId) || {};
+  },
+  rentIncreaseReminderFor(contract) {
+    const unit = this.unit(contract);
+    return contractService.rentIncreaseReminder(contract, dataService.state.mietanpassungen || [], new Date(), {
+      scope: contractService.rentIncreaseScope(contract, unit),
+      unit,
+      object: this.object(contract)
+    });
+  },
   field(name) { return document.getElementById('contract-' + name); },
   messageSeq: 0,
   /** Shows a status toast (fixed at the bottom of the screen). kind: info | success | error. */
@@ -82,7 +94,13 @@ const contractUiService = {
         contract,
         tenant: this.tenantLabel(contract),
         unit: this.unitLabel(contract),
-        reminder: contractService.rentIncreaseReminder(contract, adjustments)
+        unitRecord: this.unit(contract),
+        objectRecord: this.object(contract),
+        reminder: contractService.rentIncreaseReminder(contract, adjustments, new Date(), {
+          scope: contractService.rentIncreaseScope(contract, this.unit(contract)),
+          unit: this.unit(contract),
+          object: this.object(contract)
+        })
       }))
       .sort((left, right) => (
         String(left.unit).localeCompare(String(right.unit), 'de', { numeric: true })
@@ -97,7 +115,10 @@ const contractUiService = {
       earliestReview: reminder.earliestReview || '',
       lastAdjustment: reminder.lastAdjustment || '',
       typeLabel: reminder.typeLabel || '',
-      reason: reminder.reason || ''
+      reason: reminder.reason || '',
+      basis: reminder.reviewBasis || {},
+      soll_nebenkosten: contract.soll_nebenkosten === undefined ? '' : contract.soll_nebenkosten,
+      mietmodell: contract.mietmodell || ''
     });
   },
 
@@ -130,7 +151,7 @@ const contractUiService = {
   async completeRentIncreaseReview(id) {
     const contract = (dataService.state.vertraege || []).find(row => String(row.vertrag_id) === String(id));
     if (!contract) return;
-    const reminder = contractService.rentIncreaseReminder(contract, dataService.state.mietanpassungen || []);
+    const reminder = this.rentIncreaseReminderFor(contract);
     if (reminder.status !== 'DUE' || this.reviewBusy && this.reviewBusy[id]) return;
     this.reviewBusy = this.reviewBusy || {};
     this.reviewBusy[id] = true;
@@ -139,7 +160,9 @@ const contractUiService = {
         typ: 'MIETERHOEHUNG_PRUEFUNG_SPEICHERN',
         aktion: 'ABSCHLIESSEN',
         vertrag_id: contract.vertrag_id,
-        signatur: this.rentIncreaseReviewSignature(contract, reminder)
+        signatur: this.rentIncreaseReviewSignature(contract, reminder),
+        wiedervorlage_ab: (document.getElementById('rent-increase-resurface-' + id) || {}).value || '',
+        notiz: (document.getElementById('rent-increase-note-' + id) || {}).value || ''
       });
       const rows = dataService.state.mieterhoehungspruefungen || (dataService.state.mieterhoehungspruefungen = []);
       const index = rows.findIndex(row => String(row.vertrag_id) === String(contract.vertrag_id));
@@ -147,7 +170,9 @@ const contractUiService = {
       else rows.push(result.review);
       this.selectedId = String(id);
       this.render();
-      this.message('Prüfung gespeichert. Wiedervorlage in zwölf Monaten.', 'success');
+      this.message(result.review && result.review.wiedervorlage_ab
+        ? `Prüfung gespeichert. Wiedervorlage ab ${result.review.wiedervorlage_ab.split('-').reverse().join('.')}.`
+        : 'Prüfung gespeichert.', 'success');
     } catch (error) {
       this.message(error && error.message || 'Prüfstatus konnte nicht gespeichert werden.', 'error');
     } finally {
@@ -206,6 +231,8 @@ const contractUiService = {
     const { contract, tenant, unit, reminder } = row;
     const reviewedAt = reviewState.reviewedAt || '';
     const reviewedLabel = reviewedAt ? new Date(reviewedAt).toLocaleDateString('de-DE') : '';
+    const dateLabel = value => value ? this.escape(String(value).split('-').reverse().join('.')) : '';
+    const amountLabel = value => value === '' || value === undefined || value === null ? '' : `${this.escape(String(value))} EUR`;
     const status = reviewedAt
       ? `<span class="rent-increase-status rent-increase-status-completed">Prüfung abgeschlossen${reviewedLabel ? `<small>am ${this.escape(reviewedLabel)}</small>` : ''}</span>`
       : reviewState.dueAgain
@@ -229,11 +256,22 @@ const contractUiService = {
         <span>${reminder.lastAdjustment
           ? `Letzte dokumentierte Anpassung: ${this.escape(reminder.lastAdjustment.split('-').reverse().join('.'))}`
           : 'Letzte Anpassung: keine dokumentiert'}</span>
-        <span>${reminder.earliestReview
-          ? `Früheste interne Prüfung: ${this.escape(reminder.earliestReview.split('-').reverse().join('.'))}`
+        <span>${reminder.reviewDueDate
+          ? `Interne Prüfung ab: ${dateLabel(reminder.reviewDueDate)}`
           : 'Termin nicht aus den Vertragsdaten ableitbar'}</span>
+        ${reminder.earliestDemandDate ? `<span>Frühestes Erhöhungsverlangen: ${dateLabel(reminder.earliestDemandDate)}</span>` : ''}
+        ${reminder.earliestEffectiveDate ? `<span>Früheste Wirksamkeit: ${dateLabel(reminder.earliestEffectiveDate)}</span>` : ''}
+        ${reminder.scope === 'GEWERBE' ? `<span>Prüfintervall: spätestens alle ${this.escape(String(reminder.reviewIntervalYears))} Jahre</span>` : ''}
+        ${reminder.kappungsgrenze ? `<span>Kappungsgrenze: ${this.escape(String(reminder.kappungsgrenze.percent))} % · ${this.escape(reminder.kappungsgrenze.source)}</span>` : ''}
+        ${reminder.vergleichsmieteMonatlich !== '' ? `<span>Vergleichsmiete: ${amountLabel(reminder.vergleichsmieteMonatlich)} monatlich</span>` : ''}
+        ${reminder.vergleichsmieteProQm !== '' ? `<span>Vergleichsmiete: ${amountLabel(reminder.vergleichsmieteProQm)} / m²</span>` : ''}
       </div>
       <p>${this.escape(reminder.reason)}</p>
+      ${reviewState.record && reviewState.record.notiz ? `<p class="rent-increase-review-note"><strong>Notiz:</strong> ${this.escape(reviewState.record.notiz)}</p>` : ''}
+      ${!reviewedAt && reminder.status === 'DUE' ? `<div class="rent-increase-review-fields">
+        <label>Wiedervorlage ab (optional, Standard: 12 Monate)<input id="rent-increase-resurface-${this.escape(contract.vertrag_id)}" type="date"></label>
+        <label>Notiz zur Prüfung (optional)<textarea id="rent-increase-note-${this.escape(contract.vertrag_id)}" rows="2" maxlength="500"></textarea></label>
+      </div>` : ''}
       <div class="rent-increase-actions">${actions.join('')}</div>
     </article>`;
   },
