@@ -128,7 +128,8 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   Staffelmieten ohne Terminmodell sowie unvollständige Index- und Historienfelder werden
   ausdrücklich als `Prüfung erforderlich` angezeigt. E-Mail-/Push-Erinnerungen und eine
   automatische rechtliche Bewertung gehören nicht zum Paket. Die Test- und Fachgrenzen
-  stehen in `docs/p6-6-mieterhoehungs-erinnerungen.md`.
+  stehen in `docs/p6-6-mieterhoehungs-erinnerungen.md`. P6.6c bleibt als Folgepaket für
+  einen synchronisierten Prüfstatus und eine Wiedervorlage nach zwölf Monaten offen.
 - P6.2 ist im Branch `codex/p6-2-payment-rules` umgesetzt, fachlich in TEST abgenommen und
   im PROD-Apps-Script bereitgestellt:
   `PaymentRules.js` ist die
