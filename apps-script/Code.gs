@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.14
+ * Version: 4.8.15
  * Stand: 2026-11-17
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
@@ -127,8 +127,12 @@
  * Änderungen seit v4.8.12:
  * - Mieterwechsel werden als atomarer, idempotenter Admin-Schreibvorgang mit geschlossenem
  *   Vorgängervertrag, neuer Vertragspartei und zentraler Zeitraumprüfung gespeichert
+ *
+ * Änderungen seit v4.8.15:
+ * - Mieterhöhungsprüfungen werden geräteübergreifend mit Signatur, Akteur und
+ *   zwölfmonatiger Wiedervorlage im eigenen Blatt gespeichert
  */
-const BACKEND_VERSION = "4.8.14";
+const BACKEND_VERSION = "4.8.15";
 
 function sendJSON(obj) {
   return ContentService
@@ -209,6 +213,7 @@ function canWriteType(principal, type) {
   if (type === 'VERTRAG_AKTUALISIEREN' || type === 'INDEX_ANWENDEN' || type === 'MIETERWECHSEL_ANLEGEN') {
     return principal.role === 'admin';
   }
+  if (type === 'MIETERHOEHUNG_PRUEFUNG_SPEICHERN') return ['admin', 'erfassen'].indexOf(principal.role) !== -1;
   return principal.role === 'admin' || principal.role === 'erfassen';
 }
 
@@ -228,6 +233,7 @@ function readView(ss, view, principal) {
       backend_version: BACKEND_VERSION,
       contract_writes: Boolean(principal && principal.role === 'admin'),
       tenant_change_writes: Boolean(principal && principal.role === 'admin'),
+      rent_increase_review_writes: Boolean(principal && ['admin', 'erfassen'].indexOf(principal.role) !== -1),
       payment_writes: Boolean(principal && (principal.role === 'admin' || principal.role === 'erfassen')),
       payment_schema_ready: paymentSchema.ready,
       payment_schema_missing: paymentSchema.missing,
@@ -587,6 +593,10 @@ function doPost(e) {
 
     if (payload.typ === 'MIETERWECHSEL_ANLEGEN') {
       return sendJSON(handleTenantChange(ss, payload));
+    }
+
+    if (payload.typ === 'MIETERHOEHUNG_PRUEFUNG_SPEICHERN') {
+      return sendJSON(handleRentIncreaseReviewWrite(ss, payload, principal));
     }
 
     if (BACKEND_ACTION_TYPES.indexOf(payload.typ) !== -1) {

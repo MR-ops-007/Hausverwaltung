@@ -38,14 +38,14 @@ Die Übersicht unterscheidet zwischen Handlungsbedarf und Information:
   werden. Sie erscheint danach unter „Prüfungen abgeschlossen“ und kann dort
   wieder geöffnet werden.
 
-Der Prüfabschluss ist im aktuellen P6.6b zunächst ein lokaler Arbeitsstatus im Browser. Er wird
-getrennt nach Umgebung, Objekt und Vertrag gespeichert und enthält eine
-Signatur der relevanten Erinnerungsdaten. Ändern sich diese Daten, wird die
-Bestätigung automatisch ungültig und der Fall erscheint wieder als offen.
-Der Status wird nicht in Google Sheets geschrieben und ist keine rechtliche
-Bestätigung oder Dokumentation einer Mieterhöhung. Für eine geräteübergreifende
-oder revisionssichere Abnahme wäre später ein eigenes Backend-Feld mit Akteur,
-Zeitpunkt und Notiz erforderlich. Diese Umstellung ist als **P6.6c** vorgemerkt.
+Seit P6.6c liegt dieser Status im eigenen Sheet `MieterhöhungsPrüfungen` und ist
+damit geräte- und browserübergreifend verfügbar. Gespeichert werden Vertrag,
+Erinnerungs-Signatur, Status, Abschlussdatum, erfassendes Gerät beziehungsweise
+Profil, optionale Notiz und `wiedervorlage_ab`. Die UI akzeptiert den Abschluss
+für die Rollen `admin` und `erfassen`; Vertragsdaten selbst werden dadurch nicht
+geändert. Ändert sich die Signatur, wird der Abschluss automatisch ungültig.
+Am Datum der Wiedervorlage erscheint der Fall wieder als offen. Das ist keine
+rechtliche Bestätigung und keine automatische Mieterhöhung.
 
 ## Zentrale Berechnung
 
@@ -111,11 +111,11 @@ fallen dabei nicht aus der Übersicht.
 - Die Monatsgranularität der Soll-Historie bleibt unverändert.
 - Die vollständige Staffeltermin-Verwaltung und eine spätere Erinnerung an
   konkrete Staffelstufen bleiben Folgeaufgaben.
-- Ein lokal erledigter Fall wird nicht automatisch nach zwölf Monaten wieder
-  vorgelegt. P6.6c soll den Abschluss in einem kleinen eigenen Blatt mit
-  Vertrag, Signatur, Akteur, Abschlussdatum und `wiedervorlage_ab` speichern.
-  Nach zwölf Monaten soll der Fall wieder als Wiedervorlage erscheinen. Bis
-  dahin bleibt die lokale Lösung bewusst nur eine Übergangslösung.
+- Die Wiedervorlage liegt zwölf Monate nach dem Abschlussdatum. Der 29. Februar
+  wird dabei auf den 28. Februar des Folgejahres begrenzt.
+- Der Prüfstatus ist ein Arbeits- und Nachvollziehbarkeitsstatus, keine
+  rechtliche Entscheidung. Eine Notiz kann den fachlichen Ausgang der Prüfung
+  festhalten; Vertrags- oder Mietbeträge werden nicht automatisch verändert.
 
 ## Testabdeckung
 
@@ -133,9 +133,14 @@ Automatisiert geprüft werden:
 - Darstellung der Übersicht, Statushinweis, rechtlicher Vorbehalt und Link
   zum Vertrag.
 - globaler Reminder über mehrere Objekte, eingeklappte Informationsfälle,
-  Fokus-/Scroll-Sprung zum Vertragseditor sowie lokales Markieren und
-  Wiederöffnen einer fälligen Prüfung.
+  Fokus-/Scroll-Sprung zum Vertragseditor sowie Markieren und Wiederöffnen einer
+  fälligen Prüfung über den Backend-Status.
+- Backend-Schema, Rollenfreigabe, Abschluss, Idempotenz, Wiederöffnung,
+  Signaturänderung, zwölfmonatige Wiedervorlage und Schaltjahr.
 
-Die Tests verwenden den zentralen `ContractService`-Code. Ein Backend- oder
-Apps-Script-Deployment ist für P6.6 nicht erforderlich, weil keine neue
-Schreiboperation und keine neue Sheet-Spalte eingeführt wird.
+Vor TEST und PROD muss `prepareContractSchema()` einmal ausgeführt werden. Die
+Funktion legt das Blatt `MieterhöhungsPrüfungen` an. Danach muss die neue
+Apps-Script-Version bereitgestellt und die Capability
+`rent_increase_review_writes: true` mit einem autorisierten Profil geprüft
+werden. Ein Rollback auf 4.8.14 lässt die neue UI-Schreibaktion bewusst
+gesperrt; Lesen der übrigen Vertragsdaten bleibt möglich.

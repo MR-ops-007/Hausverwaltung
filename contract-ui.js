@@ -90,11 +90,6 @@ const contractUiService = {
       ));
   },
 
-  rentIncreaseReviewKey(contract) {
-    const environment = typeof CONFIG !== 'undefined' && CONFIG.ENVIRONMENT ? CONFIG.ENVIRONMENT : 'local';
-    return `hv:rent-increase-review:${environment}:${this.objectId(contract)}:${contract.vertrag_id}`;
-  },
-
   rentIncreaseReviewSignature(contract, reminder) {
     return JSON.stringify({
       vertrag_id: String(contract.vertrag_id),
@@ -106,44 +101,88 @@ const contractUiService = {
     });
   },
 
-  rentIncreaseReviewedAt(contract, reminder) {
-    if (typeof localStorage === 'undefined') return '';
-    try {
-      const value = JSON.parse(localStorage.getItem(this.rentIncreaseReviewKey(contract)) || 'null');
-      return value && value.signature === this.rentIncreaseReviewSignature(contract, reminder)
-        ? String(value.completedAt || '') : '';
-    } catch (error) { return ''; }
+  rentIncreaseReviewRecord(contract) {
+    return (dataService.state.mieterhoehungspruefungen || []).find(row =>
+      String(row.vertrag_id) === String(contract && contract.vertrag_id)
+    ) || null;
   },
 
-  completeRentIncreaseReview(id) {
+  rentIncreaseReviewState(contract, reminder) {
+    const record = this.rentIncreaseReviewRecord(contract);
+    if (!record || String(record.status).toUpperCase() !== 'ERLEDIGT') {
+      return { reviewedAt: '', dueAgain: false, record };
+    }
+    if (String(record.signatur || '') !== this.rentIncreaseReviewSignature(contract, reminder)) {
+      return { reviewedAt: '', dueAgain: false, record };
+    }
+    const dueAgain = Boolean(record.wiedervorlage_ab && reminder.today && String(record.wiedervorlage_ab) <= String(reminder.today));
+    return {
+      reviewedAt: dueAgain ? '' : String(record.erledigt_am || ''),
+      dueAgain,
+      record
+    };
+  },
+
+  rentIncreaseReviewedAt(contract, reminder) {
+    return this.rentIncreaseReviewState(contract, reminder).reviewedAt;
+  },
+
+  async completeRentIncreaseReview(id) {
     const contract = (dataService.state.vertraege || []).find(row => String(row.vertrag_id) === String(id));
     if (!contract) return;
     const reminder = contractService.rentIncreaseReminder(contract, dataService.state.mietanpassungen || []);
-    if (reminder.status !== 'DUE' || typeof localStorage === 'undefined') return;
+    if (reminder.status !== 'DUE' || this.reviewBusy && this.reviewBusy[id]) return;
+    this.reviewBusy = this.reviewBusy || {};
+    this.reviewBusy[id] = true;
     try {
-      localStorage.setItem(this.rentIncreaseReviewKey(contract), JSON.stringify({
-        signature: this.rentIncreaseReviewSignature(contract, reminder),
-        completedAt: new Date().toISOString()
-      }));
-    } catch (error) { this.message('Prüfstatus konnte auf diesem Gerät nicht gespeichert werden.', 'error'); return; }
-    this.selectedId = String(id);
-    this.render();
-    this.message('Prüfung als erledigt markiert. Der Status bleibt auf diesem Gerät gespeichert.', 'success');
+      const result = await cloudService.saveRentIncreaseReview({
+        typ: 'MIETERHOEHUNG_PRUEFUNG_SPEICHERN',
+        aktion: 'ABSCHLIESSEN',
+        vertrag_id: contract.vertrag_id,
+        signatur: this.rentIncreaseReviewSignature(contract, reminder)
+      });
+      const rows = dataService.state.mieterhoehungspruefungen || (dataService.state.mieterhoehungspruefungen = []);
+      const index = rows.findIndex(row => String(row.vertrag_id) === String(contract.vertrag_id));
+      if (index >= 0) rows[index] = result.review;
+      else rows.push(result.review);
+      this.selectedId = String(id);
+      this.render();
+      this.message('Prüfung gespeichert. Wiedervorlage in zwölf Monaten.', 'success');
+    } catch (error) {
+      this.message(error && error.message || 'Prüfstatus konnte nicht gespeichert werden.', 'error');
+    } finally {
+      this.reviewBusy[id] = false;
+    }
   },
 
-  reopenRentIncreaseReview(id) {
+  async reopenRentIncreaseReview(id) {
     const contract = (dataService.state.vertraege || []).find(row => String(row.vertrag_id) === String(id));
-    if (!contract || typeof localStorage === 'undefined') return;
-    try { localStorage.removeItem(this.rentIncreaseReviewKey(contract)); }
-    catch (error) { this.message('Prüfstatus konnte nicht zurückgesetzt werden.', 'error'); return; }
-    this.selectedId = String(id);
-    this.render();
-    this.message('Prüfung wieder geöffnet.', 'info');
+    if (!contract || this.reviewBusy && this.reviewBusy[id]) return;
+    this.reviewBusy = this.reviewBusy || {};
+    this.reviewBusy[id] = true;
+    try {
+      const result = await cloudService.saveRentIncreaseReview({
+        typ: 'MIETERHOEHUNG_PRUEFUNG_SPEICHERN',
+        aktion: 'WIEDER_OEFFNEN',
+        vertrag_id: contract.vertrag_id
+      });
+      const rows = dataService.state.mieterhoehungspruefungen || (dataService.state.mieterhoehungspruefungen = []);
+      const index = rows.findIndex(row => String(row.vertrag_id) === String(contract.vertrag_id));
+      if (index >= 0) rows[index] = result.review;
+      else rows.push(result.review);
+      this.selectedId = String(id);
+      this.render();
+      this.message('Prüfung wieder geöffnet.', 'info');
+    } catch (error) {
+      this.message(error && error.message || 'Prüfstatus konnte nicht zurückgesetzt werden.', 'error');
+    } finally {
+      this.reviewBusy[id] = false;
+    }
   },
 
   renderRentIncreaseGlobalReminder(contracts) {
     const rows = this.rentIncreaseRows(contracts);
-    const due = rows.filter(row => row.reminder.status === 'DUE' && !this.rentIncreaseReviewedAt(row.contract, row.reminder));
+    const due = rows.filter(row => row.reminder.status === 'DUE' && !this.rentIncreaseReviewState(row.contract, row.reminder).reviewedAt);
     const required = rows.filter(row => row.reminder.status === 'REQUIRED');
     const open = due.concat(required);
     const objectCount = new Set(open.map(row => this.objectId(row.contract))).size;
@@ -163,11 +202,14 @@ const contractUiService = {
     </aside>`;
   },
 
-  renderRentIncreaseItem(row, reviewedAt = '') {
+  renderRentIncreaseItem(row, reviewState = {}) {
     const { contract, tenant, unit, reminder } = row;
+    const reviewedAt = reviewState.reviewedAt || '';
     const reviewedLabel = reviewedAt ? new Date(reviewedAt).toLocaleDateString('de-DE') : '';
     const status = reviewedAt
       ? `<span class="rent-increase-status rent-increase-status-completed">Prüfung abgeschlossen${reviewedLabel ? `<small>am ${this.escape(reviewedLabel)}</small>` : ''}</span>`
+      : reviewState.dueAgain
+        ? '<span class="rent-increase-status rent-increase-status-due">Wiedervorlage fällig</span>'
       : `<span class="rent-increase-status">${this.escape(reminder.statusLabel)}</span>`;
     const actions = [
       `<button type="button" class="contract-button-secondary" data-vertrag-id="${this.escape(contract.vertrag_id)}" onclick="contractUiService.selectContractFromOverview(this.dataset.vertragId)">Vertrag anzeigen</button>`
@@ -200,10 +242,10 @@ const contractUiService = {
     const rows = this.rentIncreaseRows(contracts);
 
     if (!rows.length) return '';
-    const reviewedRows = rows.map(row => ({ ...row, reviewedAt: this.rentIncreaseReviewedAt(row.contract, row.reminder) }));
-    const openRows = reviewedRows.filter(row => !row.reviewedAt && ['DUE', 'REQUIRED'].includes(row.reminder.status));
-    const completedRows = reviewedRows.filter(row => row.reviewedAt);
-    const informationalRows = reviewedRows.filter(row => !row.reviewedAt && !['DUE', 'REQUIRED'].includes(row.reminder.status));
+    const reviewedRows = rows.map(row => ({ ...row, reviewState: this.rentIncreaseReviewState(row.contract, row.reminder) }));
+    const openRows = reviewedRows.filter(row => !row.reviewState.reviewedAt && ['DUE', 'REQUIRED'].includes(row.reminder.status));
+    const completedRows = reviewedRows.filter(row => row.reviewState.reviewedAt);
+    const informationalRows = reviewedRows.filter(row => !row.reviewState.reviewedAt && !['DUE', 'REQUIRED'].includes(row.reminder.status));
     return `
       <section class="rent-increase-overview" aria-labelledby="rent-increase-overview-title">
         <div class="rent-increase-overview-heading">
@@ -213,9 +255,9 @@ const contractUiService = {
           </div>
           <span class="rent-increase-overview-note">Keine rechtliche Bewertung</span>
         </div>
-        ${openRows.length ? `<div class="rent-increase-list">${openRows.map(row => this.renderRentIncreaseItem(row)).join('')}</div>` : '<p class="rent-increase-empty">Für dieses Objekt sind aktuell keine offenen Prüfungen vorhanden.</p>'}
-        ${informationalRows.length ? `<details class="rent-increase-secondary"><summary>Weitere Verträge anzeigen (${informationalRows.length})</summary><div class="rent-increase-list">${informationalRows.map(row => this.renderRentIncreaseItem(row)).join('')}</div></details>` : ''}
-        ${completedRows.length ? `<details class="rent-increase-secondary" open><summary>Prüfungen abgeschlossen (${completedRows.length})</summary><div class="rent-increase-list">${completedRows.map(row => this.renderRentIncreaseItem(row, row.reviewedAt)).join('')}</div></details>` : ''}
+        ${openRows.length ? `<div class="rent-increase-list">${openRows.map(row => this.renderRentIncreaseItem(row, row.reviewState)).join('')}</div>` : '<p class="rent-increase-empty">Für dieses Objekt sind aktuell keine offenen Prüfungen vorhanden.</p>'}
+        ${informationalRows.length ? `<details class="rent-increase-secondary"><summary>Weitere Verträge anzeigen (${informationalRows.length})</summary><div class="rent-increase-list">${informationalRows.map(row => this.renderRentIncreaseItem(row, row.reviewState)).join('')}</div></details>` : ''}
+        ${completedRows.length ? `<details class="rent-increase-secondary" open><summary>Prüfungen abgeschlossen (${completedRows.length})</summary><div class="rent-increase-list">${completedRows.map(row => this.renderRentIncreaseItem(row, row.reviewState)).join('')}</div></details>` : ''}
       </section>`;
   },
 

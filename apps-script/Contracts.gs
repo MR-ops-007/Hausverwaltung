@@ -20,6 +20,10 @@ function prepareContractSchema() {
     ss.insertSheet('MieterwechselProtokoll').getRange(1, 1, 1, contractService.tenantChangeProtocolHeaders.length)
       .setValues([contractService.tenantChangeProtocolHeaders]);
   }
+  if (!ss.getSheetByName('MieterhöhungsPrüfungen')) {
+    ss.insertSheet('MieterhöhungsPrüfungen').getRange(1, 1, 1, contractService.rentIncreaseReviewHeaders.length)
+      .setValues([contractService.rentIncreaseReviewHeaders]);
+  }
   return { addedHeaders: missing };
 }
 

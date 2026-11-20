@@ -407,11 +407,11 @@ Bankanbindung werden daraus abgeleitet.
    Abnahmekriterien stehen in `docs/p6-6-mieterhoehungs-erinnerungen.md`. P6.6b ergänzt
    den Arbeitsablauf: offene Fälle werden objektübergreifend gezählt, Informationsfälle
    eingeklappt, der Vertragssprung setzt Fokus und Scrollposition, und fällige Prüfungen
-   können lokal als erledigt markiert und wieder geöffnet werden. **P6.6c** ist als
-   Folgepaket vorgemerkt: Prüfabschlüsse werden in einem kleinen eigenen Backend-Blatt
-   mit Vertrag, Signatur, Akteur und Abschlussdatum gespeichert; `wiedervorlage_ab`
-   legt die Wiedervorlage zwölf Monate später fest. Bis dahin bleibt der lokale Status
-   eine Übergangslösung.
+   können wieder geöffnet werden. **P6.6c** setzt den Prüfstatus jetzt geräteübergreifend
+   im eigenen Backend-Blatt `MieterhöhungsPrüfungen` um: Vertrag, Signatur, Status,
+   Akteur, Abschlussdatum, Notiz und `wiedervorlage_ab` werden gespeichert; die
+   Wiedervorlage erscheint zwölf Monate später automatisch wieder. Vor TEST/PROD ist
+   `prepareContractSchema()` und ein Apps-Script-Deployment auf 4.8.15 erforderlich.
 4. **P6.7 Mieterwechsel und historische Vertragszeiträume: abgeschlossen in PR #46.**
    Ein Mieterwechsel wird über einen neuen Vertrag mit eigener `vertrag_id`,
    neuem Mietbeginn und eigener Vertragsparteien-Verknüpfung abgebildet; der alte Vertrag

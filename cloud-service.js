@@ -196,6 +196,20 @@ const cloudService = {
         return result;
     },
 
+    async saveRentIncreaseReview(payload) {
+        const capabilities = await this.loadCapabilities();
+        if (capabilities.rent_increase_review_writes !== true) {
+            const error = new Error('Prüfabschlüsse für Mieterhöhungen sind im Backend noch nicht eingerichtet.');
+            error.code = 'RENT_REVIEW_SCHEMA_NOT_READY';
+            throw error;
+        }
+        const result = await this.post(payload);
+        if (!result || result.status !== 'success' || !result.review) {
+            throw new Error(result && result.message || 'Prüfstatus wurde nicht bestätigt.');
+        }
+        return result;
+    },
+
     /** Legt den Eintrag in die Queue. Nur wenn er nachweislich gespeichert wurde, gilt er als offline gesichert. */
     queueForLater(transactionData, message) {
         if (!this.saveToOfflineQueue(transactionData)) {

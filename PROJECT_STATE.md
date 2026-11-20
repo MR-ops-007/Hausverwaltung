@@ -120,16 +120,19 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   automatisiert getestet. TEST und PROD laufen auf Apps Script 4.8.14; die Trigger- und
   Schemafunktionen wurden in beiden Umgebungen manuell ausgeführt und geprüft. Die UI-Maske
   und die Neuvermietung einer leerstehenden Einheit bleiben Folgepakete.
-- P6.6 ist in `main` umgesetzt; P6.6b wird im Branch `codex/p6-6b-rent-increase-review-ux`
-  nachgeschärft: Die Vertragsansicht
+- P6.6 ist in `main` umgesetzt; P6.6b ist im Branch `codex/p6-6b-rent-increase-review-ux`
+  umgesetzt und wird mit P6.6c weitergeführt: Die Vertragsansicht
   zeigt je Vertrag eine interne Prüferinnerung mit letzter dokumentierter Anpassung,
   frühestem internen Prüfungstermin, Anpassungsart und Status. Die zentrale Berechnung
   liegt in `contractService.rentIncreaseReminder()` und schreibt keine Vertragsdaten.
   Staffelmieten ohne Terminmodell sowie unvollständige Index- und Historienfelder werden
   ausdrücklich als `Prüfung erforderlich` angezeigt. E-Mail-/Push-Erinnerungen und eine
   automatische rechtliche Bewertung gehören nicht zum Paket. Die Test- und Fachgrenzen
-  stehen in `docs/p6-6-mieterhoehungs-erinnerungen.md`. P6.6c bleibt als Folgepaket für
-  einen synchronisierten Prüfstatus und eine Wiedervorlage nach zwölf Monaten offen.
+  stehen in `docs/p6-6-mieterhoehungs-erinnerungen.md`. P6.6c ist im Branch
+  `codex/p6-6c-synced-rent-review-status` umgesetzt: Prüfabschlüsse werden im Blatt
+  `MieterhöhungsPrüfungen` gespeichert, sind geräteübergreifend sichtbar und werden
+  nach zwölf Monaten wieder vorgelegt. Der Backend-Stand 4.8.15 ist noch nicht in TEST
+  oder PROD bereitgestellt.
 - P6.2 ist im Branch `codex/p6-2-payment-rules` umgesetzt, fachlich in TEST abgenommen und
   im PROD-Apps-Script bereitgestellt:
   `PaymentRules.js` ist die

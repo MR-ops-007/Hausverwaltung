@@ -339,8 +339,9 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
 4. Neue Version der bestehenden Bereitstellung veröffentlichen; bei einer neuen
    Bereitstellung die API-URL aktualisieren.
 5. `prepareContractSchema()` einmal manuell ausführen. Die Funktion legt bei 4.8.13
-   zusätzlich `MieterwechselProtokoll` an; sie wird nicht automatisch durch einen API-Aufruf
-   gestartet.
+   zusätzlich `MieterwechselProtokoll` und bei 4.8.15 das Blatt
+   `MieterhöhungsPrüfungen` an; sie wird nicht automatisch durch einen API-Aufruf
+   gestartet. Vor dem Ausführen eine Sheet-Kopie als Rückfallstand sichern.
 6. `installDailyViewTrigger()` einmal manuell ausführen und die Rückmeldung
    `already_present` prüfen. Die Funktion legt nur einen täglichen Trigger für
    `refreshAktiveMieterViewDaily()` an und entfernt einen alten Trigger auf
@@ -355,6 +356,14 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
    durchführen.
 9. Ergebnis und Rollback-Stand in `CHANGELOG.md` beziehungsweise diesem Dokument
    ergänzen.
+
+Für P6.6c muss die Capability `rent_increase_review_writes: true` mit einem
+autorisierten `admin`- oder `erfassen`-Profil zurückkommen. Danach mindestens einen
+fälligen Prüfabschluss, eine Wiederöffnung und die Wiedervorlage nach zwölf Monaten
+prüfen. Ein erneuter Abschluss mit derselben Signatur muss als bereits gespeichert
+gelten und darf den ursprünglichen Abschlusszeitpunkt nicht verändern. Das neue
+Blatt ist pro Vertrag idempotent; Vertragsdaten und Mietbeträge werden durch diese
+Aktion nicht geändert.
 
 ## Sicherheitsgrenzen
 
