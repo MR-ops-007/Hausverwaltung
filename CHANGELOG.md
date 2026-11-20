@@ -31,6 +31,9 @@ interne Wiedervorlage, frühestes Erhöhungsverlangen und früheste angenommene
 Wirksamkeit. Für Wohnraum werden Kappungsgrenze und Vergleichsmiete getrennt
 angezeigt; Objekte können zeitbezogene Kappungsgrenzen konfigurieren, wobei
 20 % nur als ausdrücklich gekennzeichneter Standardwert verwendet werden.
+Für normale Mieterhöhungen wird die früheste Wirksamkeit ab dem dritten
+Kalendermonat nach dem Verlangen dargestellt; die Indexmiete bleibt beim
+übernächsten Monat.
 Gewerbeverträge erhalten eine eigene, standardmäßig fünfjährige Prüfregel.
 Erhöhungstypen und fehlende Stammdaten werden nicht mehr stillschweigend
 vereinheitlicht. Der Prüfabschluss unterstützt eine optionale Notiz und eine

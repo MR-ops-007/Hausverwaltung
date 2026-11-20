@@ -33,10 +33,20 @@ function prepareContractSchema() {
     ss.insertSheet('MieterwechselProtokoll').getRange(1, 1, 1, contractService.tenantChangeProtocolHeaders.length)
       .setValues([contractService.tenantChangeProtocolHeaders]);
   }
-  if (!ss.getSheetByName('MieterhöhungsPrüfungen')) {
-    ss.insertSheet('MieterhöhungsPrüfungen').getRange(1, 1, 1, contractService.rentIncreaseReviewHeaders.length)
+  let reviewSheet = ss.getSheetByName('MieterhöhungsPrüfungen');
+  if (!reviewSheet) {
+    reviewSheet = ss.insertSheet('MieterhöhungsPrüfungen');
+    reviewSheet.getRange(1, 1, 1, contractService.rentIncreaseReviewHeaders.length)
       .setValues([contractService.rentIncreaseReviewHeaders]);
   }
+  const reviewHeaders = reviewSheet.getRange(1, 1, 1, reviewSheet.getLastColumn())
+    .getValues()[0].map(String);
+  ['erledigt_am', 'wiedervorlage_ab', 'aktualisiert_am'].forEach(field => {
+    const column = reviewHeaders.indexOf(field);
+    if (column < 0) return;
+    const rows = Math.max(0, reviewSheet.getMaxRows() - 1);
+    if (rows > 0) reviewSheet.getRange(2, column + 1, rows, 1).setNumberFormat('@');
+  });
   return { addedHeaders: missing, addedObjectHeaders: missingObjectFields };
 }
 

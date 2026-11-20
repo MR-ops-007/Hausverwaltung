@@ -457,7 +457,10 @@ const contractService = {
       ? addMonths(base, Math.round(intervalYears * 12))
       : type === 'Index' ? firstOfMonth(addMonths(base, 11)) : addMonths(base, 11);
     const demand = scope === 'GEWERBE' ? null : type === 'Index' ? firstOfMonth(addMonths(base, 12)) : addMonths(base, 12);
-    const effective = scope === 'GEWERBE' ? null : firstOfMonth(addMonths(demand, 2));
+    // Normal rent increases become effective at the start of the third
+    // calendar month after the demand; index rent uses the second month.
+    const effective = scope === 'GEWERBE' ? null
+      : firstOfMonth(addMonths(demand, type === 'Index' ? 2 : 3));
     result.reviewDueDate = dateLabel(reviewDue);
     result.earliestDemandDate = dateLabel(demand);
     result.earliestEffectiveDate = dateLabel(effective);

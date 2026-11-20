@@ -86,7 +86,7 @@ describe('contract domain rules', () => {
       lastAdjustment: '',
       reviewDueDate: '2025-02-01',
       earliestDemandDate: '2025-03-01',
-      earliestEffectiveDate: '2025-05-01'
+      earliestEffectiveDate: '2025-06-01'
     });
   });
   it('keeps the no-adjustment status when the first review date is in the future', () => {
@@ -98,7 +98,7 @@ describe('contract domain rules', () => {
       statusLabel: 'Keine Anpassung dokumentiert',
       reviewDueDate: '2027-05-01',
       earliestDemandDate: '2027-06-01',
-      earliestEffectiveDate: '2027-08-01'
+      earliestEffectiveDate: '2027-09-01'
     });
   });
   it('handles a leap-day contract anniversary without throwing', () => {
@@ -650,7 +650,17 @@ describe('contract schema preparation', () => {
       }
     };
     const insertSheet = name => {
-      const sheet = { headers: [], getRange: () => ({ setValues: values => { sheet.headers = values[0]; } }) };
+      const sheet = {
+        headers: [],
+        formatCalls: [],
+        getLastColumn: () => sheet.headers.length,
+        getMaxRows: () => 10,
+        getRange: () => ({
+          getValues: () => [sheet.headers],
+          setValues: values => { sheet.headers = values[0]; },
+          setNumberFormat: value => sheet.formatCalls.push(value)
+        })
+      };
       sheets[name] = sheet;
       return sheet;
     };
@@ -667,6 +677,7 @@ describe('contract schema preparation', () => {
     expect(sheets.MieterwechselProtokoll.headers).toEqual(service.tenantChangeProtocolHeaders);
     expect(sheets['MieterhöhungsPrüfungen'].headers).toEqual(service.rentIncreaseReviewHeaders);
     expect(sheets.Objekte.headers).toEqual(service.objectRuleFields);
+    expect(sheets['MieterhöhungsPrüfungen'].formatCalls).toEqual(['@', '@', '@']);
   });
 });
 

@@ -87,18 +87,23 @@ wieder offen.
 
 Als interne Arbeitsvorlage wird elf Monate nach Vertragsbeginn oder der letzten
 relevanten normalen Mieterhöhung geprüft. Das früheste Erhöhungsverlangen wird
-mit zwölf Monaten ausgewiesen. Die früheste angenommene Wirksamkeit wird als
-Beginn des übernächsten Kalendermonats nach diesem Verlangen angezeigt. Gibt es
-noch keine Anpassung, wird nach Ablauf des internen Prüftermins `Prüfung fällig`
-angezeigt; vor diesem Termin bleibt der Status `Keine Anpassung dokumentiert`.
-Das ist eine technische Erinnerungsregel und keine rechtliche Einzelfallprüfung.
+mit zwölf Monaten ausgewiesen. Die früheste angenommene Wirksamkeit wird für
+normale Mieterhöhungen als Beginn des **dritten Kalendermonats** nach diesem
+Verlangen angezeigt. Gibt es noch keine Anpassung, wird nach Ablauf des
+internen Prüftermins `Prüfung fällig` angezeigt; vor diesem Termin bleibt der
+Status `Keine Anpassung dokumentiert`. Das ist eine technische Orientierung,
+keine rechtliche Einzelfallprüfung. Die Darstellung orientiert sich für die
+Wirksamkeit an § 558b Abs. 1 BGB; die konkrete Zulässigkeit muss weiterhin
+fachlich geprüft werden.
 
 ### Indexmiete
 
 Für eine Indexmiete müssen Index-Basis-Monat, Basiswert und Indexreihe
 vorhanden sein. Fehlt eines dieser Felder, erscheint `Prüfung erforderlich`.
 Die interne Prüfung liegt elf Monate nach der relevanten Basis; Erhöhungsverlangen
-und angenommene Wirksamkeit werden separat und monatsweise ausgewiesen. Die
+und angenommene Wirksamkeit werden separat und monatsweise ausgewiesen. Für die
+Indexmiete wird die Wirksamkeit als Beginn des **übernächsten Monats** nach dem
+Zugang der Erklärung dargestellt, entsprechend § 557b Abs. 3 BGB. Die
 bestehende Indexberechnung und ihre Bestätigungslogik werden dadurch nicht
 verändert.
 
