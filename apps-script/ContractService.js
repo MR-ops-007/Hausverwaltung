@@ -18,6 +18,9 @@ const contractService = {
   historyHeaders: ['anpassung_id', 'vertrag_id', 'art', 'erfasst_am', 'wirksam_ab',
     'zugang_datum', 'erklaerung_url', 'index_neu_monat', 'index_neu_wert', 'index_reihe',
     'vorher_json', 'nachher_json'],
+  objectRuleFields: ['kappungsgrenze_prozent', 'kappungsgrenze_gueltig_ab',
+    'kappungsgrenze_gueltig_bis', 'kappungsgrenze_quelle', 'kappungsgrenze_geprueft_am',
+    'vergleichsmiete_monatlich', 'vergleichsmiete_pro_qm', 'gewerbe_pruefung_intervall_jahre'],
 
   number(value, label, optional = false) {
     if (value === undefined || value === null || typeof value === 'string' && value.trim() === '') {
@@ -307,19 +310,69 @@ const contractService = {
     return { valid: errors.length === 0, errors, warnings, periods };
   },
 
-  /**
-   * Calculates a conservative reminder for the next rent-increase review.
-   * This is an internal reminder, not a legal entitlement or an automatic change.
-   */
-  rentIncreaseReminder(contract, adjustments = [], now = new Date()) {
-    const type = String(contract && contract.erhoehungs_typ || '').trim() || 'Normal';
-    const today = this.iso(this.date(now));
+  rentIncreaseScope(contract, unit) {
+    const raw = String(unit && unit.typ || contract && contract.mietrecht_bereich || '').trim().toLowerCase();
+    if (!raw) return 'UNKNOWN';
+    if (/wohnung|wohneinheit|wohnraum|apartment|^we(?:\s|[-_]|$)/.test(raw)) return 'WOHNRAUM';
+    if (/gewerbe|büro|buero|laden|praxis|stellplatz|garage|keller/.test(raw)) return 'GEWERBE';
+    return 'UNKNOWN';
+  },
+
+  rentIncreaseCap(object, asOf = new Date()) {
     const parseDate = value => {
       if (this.blank(value)) return null;
       try { return this.date(value); } catch (error) { return null; }
     };
+    const today = this.date(asOf);
+    const from = parseDate(object && object.kappungsgrenze_gueltig_ab);
+    const until = parseDate(object && object.kappungsgrenze_gueltig_bis);
+    const inPeriod = (!from || from.getTime() <= today.getTime()) && (!until || until.getTime() >= today.getTime());
+    const raw = object && object.kappungsgrenze_prozent;
+    const number = raw === undefined || raw === null || String(raw).trim() === '' ? NaN : Number(String(raw).replace(',', '.'));
+    const configured = Number.isFinite(number) && number > 0 && number <= 100 && inPeriod;
+    const percent = configured ? (number <= 1 ? number * 100 : number) : 20;
+    return {
+      percent,
+      rate: percent / 100,
+      configured,
+      source: configured
+        ? String(object && object.kappungsgrenze_quelle || 'Objektkonfiguration')
+        : 'Standardwert 20 %; örtliche Prüfung ausstehend',
+      gueltigAb: from ? this.iso(from) : '',
+      gueltigBis: until ? this.iso(until) : '',
+      geprueftAm: String(object && object.kappungsgrenze_geprueft_am || '')
+    };
+  },
+
+  /**
+   * Calculates a review reminder and its rule basis. It is an internal
+   * reminder, not a legal entitlement or an automatic rent change.
+   */
+  rentIncreaseReminder(contract, adjustments = [], now = new Date(), context = {}) {
+    const scope = context.scope || 'WOHNRAUM';
+    const object = context.object || {};
+    const typeRaw = String(contract && contract.erhoehungs_typ || '').trim();
+    const type = typeRaw || 'Normal';
+    const typeMissing = !typeRaw;
+    const todayDate = this.date(now);
+    const today = this.iso(todayDate);
+    const parseDate = value => {
+      if (this.blank(value)) return null;
+      try { return this.date(value); } catch (error) { return null; }
+    };
+    const adjustmentArt = row => String(row && row.art || '').trim().toLowerCase();
+    const relevantAdjustment = row => {
+      const art = adjustmentArt(row);
+      if (!art) return true;
+      if (/betrieb|nebenkosten|heiz|modern/.test(art)) return false;
+      if (scope === 'GEWERBE') return true;
+      if (type === 'Index') return /index/.test(art);
+      if (type === 'Staffel') return /staffel/.test(art);
+      return !/index|staffel/.test(art);
+    };
     const entries = (Array.isArray(adjustments) ? adjustments : [])
       .filter(row => String(row && row.vertrag_id || '') === String(contract && contract.vertrag_id || ''))
+      .filter(relevantAdjustment)
       .map(row => {
         let after = {};
         try { after = row && row.nachher_json ? JSON.parse(row.nachher_json) : {}; } catch (error) { after = {}; }
@@ -337,83 +390,104 @@ const contractService = {
       : historyDate;
     const start = parseDate(contract && contract.start_datum);
     const base = last ? last.date : start;
-    const historyIncomplete = Boolean(contractDate && (!historyDate
+    const historyIncomplete = scope !== 'GEWERBE' && Boolean(contractDate && (!historyDate
       || contractDate.getTime() !== historyDate.date.getTime()));
     const dateLabel = date => date ? this.iso(date) : '';
-    const internalReviewDate = date => {
+    const addMonths = (date, months) => {
       if (!date) return null;
-      const result = new Date(Date.UTC(date.getUTCFullYear() + 1, date.getUTCMonth(), date.getUTCDate()));
-      return result;
+      const target = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1));
+      const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+      return new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), Math.min(date.getUTCDate(), lastDay)));
     };
-    const indexReviewDate = date => {
-      if (!date) return null;
-      const anniversary = new Date(Date.UTC(date.getUTCFullYear() + 1, date.getUTCMonth(), date.getUTCDate()));
-      return new Date(Date.UTC(
-        anniversary.getUTCFullYear(),
-        anniversary.getUTCMonth() + (anniversary.getUTCDate() === 1 ? 0 : 1),
-        1
-      ));
-    };
+    const firstOfMonth = date => date ? new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)) : null;
+    const cap = scope === 'WOHNRAUM' ? this.rentIncreaseCap(object, todayDate) : null;
+    const comparisonRent = object && object.vergleichsmiete_monatlich !== undefined
+      ? object.vergleichsmiete_monatlich : contract && contract.vergleichsmiete_monatlich;
+    const comparisonRentPerSqm = object && object.vergleichsmiete_pro_qm !== undefined
+      ? object.vergleichsmiete_pro_qm : contract && contract.vergleichsmiete_pro_qm;
+    const intervalYears = Math.max(1, Number(String(
+      contract && contract.gewerbe_pruefung_intervall_jahre || object && object.gewerbe_pruefung_intervall_jahre || 5
+    ).replace(',', '.')) || 5);
     const result = {
       vertragId: String(contract && contract.vertrag_id || ''),
+      scope,
       type,
-      typeLabel: type === 'Index' ? 'Indexmiete' : type === 'Staffel' ? 'Staffelmiete' : 'Normale Mieterhöhung',
+      typeMissing,
+      typeLabel: scope === 'GEWERBE' ? 'Gewerbemietvertrag' : typeMissing ? 'Erhöhungstyp fehlt'
+        : type === 'Index' ? 'Indexmiete' : type === 'Staffel' ? 'Staffelmiete' : 'Normale Mieterhöhung',
       lastAdjustment: last ? dateLabel(last.date) : '',
       lastAdjustmentEstimated: Boolean(last && last.estimated),
       historyIncomplete,
+      reviewDueDate: '',
+      earliestDemandDate: '',
+      earliestEffectiveDate: '',
       earliestReview: '',
+      reviewIntervalYears: scope === 'GEWERBE' ? intervalYears : '',
+      kappungsgrenze: cap,
+      vergleichsmieteMonatlich: comparisonRent === undefined ? '' : comparisonRent,
+      vergleichsmieteProQm: comparisonRentPerSqm === undefined ? '' : comparisonRentPerSqm,
       status: 'NO_ADJUSTMENT',
       statusLabel: 'Keine Anpassung dokumentiert',
       reason: '',
-      today
+      today,
+      reviewBasis: {
+        version: 'P6.6d-1', scope, type: typeRaw, legalRule: scope === 'GEWERBE' ? 'GEWERBE_5_JAHRE' : type,
+        reviewIntervalYears: scope === 'GEWERBE' ? intervalYears : '',
+        reviewDueDate: '', earliestDemandDate: '', earliestEffectiveDate: '',
+        capPercent: cap ? cap.percent : '', capSource: cap ? cap.source : '',
+        capGueltigAb: cap ? cap.gueltigAb : '', capGueltigBis: cap ? cap.gueltigBis : '',
+        vergleichsmieteMonatlich: comparisonRent === undefined ? '' : comparisonRent,
+        vergleichsmieteProQm: comparisonRentPerSqm === undefined ? '' : comparisonRentPerSqm,
+        sollKaltmiete: contract && contract.soll_kaltmiete === undefined ? '' : contract && contract.soll_kaltmiete
+      }
     };
-
-    if (!start) {
-      result.status = 'REQUIRED';
-      result.statusLabel = 'Prüfung erforderlich';
-      result.reason = 'Startdatum fehlt oder ist ungültig.';
-      return result;
+    const required = (reason) => {
+      result.status = 'REQUIRED'; result.statusLabel = 'Prüfung erforderlich'; result.reason = reason; return result;
+    };
+    if (!start) return required('Startdatum fehlt oder ist ungültig.');
+    if (scope === 'UNKNOWN') return required('Wohn- oder Gewerbeart der Einheit ist nicht eindeutig hinterlegt.');
+    if (typeMissing && scope !== 'GEWERBE') return required('Erhöhungstyp fehlt; bitte Normal, Index oder Staffel hinterlegen.');
+    if (scope === 'WOHNRAUM' && type === 'Staffel') return required('Staffeltermine sind im Vertragsmodell noch nicht hinterlegt.');
+    if (scope === 'WOHNRAUM' && type === 'Index' && (this.blank(contract.index_basis_monat)
+      || this.blank(contract.index_basis_wert) || this.blank(contract.index_reihe))) {
+      return required('Indexbasis ist unvollständig hinterlegt.');
     }
-
-    if (type === 'Staffel') {
-      result.status = 'REQUIRED';
-      result.statusLabel = 'Prüfung erforderlich';
-      result.reason = 'Staffeltermine sind im Vertragsmodell noch nicht hinterlegt.';
-      return result;
-    }
-
-    if (type === 'Index' && (this.blank(contract.index_basis_monat)
-      || this.blank(contract.index_basis_wert)
-      || this.blank(contract.index_reihe))) {
-      result.status = 'REQUIRED';
-      result.statusLabel = 'Prüfung erforderlich';
-      result.reason = 'Indexbasis ist unvollständig hinterlegt.';
-      return result;
-    }
-
-    const earliest = type === 'Index' ? indexReviewDate(base) : internalReviewDate(base);
-    result.earliestReview = dateLabel(earliest);
+    if (!base) return required('Startdatum oder Anpassungsdatum fehlt.');
+    const reviewDue = scope === 'GEWERBE'
+      ? addMonths(base, Math.round(intervalYears * 12))
+      : type === 'Index' ? firstOfMonth(addMonths(base, 11)) : addMonths(base, 11);
+    const demand = scope === 'GEWERBE' ? null : type === 'Index' ? firstOfMonth(addMonths(base, 12)) : addMonths(base, 12);
+    // Normal rent increases become effective at the start of the third
+    // calendar month after the demand; index rent uses the second month.
+    const effective = scope === 'GEWERBE' ? null
+      : firstOfMonth(addMonths(demand, type === 'Index' ? 2 : 3));
+    result.reviewDueDate = dateLabel(reviewDue);
+    result.earliestDemandDate = dateLabel(demand);
+    result.earliestEffectiveDate = dateLabel(effective);
+    result.earliestReview = result.reviewDueDate;
+    result.reviewBasis.reviewDueDate = result.reviewDueDate;
+    result.reviewBasis.earliestDemandDate = result.earliestDemandDate;
+    result.reviewBasis.earliestEffectiveDate = result.earliestEffectiveDate;
+    const due = reviewDue && reviewDue.getTime() <= todayDate.getTime();
     if (!last) {
-      const todayDate = this.date(today);
-      const due = earliest && earliest.getTime() <= todayDate.getTime();
       result.status = due ? 'DUE' : 'NO_ADJUSTMENT';
-      result.statusLabel = due ? 'Prüfung fällig' : 'Keine Anpassung dokumentiert';
+      result.statusLabel = due ? (scope === 'GEWERBE' ? 'Gewerbeprüfung fällig' : 'Prüfung fällig') : 'Keine Anpassung dokumentiert';
     } else if (historyIncomplete) {
-      result.status = 'REQUIRED';
-      result.statusLabel = 'Prüfung erforderlich';
+      return required(historyDate
+        ? 'Anpassungsdatum am Vertrag stimmt nicht mit der letzten Historienzeile überein.'
+        : 'Anpassungsdatum am Vertrag vorhanden, aber kein vollständiger Historieneintrag.');
     } else {
-      result.status = result.earliestReview <= today ? 'DUE' : 'PENDING';
-      result.statusLabel = result.status === 'DUE' ? 'Prüfung fällig' : 'Noch nicht möglich';
+      result.status = due ? 'DUE' : 'PENDING';
+      result.statusLabel = due ? (scope === 'GEWERBE' ? 'Gewerbeprüfung fällig' : 'Prüfung fällig') : 'Noch nicht möglich';
     }
-    result.reason = type === 'Index'
-      ? 'Früheste interne Prüfung nach der jährlichen Bindungsfrist.'
-      : 'Früheste interne Prüfung nach zwölf Monaten unverändertem Soll.';
-    if (!last) result.reason = 'Seit Vertragsbeginn ist keine Mieterhöhung dokumentiert.';
-    if (historyIncomplete) {
-      result.reason += historyDate
-        ? ' Anpassungsdatum am Vertrag stimmt nicht mit der letzten Historienzeile überein.'
-        : ' Anpassungsdatum am Vertrag vorhanden, aber kein vollständiger Historieneintrag.';
-    }
+    result.reason = scope === 'GEWERBE'
+      ? `Gewerbeverträge werden spätestens alle ${intervalYears} Jahre intern geprüft.`
+      : type === 'Index'
+        ? 'Interne Prüfung elf Monate nach der letzten Indexanpassung; frühestes Verlangen und Wirksamkeit separat ausgewiesen.'
+        : 'Interne Prüfung elf Monate nach Mietbeginn oder der letzten relevanten Mieterhöhung.';
+    if (!last) result.reason = scope === 'GEWERBE'
+      ? `Seit Vertragsbeginn ist keine Anpassung dokumentiert; interne Prüfung alle ${intervalYears} Jahre.`
+      : 'Seit Vertragsbeginn ist keine Mieterhöhung dokumentiert.';
     if (result.lastAdjustmentEstimated) result.reason += ' Das letzte Anpassungsdatum ist geschätzt.';
     return result;
   },

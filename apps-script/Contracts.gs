@@ -12,6 +12,19 @@ function prepareContractSchema() {
   missing.filter(field => field === 'index_basis_monat').forEach(field => {
     sheet.getRange(2, headers.length + missing.indexOf(field) + 1, sheet.getMaxRows() - 1, 1).setNumberFormat('@');
   });
+  const objectSheet = ss.getSheetByName('Objekte');
+  const objectHeaders = objectSheet
+    ? objectSheet.getRange(1, 1, 1, objectSheet.getLastColumn()).getValues()[0]
+    : [];
+  const missingObjectFields = objectSheet
+    ? contractService.objectRuleFields.filter(field => objectHeaders.indexOf(field) === -1)
+    : [];
+  if (objectSheet && missingObjectFields.length) {
+    if (objectSheet.getMaxColumns() < objectHeaders.length + missingObjectFields.length) {
+      objectSheet.insertColumnsAfter(objectSheet.getMaxColumns(), objectHeaders.length + missingObjectFields.length - objectSheet.getMaxColumns());
+    }
+    objectSheet.getRange(1, objectHeaders.length + 1, 1, missingObjectFields.length).setValues([missingObjectFields]);
+  }
   if (!ss.getSheetByName('Mietanpassungen')) {
     ss.insertSheet('Mietanpassungen').getRange(1, 1, 1, contractService.historyHeaders.length)
       .setValues([contractService.historyHeaders]);
@@ -20,11 +33,21 @@ function prepareContractSchema() {
     ss.insertSheet('MieterwechselProtokoll').getRange(1, 1, 1, contractService.tenantChangeProtocolHeaders.length)
       .setValues([contractService.tenantChangeProtocolHeaders]);
   }
-  if (!ss.getSheetByName('MieterhöhungsPrüfungen')) {
-    ss.insertSheet('MieterhöhungsPrüfungen').getRange(1, 1, 1, contractService.rentIncreaseReviewHeaders.length)
+  let reviewSheet = ss.getSheetByName('MieterhöhungsPrüfungen');
+  if (!reviewSheet) {
+    reviewSheet = ss.insertSheet('MieterhöhungsPrüfungen');
+    reviewSheet.getRange(1, 1, 1, contractService.rentIncreaseReviewHeaders.length)
       .setValues([contractService.rentIncreaseReviewHeaders]);
   }
-  return { addedHeaders: missing };
+  const reviewHeaders = reviewSheet.getRange(1, 1, 1, reviewSheet.getLastColumn())
+    .getValues()[0].map(String);
+  ['erledigt_am', 'wiedervorlage_ab', 'aktualisiert_am'].forEach(field => {
+    const column = reviewHeaders.indexOf(field);
+    if (column < 0) return;
+    const rows = Math.max(0, reviewSheet.getMaxRows() - 1);
+    if (rows > 0) reviewSheet.getRange(2, column + 1, rows, 1).setNumberFormat('@');
+  });
+  return { addedHeaders: missing, addedObjectHeaders: missingObjectFields };
 }
 
 function contractWriteFailure(code, message, details) {

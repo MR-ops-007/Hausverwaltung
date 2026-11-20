@@ -1,6 +1,6 @@
 # PROJECT_STATE - Hausverwaltung
 
-## Stand: 2026-11-18
+## Stand: 2026-11-20
 
 `main` enthält robuste UI-Regressionstests, eine saubere Zähleridentität, versionierte Apps-Script-Logik, einen produktiven Testbereich und den Vertragsausbau. Der Zugriffsschutz und der Zahlungsweg 4.8.14 sind in TEST und PROD produktiv aktiviert.
 
@@ -132,7 +132,10 @@ Dieses Dokument beschreibt den aktuellen Stand, wichtige Entscheidungen und die 
   `codex/p6-6c-synced-rent-review-status` umgesetzt: Prüfabschlüsse werden im Blatt
   `MieterhöhungsPrüfungen` gespeichert, sind geräteübergreifend sichtbar und werden
   nach zwölf Monaten wieder vorgelegt. Der Backend-Stand 4.8.15 ist noch nicht in TEST
-  oder PROD bereitgestellt.
+  oder PROD bereitgestellt. P6.6d baut auf diesem Stand auf und ergänzt getrennte
+  interne, rechtliche und Wirksamkeitstermine, objektbezogene Regelbasis,
+  15-/20-%-Kappungsgrenze, Vergleichsmiete, Gewerbeintervalle, Notiz und individuelle
+  Wiedervorlage. Der Backend-Stand dafür ist lokal 4.8.16 und noch nicht bereitgestellt.
 - P6.2 ist im Branch `codex/p6-2-payment-rules` umgesetzt, fachlich in TEST abgenommen und
   im PROD-Apps-Script bereitgestellt:
   `PaymentRules.js` ist die

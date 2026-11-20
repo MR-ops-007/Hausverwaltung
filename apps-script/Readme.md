@@ -59,6 +59,13 @@ künstlichen Stichtag auf. Ein übersprungener Lauf wird protokolliert.
 Vorhandene Trigger auf dem alten Handler werden dabei entfernt; doppelte Trigger auf dem
 neuen Handler werden bereinigt.
 
+Ab Backend 4.8.16 erweitert `prepareContractSchema()` das Blatt `Objekte` um die
+optionalen Regelspalten für Kappungsgrenze, Vergleichsmiete und das Gewerbe-
+Prüfintervall. Fehlt eine zeitlich passende Kappungsgrenze, zeigt die Oberfläche
+den 20-%-Standard ausdrücklich als ungeprüfte Orientierung an. Die individuelle
+Wiedervorlage und Prüfnotiz werden im bestehenden Blatt `MieterhöhungsPrüfungen`
+gespeichert; der Standard bleibt zwölf Monate.
+
 `preparePaymentSchema()` ist die ebenfalls manuell aufzurufende Vorbereitung für das
 Blatt `Zahlungen`. Sie ergänzt unter anderem `zahlungsgruppe_id` für aufgeteilte
 Mieteingänge und verändert keine bestehenden Buchungen.

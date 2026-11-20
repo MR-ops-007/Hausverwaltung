@@ -13,7 +13,10 @@ Die Übersicht enthält:
 
 - Anpassungsart: normale Mieterhöhung, Indexmiete oder Staffelmiete.
 - letzte dokumentierte Anpassung, sofern vorhanden.
-- früheste interne Prüfung, sofern sie aus den Daten abgeleitet werden kann.
+- interne Wiedervorlage, frühestes Erhöhungsverlangen und früheste angenommene
+  Wirksamkeit getrennt, sofern sie aus den Daten abgeleitet werden können.
+- bei Wohnraum Kappungsgrenze und Vergleichsmiete getrennt; daraus wird noch
+  kein maximaler Erhöhungsbetrag berechnet.
 - Status: `Keine Anpassung dokumentiert`, `Noch nicht möglich`,
   `Prüfung fällig` oder `Prüfung erforderlich`.
 - einen direkten Link zum ausgewählten Vertrag.
@@ -46,6 +49,9 @@ für die Rollen `admin` und `erfassen`; Vertragsdaten selbst werden dadurch nich
 geändert. Ändert sich die Signatur, wird der Abschluss automatisch ungültig.
 Am Datum der Wiedervorlage erscheint der Fall wieder als offen. Das ist keine
 rechtliche Bestätigung und keine automatische Mieterhöhung.
+Beim Abschluss können eine eigene Wiedervorlage und eine Notiz erfasst werden.
+Ohne Datum gilt der Standard von zwölf Monaten; ein vergangener Termin wird
+abgewiesen.
 
 ## Zentrale Berechnung
 
@@ -69,31 +75,69 @@ Vertragsdatum von der letzten Historienzeile ab, wird ebenfalls
 `Prüfung erforderlich` angezeigt, damit die unvollständige Datenlage nicht wie
 ein belastbarer Termin wirkt.
 
+Die Regelbasis wird zentral mit dem Ergebnis geliefert und in der Signatur des
+Prüfabschlusses gespeichert. Dazu gehören Rechtsbereich, Erhöhungstyp,
+Prüftermine, Kappungsgrenze, Quelle und Gültigkeit, Vergleichsmiete und das
+aktuelle Nettokalt-Soll. Ändert sich diese Basis, wird ein vorheriger Abschluss
+wieder offen.
+
 ## Fachliche Regeln
 
 ### Normale Mieterhöhung
 
-Als konservative interne Orientierung wird zwölf Monate nach Vertragsbeginn
-oder der letzten dokumentierten Anpassung geprüft. Gibt es noch keine
-Anpassung, wird nach Ablauf dieser ersten zwölf Monate `Prüfung fällig`
-angezeigt; vor diesem Termin bleibt der Status `Keine Anpassung dokumentiert`.
-Das ist eine technische Erinnerungsregel und keine Aussage darüber, ob eine
-Erhöhung rechtlich oder vertraglich zulässig ist.
+Als interne Arbeitsvorlage wird elf Monate nach Vertragsbeginn oder der letzten
+relevanten normalen Mieterhöhung geprüft. Das früheste Erhöhungsverlangen wird
+mit zwölf Monaten ausgewiesen. Die früheste angenommene Wirksamkeit wird für
+normale Mieterhöhungen als Beginn des **dritten Kalendermonats** nach diesem
+Verlangen angezeigt. Gibt es noch keine Anpassung, wird nach Ablauf des
+internen Prüftermins `Prüfung fällig` angezeigt; vor diesem Termin bleibt der
+Status `Keine Anpassung dokumentiert`. Das ist eine technische Orientierung,
+keine rechtliche Einzelfallprüfung. Die Darstellung orientiert sich für die
+Wirksamkeit an § 558b Abs. 1 BGB; die konkrete Zulässigkeit muss weiterhin
+fachlich geprüft werden.
 
 ### Indexmiete
 
 Für eine Indexmiete müssen Index-Basis-Monat, Basiswert und Indexreihe
 vorhanden sein. Fehlt eines dieser Felder, erscheint `Prüfung erforderlich`.
-Die interne Prüfung liegt frühestens am Jahrestag der relevanten Basis. Liegt
-der Jahrestag nicht am ersten Monatstag, wird für die Darstellung der erste
-Tag des Folgemonats verwendet. Die bestehende Indexberechnung und ihre
-Bestätigungslogik werden dadurch nicht verändert.
+Die interne Prüfung liegt elf Monate nach der relevanten Basis; Erhöhungsverlangen
+und angenommene Wirksamkeit werden separat und monatsweise ausgewiesen. Für die
+Indexmiete wird die Wirksamkeit als Beginn des **übernächsten Monats** nach dem
+Zugang der Erklärung dargestellt, entsprechend § 557b Abs. 3 BGB. Die
+bestehende Indexberechnung und ihre Bestätigungslogik werden dadurch nicht
+verändert.
 
 ### Staffelmiete
 
 Im aktuellen Vertragsmodell gibt es noch keine Staffeltermine. Eine
 Staffelmiete wird deshalb nicht geschätzt, sondern als `Prüfung erforderlich`
 angezeigt. Ein späteres Terminmodell ist ein eigenes Folgepaket.
+
+### Kappungsgrenze und Vergleichsmiete
+
+Die Kappungsgrenze wird objektbezogen aus `Objekte` gelesen. Unterstützt werden
+`kappungsgrenze_prozent`, `kappungsgrenze_gueltig_ab`,
+`kappungsgrenze_gueltig_bis`, `kappungsgrenze_quelle` und
+`kappungsgrenze_geprueft_am`. Eine konfigurierte 15-%-Grenze gilt nur im
+angegebenen Zeitraum. Fehlt eine zeitlich passende Konfiguration, wird 20 % als
+sichtbar gekennzeichneter Standardwert angezeigt; das ist keine Feststellung,
+dass am Ort tatsächlich 20 % gelten. Die Vergleichsmiete wird über
+`vergleichsmiete_monatlich` und `vergleichsmiete_pro_qm` separat geführt. Ohne
+Vergleichsdaten wird kein scheinpräziser maximaler Erhöhungsbetrag berechnet.
+
+### Gewerbe
+
+Gewerbeeinheiten werden nicht mit der Wohnraumlogik bewertet. Für sie gilt als
+interne Arbeitsregel eine Prüfung spätestens alle fünf Jahre, konfigurierbar
+über `gewerbe_pruefung_intervall_jahre`. Auch Gewerbeverträge ohne dokumentierte
+Mieterhöhung bleiben damit im Prüfvorrat.
+
+### Relevante Erhöhungsarten
+
+Normale Mieterhöhungen, Indexmieten und Staffelmieten werden getrennt bewertet.
+Modernisierungs-, Betriebs- und Heizkostenanpassungen setzen die normale
+Mieterhöhungsfrist nicht automatisch zurück. Fehlt der Erhöhungstyp, erscheint
+`Prüfung erforderlich`, statt stillschweigend `Normal` anzunehmen.
 
 ### Unvollständige Daten
 
@@ -106,13 +150,16 @@ fallen dabei nicht aus der Übersicht.
 - Es gibt keine E-Mail-, Push- oder Kalenderbenachrichtigung.
 - Es wird keine Mieterhöhung vorgeschlagen, gespeichert oder automatisch
   angewendet.
-- Die Berechnung berücksichtigt keine rechtliche Prüfung, Kappungsgrenzen,
-  Fristenberechnung im Einzelfall oder örtliche Sonderregeln.
+- Die Berechnung ist keine rechtliche Prüfung. Sie berücksichtigt keinen
+  individuellen Zugangsnachweis und keine örtliche Sonderregel außerhalb der
+  ausdrücklich konfigurierten Kappungsgrenze. Die rechtliche Basis muss fachlich
+  geprüft werden.
 - Die Monatsgranularität der Soll-Historie bleibt unverändert.
 - Die vollständige Staffeltermin-Verwaltung und eine spätere Erinnerung an
   konkrete Staffelstufen bleiben Folgeaufgaben.
-- Die Wiedervorlage liegt zwölf Monate nach dem Abschlussdatum. Der 29. Februar
-  wird dabei auf den 28. Februar des Folgejahres begrenzt.
+- Die Wiedervorlage liegt standardmäßig zwölf Monate nach dem Abschlussdatum,
+  kann je Abschluss individuell gesetzt werden, aber nicht in der Vergangenheit.
+  Der 29. Februar wird dabei auf den letzten gültigen Februartag begrenzt.
 - Der Prüfstatus ist ein Arbeits- und Nachvollziehbarkeitsstatus, keine
   rechtliche Entscheidung. Eine Notiz kann den fachlichen Ausgang der Prüfung
   festhalten; Vertrags- oder Mietbeträge werden nicht automatisch verändert.
@@ -122,7 +169,7 @@ fallen dabei nicht aus der Übersicht.
 Automatisiert geprüft werden:
 
 - Vertrag ohne Anpassungshistorie mit sichtbarem Status und abgeleitetem
-  frühestem Termin; nach Ablauf der ersten zwölf Monate wird er fällig.
+  Prüftermin; nach Ablauf der internen elf Monate wird er fällig.
 - zukünftiger erster Prüfungstermin.
 - beendeter historischer Vertrag ohne Eintrag in der laufenden Erinnerungsübersicht.
 - dokumentierte Indexanpassung mit fälligem Termin.
@@ -130,16 +177,23 @@ Automatisiert geprüft werden:
 - fehlendes Startdatum, fehlende Indexbasis und Vertragsdatum ohne
   Historienzeile.
 - Historieneintrag ohne `wirksam_ab` mit Kennzeichnung als geschätzt.
+- fehlender Erhöhungstyp, Sonderanpassungen ohne Zurücksetzen der normalen Frist,
+  Gewerbeprüfung mit fünfjährigem Standardintervall sowie 15-%- und 20-%-Regelbasis.
+- getrennte Termine für interne Prüfung, Erhöhungsverlangen und Wirksamkeit,
+  Vergleichsmiete ohne automatische Kappungsberechnung sowie individuelle
+  Wiedervorlage und gespeicherte Prüfnotiz.
 - Darstellung der Übersicht, Statushinweis, rechtlicher Vorbehalt und Link
   zum Vertrag.
 - globaler Reminder über mehrere Objekte, eingeklappte Informationsfälle,
   Fokus-/Scroll-Sprung zum Vertragseditor sowie Markieren und Wiederöffnen einer
   fälligen Prüfung über den Backend-Status.
-- Backend-Schema, Rollenfreigabe, Abschluss, Idempotenz, Wiederöffnung,
-  Signaturänderung, zwölfmonatige Wiedervorlage und Schaltjahr.
+- Backend-Schema einschließlich Objekt-Regelspalten, Rollenfreigabe, Abschluss,
+  Idempotenz, Wiederöffnung, Signaturänderung, individuelle Wiedervorlage,
+  Notiz und Schaltjahr.
 
 Vor TEST und PROD muss `prepareContractSchema()` einmal ausgeführt werden. Die
-Funktion legt das Blatt `MieterhöhungsPrüfungen` an. Danach muss die neue
+Funktion legt das Blatt `MieterhöhungsPrüfungen` und die optionalen Regelspalten
+im Blatt `Objekte` an. Danach muss die neue
 Apps-Script-Version bereitgestellt und die Capability
 `rent_increase_review_writes: true` mit einem autorisierten Profil geprüft
 werden. Ein Rollback auf 4.8.14 lässt die neue UI-Schreibaktion bewusst

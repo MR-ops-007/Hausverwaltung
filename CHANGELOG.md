@@ -24,6 +24,24 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - Datumsangaben bis 4.6.4 stammen aus der Git-Historie (Commit, der die Version
   eingeführt hat), nicht aus dem Deployment.
 
+## 4.8.16 · 2026-11-20 · lokal
+
+P6.6d erweitert die zentrale Mieterhöhungsprüfung um drei getrennte Termine:
+interne Wiedervorlage, frühestes Erhöhungsverlangen und früheste angenommene
+Wirksamkeit. Für Wohnraum werden Kappungsgrenze und Vergleichsmiete getrennt
+angezeigt; Objekte können zeitbezogene Kappungsgrenzen konfigurieren, wobei
+20 % nur als ausdrücklich gekennzeichneter Standardwert verwendet werden.
+Für normale Mieterhöhungen wird die früheste Wirksamkeit ab dem dritten
+Kalendermonat nach dem Verlangen dargestellt; die Indexmiete bleibt beim
+übernächsten Monat.
+Gewerbeverträge erhalten eine eigene, standardmäßig fünfjährige Prüfregel.
+Erhöhungstypen und fehlende Stammdaten werden nicht mehr stillschweigend
+vereinheitlicht. Der Prüfabschluss unterstützt eine optionale Notiz und eine
+individuelle Wiedervorlage, die in die Signatur der Prüfung einfließt.
+Für 4.8.16 müssen `prepareContractSchema()` und danach eine neue Backend-Version
+bereitgestellt werden; die zusätzlichen Regelspalten werden im Blatt `Objekte`
+angelegt. Der Stand bleibt bis zur TEST-/PROD-Abnahme lokal.
+
 ## 4.8.15 · 2026-11-20 · lokal
 
 P6.6c: Prüfabschlüsse für Mieterhöhungen werden im eigenen Backend-Blatt

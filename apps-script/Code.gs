@@ -1,7 +1,7 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.15
- * Stand: 2026-11-17
+ * Version: 4.8.16
+ * Stand: 2026-11-20
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
  * Änderungen seit v4.1:
@@ -131,8 +131,12 @@
  * Änderungen seit v4.8.15:
  * - Mieterhöhungsprüfungen werden geräteübergreifend mit Signatur, Akteur und
  *   zwölfmonatiger Wiedervorlage im eigenen Blatt gespeichert
+ *
+ * Änderungen seit v4.8.16:
+ * - Objektbezogene Regelbasis, individuelle Wiedervorlage und Prüfnotizen für
+ *   Mieterhöhungsprüfungen ergänzt
  */
-const BACKEND_VERSION = "4.8.15";
+const BACKEND_VERSION = "4.8.16";
 
 function sendJSON(obj) {
   return ContentService
