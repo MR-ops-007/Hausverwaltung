@@ -9,6 +9,8 @@ describe('Responsive Vertragsübersicht', () => {
   it('erlaubt keine starren Mindestbreiten, die Eingabefelder aus der Karte drücken', () => {
     expect(css).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');
     expect(css).toContain('.rent-increase-item > * { min-width: 0; }');
+    expect(css).toContain('align-self: start;');
+    expect(css).toContain('display: flex;\n    flex-direction: column;');
     expect(css).toContain('max-width: 100%;');
     expect(css).not.toContain('minmax(180px, 0.7fr) minmax(220px, 1.3fr)');
   });
@@ -23,6 +25,6 @@ describe('Responsive Vertragsübersicht', () => {
     expect(documentation).toContain('UI-Abnahmekriterien');
     expect(documentation).toContain('390 px breit');
     expect(documentation).toContain('Kante innerhalb der rechten Kante seiner Karte');
-    expect(html).toContain('style.css?v=20261120-p6-6b-review-ux-v2');
+    expect(html).toContain('style.css?v=20261120-p6-6b-review-ux-v3');
   });
 });

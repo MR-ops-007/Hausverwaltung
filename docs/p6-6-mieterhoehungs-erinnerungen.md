@@ -69,6 +69,9 @@ grüner Unit-Testlauf reicht dafür nicht aus.
   Karte. Es entsteht kein horizontaler Seiten-Scroll.
 - Lange Inhalte: `Gustav Gans / Trick Duck`, lange Hinweise und der Status
   `Prüfung erforderlich` umbrechen lesbar und verdecken keine Folgekarten.
+- Unterschiedliche Karteninhalte: Karten ohne Eingabefelder bleiben kompakt;
+  Textzeilen werden nicht vertikal auf die Höhe einer längeren Nachbarkarte
+  auseinandergezogen.
 - Interaktion: Datum, Notiz, „Vertrag anzeigen“ und „Prüfung als erledigt
   markieren“ sind bedienbar. Der Vertragssprung scrollt zum Editor und setzt
   den Fokus sichtbar.
