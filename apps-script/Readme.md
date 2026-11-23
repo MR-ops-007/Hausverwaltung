@@ -21,8 +21,8 @@ Regel:
 Das Backend arbeitet fail-closed: Ohne gültige Script-Property wird kein Datenzugriff
 zugelassen. Für zwei Geräte kann `APP_ACCESS_KEYS_JSON` als JSON-Array mit `id`, `label`,
 `key`, `role` (`admin` oder `erfassen`) und optional `aktiv` gesetzt werden. `erfassen`
-darf Zählerstände und Zahlungen schreiben; `admin` darf zusätzlich Verträge und
-Indexänderungen ändern. `APP_ACCESS_KEY` bleibt als einzelner Admin-Fallback für den
+darf Zählerstände und Zahlungen schreiben sowie Mieterhöhungsprüfungen abschließen;
+`admin` darf zusätzlich Verträge, Indexänderungen und Mieterwechsel schreiben. `APP_ACCESS_KEY` bleibt als einzelner Admin-Fallback für den
 Übergang kompatibel. Keine Schlüssel in Git oder Sheets speichern.
 
 ### Vertragsausbau (ab 4.7.0)
@@ -78,7 +78,9 @@ Dieses Verzeichnis dient dazu, den Apps-Script-Code im GitHub-Repository nachvol
 
 | Datei | Zweck |
 | :--- | :--- |
-| `Code.gs` | Versionierte Kopie des produktiven Google Apps Script Backends |
+| `Code.gs` | Einstieg (`doGet`/`doPost`), Zugriffsprüfung, Lese-Views, Zählerstände, Zahlungen, Verbrauchsviews |
+| `ContractService.js` | Gemeinsame Vertrags-, Zeitraum- und Mieterhöhungsregeln für Browser, Backend und Mock |
+| `Contracts.gs` | Vertrags-Schreibweg, Mieterwechsel, Änderungshistorie und `prepareContractSchema()` |
 | `PaymentRules.js` | Gemeinsame Pure Functions für Zahlungsart, Mietmonat, Storno und Status |
 | `Payments.gs` | Explizite Vorbereitung der optionalen Zahlungsspalten, einschließlich Zahlungsgruppen |
 | `RentIncreaseReviews.gs` | Backend-Schreibweg für geräteübergreifende Mieterhöhungsprüfungen und Wiedervorlagen |
@@ -109,15 +111,19 @@ Hinweis: `Migration.gs.gs` wirkt doppelt benannt, weil die Datei im bestehenden 
 
 ## Aktuelle Arbeitsregel
 
-Vor Änderungen am produktiven Apps Script gilt:
+Änderungen am Apps Script laufen wie alle Änderungen über Branch und Pull Request:
 
-1. Aktuellen Stand per `npm run clasp:pull` holen, sobald `.clasp.json` eingerichtet ist.
-2. Änderung lokal in VS Code durchführen.
-3. `npm test` ausführen.
-4. Git-Diff prüfen.
-5. Änderung per `npm run clasp:push` ins Apps-Script-Projekt übertragen.
-6. Änderung im Google Apps Script Editor oder über das Web-App-Deployment testen.
-7. Erst nach erfolgreichem Test committen.
+1. Änderung im Branch umsetzen, Version in `Code.gs` erhöhen und CHANGELOG-Eintrag ergänzen.
+2. `npm test` ausführen und den Git-Diff prüfen.
+3. Nach Freigabe mit `npm run clasp:test:pull` den TEST-Stand abgleichen, dann
+   `npm run clasp:test:push` und `npm run clasp:test:deploy`; in TEST abnehmen.
+4. Nach Freigabe für PROD `npm run clasp:prod:status`, `clasp:prod:push` und
+   `clasp:prod:deploy` (jeweils mit Bestätigung).
+5. Deployment und Rollback-Stand in der Deployment-Historie im CHANGELOG ergänzen,
+   im selben PR; danach mergen.
+
+Die vollständige Checkliste inklusive Schemafunktionen und Trigger steht in
+[`docs/betrieb.md`](../docs/betrieb.md).
 
 ## Wichtig
 

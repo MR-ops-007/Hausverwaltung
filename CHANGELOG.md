@@ -23,8 +23,35 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
   eine Version `produktiv` ist.
 - Datumsangaben bis 4.6.4 stammen aus der Git-Historie (Commit, der die Version
   eingeführt hat), nicht aus dem Deployment.
+- Ein Deploy wird in der Deployment-Historie im selben PR protokolliert, in dem die
+  Version freigegeben wird: TEST und PROD werden aus dem freigegebenen PR-Stand
+  bereitgestellt, danach wird gemergt. So entsteht kein eigener Doku-PR. Die Neuordnung
+  des Release-Ablaufs ist ein eigenes Roadmap-Paket.
 
-## 4.8.16 · 2026-11-20 · lokal
+## Deployment-Historie
+
+Neueste zuerst. Nur Bereitstellungen, die in den Versionseinträgen dokumentiert sind;
+Zwischenversionen wurden teils nicht einzeln bereitgestellt (siehe jeweiliger Eintrag).
+Alle Deployments aktualisieren die bestehenden Bereitstellungen; die URLs bleiben gleich.
+
+| Datum | Version | Umgebung | Deployment-Version | Hinweis |
+| --- | --- | --- | --- | --- |
+| 2026-11-18 | 4.8.14 | PROD | nicht dokumentiert | aktueller PROD-Stand; Rollback-Stand 4.8.13 |
+| 2026-11-18 | 4.8.14 | TEST | `@9` | aktueller TEST-Stand; TEST-Abnahme mit 25 Checks |
+| 2026-11-17 | 4.8.13 | PROD | `@43` | Schema und Tagestrigger eingerichtet |
+| 2026-11-17 | 4.8.13 | TEST | `@8` | Schema und Tagestrigger eingerichtet |
+| 2026-11-14 | 4.8.12 | PROD | `@42` | nach PR #39; Schreibtest nur im Objekt `TEST` |
+| 2026-11-13 | 4.8.12 | TEST | nicht dokumentiert | fachliche TEST-Abnahme |
+| 2026-11-12 | 4.8.11 | TEST | nicht dokumentiert | nur TEST |
+| 2026-11-10 | 4.8.5 | PROD | `@41` | fail-closed Zugriff, Geräteschlüssel |
+| 2026-11-10 | 4.8.5 | TEST | `@5` | getrennte TEST-Bereitstellung |
+| 2026-10-29 | 4.8.0 | PROD | nicht dokumentiert | Zugriffsschutz |
+| 2026-10-22 | 4.7.0 | PROD | nicht dokumentiert | zusammen mit 4.6.4; Tag `v4.7.0` |
+
+Offen: Die PROD-Deployment-Version von 4.8.14 wird beim nächsten `clasp:prod:status`
+nachgetragen. Für 4.8.13 und 4.8.14 fehlen die Release-Tags (Roadmap-Paket 1c).
+
+## 4.8.16 · 2026-11-20 · main
 
 P6.6d erweitert die zentrale Mieterhöhungsprüfung um drei getrennte Termine:
 interne Wiedervorlage, frühestes Erhöhungsverlangen und früheste angenommene
@@ -38,18 +65,18 @@ Gewerbeverträge erhalten eine eigene, standardmäßig fünfjährige Prüfregel.
 Erhöhungstypen und fehlende Stammdaten werden nicht mehr stillschweigend
 vereinheitlicht. Der Prüfabschluss unterstützt eine optionale Notiz und eine
 individuelle Wiedervorlage, die in die Signatur der Prüfung einfließt.
-Für 4.8.16 müssen `prepareContractSchema()` und danach eine neue Backend-Version
-bereitgestellt werden; die zusätzlichen Regelspalten werden im Blatt `Objekte`
-angelegt. Der Stand bleibt bis zur TEST-/PROD-Abnahme lokal.
+Gemergt mit PR #54. Für 4.8.16 müssen `prepareContractSchema()` und danach eine neue
+Backend-Version bereitgestellt werden; die zusätzlichen Regelspalten werden im Blatt
+`Objekte` angelegt. TEST- und PROD-Bereitstellung stehen aus.
 
-## 4.8.15 · 2026-11-20 · lokal
+## 4.8.15 · 2026-11-20 · main
 
 P6.6c: Prüfabschlüsse für Mieterhöhungen werden im eigenen Backend-Blatt
 `MieterhöhungsPrüfungen` statt nur im Browser gespeichert. Der Status enthält die
 aktuelle Erinnerungs-Signatur, den erfassenden Geräte-Akteur, Abschlussdatum und eine
-Wiedervorlage zwölf Monate später. Das Backend bleibt bis zur TEST-/PROD-Abnahme auf
-4.8.14; für 4.8.15 muss `prepareContractSchema()` erneut ausgeführt und das neue Blatt
-angelegt werden.
+Wiedervorlage zwölf Monate später. Gemergt mit PR #53; für 4.8.15 muss
+`prepareContractSchema()` erneut ausgeführt und das neue Blatt angelegt werden. Nicht
+einzeln bereitgestellt; wird mit 4.8.16 ausgerollt.
 
 ## Frontend- und Betriebsmeilensteine ohne Backend-Versionserhöhung
 
@@ -66,13 +93,18 @@ angelegt werden.
   abgeleitet und in Monatsstatus, Zahlungseingangsdialog und Überzahlungsverteilung
   verwendet. Keine Backend- oder Schemaänderung; ein Apps-Script-Deployment ist nicht
   erforderlich.
-- P6.6b (2026-11-20, lokal): Die Mieterhöhungsübersicht bündelt offene Prüfungen
+- PR #48 (2026-11-19): Frontend-Teil von P6.2 (gemeinsame Zahlungsregeln) und
+  PROD-Zahlungsbaseline; das zugehörige Backend 4.8.14 war bereits bereitgestellt.
+- PR #49 (2026-11-19): QA-Härtung der P6.2-Abnahme und der Baseline-Prüfung.
+- PR #50 (2026-11-19): P6.6 interne Mieterhöhungs-Prüfübersicht (siehe Eintrag
+  „Frontend P6.6“).
+- P6.6b (2026-11-20, PR #51/#52): Die Mieterhöhungsübersicht bündelt offene Prüfungen
   objektübergreifend, zeigt Informationsfälle eingeklappt und springt beim Öffnen
   eines Vertrags sichtbar zum Editor. Die zunächst lokale Arbeitsmarkierung wird
   mit P6.6c durch den geräteübergreifenden Backend-Status ersetzt.
 
-Diese Einträge ändern die produktive Apps-Script-Version nicht. Die produktive Version ist
-4.8.14; 4.8.13 und 4.8.5 bleiben als dokumentierte Rollback-Stände erhalten.
+Diese Einträge ändern die Apps-Script-Version nicht. Welche Version bereitgestellt ist,
+steht in der Deployment-Historie oben.
 
 ## Frontend P6.6 · 2026-11-19 · main
 
@@ -108,6 +140,8 @@ P6.2: Gemeinsame Zahlungsregeln für Browser, Apps Script und den synthetischen 
   URL und Deployment-ID bleiben unverändert. Dieser Eintrag beschreibt das Backend;
   der Frontend-Teil von P6.2 wird erst mit dem Merge von PR #48 und dem anschließenden
   GitHub-Pages-Deploy produktiv. 4.8.13 ist der dokumentierte Rollback-Stand.
+- PR #48 wurde am 2026-11-19 gemergt; der Frontend-Teil ist seitdem über GitHub Pages
+  veröffentlicht.
 
 ## 4.8.13 · 2026-11-17 · ersetzt
 

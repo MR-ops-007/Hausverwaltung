@@ -1,4 +1,4 @@
-# Datenmodell - Hausverwaltung (Google Sheets Backend) - AKTUALISIERT
+# Datenmodell - Hausverwaltung (Google Sheets Backend)
 
 ## 1. Philosophie
 Dieses Modell folgt dem Prinzip eines **Transaction Log**. Jede Eingabe in der App erzeugt eine neue Zeile in der Tabelle `Zaehlerstaende` oder `Zahlungen`. Dies ermöglicht eine lückenlose Historie und einfache Korrekturen.
@@ -103,6 +103,26 @@ dem Speichern bestätigt werden. CAMT.053 und MT940 sind ein späterer Importaus
 | **G** | `besitzer_id` | String | FK -> Nutzer.nutzer_id (Optional: für Datenschutz) |
 | **H** | `eingange` | String | Optional: kommagetrennte Gebäudeeingänge, z. B. `A,B,C` |
 
+#### Regelspalten für die Mieterhöhungsprüfung (ab Backend 4.8.16)
+
+`prepareContractSchema()` hängt diese optionalen Spalten an vorhandene Spalten an; es gelten
+keine festen Spaltenbuchstaben. Leere Werte sind zulässig.
+
+| Feld | Typ | Bedeutung |
+| --- | --- | --- |
+| `kappungsgrenze_prozent` | Zahl | Örtliche Kappungsgrenze für Wohnraum, z. B. `15` oder `20` (Werte bis `1` werden als Anteil gelesen) |
+| `kappungsgrenze_gueltig_ab` | Datum, optional | Beginn der Gültigkeit |
+| `kappungsgrenze_gueltig_bis` | Datum, optional | Ende der Gültigkeit |
+| `kappungsgrenze_quelle` | String | Fundstelle, z. B. Landesverordnung |
+| `kappungsgrenze_geprueft_am` | Datum | Datum der letzten fachlichen Prüfung |
+| `vergleichsmiete_monatlich` | Zahl, optional | Ortsübliche Vergleichsmiete je Monat |
+| `vergleichsmiete_pro_qm` | Zahl, optional | Ortsübliche Vergleichsmiete je m² |
+| `gewerbe_pruefung_intervall_jahre` | Zahl, optional | Prüfintervall für Gewerbeverträge, Standard `5` |
+
+Fehlt eine zeitlich passende Kappungsgrenze, verwendet `contractService.rentIncreaseCap()`
+20 % und kennzeichnet den Wert als „Standardwert 20 %; örtliche Prüfung ausstehend“.
+Die Regeln selbst stehen in `docs/p6-6-mieterhoehungs-erinnerungen.md`.
+
 #### Reservierter Testbereich
 
 Das Objekt `TEST` ist als dauerhaft getrennter Testbereich reserviert. Es dient zur Prüfung produktiver Schreibwege, ohne reale Objekt-, Einheiten- oder Zählerdaten zu verändern.
@@ -113,6 +133,7 @@ Zugehörige Stammdaten:
 objekt_id: TEST
 einheit_id: TEST_WE_01
 einheit_id: TEST_WE_02
+einheit_id: TEST_WE_03
 einheit_id: TEST_Allgemein
 zaehler_id: Z_STROM_KWH_WOHNUNG_1
 zaehler_id: Z_KALTWASSER_KW_WOHNUNG_1
@@ -127,7 +148,7 @@ zaehler_id: Z_OEL_STAND_IN_CM
 zaehler_id: Z_OEL_GETANKT_LITER
 ```
 
-Der Testbereich enthält eine belegte Testwohnung (`TEST_WE_01`), einen Leerstand (`TEST_WE_02`) und einen Allgemeinbereich (`TEST_Allgemein`). Er nutzt noch die historisch gewachsenen Test-IDs. Die UI muss Vorwerte unabhängig davon immer nach `zaehler_id`, `objekt_id` und `einheit_id` filtern.
+Der Testbereich enthält eine belegte Testwohnung (`TEST_WE_01`), einen Leerstand (`TEST_WE_02`), eine belegte Testwohnung für Zahlungs- und Kautionstests (`TEST_WE_03`, Vertrag 34 mit synthetischen Testpersonen) und einen Allgemeinbereich (`TEST_Allgemein`). Er nutzt noch die historisch gewachsenen Test-IDs. Die UI muss Vorwerte unabhängig davon immer nach `zaehler_id`, `objekt_id` und `einheit_id` filtern.
 
 Auswertungen und spätere Dashboards sollen diesen Testbereich entweder sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.
 
@@ -192,7 +213,7 @@ Die Zuordnung wird in Apps Script zentral über `getLokEinheitEntranceMapping` g
 | **O** | `zahlungsziel_typ` | String | `WERKTAG` oder `KALENDERTAG`; Standard ist der 3. Werktag |
 | **P** | `zahlungsziel_wert` | Zahl | Anzahl des Werktags oder Kalendertag des Monats, z. B. `3` oder `15` |
 
-#### Lokale Erweiterung ab Backend 4.7.0 (noch nicht produktiv migriert)
+#### Erweiterung ab Backend 4.7.0 (angehängte Spalten)
 
 Neue Felder werden nach vorhandenen Spalten angehängt, nicht anhand fester
 Spaltenbuchstaben geschrieben:
@@ -281,6 +302,32 @@ monatlicher Gesamtindex, unbereinigt, 2020=100). Indexstände werden abgerufen,
 nicht aus Mietbeträgen geschätzt. Monat, Reihe und Basis werden geprüft; fehlende
 oder zukünftige Werte bleiben leer. Eine bestehende gespeicherte Indexbasis wird
 nicht automatisch ersetzt. Der Abruf ändert keine produktiven Vertragsdaten.
+
+### Tabelle: `MieterhöhungsPrüfungen` (ab Backend 4.8.15)
+
+Geräteübergreifender Status der internen Mieterhöhungsprüfung. Genau eine Zeile je Vertrag;
+die Zeile wird beim Abschließen oder Wiederöffnen aktualisiert. Das Blatt wird ausschließlich
+über `prepareContractSchema()` angelegt; Datumsfelder werden dabei als Text formatiert.
+Vertragsdaten und Mietbeträge ändern sich durch diesen Schreibweg nicht.
+
+| Feld | Typ | Bedeutung |
+| --- | --- | --- |
+| `pruefung_id` | String | PK im Format `VERTRAG:{vertrag_id}` |
+| `vertrag_id` | String | FK -> Vertraege.vertrag_id |
+| `signatur` | String | Signatur der Erinnerung inklusive Regelbasis; ändert sie sich, gilt der Abschluss nicht mehr |
+| `status` | String | `ERLEDIGT` oder `OFFEN` |
+| `erledigt_am` | Text `YYYY-MM-DD` | Abschlussdatum (Europe/Berlin) |
+| `wiedervorlage_ab` | Text `YYYY-MM-DD` | Wiedervorlage; Standard zwölf Monate nach Abschluss, individuell wählbar, nicht in der Vergangenheit |
+| `erfasst_von` | String | Bezeichnung des Geräteschlüssels |
+| `notiz` | String, optional | Prüfnotiz |
+| `aktualisiert_am` | Text `YYYY-MM-DD HH:mm:ss` | Letzte Änderung |
+
+Schreibtyp: `MIETERHOEHUNG_PRUEFUNG_SPEICHERN` mit den Aktionen `ABSCHLIESSEN` und
+`WIEDER_OEFFNEN` (Feld `aktion`); ein identischer Abschluss ist idempotent. Erlaubt für die Rollen `admin`
+und `erfassen`. Ob die Prüfung als Wohnraum oder Gewerbe bewertet wird, leitet
+`contractService.rentIncreaseScope()` aus `Einheiten.typ` ab (ersatzweise aus einem
+optionalen Vertragsfeld `mietrecht_bereich`, wenn `typ` leer ist); ist das nicht eindeutig, bleibt die Prüfung
+als „Prüfung erforderlich“ markiert.
 
 ### Tabelle: `Vertragsparteien` (N:M zwischen Vertrag und Person)
 **Wichtig:** Ermöglicht mehrere Hauptmieter (z.B. 2 Personen mit Rolle "Hauptmieter").
