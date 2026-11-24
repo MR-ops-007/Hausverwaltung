@@ -15,6 +15,12 @@ describe('GitHub-Pages-Build', () => {
     expect(workflow).toContain('actions/deploy-pages@v4');
   });
 
+  it('benennt das Pages-Paket je Versuch, damit ein Neustart des Laufs veröffentlichen kann', () => {
+    const artifactName = 'github-pages-${{ github.run_attempt }}';
+    expect(workflow).toContain(`name: ${artifactName}`);
+    expect(workflow).toContain(`artifact_name: ${artifactName}`);
+  });
+
   it('kopiert alle synchron geladenen Frontend-Skripte ins Pages-Artefakt', () => {
     const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
     const requiredScripts = [...html.matchAll(/<script src="([^"]+\.js)(?:\?[^" ]+)?"><\/script>/g)]
