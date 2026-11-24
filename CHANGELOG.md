@@ -41,6 +41,7 @@ Alle Deployments aktualisieren die bestehenden Bereitstellungen; die URLs bleibe
 
 | Datum | Version | Umgebung | Deployment-Version | Hinweis |
 | --- | --- | --- | --- | --- |
+| 2026-11-25 | 4.8.17 | PROD | `@46` | **per `clasp` verifiziert:** PROD vorher bytegleich mit 4.8.16 (`0ccdbed`, `@45`), Push aus `main` (`d0aa765`) bytegleich geprüft, danach Deploy; anonyme Abrufe (`vertrag_capabilities`, `stammdaten`) liefern `UNAUTHORIZED`; kein Schemaschritt nötig; Rollback-Stand 4.8.16 `@45` |
 | 2026-11-25 | 4.8.17 | TEST | `@11` | **per `clasp` verifiziert:** TEST vorher bytegleich mit `main` (4.8.16 `@10`); Deploy aus dem PR-Stand; Capabilities `backend_version: 4.8.17`, `stammdaten_view: true`; Messung je 3 Läufe: `alle` 11,2–13,3 s / 5.144 KB, `stammdaten` 5,3–7,9 s / 653 KB; App lädt Verträge, Zahlungen und Zählerstände vollständig, Verbrauchsansicht lädt bei Bedarf; Rollback-Stand 4.8.16 `@10` |
 | 2026-11-24 | 4.8.16 | PROD | `@45` | **per `clasp` verifiziert:** PROD vorher bytegleich mit 4.8.14 (`f41bcd4`), Push aus `main` (`0ccdbed`) bytegleich geprüft; Sheet-Kopie angelegt, `prepareContractSchema()` (`Contracts.gs`) vom Product Owner ausgeführt, danach Deploy; anonymer Abruf liefert `UNAUTHORIZED`; Abnahme in der App: Prüfung abschließen und wieder öffnen; Rollback-Stand 4.8.14 `@44` |
 | zwischen 2026-11-20 und 2026-11-24 | 4.8.16 | TEST | `@10` | **am 2026-11-24 per `clasp` verifiziert:** Code bytegleich mit `main` (`b338bd8`); Deploy war nicht protokolliert; ob `prepareContractSchema()` lief, ist vor der Abnahme zu prüfen |
@@ -61,7 +62,7 @@ Web-App-Bereitstellung neben `@HEAD`; PROD steht auf Version 44 (4.8.14), TEST a
 (4.8.16). Release-Tags für 4.8.13 und 4.8.14 werden in Roadmap-Paket 1c gesetzt.
 Nach dem PROD-Deploy am selben Abend steht PROD auf Version 45 (4.8.16).
 
-## 4.8.17 · 2026-11-25 · test
+## 4.8.17 · 2026-11-25 · produktiv
 
 Performance-Paket Schritt 1: neue Lese-View `stammdaten` für den Startabruf. Sie liefert
 nur die Blätter, die das Frontend nach dem Dashboard übernimmt (Objekte, Einheiten,
@@ -74,7 +75,7 @@ melden `stammdaten_view: true`.
 Keine Schemaänderung, kein `prepareContractSchema()` nötig. Ältere Backends liefern
 für die unbekannte View weiterhin alle Blätter, das Frontend bleibt kompatibel.
 
-## 4.8.16 · 2026-11-20 · produktiv
+## 4.8.16 · 2026-11-20 · ersetzt
 
 P6.6d erweitert die zentrale Mieterhöhungsprüfung um drei getrennte Termine:
 interne Wiedervorlage, frühestes Erhöhungsverlangen und früheste angenommene
@@ -104,6 +105,11 @@ einzeln bereitgestellt; wird mit 4.8.16 ausgerollt.
 
 ## Frontend- und Betriebsmeilensteine ohne Backend-Versionserhöhung
 
+- Performance Schritt 2 (2026-11-25, lokal): Sofortstart aus einem lokalen Zwischenspeicher
+  (IndexedDB, je Umgebung, ohne Verbrauchsdaten). Bis frische Daten da sind, sind Zahlungen,
+  Vertragsänderungen und Prüfabschlüsse gesperrt; Zählerstände bleiben erfassbar. Ein
+  abgelehnter Zugangsschlüssel und „Lokale Daten löschen“ entfernen den gespeicherten Stand.
+  Keine Backend-Änderung.
 - PR #35 (2026-11-10): GitHub-Pages-Auslieferung, getrennte TEST-/PROD-Profile,
   sichtbarer Umgebungsschalter und PWA-/Home-Screen-Grundlage.
 - PR #36 (2026-11-10): Fehlende `environment-service.js` in das Pages-Artefakt aufgenommen.
