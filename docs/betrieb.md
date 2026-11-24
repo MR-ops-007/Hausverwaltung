@@ -1,13 +1,13 @@
 # Betrieb, Testumgebungen und Wiederherstellung
 
-Stand: 2026-11-17
+Welche Backend-Version in TEST und PROD bereitgestellt ist und welcher Stand als Rollback
+dient, steht ausschließlich in der Deployment-Historie im [`CHANGELOG.md`](../CHANGELOG.md).
+Dieses Dokument beschreibt Abläufe und Regeln.
 
-## Mieteingänge und Backend 4.8.12
+## Mieteingänge (ab Backend 4.8.12)
 
-PR #39 enthält den gehärteten Mieteingangs- und CSV-Import-Ausbau. Backend 4.8.12 ist in
-der bestehenden TEST-Bereitstellung veröffentlicht und wurde dort mit einem
-Erfassungs-Schlüssel fachlich abgenommen. Anschließend wurde die bestehende PROD-
-Bereitstellung auf 4.8.12 (Deployment-Version `@42`) aktualisiert; die URL blieb unverändert.
+PR #39 enthält den gehärteten Mieteingangs- und CSV-Import-Ausbau. Er wurde in TEST mit
+einem Erfassungs-Schlüssel fachlich abgenommen.
 Der PROD-Endpunkt wurde zusätzlich am 2026-11-14 ausschließlich im dauerhaft getrennten
 Objekt `TEST` (`Test für Produktivsystem`) schreibend geprüft. Dafür wurde ein
 kontrolliertes Fixture `TEST_WE_03` mit Vertrag 34, Mickey Mouse und Minnie Mouse,
@@ -18,7 +18,6 @@ Sheet-Zeilen wurden nach den GUI-Schreibvorgängen kontrolliert; reale Objekte w
 nicht verändert. Der native Dubletten-Confirm wird in der Browser-Automation automatisch
 bestätigt, deshalb ist nur der Warn-/Speicherpfad, nicht das manuelle Abbrechen, als
 PROD-GUI-Fall abgenommen.
-Die frühere 4.8.5-Bereitstellung bleibt als Rollback-Stand erhalten.
 
 Der CSV-Import ist absichtlich lokal und bestätigungspflichtig: Datei auswählen,
 Vertrag und fachlichen Mietmonat prüfen, einzelne Buchung übernehmen. Ein Mietmonat
@@ -101,11 +100,10 @@ bleiben ohne Mietmonat.
 Bei einem TEST-Bestand, der noch mit Backend 4.8.10 erzeugte Stornos enthält, sind vor einem
 erneuten Abnahmetest Stornozeilen mit leerem `mietmonat` zu prüfen. Solche Zeilen müssen entweder
 fachlich korrigiert oder aus dem synthetischen TEST-Bestand entfernt werden. Beim erneuten Senden
-derselben `zahlung_id` meldet Backend 4.8.12 sonst absichtlich `PAYMENT_ID_CONFLICT`, weil der
+derselben `zahlung_id` meldet das Backend ab 4.8.12 sonst absichtlich `PAYMENT_ID_CONFLICT`, weil der
 korrekt abgeleitete Originalmonat nicht zur alten Zeile passt.
 
-Der Hardening-Stand ist Backend 4.8.12 in TEST und PROD bereitgestellt. Die fachliche
-Schreibabnahme ist in TEST vollständig und im PROD-Testobjekt `TEST` für die produktiven
+Die fachliche Schreibabnahme ist in TEST vollständig und im PROD-Testobjekt `TEST` für die produktiven
 Schreib- und Statusfälle vollständig erfolgt. Das explizite Abbrechen einer nativen
 Dublettenwarnung bleibt als manueller QA-Schritt offen.
 Für die Speicherung der beiden neuen Vertragsfelder muss einmalig die ausdrücklich
@@ -193,7 +191,7 @@ Der Mock enthält außerdem Strom-, Kaltwasser-, Warmwasser- und Heizöl-Verbrau
 für 2025 und 2026 sowie Audit- und Bilanzzeilen. Die Fixture-Quelle liegt in
 `tools/mock-consumption-fixtures.mjs` und wird beim Neustart reproduzierbar neu geladen.
 Für den produktiven Schreibweg müssen die optionalen Spalten `mietmonat`, `storno_von`,
-`gegen_art` und `zahlungsgruppe_id` im Blatt `Zahlungen` vorhanden sein; fehlen sie, lehnt Backend 4.8.12 den
+`gegen_art` und `zahlungsgruppe_id` im Blatt `Zahlungen` vorhanden sein; fehlen sie, lehnt das Backend ab 4.8.12 den
 erweiterten Datensatz verständlich mit `PAYMENT_SCHEMA_MISSING` ab, statt die Zuordnung
 still zu verlieren.
 
@@ -215,12 +213,12 @@ Deployment-URLs und Script Properties verwenden. Eine gleiche URL ist kein
 zulässiger Testaufbau. Auch die synthetische TEST-Umgebung wird mit eigenen
 Schlüsseln geschützt und ist kein ungeschützter Ersatz für eine Testumgebung.
 
-## Letzter Backend-Stand
+## Backend-Stand
 
-Backend 4.8.5 wurde am 2026-11-10 als neue Version der bestehenden Bereitstellungen
-veröffentlicht. PROD steht auf Deployment-Version 41, TEST auf Deployment-Version 5;
-die URLs blieben unverändert. Ein anonymer GET-Aufruf gegen beide Endpunkte liefert
-`UNAUTHORIZED`. Die lokale `clasp`-Zielauswahl wird für jeden Befehl aus dem gewählten
+Den aktuellen Stand je Umgebung zeigt die Deployment-Historie im
+[`CHANGELOG.md`](../CHANGELOG.md). Deployments aktualisieren die bestehenden
+Bereitstellungen, die URLs bleiben dabei gleich. Nach jedem Deploy muss ein anonymer
+GET-Aufruf gegen den Endpunkt `UNAUTHORIZED` liefern. Die lokale `clasp`-Zielauswahl wird für jeden Befehl aus dem gewählten
 Profil gesetzt; ein PROD-Push oder -Deploy verlangt eine ausdrückliche Bestätigung.
 
 ## Testdatenbasis aufbauen
@@ -322,13 +320,32 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
 
 ## Deployment-Checkliste
 
+### Release-Regel (verbindlich, festgelegt am 2026-11-24)
+
+`clasp` darf für TEST und PROD verwendet werden. Entscheidend ist die Freigabe:
+
+1. **Vor jedem Push** wird das Ziel mit `npm run clasp:<umgebung>:status` geprüft. Der
+   vorhandene Code wird gepullt und der Diff kontrolliert, damit kein fremder oder neuerer
+   Stand überschrieben wird.
+2. **Testen:** Ein TEST-Deploy darf für die Abnahme aus dem PR-Stand erfolgen. Danach werden
+   Schema-Voraussetzungen, Verhalten und Abnahmekriterien in TEST geprüft.
+3. **PROD** wird erst nach erfolgreicher Prüfung und nach ausdrücklicher Freigabe des
+   Product Owners für genau diesen PROD-Deploy beschrieben oder bereitgestellt. Die Freigabe
+   muss vor `clasp:prod:push` und `clasp:prod:deploy` vorliegen. PROD wird aus dem gemergten
+   Stand auf `main` deployt. Eine Freigabe des grundsätzlichen Vorgehens ist keine Freigabe
+   für einen konkreten Deploy; ein erfolgreicher TEST-Deploy ist keine PROD-Freigabe.
+4. **Dokumentieren:** Nach dem Deploy werden Deployment-Version, ausgeführte Prüfungen und
+   Ergebnis in der Deployment-Historie im `CHANGELOG.md` festgehalten.
+5. **Lesender Zugriff** auf TEST und PROD (Status, Deployments, Versionen, Pull in einen
+   getrennten Hilfsordner zum Vergleich) ist ohne gesonderte Freigabe erlaubt.
+
 ### Frontend
 
 1. `main` aktualisieren und Feature-Branch anlegen.
 2. `npm ci`, `npm test` und `git diff --check` ausführen.
 3. Mit `runtime-config.js` ausschließlich gegen die vorgesehene Umgebung testen.
 4. Desktop und Mobil visuell prüfen.
-5. PR und CI abwarten, danach mergen.
+5. PR und CI abwarten, nach Freigabe mergen.
 
 ### Apps Script
 
@@ -355,8 +372,9 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
    darf nicht als Stichtag an die Datumslogik weitergereicht werden.
 8. Mit dem passenden Umgebungsschlüssel einen geschützten Lese- und Schreibtest
    durchführen.
-9. Ergebnis und Rollback-Stand in `CHANGELOG.md` beziehungsweise diesem Dokument
-   ergänzen.
+9. Ergebnis, Deployment-Version und Rollback-Stand in der Deployment-Historie im
+   `CHANGELOG.md` ergänzen: einen TEST-Deploy aus dem PR-Stand im selben PR, einen
+   PROD-Deploy (nur aus `main` nach Merge) im nächsten ohnehin anstehenden PR.
 
 Für P6.6c muss die Capability `rent_increase_review_writes: true` mit einem
 autorisierten `admin`- oder `erfassen`-Profil zurückkommen. Danach mindestens einen
