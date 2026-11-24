@@ -317,6 +317,25 @@ button:active {
     border-radius: 6px;
     font: inherit;
 }
+/* Die globale Regel `input { font-size: 1.3rem !important; padding: 12px !important }` macht das
+   native Datumsfeld auf schmalen iPhones (z. B. 12 mini, 375 px) breiter als die Karte. iOS Safari
+   gibt Datumsfeldern zudem eine eigene Mindestbreite, die erst ohne native Darstellung entfällt.
+   16 px Schrift verhindert das automatische Zoomen von iOS beim Antippen. */
+.rent-increase-review-fields input[type="date"] {
+    display: block;
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+    min-height: 44px;
+    font-size: 16px !important;
+    padding: 8px 10px !important;
+    border-width: 1px !important;
+    border-radius: 8px !important;
+    line-height: 1.2;
+}
+.rent-increase-review-fields input[type="date"]::-webkit-date-and-time-value {
+    text-align: left;
+}
 .rent-increase-review-note { color: #475569; }
 .rent-increase-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 #contracts-output .rent-increase-actions button,
