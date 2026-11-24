@@ -61,12 +61,13 @@ describe('GitHub-Pages-Build', () => {
 
   it('aktualisiert sichtbare Verträge und Mieteingänge nach dem Hintergrundladen', () => {
     const fullDataIndex = index.indexOf('dataService.setInitialData(fullData)');
-    const contractRefreshIndex = index.indexOf('contractUiService.render()', fullDataIndex);
-    const paymentRefreshIndex = index.indexOf('paymentUiService.render()', fullDataIndex);
+    const refreshCallIndex = index.indexOf('renderVisibleDataViews();', fullDataIndex);
+    const helper = index.slice(index.indexOf('function renderVisibleDataViews()'), index.indexOf('function setStatus('));
 
     expect(fullDataIndex).toBeGreaterThan(-1);
-    expect(contractRefreshIndex).toBeGreaterThan(fullDataIndex);
-    expect(paymentRefreshIndex).toBeGreaterThan(fullDataIndex);
+    expect(refreshCallIndex).toBeGreaterThan(fullDataIndex);
+    expect(helper).toContain('contractUiService.render()');
+    expect(helper).toContain('paymentUiService.render()');
     expect(index).toContain('FULL_DATA_EMPTY');
     expect(index).toContain('dataService.state.fullDataError = true');
   });

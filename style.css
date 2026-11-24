@@ -929,6 +929,7 @@ input[type="text"] {
     overflow: auto;
 }
 .request-diagnostics li { margin: 2px 0; overflow-wrap: anywhere; }
+.request-diagnostics-note { margin: 6px 0 0; }
 .request-diagnostics button {
     padding: 4px 10px;
     font-size: 0.95em;

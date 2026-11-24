@@ -11,7 +11,7 @@
     <link rel="manifest" href="manifest.webmanifest?v=20261111-pwa-v1">
     <link rel="icon" type="image/png" href="favicon.png?v=20261022">
     <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20261111-pwa-v1">
-    <link rel="stylesheet" href="style.css?v=20261124-request-timing-v1">
+    <link rel="stylesheet" href="style.css?v=20261125-local-cache-v1">
 </head>
 <body>
     <div class="container" style="max-width: 1180px; margin: 0 auto; padding: 20px; font-family: sans-serif;">
@@ -23,6 +23,8 @@
                 <summary id="request-diagnostics-summary"></summary>
                 <ol id="request-diagnostics-list"></ol>
                 <button type="button" id="request-diagnostics-clear">Protokoll leeren</button>
+                <button type="button" id="local-cache-clear" title="Entfernt den auf diesem Gerät gespeicherten Datenstand aller Umgebungen">Lokale Daten löschen</button>
+                <p id="local-cache-info" class="request-diagnostics-note">Für den Sofortstart speichert die App den zuletzt geladenen Stand (ohne Verbrauchsdaten) auf diesem Gerät.</p>
             </details>
             <div id="environment-banner" class="environment-banner" role="status" hidden>
                 <div>
@@ -114,9 +116,10 @@
     <script src="runtime-config.js?v=20261120-runtime-config-v2" onerror="this.remove()"></script>
     <script src="config.js?v=20260707-consumption-dashboard-controls-v1"></script>
     <script src="environment-service.js?v=20261110-environment-switch-v1"></script>
-    <script src="data-service.js?v=20261120-p6-6c-review-status-v1"></script>
+    <script src="data-service.js?v=20261125-local-cache-v1"></script>
     <script src="access-ui.js?v=20261028-access-v1"></script>
-    <script src="cloud-service.js?v=20261125-stammdaten-v1"></script>
+    <script src="local-cache.js?v=20261125-local-cache-v1"></script>
+    <script src="cloud-service.js?v=20261125-local-cache-v1"></script>
     <script src="apps-script/ContractService.js?v=20261117-p6-7-enforcement-v3"></script>
     <script src="apps-script/PaymentRules.js?v=20261117-p6-2-payment-rules-v1"></script>
     <script src="vpi-service.js?v=20261021-vpi-v1"></script>
@@ -139,6 +142,30 @@
     <script src="payment-ui.js?v=20261125-default-year-v1"></script>
 
     <script>
+    // Bereits geöffnete Vertrags- oder Zahlungsansicht nach neuen Daten neu zeichnen.
+    function renderVisibleDataViews() {
+        if (document.getElementById('contracts-section')?.style.display === 'block'
+            && typeof contractUiService !== 'undefined') {
+            contractUiService.render();
+        }
+        if (document.getElementById('payments-section')?.style.display === 'block'
+            && typeof paymentUiService !== 'undefined') {
+            paymentUiService.render();
+        }
+    }
+
+    function setStatus(statusEl, text, color, onclick = null) {
+        if (!statusEl) return;
+        statusEl.textContent = text;
+        statusEl.style.color = color;
+        statusEl.style.cursor = onclick ? "pointer" : "";
+        statusEl.onclick = onclick ? () => {
+            statusEl.onclick = null;
+            statusEl.style.cursor = "";
+            onclick();
+        } : null;
+    }
+
     async function initApp() {
         const statusEl = document.getElementById('sync-status');
         environmentService.render();
@@ -147,24 +174,36 @@
         console.log("System: Starte Initialisierung (Stufe 1)...");
 
         if (!CONFIG.API_CONFIGURED) {
-            if (statusEl) {
-                statusEl.textContent = "⚠️ Keine Umgebung konfiguriert – bitte runtime-config.js anlegen";
-                statusEl.style.color = "darkorange";
-            }
+            setStatus(statusEl, "⚠️ Keine Umgebung konfiguriert – bitte runtime-config.js anlegen", "darkorange");
             return;
+        }
+
+        // STUFE 0: Sofortstart aus dem zuletzt auf diesem Gerät gespeicherten Stand.
+        // Nur beim ersten Laden, nie über bereits frisch geladene Daten.
+        let snapshot = null;
+        if (!dataService.state.fullDataLoaded && typeof localCache !== 'undefined') {
+            snapshot = await localCache.load();
+            if (snapshot && dataService.applySnapshot(snapshot)) {
+                uiService.renderAll();
+                renderVisibleDataViews();
+                setStatus(statusEl, "🕘 Stand von " + localCache.formatSavedAt(snapshot) + " – wird aktualisiert …", "darkorange");
+            } else {
+                snapshot = null;
+            }
         }
 
         try {
             // STUFE 1: Schneller Ladevorgang (nur Dashboard-Tabelle)
             const fastData = await cloudService.loadDashboardData();
             if (fastData) {
-                dataService.setDashboardData(fastData);
-                uiService.renderAll();
-
-                if (statusEl) {
-                    statusEl.textContent = "✅ UI bereit. Lade Hintergrunddaten...";
-                    statusEl.style.color = "orange";
+                if (dataService.state.fullDataLoaded) {
+                    // Stammdaten (aus dem Cache) bleiben stehen, nur die Mieterliste wird frisch.
+                    dataService.setActiveTenants(fastData);
+                } else {
+                    dataService.setDashboardData(fastData);
+                    setStatus(statusEl, "✅ UI bereit. Lade Hintergrunddaten...", "orange");
                 }
+                uiService.renderAll();
             }
 
             // Versionsanzeige parallel zu Stufe 2 laden statt danach: spart eine
@@ -181,23 +220,13 @@
             if (fullData && typeof fullData === 'object' && !Array.isArray(fullData)
                 && Object.keys(fullData).length > 0) {
                 dataService.setInitialData(fullData);
-
-                // A view opened while the background request was running may have
-                // rendered with the fast dashboard data. Refresh it after the full
-                // contract/payment state has arrived.
-                if (document.getElementById('contracts-section')?.style.display === 'block'
-                    && typeof contractUiService !== 'undefined') {
-                    contractUiService.render();
-                }
-                if (document.getElementById('payments-section')?.style.display === 'block'
-                    && typeof paymentUiService !== 'undefined') {
-                    paymentUiService.render();
+                if (typeof localCache !== 'undefined') {
+                    localCache.save(fastData, fullData);
                 }
 
-                if (statusEl) {
-                    statusEl.textContent = "✅ System vollständig geladen (" + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ")";
-                    statusEl.style.color = "green";
-                }
+                // Eine während des Ladens geöffnete Ansicht zeigt jetzt den frischen Stand.
+                renderVisibleDataViews();
+                setStatus(statusEl, "✅ System vollständig geladen (" + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ")", "green");
             } else {
                 const error = new Error('Leere oder ungültige Hintergrunddaten empfangen.');
                 error.code = 'FULL_DATA_EMPTY';
@@ -213,6 +242,26 @@
             }).catch(() => {});
         } catch (error) {
             console.error("KRITISCHER FEHLER:", error);
+
+            if (error && error.code === 'UNAUTHORIZED') {
+                // Ein abgelehnter Schlüssel darf keine zwischengespeicherten Daten mehr zeigen.
+                if (dataService.state.dataStale) {
+                    dataService.reset();
+                    uiService.renderAll();
+                    renderVisibleDataViews();
+                }
+                if (typeof localCache !== 'undefined') localCache.clear();
+                setStatus(statusEl, "🔒 Zugangsschlüssel erforderlich – hier tippen zum Eingeben", "red", initApp);
+                return;
+            }
+
+            if (dataService.state.dataStale) {
+                // Lokaler Stand bleibt sichtbar; Schreibvorgänge bleiben bis zur Aktualisierung gesperrt.
+                setStatus(statusEl, "⚠️ Stand von " + localCache.formatSavedAt({ savedAt: dataService.state.cachedAt }) +
+                    " – Aktualisierung fehlgeschlagen, hier tippen zum erneuten Laden", "darkorange", initApp);
+                return;
+            }
+
             if (typeof paymentUiService !== 'undefined' && typeof dataService !== 'undefined' && dataService.state) {
                 dataService.state.fullDataError = true;
                 dataService.state.fullDataErrorCode = error && error.code ? error.code : '';
@@ -221,26 +270,12 @@
                     paymentUiService.render();
                 }
             }
-            if (statusEl) {
-                if (error && error.code === 'UNAUTHORIZED') {
-                    statusEl.textContent = "🔒 Zugangsschlüssel erforderlich – hier tippen zum Eingeben";
-                    statusEl.style.color = "red";
-                    statusEl.style.cursor = "pointer";
-                    statusEl.onclick = () => {
-                        statusEl.onclick = null;
-                        statusEl.style.cursor = "";
-                        initApp();
-                    };
-                } else if (error && error.code === 'CONFIGURATION_ERROR') {
-                    statusEl.textContent = "⚠️ Backend-Umgebung ist nicht konfiguriert";
-                    statusEl.style.color = "darkorange";
-                } else if (error && error.code === 'FULL_DATA_EMPTY') {
-                    statusEl.textContent = "❌ Zahlungsdaten konnten nicht vollständig geladen werden";
-                    statusEl.style.color = "red";
-                } else {
-                    statusEl.textContent = "❌ Fehler beim Laden der Daten";
-                    statusEl.style.color = "red";
-                }
+            if (error && error.code === 'CONFIGURATION_ERROR') {
+                setStatus(statusEl, "⚠️ Backend-Umgebung ist nicht konfiguriert", "darkorange");
+            } else if (error && error.code === 'FULL_DATA_EMPTY') {
+                setStatus(statusEl, "❌ Zahlungsdaten konnten nicht vollständig geladen werden", "red");
+            } else {
+                setStatus(statusEl, "❌ Fehler beim Laden der Daten", "red");
             }
         }
     }
@@ -269,6 +304,16 @@
         document.getElementById('request-diagnostics-clear')?.addEventListener('click', () => {
             cloudService.clearRequestLog();
             renderRequestDiagnostics();
+        });
+        document.getElementById('local-cache-clear')?.addEventListener('click', async event => {
+            const button = event.currentTarget;
+            if (typeof localCache === 'undefined') return;
+            const ok = await localCache.clear({ all: true });
+            const info = document.getElementById('local-cache-info');
+            if (info) info.textContent = ok
+                ? 'Lokale Daten gelöscht. Der nächste Start lädt wieder vollständig vom Server.'
+                : 'Lokale Daten konnten nicht gelöscht werden.';
+            button.disabled = ok;
         });
     });
     document.addEventListener('DOMContentLoaded', initApp);

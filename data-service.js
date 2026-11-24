@@ -23,7 +23,43 @@ const dataService = {
         view_verbrauch_bilanz_jahr: [],
         fullDataLoaded: false,
         fullDataError: false,
-        fullDataErrorCode: ''
+        fullDataErrorCode: '',
+        // true, solange ein lokal zwischengespeicherter Stand angezeigt wird und
+        // die frischen Daten noch nicht da sind. Schreibvorgänge mit Abhängigkeit
+        // vom aktuellen Datenstand sind dann gesperrt (siehe cloudService).
+        dataStale: false,
+        cachedAt: ''
+    },
+
+    /** Zeigt einen lokal gespeicherten Stand an, bis frische Daten geladen sind. */
+    applySnapshot(snapshot) {
+        if (!snapshot || !snapshot.stammdaten) return false;
+        this.setDashboardData(snapshot.dashboard || {});
+        this.setInitialData(snapshot.stammdaten);
+        this.state.dataStale = true;
+        this.state.cachedAt = String(snapshot.savedAt || '');
+        return true;
+    },
+
+    /**
+     * Übernimmt nur die aktiven Mieter aus einem frischen Dashboard-Abruf, ohne
+     * die bereits angezeigten Stammdaten zurückzusetzen (Start aus dem Cache).
+     */
+    setActiveTenants(data) {
+        if (!data || typeof data !== 'object') return;
+        this.state.view_aktive_mieter = data["_view_aktive_mieter"] || [];
+    },
+
+    /** Leert alle geladenen Daten, z. B. nach einem abgelehnten Zugangsschlüssel. */
+    reset() {
+        Object.keys(this.state).forEach(key => {
+            if (Array.isArray(this.state[key])) this.state[key] = [];
+        });
+        this.state.fullDataLoaded = false;
+        this.state.fullDataError = false;
+        this.state.fullDataErrorCode = '';
+        this.state.dataStale = false;
+        this.state.cachedAt = '';
     },
 
     setDashboardData(data) {
@@ -113,6 +149,8 @@ const dataService = {
         this.state.fullDataLoaded = true;
         this.state.fullDataError = false;
         this.state.fullDataErrorCode = '';
+        this.state.dataStale = false;
+        this.state.cachedAt = '';
         
         console.log("DataService: Stufe 2 (Hintergrund-State) sicher übernommen.");
     },

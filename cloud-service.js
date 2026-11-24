@@ -298,7 +298,23 @@ const cloudService = {
         return this.read('stammdaten');
     },
 
+    // --- Schutz vor Schreiben auf altem Datenstand -------------------------------
+    // Zählerstände dürfen auch auf dem zwischengespeicherten Stand erfasst werden; sie
+    // sind ohnehin offline-fähig. Alle anderen Schreibvorgänge hängen vom aktuellen
+    // Stand ab (Dubletten, Vertragsstand, Prüfsignatur) und warten auf frische Daten.
+    STALE_SAFE_WRITE_TYPES: ['ZAEHLERSTAND_NEU'],
+
+    assertFreshData(typ) {
+        const state = typeof dataService !== 'undefined' && dataService && dataService.state;
+        if (!state || state.dataStale !== true) return;
+        if (this.STALE_SAFE_WRITE_TYPES.includes(String(typ || ''))) return;
+        const error = new Error('Die Daten werden gerade aktualisiert. Bitte warten, bis oben „System vollständig geladen“ steht, und dann erneut speichern.');
+        error.code = 'DATA_STALE';
+        throw error;
+    },
+
     async saveContract(payload) {
+        this.assertFreshData(payload && payload.typ);
         // Financial changes must receive an explicit server acknowledgement; never queue them.
         const capabilities = await this.loadCapabilities();
         if (capabilities.contract_writes !== true) throw new Error('Backend unterstützt Vertragsänderungen noch nicht.');
@@ -331,6 +347,7 @@ const cloudService = {
     },
 
     async saveRentIncreaseReview(payload) {
+        this.assertFreshData(payload && payload.typ);
         await this.loadRentReviewCapabilities();
         const result = await this.post(payload);
         if (!result || result.status !== 'success' || !result.review) {
@@ -364,6 +381,7 @@ const cloudService = {
     },
 
     async saveTransaction(transactionData) {
+        this.assertFreshData(transactionData && transactionData.typ);
         if (this.ENABLE_OFFLINE_SYNC && !navigator.onLine) {
             return this.queueForLater(transactionData, 'Offline gespeichert');
         }
