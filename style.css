@@ -889,3 +889,25 @@ input[type="text"] {
     .payment-allocation-row { grid-template-columns:1fr; }
 }
 @media (max-width: 520px) { .payment-overview { grid-template-columns:1fr; } }
+
+/* Prüf-Schaltflächen: sichtbare Rückmeldung während des Speicherns */
+.rent-increase-item button.is-busy {
+    cursor: progress;
+    opacity: 0.75;
+}
+.rent-increase-item button.is-busy::before {
+    content: "";
+    display: inline-block;
+    width: 0.9em;
+    height: 0.9em;
+    margin-right: 0.45em;
+    vertical-align: -0.1em;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: rent-review-spin 0.8s linear infinite;
+}
+@keyframes rent-review-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+    .rent-increase-item button.is-busy::before { animation: none; }
+}

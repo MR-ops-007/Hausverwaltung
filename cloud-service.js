@@ -19,6 +19,7 @@ const cloudService = {
     retryAttempt: 0,
     retryTimer: null,
     paymentCapabilitiesCache: null,
+    rentReviewCapabilitiesCache: null,
     PAYMENT_CAPABILITIES_CACHE_MS: 5 * 60 * 1000,
 
     // --- Zugangsschlüssel -------------------------------------------------
@@ -66,6 +67,7 @@ const cloudService = {
     clearAccessKey() {
         try { localStorage.removeItem(this.getAccessKeyStorage()); } catch (e) { /* Speicher nicht verfügbar */ }
         this.paymentCapabilitiesCache = null;
+        this.rentReviewCapabilitiesCache = null;
     },
 
     accessError(message) {
@@ -196,15 +198,33 @@ const cloudService = {
         return result;
     },
 
-    async saveRentIncreaseReview(payload) {
+    /**
+     * Prüft die Freigabe für Prüfabschlüsse. Eine positive Antwort wird wie beim
+     * Zahlungsweg fünf Minuten wiederverwendet, damit nicht jeder Klick zwei
+     * Backend-Anfragen braucht. Das Backend prüft Rolle und Schema beim Schreiben
+     * ohnehin selbst.
+     */
+    async loadRentReviewCapabilities(force = false) {
+        if (!force && this.rentReviewCapabilitiesCache
+            && Date.now() - this.rentReviewCapabilitiesCache.loadedAt < this.PAYMENT_CAPABILITIES_CACHE_MS) {
+            return this.rentReviewCapabilitiesCache.value;
+        }
         const capabilities = await this.loadCapabilities();
         if (capabilities.rent_increase_review_writes !== true) {
             const error = new Error('Prüfabschlüsse für Mieterhöhungen sind im Backend noch nicht eingerichtet.');
             error.code = 'RENT_REVIEW_SCHEMA_NOT_READY';
             throw error;
         }
+        this.rentReviewCapabilitiesCache = { loadedAt: Date.now(), value: capabilities };
+        return capabilities;
+    },
+
+    async saveRentIncreaseReview(payload) {
+        await this.loadRentReviewCapabilities();
         const result = await this.post(payload);
         if (!result || result.status !== 'success' || !result.review) {
+            // Nach einer Ablehnung beim nächsten Versuch frisch prüfen.
+            this.rentReviewCapabilitiesCache = null;
             throw new Error(result && result.message || 'Prüfstatus wurde nicht bestätigt.');
         }
         return result;
