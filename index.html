@@ -11,7 +11,7 @@
     <link rel="manifest" href="manifest.webmanifest?v=20261111-pwa-v1">
     <link rel="icon" type="image/png" href="favicon.png?v=20261022">
     <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20261111-pwa-v1">
-    <link rel="stylesheet" href="style.css?v=20261125-local-cache-v1">
+    <link rel="stylesheet" href="style.css?v=20261125-consumption-cache-v1">
 </head>
 <body>
     <div class="container" style="max-width: 1180px; margin: 0 auto; padding: 20px; font-family: sans-serif;">
@@ -118,7 +118,7 @@
     <script src="environment-service.js?v=20261110-environment-switch-v1"></script>
     <script src="data-service.js?v=20261125-local-cache-v1"></script>
     <script src="access-ui.js?v=20261028-access-v1"></script>
-    <script src="local-cache.js?v=20261125-local-cache-v1"></script>
+    <script src="local-cache.js?v=20261125-consumption-cache-v1"></script>
     <script src="cloud-service.js?v=20261125-local-cache-v1"></script>
     <script src="apps-script/ContractService.js?v=20261117-p6-7-enforcement-v3"></script>
     <script src="apps-script/PaymentRules.js?v=20261117-p6-2-payment-rules-v1"></script>
@@ -137,7 +137,7 @@
     </script>
 
     <script src="consumption-charts.js?v=20261106-heizoel-v3"></script>
-    <script src="ui-service.js?v=20261109-save-feedback-v1"></script>
+    <script src="ui-service.js?v=20261125-consumption-cache-v1"></script>
     <script src="contract-ui.js?v=20261124-review-busy-v1"></script>
     <script src="payment-ui.js?v=20261125-default-year-v1"></script>
 
@@ -226,6 +226,8 @@
 
                 // Eine während des Ladens geöffnete Ansicht zeigt jetzt den frischen Stand.
                 renderVisibleDataViews();
+                // Verbrauchsdaten leise vorladen (nur ohne oder mit veraltetem gespeichertem Stand).
+                if (typeof uiService.prefetchConsumptionData === 'function') uiService.prefetchConsumptionData();
                 setStatus(statusEl, "✅ System vollständig geladen (" + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ")", "green");
             } else {
                 const error = new Error('Leere oder ungültige Hintergrunddaten empfangen.');

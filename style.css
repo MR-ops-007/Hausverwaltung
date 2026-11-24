@@ -938,3 +938,27 @@ input[type="text"] {
     background: #f8fafc;
     cursor: pointer;
 }
+
+/* Verbrauch: Ladeanzeige beim ersten Öffnen ohne gespeicherten Stand */
+.consumption-loading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+}
+.consumption-loading small { display: block; margin-top: 4px; color: #64748b; }
+.consumption-loading-spinner {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    border: 3px solid #cbd5e1;
+    border-top-color: #2563eb;
+    border-radius: 50%;
+    animation: rent-review-spin 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .consumption-loading-spinner { animation: none; }
+}

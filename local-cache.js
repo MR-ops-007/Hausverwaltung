@@ -7,7 +7,8 @@
  *
  * Grenzen:
  * - Nur Lesedaten. Schreibvorgänge gehen immer direkt an das Backend.
- * - Verbrauchs-Views (mehrere MB) werden nicht zwischengespeichert.
+ * - Verbrauchs-Views (mehrere MB) liegen in einem eigenen Eintrag (`verbrauch:<umgebung>`),
+ *   damit der Startstand klein bleibt.
  * - Wird der Zugangsschlüssel abgelehnt oder „Lokale Daten löschen“ gewählt,
  *   werden die gespeicherten Daten der Umgebung entfernt.
  */
@@ -24,8 +25,10 @@ const localCache = {
         return (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.ENVIRONMENT) || 'default';
     },
 
-    key(environment = this.environment()) {
-        return `snapshot:${environment}`;
+    KINDS: ['snapshot', 'verbrauch'],
+
+    key(environment = this.environment(), kind = 'snapshot') {
+        return `${kind}:${environment}`;
     },
 
     // --- IndexedDB --------------------------------------------------------------
@@ -103,16 +106,47 @@ const localCache = {
         }
     },
 
-    /** Entfernt den Stand der aktiven Umgebung (oder aller Umgebungen). */
+    /** Letzte Verbrauchs-Views der aktiven Umgebung oder null. */
+    async loadConsumption(now = Date.now()) {
+        try {
+            const entry = await this.storage().get(this.key(this.environment(), 'verbrauch'));
+            if (!entry || entry.format !== this.FORMAT || !entry.data || typeof entry.data !== 'object') return null;
+            if (!Array.isArray(entry.data._view_verbrauch_jahr)) return null;
+            const savedAt = Date.parse(entry.savedAt);
+            if (!Number.isFinite(savedAt) || now - savedAt > this.MAX_AGE_MS) return null;
+            return entry;
+        } catch (error) {
+            return null;
+        }
+    },
+
+    async saveConsumption(data, savedAt = new Date()) {
+        if (!data || typeof data !== 'object' || !Array.isArray(data._view_verbrauch_jahr)) return false;
+        try {
+            await this.storage().put(this.key(this.environment(), 'verbrauch'), {
+                format: this.FORMAT,
+                environment: this.environment(),
+                savedAt: savedAt.toISOString(),
+                data
+            });
+            return true;
+        } catch (error) {
+            return false;
+        }
+    },
+
+    /** Entfernt alle Einträge der aktiven Umgebung (oder aller Umgebungen). */
     async clear({ all = false } = {}) {
         try {
             const storage = this.storage();
             if (!all) {
-                await storage.delete(this.key());
+                await Promise.all(this.KINDS.map(kind => storage.delete(this.key(this.environment(), kind))));
                 return true;
             }
             const keys = await storage.keys();
-            await Promise.all((keys || []).filter(key => String(key).startsWith('snapshot:')).map(key => storage.delete(key)));
+            await Promise.all((keys || [])
+                .filter(key => this.KINDS.some(kind => String(key).startsWith(`${kind}:`)))
+                .map(key => storage.delete(key)));
             return true;
         } catch (error) {
             return false;

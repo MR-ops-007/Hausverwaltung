@@ -1413,21 +1413,15 @@ const uiService = {
     return result;
   },
 
-  async ensureConsumptionViewData() {
-    const hasYearRows = Array.isArray(dataService.state.view_verbrauch_jahr) &&
-      dataService.state.view_verbrauch_jahr.length > 0;
+  // --- Verbrauchsdaten: gespeicherter Stand zuerst, frische Daten nach Bedarf -------
+  // Die Views sind mehrere MB groß und ändern sich nur nach einer Neuberechnung. Ein
+  // gespeicherter Stand wird deshalb erst nach CONSUMPTION_MAX_AGE_MS neu geladen;
+  // „Verbrauchsdaten aktualisieren“ lädt jederzeit frisch.
+  CONSUMPTION_MAX_AGE_MS: 6 * 60 * 60 * 1000,
+  consumptionFetchPromise: null,
+  consumptionSavedAt: '',
 
-    if (hasYearRows) {
-      this.updateConsumptionRefreshStatus({ _view_verbrauch_jahr: dataService.state.view_verbrauch_jahr });
-      return;
-    }
-
-    if (typeof cloudService === 'undefined' || !cloudService.loadConsumptionData) {
-      throw new Error('Die Verbrauchsdaten konnten nicht geladen werden.');
-    }
-
-    const data = await cloudService.loadConsumptionData();
-
+  applyConsumptionData(data) {
     if (dataService.setConsumptionData) {
       dataService.setConsumptionData(data);
     } else {
@@ -1436,7 +1430,89 @@ const uiService = {
       dataService.state.view_verbrauch_audit = data["_view_verbrauch_audit"] || [];
       dataService.state.view_verbrauch_bilanz_jahr = data["_view_verbrauch_bilanz_jahr"] || [];
     }
+  },
 
+  hasLocalCache() {
+    return typeof localCache !== 'undefined' && localCache && typeof localCache.loadConsumption === 'function';
+  },
+
+  isConsumptionCacheOutdated(savedAt, now = Date.now()) {
+    const time = Date.parse(savedAt);
+    return !Number.isFinite(time) || now - time >= this.CONSUMPTION_MAX_AGE_MS;
+  },
+
+  /** Lädt die Views frisch vom Backend (nie doppelt gleichzeitig) und speichert sie lokal. */
+  fetchConsumptionData() {
+    if (this.consumptionFetchPromise) return this.consumptionFetchPromise;
+    if (typeof cloudService === 'undefined' || !cloudService.loadConsumptionData) {
+      return Promise.reject(new Error('Die Verbrauchsdaten konnten nicht geladen werden.'));
+    }
+    this.consumptionFetchPromise = (async () => {
+      const data = await cloudService.loadConsumptionData();
+      this.applyConsumptionData(data);
+      const savedAt = new Date();
+      this.consumptionSavedAt = savedAt.toISOString();
+      if (this.hasLocalCache()) await localCache.saveConsumption(data, savedAt);
+      return data;
+    })();
+    const clear = () => { this.consumptionFetchPromise = null; };
+    this.consumptionFetchPromise.then(clear, clear);
+    return this.consumptionFetchPromise;
+  },
+
+  isConsumptionSectionVisible() {
+    const section = document.getElementById('consumption-dashboard-section');
+    return Boolean(section && section.style.display === 'block');
+  },
+
+  /** Lädt im Hintergrund nach und zeichnet eine offene Verbrauchsansicht neu. */
+  refreshConsumptionInBackground() {
+    if (this.consumptionFetchPromise) return this.consumptionFetchPromise;
+    const request = this.fetchConsumptionData();
+    request.then(() => {
+      if (this.isConsumptionSectionVisible()) this.renderConsumptionDashboard();
+    }).catch(error => {
+      const status = document.getElementById('consumption-view-refresh-status');
+      if (status && this.isConsumptionSectionVisible()) {
+        status.textContent = `Aktualisierung fehlgeschlagen (${error.message || error}). Angezeigt wird der gespeicherte Stand.`;
+      }
+    });
+    return request;
+  },
+
+  /**
+   * Nach dem App-Start: Verbrauchsdaten leise vorladen, damit der Reiter sofort
+   * gefüllt ist. Nur wenn kein gespeicherter Stand existiert oder er veraltet ist.
+   */
+  async prefetchConsumptionData() {
+    if (this.consumptionFetchPromise || (Array.isArray(dataService.state.view_verbrauch_jahr) && dataService.state.view_verbrauch_jahr.length && !this.isConsumptionCacheOutdated(this.consumptionSavedAt))) return;
+    const cached = this.hasLocalCache() ? await localCache.loadConsumption() : null;
+    if (cached && !this.isConsumptionCacheOutdated(cached.savedAt)) return;
+    try {
+      await this.refreshConsumptionInBackground();
+    } catch (error) { /* beim Öffnen des Reiters wird erneut geladen */ }
+  },
+
+  async ensureConsumptionViewData() {
+    const hasYearRows = Array.isArray(dataService.state.view_verbrauch_jahr) &&
+      dataService.state.view_verbrauch_jahr.length > 0;
+
+    if (hasYearRows) {
+      if (this.isConsumptionCacheOutdated(this.consumptionSavedAt)) this.refreshConsumptionInBackground();
+      this.updateConsumptionRefreshStatus({ _view_verbrauch_jahr: dataService.state.view_verbrauch_jahr });
+      return;
+    }
+
+    const cached = this.hasLocalCache() ? await localCache.loadConsumption() : null;
+    if (cached) {
+      this.applyConsumptionData(cached.data);
+      this.consumptionSavedAt = cached.savedAt;
+      if (this.isConsumptionCacheOutdated(cached.savedAt)) this.refreshConsumptionInBackground();
+      this.updateConsumptionRefreshStatus(cached.data);
+      return;
+    }
+
+    const data = await this.fetchConsumptionData();
     this.updateConsumptionRefreshStatus(data);
   },
 
@@ -1456,7 +1532,13 @@ const uiService = {
     const rows = data && data._view_verbrauch_jahr;
     const firstRow = Array.isArray(rows) ? rows.find(row => row && row.berechnet_am) : null;
     const timestamp = firstRow && this.formatConsumptionRefreshTimestamp(firstRow.berechnet_am);
-    if (timestamp) status.textContent = `Verbrauchsdaten zuletzt aktualisiert: ${timestamp}`;
+    const parts = [];
+    if (timestamp) parts.push(`Verbrauchsdaten zuletzt aktualisiert: ${timestamp}`);
+    if (this.consumptionFetchPromise) parts.push('wird geladen …');
+    else if (this.consumptionSavedAt && typeof localCache !== 'undefined' && localCache.formatSavedAt) {
+      parts.push(`abgerufen ${localCache.formatSavedAt({ savedAt: this.consumptionSavedAt })}`);
+    }
+    if (parts.length) status.textContent = parts.join(' · ');
   },
 
   async refreshConsumptionViews() {
@@ -1470,8 +1552,8 @@ const uiService = {
         throw new Error('Die Aktualisierung der Verbrauchsdaten ist noch nicht verfügbar.');
       }
       const refreshResult = await cloudService.refreshConsumptionViews();
-      const data = await cloudService.loadConsumptionData();
-      if (dataService.setConsumptionData) dataService.setConsumptionData(data);
+      if (this.consumptionFetchPromise) await this.consumptionFetchPromise.catch(() => {});
+      const data = await this.fetchConsumptionData();
       this.updateConsumptionRefreshStatus(data);
       const refreshedAt = refreshResult && refreshResult.berechnetAm
         ? this.formatConsumptionRefreshTimestamp(refreshResult.berechnetAm)
@@ -1628,7 +1710,10 @@ const uiService = {
     const objectChangedBeforeLoad = objectValueAtPreviousRender !== undefined &&
       objectValueBeforeLoad !== objectValueAtPreviousRender;
     this.consumptionObjectValueAtRenderStart = objectValueBeforeLoad;
-    output.innerHTML = '<div style="padding:12px; background:white; border:1px solid #e2e8f0; border-radius:8px;">Verbrauchsdaten werden geladen...</div>';
+    const hasConsumptionRows = Array.isArray(dataService.state.view_verbrauch_jahr) && dataService.state.view_verbrauch_jahr.length > 0;
+    if (!hasConsumptionRows) {
+      output.innerHTML = '<div class="consumption-loading" role="status"><span class="consumption-loading-spinner" aria-hidden="true"></span><div><strong>Verbrauchsdaten werden geladen …</strong><small>Beim ersten Öffnen dauert das einige Sekunden. Danach sind sie auf diesem Gerät gespeichert und sofort da.</small></div></div>';
+    }
 
     try {
       await this.ensureConsumptionViewData();
