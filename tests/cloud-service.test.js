@@ -124,7 +124,7 @@ describe('Lesen per POST mit Zugangsschlüssel', () => {
 
   it.each([
     ['loadConsumptionData', 'verbrauch'],
-    ['loadBackgroundData', 'alle'],
+    ['loadBackgroundData', 'stammdaten'],
     ['loadCapabilities', 'vertrag_capabilities']
   ])('%s liest die Ansicht %s', async (method, view) => {
     const { cloud, fetch } = loadCloud({ key: 'k1' });
@@ -425,7 +425,7 @@ describe('Offline-Queue', () => {
     fetch.mockResolvedValueOnce(reply({ status: 'success' })).mockResolvedValueOnce(reply({ Mieter: [] }));
     expect(await cloud.loadBackgroundData()).toEqual({ Mieter: [] });
     expect(bodyOf(fetch, 0)).toMatchObject(item(1));
-    expect(bodyOf(fetch, 1)).toMatchObject({ typ: 'LESEN', view: 'alle' });
+    expect(bodyOf(fetch, 1)).toMatchObject({ typ: 'LESEN', view: 'stammdaten' });
     expect(queue('offline_queue')).toEqual([]);
   });
 

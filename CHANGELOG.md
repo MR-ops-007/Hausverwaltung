@@ -41,8 +41,10 @@ Alle Deployments aktualisieren die bestehenden Bereitstellungen; die URLs bleibe
 
 | Datum | Version | Umgebung | Deployment-Version | Hinweis |
 | --- | --- | --- | --- | --- |
+| 2026-11-25 | 4.8.17 | TEST | `@11` | **per `clasp` verifiziert:** TEST vorher bytegleich mit `main` (4.8.16 `@10`); Deploy aus dem PR-Stand; Capabilities `backend_version: 4.8.17`, `stammdaten_view: true`; Messung je 3 Läufe: `alle` 11,2–13,3 s / 5.144 KB, `stammdaten` 5,3–7,9 s / 653 KB; App lädt Verträge, Zahlungen und Zählerstände vollständig, Verbrauchsansicht lädt bei Bedarf; Rollback-Stand 4.8.16 `@10` |
+| 2026-11-24 | 4.8.16 | PROD | `@45` | **per `clasp` verifiziert:** PROD vorher bytegleich mit 4.8.14 (`f41bcd4`), Push aus `main` (`0ccdbed`) bytegleich geprüft; Sheet-Kopie angelegt, `prepareContractSchema()` (`Contracts.gs`) vom Product Owner ausgeführt, danach Deploy; anonymer Abruf liefert `UNAUTHORIZED`; Abnahme in der App: Prüfung abschließen und wieder öffnen; Rollback-Stand 4.8.14 `@44` |
 | zwischen 2026-11-20 und 2026-11-24 | 4.8.16 | TEST | `@10` | **am 2026-11-24 per `clasp` verifiziert:** Code bytegleich mit `main` (`b338bd8`); Deploy war nicht protokolliert; ob `prepareContractSchema()` lief, ist vor der Abnahme zu prüfen |
-| 2026-11-18 | 4.8.14 | PROD | `@44` | **am 2026-11-24 per `clasp` verifiziert:** aktueller PROD-Stand, Code bytegleich mit `main` nach PR #48 (`f41bcd4`); Rollback-Stand 4.8.13 (`@43` laut Eintrag, nicht geprüft) |
+| 2026-11-18 | 4.8.14 | PROD | `@44` | **am 2026-11-24 per `clasp` verifiziert:** bis 2026-11-24 PROD-Stand, Code bytegleich mit `main` nach PR #48 (`f41bcd4`); Rollback-Stand 4.8.13 (`@43` laut Eintrag, nicht geprüft) |
 | 2026-11-18 | 4.8.14 | TEST | `@9` | letzter dokumentierter TEST-Deploy; TEST-Abnahme mit 25 Checks |
 | 2026-11-17 | 4.8.13 | PROD | `@43` | Schema und Tagestrigger eingerichtet |
 | 2026-11-17 | 4.8.13 | TEST | `@8` | Schema und Tagestrigger eingerichtet |
@@ -57,8 +59,22 @@ Alle Deployments aktualisieren die bestehenden Bereitstellungen; die URLs bleibe
 Verifikation am 2026-11-24 (nur lesend per `clasp`): Beide Projekte haben je eine
 Web-App-Bereitstellung neben `@HEAD`; PROD steht auf Version 44 (4.8.14), TEST auf Version 10
 (4.8.16). Release-Tags für 4.8.13 und 4.8.14 werden in Roadmap-Paket 1c gesetzt.
+Nach dem PROD-Deploy am selben Abend steht PROD auf Version 45 (4.8.16).
 
-## 4.8.16 · 2026-11-20 · main
+## 4.8.17 · 2026-11-25 · test
+
+Performance-Paket Schritt 1: neue Lese-View `stammdaten` für den Startabruf. Sie liefert
+nur die Blätter, die das Frontend nach dem Dashboard übernimmt (Objekte, Einheiten,
+Personen, Verträge, Vertragsparteien, Mietanpassungen, MieterhöhungsPrüfungen, Zähler,
+Zählerstände, Zahlungen, Parameter, Fixkosten, Haustechnik). Verbrauchs-Views, Kopien
+und Migrationsblätter werden nicht mehr beim Start übertragen; die Verbrauchsansicht
+lädt ihre Daten wie bisher bei Bedarf über `verbrauch`. In TEST sinkt die Antwort damit
+von 5,1 MB auf rund 0,65 MB und die Antwortzeit um rund 40 bis 50 %. Die Capabilities
+melden `stammdaten_view: true`.
+Keine Schemaänderung, kein `prepareContractSchema()` nötig. Ältere Backends liefern
+für die unbekannte View weiterhin alle Blätter, das Frontend bleibt kompatibel.
+
+## 4.8.16 · 2026-11-20 · produktiv
 
 P6.6d erweitert die zentrale Mieterhöhungsprüfung um drei getrennte Termine:
 interne Wiedervorlage, frühestes Erhöhungsverlangen und früheste angenommene
@@ -74,9 +90,10 @@ vereinheitlicht. Der Prüfabschluss unterstützt eine optionale Notiz und eine
 individuelle Wiedervorlage, die in die Signatur der Prüfung einfließt.
 Gemergt mit PR #54. Für 4.8.16 müssen `prepareContractSchema()` und danach eine neue
 Backend-Version bereitgestellt werden; die zusätzlichen Regelspalten werden im Blatt
-`Objekte` angelegt. TEST- und PROD-Bereitstellung stehen aus.
+`Objekte` angelegt. TEST `@10`, PROD `@45` am 2026-11-24 nach `prepareContractSchema()`
+und Sheet-Sicherung; Abnahme in der App (Prüfung abschließen und wieder öffnen).
 
-## 4.8.15 · 2026-11-20 · main
+## 4.8.15 · 2026-11-20 · ersetzt
 
 P6.6c: Prüfabschlüsse für Mieterhöhungen werden im eigenen Backend-Blatt
 `MieterhöhungsPrüfungen` statt nur im Browser gespeichert. Der Status enthält die
@@ -125,7 +142,7 @@ Fehlende Indexbasis, fehlende Staffeltermine und unvollständige Historien werde
 keine Benachrichtigungen. Ein Apps-Script-Deployment ist für dieses Paket nicht nötig;
 der Stand benötigt kein Apps-Script-Deployment.
 
-## 4.8.14 · 2026-11-18 · produktiv
+## 4.8.14 · 2026-11-18 · ersetzt
 
 P6.2: Gemeinsame Zahlungsregeln für Browser, Apps Script und den synthetischen Mock.
 

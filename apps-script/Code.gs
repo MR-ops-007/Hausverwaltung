@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.16
+ * Version: 4.8.17
  * Stand: 2026-11-20
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
@@ -135,8 +135,12 @@
  * Änderungen seit v4.8.16:
  * - Objektbezogene Regelbasis, individuelle Wiedervorlage und Prüfnotizen für
  *   Mieterhöhungsprüfungen ergänzt
+ *
+ * Änderungen seit v4.8.17:
+ * - Schlanke Lese-View `stammdaten` für den App-Start ohne Verbrauchs-Views,
+ *   Kopien und Migrationsblätter
  */
-const BACKEND_VERSION = "4.8.16";
+const BACKEND_VERSION = "4.8.17";
 
 function sendJSON(obj) {
   return ContentService
@@ -242,6 +246,7 @@ function readView(ss, view, principal) {
       payment_schema_ready: paymentSchema.ready,
       payment_schema_missing: paymentSchema.missing,
       access_protected: true,
+      stammdaten_view: true,
       access_role: principal ? principal.role : ''
     };
   }
@@ -267,6 +272,18 @@ function readView(ss, view, principal) {
     return result;
   }
 
+  if (view === 'stammdaten') {
+    // Schlanker Startabruf: nur die Blätter, die das Frontend nach dem Dashboard
+    // übernimmt (dataService.setInitialData). Verbrauchs-Views, Kopien und
+    // Migrationsblätter bleiben außen vor; Verbrauch lädt die App bei Bedarf.
+    const result = {};
+    STAMMDATEN_SHEETS.forEach(name => {
+      const sheet = ss.getSheetByName(name);
+      if (sheet) result[name] = getSheetData(sheet);
+    });
+    return result;
+  }
+
   const data = {};
   ss.getSheets().forEach(sheet => {
     const name = sheet.getName();
@@ -276,6 +293,13 @@ function readView(ss, view, principal) {
   });
   return data;
 }
+
+/** Blätter des schlanken Startabrufs (`view: 'stammdaten'`). */
+const STAMMDATEN_SHEETS = [
+  'Objekte', 'Einheiten', 'Personen', 'Vertraege', 'Vertragsparteien', 'Mietanpassungen',
+  'MieterhöhungsPrüfungen', 'Zaehler', 'Zaehlerstaende', 'Zahlungen', 'Parameter',
+  'Fixkosten', 'Haustechnik'
+];
 
 function getPaymentSchemaStatus(ss) {
   const required = ['zahlung_id', 'vertrag_id', 'datum', 'betrag', 'art', 'mietmonat', 'storno_von', 'gegen_art', 'zahlungsgruppe_id'];

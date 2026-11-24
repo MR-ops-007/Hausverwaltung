@@ -293,7 +293,9 @@ const cloudService = {
         // Erst offene Einträge senden, dann lesen: So zeigen die geladenen Daten den Stand der Datenbank
         // nach der Synchronisation und nicht davor.
         await this.processOfflineQueue();
-        return this.read('alle');
+        // Schlanker Startabruf ab Backend 4.8.17. Ältere Backends kennen die View nicht
+        // und liefern dafür alle Blätter; das Frontend bleibt damit kompatibel.
+        return this.read('stammdaten');
     },
 
     async saveContract(payload) {

@@ -868,6 +868,16 @@ const paymentUiService = {
     return Array.from(years).sort((a, b) => Number(b) - Number(a));
   },
 
+  /**
+   * Standardjahr der Übersicht: das aktuelle Jahr. Verträge mit Enddatum in der
+   * Zukunft erweitern die Jahresliste, sollen die Ansicht aber nicht in ein
+   * künftiges Jahr ohne Zahlungen öffnen.
+   */
+  defaultYear(years = this.getYears()) {
+    const current = String(new Date().getFullYear());
+    return years.includes(current) ? current : years[0];
+  },
+
   show() {
     ['object-selector-section', 'unit-list-section', 'consumption-dashboard-section', 'contracts-section'].forEach(id => {
       const element = document.getElementById(id);
@@ -923,7 +933,7 @@ const paymentUiService = {
       return;
     }
     const years = this.getYears();
-    if (!this.selectedYear || !years.includes(String(this.selectedYear))) this.selectedYear = years[0];
+    if (!this.selectedYear || !years.includes(String(this.selectedYear))) this.selectedYear = this.defaultYear(years);
     const objectIds = Array.from(new Set([
       ...(dataService.state.objekte || []).map(object => String(object.objekt_id || '')).filter(Boolean),
       ...this.getUnits().map(unit => String(unit.objekt_id || '')).filter(Boolean)

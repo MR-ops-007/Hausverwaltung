@@ -102,7 +102,7 @@ function readView(view) {
   };
   if (view === 'zaehlerstaende') return { Zaehlerstaende: state.Zaehlerstaende };
   if (view === 'vertrag_capabilities') return {
-    backend_version: '4.8.16-mock',
+    backend_version: '4.8.17-mock',
     access_protected: false,
     access_role: 'admin',
     contract_writes: true,
@@ -110,7 +110,8 @@ function readView(view) {
     rent_increase_review_writes: true,
     payment_writes: true,
     payment_schema_ready: true,
-    payment_schema_missing: []
+    payment_schema_missing: [],
+    stammdaten_view: true
   };
   return Object.fromEntries(Object.entries(state).filter(([key]) => !key.startsWith('_')));
 }

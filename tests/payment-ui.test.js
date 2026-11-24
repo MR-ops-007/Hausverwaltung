@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { tenantChangeFixture } from '../tools/mock-rental-fixtures.mjs';
 
@@ -29,6 +29,29 @@ function baseState(overrides = {}) {
     ...overrides
   };
 }
+
+describe('paymentUiService Standardjahr', () => {
+  it('öffnet im aktuellen Jahr, auch wenn ein Vertrag in der Zukunft endet', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-25T12:00:00Z'));
+    try {
+      const service = loadPaymentService(baseState({
+        vertraege: [{ vertrag_id: 'V1', einheit_id: 'O1_WE_01', hauptperson_id: 'P1', aktiv: true, soll_gesamt: 650,
+          start_datum: '2020-01-01', end_datum: '2028-12-31' }]
+      }));
+      const years = service.getYears();
+      expect(years[0]).toBe('2028');
+      expect(service.defaultYear(years)).toBe('2026');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('nimmt das neueste Jahr, falls das aktuelle nicht in der Liste steht', () => {
+    const service = loadPaymentService(baseState());
+    expect(service.defaultYear(['2024', '2023'])).toBe('2024');
+  });
+});
 
 describe('paymentUiService Monatsstatus', () => {
   it('erkennt mögliche Dubletten anhand Vertrag, Eingangstag, Betrag, Mietmonat und Zahlungsart', () => {
