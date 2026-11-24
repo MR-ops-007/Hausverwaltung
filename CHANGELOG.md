@@ -42,7 +42,7 @@ Alle Deployments aktualisieren die bestehenden Bereitstellungen; die URLs bleibe
 | Datum | Version | Umgebung | Deployment-Version | Hinweis |
 | --- | --- | --- | --- | --- |
 | zwischen 2026-11-20 und 2026-11-24 | 4.8.16 | TEST | `@10` | **am 2026-11-24 per `clasp` verifiziert:** Code bytegleich mit `main` (`b338bd8`); Deploy war nicht protokolliert; ob `prepareContractSchema()` lief, ist vor der Abnahme zu prüfen |
-| 2026-11-18 | 4.8.14 | PROD | `@44` | **am 2026-11-24 per `clasp` verifiziert:** aktueller PROD-Stand, Code bytegleich mit `main` nach PR #48 (`f41bcd4`); Rollback-Stand 4.8.13 (`@43`) |
+| 2026-11-18 | 4.8.14 | PROD | `@44` | **am 2026-11-24 per `clasp` verifiziert:** aktueller PROD-Stand, Code bytegleich mit `main` nach PR #48 (`f41bcd4`); Rollback-Stand 4.8.13 (`@43` laut Eintrag, nicht geprüft) |
 | 2026-11-18 | 4.8.14 | TEST | `@9` | letzter dokumentierter TEST-Deploy; TEST-Abnahme mit 25 Checks |
 | 2026-11-17 | 4.8.13 | PROD | `@43` | Schema und Tagestrigger eingerichtet |
 | 2026-11-17 | 4.8.13 | TEST | `@8` | Schema und Tagestrigger eingerichtet |
