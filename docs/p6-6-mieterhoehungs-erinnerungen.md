@@ -64,6 +64,9 @@ grüner Unit-Testlauf reicht dafür nicht aus.
   Buttons über die Kartenkante.
 - Breiter Desktop, mindestens 1600 px: Vier Karten dürfen nebeneinander
   erscheinen, aber jede Karte bleibt mindestens 320 px breit.
+- Kleines iPhone (z. B. iPhone 12 mini), 375 px breit: Das Datumsfeld
+  „Wiedervorlage ab“ bleibt vollständig innerhalb der Karte; beim Antippen zoomt
+  die Seite nicht.
 - Mobil, 390 px breit: Die Karten stehen einspaltig. Wiedervorlage und Notiz
   stehen untereinander; beide Felder und alle Buttons bleiben innerhalb der
   Karte. Es entsteht kein horizontaler Seiten-Scroll.

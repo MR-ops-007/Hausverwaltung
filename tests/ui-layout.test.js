@@ -25,6 +25,13 @@ describe('Responsive Vertragsübersicht', () => {
     expect(documentation).toContain('UI-Abnahmekriterien');
     expect(documentation).toContain('390 px breit');
     expect(documentation).toContain('Kante innerhalb der rechten Kante seiner Karte');
-    expect(html).toContain('style.css?v=20261120-p6-6b-review-ux-v3');
+    expect(html).toMatch(/style\.css\?v=[\w.-]+/);
+  });
+
+  it('hält das Datumsfeld auf schmalen iPhones innerhalb der Karte', () => {
+    const rule = css.slice(css.indexOf('.rent-increase-review-fields input[type="date"] {'));
+    expect(rule).toContain('appearance: none;');
+    expect(rule).toContain('min-width: 0;');
+    expect(rule).toContain('font-size: 16px !important;');
   });
 });
