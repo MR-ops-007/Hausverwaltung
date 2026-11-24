@@ -116,7 +116,7 @@
     <script src="environment-service.js?v=20261110-environment-switch-v1"></script>
     <script src="data-service.js?v=20261120-p6-6c-review-status-v1"></script>
     <script src="access-ui.js?v=20261028-access-v1"></script>
-    <script src="cloud-service.js?v=20261124-request-timing-v1"></script>
+    <script src="cloud-service.js?v=20261125-stammdaten-v1"></script>
     <script src="apps-script/ContractService.js?v=20261117-p6-7-enforcement-v3"></script>
     <script src="apps-script/PaymentRules.js?v=20261117-p6-2-payment-rules-v1"></script>
     <script src="vpi-service.js?v=20261021-vpi-v1"></script>
@@ -167,7 +167,16 @@
                 }
             }
 
-            // STUFE 2: Hintergrund-Ladevorgang (der schwere Rest)
+            // Versionsanzeige parallel zu Stufe 2 laden statt danach: spart eine
+            // volle Anfrage-Laufzeit. Der Schlüssel ist nach Stufe 1 bereits geprüft.
+            const capabilitiesRequest = cloudService.loadCapabilities().then(capabilities => {
+                if (capabilities && capabilities.backend_version) {
+                    environmentService.setBackendVersion(capabilities.backend_version);
+                }
+                return capabilities;
+            }).catch(() => null);
+
+            // STUFE 2: Hintergrund-Ladevorgang (Stammdaten ohne Verbrauchs-Views)
             const fullData = await cloudService.loadBackgroundData();
             if (fullData && typeof fullData === 'object' && !Array.isArray(fullData)
                 && Object.keys(fullData).length > 0) {
@@ -196,10 +205,7 @@
             }
 
             // Hinweis, solange das Backend nicht durch einen Zugangsschlüssel geschützt ist (Übergangsmodus)
-            cloudService.loadCapabilities().then(capabilities => {
-                if (capabilities && capabilities.backend_version) {
-                    environmentService.setBackendVersion(capabilities.backend_version);
-                }
+            capabilitiesRequest.then(capabilities => {
                 if (capabilities && capabilities.access_protected === false && statusEl) {
                     statusEl.textContent += " ⚠️ Backend ohne Zugangsschlüssel";
                     statusEl.style.color = "darkorange";

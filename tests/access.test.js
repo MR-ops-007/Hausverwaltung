@@ -105,6 +105,20 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     }
   });
 
+  it('liefert mit stammdaten nur die vom Frontend genutzten Blätter', () => {
+    const api = backend({ key: KEY });
+    const data = api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY });
+    // Im Test-Spreadsheet existieren nur Zaehlerstaende und Zahlungen aus der Liste;
+    // Mieter, OLD_- und _view_-Blätter gehören nicht zum Startabruf.
+    expect(Object.keys(data).sort()).toEqual(['Zaehlerstaende', 'Zahlungen']);
+    expect(JSON.stringify(data)).not.toContain('Aktiv Mieter');
+    expect(api.post({ typ: 'LESEN', view: 'vertrag_capabilities', key: KEY })).toMatchObject({ stammdaten_view: true });
+  });
+
+  it('schützt auch die stammdaten-Ansicht', () => {
+    expect(backend({ key: KEY }).post({ typ: 'LESEN', view: 'stammdaten', key: 'falsch' })).toMatchObject({ status: 'error', code: 'UNAUTHORIZED' });
+  });
+
   it('liest mit richtigem Schlüssel alle Ansichten', () => {
     const api = backend({ key: KEY });
     expect(api.post({ typ: 'LESEN', view: 'alle', key: KEY }).Mieter).toHaveLength(1);
