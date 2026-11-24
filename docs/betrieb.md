@@ -320,13 +320,32 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
 
 ## Deployment-Checkliste
 
+### Release-Regel (verbindlich, festgelegt am 2026-11-24)
+
+`clasp` darf für TEST und PROD verwendet werden. Entscheidend ist die Freigabe:
+
+1. **Vor jedem Push** wird das Ziel mit `npm run clasp:<umgebung>:status` geprüft. Der
+   vorhandene Code wird gepullt und der Diff kontrolliert, damit kein fremder oder neuerer
+   Stand überschrieben wird.
+2. **Testen:** Ein TEST-Deploy darf für die Abnahme aus dem PR-Stand erfolgen. Danach werden
+   Schema-Voraussetzungen, Verhalten und Abnahmekriterien in TEST geprüft.
+3. **PROD** wird erst nach erfolgreicher Prüfung und nach ausdrücklicher Freigabe des
+   Product Owners für genau diesen PROD-Deploy beschrieben oder bereitgestellt. Die Freigabe
+   muss vor `clasp:prod:push` und `clasp:prod:deploy` vorliegen. PROD wird aus dem gemergten
+   Stand auf `main` deployt. Eine Freigabe des grundsätzlichen Vorgehens ist keine Freigabe
+   für einen konkreten Deploy; ein erfolgreicher TEST-Deploy ist keine PROD-Freigabe.
+4. **Dokumentieren:** Nach dem Deploy werden Deployment-Version, ausgeführte Prüfungen und
+   Ergebnis in der Deployment-Historie im `CHANGELOG.md` festgehalten.
+5. **Lesender Zugriff** auf TEST und PROD (Status, Deployments, Versionen, Pull in einen
+   getrennten Hilfsordner zum Vergleich) ist ohne gesonderte Freigabe erlaubt.
+
 ### Frontend
 
 1. `main` aktualisieren und Feature-Branch anlegen.
 2. `npm ci`, `npm test` und `git diff --check` ausführen.
 3. Mit `runtime-config.js` ausschließlich gegen die vorgesehene Umgebung testen.
 4. Desktop und Mobil visuell prüfen.
-5. PR und CI abwarten, danach mergen.
+5. PR und CI abwarten, nach Freigabe mergen.
 
 ### Apps Script
 

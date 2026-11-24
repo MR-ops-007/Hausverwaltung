@@ -23,6 +23,7 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
   eine Version `produktiv` ist.
 - Datumsangaben bis 4.6.4 stammen aus der Git-Historie (Commit, der die Version
   eingeführt hat), nicht aus dem Deployment.
+- Verbindlich ist die Release-Regel in `docs/betrieb.md` (Deployment-Checkliste).
 - Ablauf bis zur Neuordnung des Release-Ablaufs (Roadmap-Paket 2): Ein TEST-Deploy zur
   Abnahme darf aus dem PR-Stand vor dem Merge erfolgen und wird im selben PR in der
   Deployment-Historie protokolliert. PROD wird ausschließlich aus `main` nach dem Merge und
@@ -34,12 +35,13 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 
 Neueste zuerst. Die Tabelle gibt wieder, was in den Versionseinträgen dokumentiert ist;
 sie wurde bei der Doku-Bereinigung am 2026-11-23 **nicht** per `clasp` gegen Apps Script
-verifiziert. Zwischenversionen wurden teils nicht einzeln bereitgestellt (siehe jeweiliger
+verifiziert. Ausnahme: Zeilen mit dem Vermerk „per `clasp` verifiziert“. Zwischenversionen wurden teils nicht einzeln bereitgestellt (siehe jeweiliger
 Eintrag).
 Alle Deployments aktualisieren die bestehenden Bereitstellungen; die URLs bleiben gleich.
 
 | Datum | Version | Umgebung | Deployment-Version | Hinweis |
 | --- | --- | --- | --- | --- |
+| zwischen 2026-11-20 und 2026-11-24 | 4.8.16 | TEST | `@10` | **am 2026-11-24 per `clasp` verifiziert:** Code bytegleich mit `main` (`b338bd8`); Deploy war nicht protokolliert; ob `prepareContractSchema()` lief, ist vor der Abnahme zu prüfen |
 | 2026-11-18 | 4.8.14 | PROD | nicht dokumentiert | letzter dokumentierter PROD-Deploy; Rollback-Stand 4.8.13 |
 | 2026-11-18 | 4.8.14 | TEST | `@9` | letzter dokumentierter TEST-Deploy; TEST-Abnahme mit 25 Checks |
 | 2026-11-17 | 4.8.13 | PROD | `@43` | Schema und Tagestrigger eingerichtet |
@@ -52,7 +54,7 @@ Alle Deployments aktualisieren die bestehenden Bereitstellungen; die URLs bleibe
 | 2026-10-29 | 4.8.0 | PROD | nicht dokumentiert | Zugriffsschutz |
 | 2026-10-22 | 4.7.0 | PROD | nicht dokumentiert | zusammen mit 4.6.4; Tag `v4.7.0` |
 
-Offen: Der tatsächliche TEST- und PROD-Stand wird vor dem Release 4.8.16 per `clasp`
+Offen: Der tatsächliche PROD-Stand wird vor dem Release 4.8.16 per `clasp`
 verifiziert und die PROD-Deployment-Version von 4.8.14 dann nachgetragen. Release-Tags für
 4.8.13 und 4.8.14 werden erst gesetzt, wenn der Stand verifiziert ist (Roadmap-Paket 1c).
 

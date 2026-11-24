@@ -113,12 +113,13 @@ Hinweis: `Migration.gs.gs` wirkt doppelt benannt, weil die Datei im bestehenden 
 
 ## Aktuelle Arbeitsregel
 
-Änderungen am Apps Script laufen wie alle Änderungen über Branch und Pull Request:
+Änderungen am Apps Script laufen wie alle Änderungen über Branch und Pull Request.
+Verbindlich ist die Release-Regel in [`docs/betrieb.md`](../docs/betrieb.md).
 
 1. Änderung im Branch umsetzen, Version in `Code.gs` erhöhen und CHANGELOG-Eintrag ergänzen.
 2. `npm test` ausführen und den Git-Diff prüfen.
-3. Nach Freigabe mit `npm run clasp:test:pull` den TEST-Stand abgleichen, dann
-   `npm run clasp:test:push` und `npm run clasp:test:deploy` aus dem PR-Stand; in TEST
+3. Nach Freigabe mit `npm run clasp:test:status` und `clasp:test:pull` den TEST-Stand
+   abgleichen und den Diff prüfen, dann `npm run clasp:test:push` und `npm run clasp:test:deploy` aus dem PR-Stand; in TEST
    abnehmen und den TEST-Deploy im selben PR in der Deployment-Historie eintragen.
 4. Nach Merge-Freigabe mergen.
 5. Nach ausdrücklicher PROD-Freigabe aus `main`: `npm run clasp:prod:status`,
