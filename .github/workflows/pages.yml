@@ -91,7 +91,13 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist-site
+          # Ein Neustart desselben Laufs lädt ein weiteres Paket hoch. Mit der
+          # Versuchsnummer im Namen bleibt jedes Paket eindeutig, sonst bricht
+          # deploy-pages bei mehreren gleichnamigen Paketen ab.
+          name: github-pages-${{ github.run_attempt }}
 
       - name: Deploy Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
