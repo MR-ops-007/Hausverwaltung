@@ -911,3 +911,29 @@ input[type="text"] {
 @media (prefers-reduced-motion: reduce) {
     .rent-increase-item button.is-busy::before { animation: none; }
 }
+
+/* Ladezeit-Diagnose: unaufdringliche Zeile unter dem Verbindungsstatus */
+.request-diagnostics {
+    margin-top: 4px;
+    font-size: 0.78em;
+    color: #64748b;
+}
+.request-diagnostics summary {
+    cursor: pointer;
+    overflow-wrap: anywhere;
+}
+.request-diagnostics ol {
+    margin: 6px 0;
+    padding-left: 18px;
+    max-height: 220px;
+    overflow: auto;
+}
+.request-diagnostics li { margin: 2px 0; overflow-wrap: anywhere; }
+.request-diagnostics button {
+    padding: 4px 10px;
+    font-size: 0.95em;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #f8fafc;
+    cursor: pointer;
+}

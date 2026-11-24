@@ -113,17 +113,126 @@ const cloudService = {
         }
     },
 
+    // --- Ladezeit-Diagnose ---------------------------------------------------
+    // Protokolliert je Anfrage nur Art, Dauer und Antwortgröße, niemals Inhalte oder Schlüssel.
+    REQUEST_LOG_LIMIT: 30,
+    REQUEST_LOG_STORAGE: 'hv_request_log',
+    requestLogCache: null,
+
+    now() {
+        return typeof performance !== 'undefined' && performance && typeof performance.now === 'function'
+            ? performance.now()
+            : Date.now();
+    },
+
+    requestLabel(payload) {
+        if (!payload || typeof payload !== 'object') return 'UNBEKANNT';
+        if (payload.typ === 'LESEN') return `LESEN ${payload.view || 'alle'}`;
+        return String(payload.typ || 'UNBEKANNT');
+    },
+
+    byteSize(text) {
+        if (!text) return 0;
+        try {
+            if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(text).length;
+        } catch (e) { /* Fallback unten */ }
+        return String(text).length;
+    },
+
+    getRequestLogStorage() {
+        const environment = CONFIG && CONFIG.ENVIRONMENT;
+        return environment ? `${this.REQUEST_LOG_STORAGE}:${environment}` : this.REQUEST_LOG_STORAGE;
+    },
+
+    getRequestLog() {
+        if (!this.requestLogCache) {
+            let stored = [];
+            try {
+                const parsed = JSON.parse(localStorage.getItem(this.getRequestLogStorage()) || '[]');
+                if (Array.isArray(parsed)) stored = parsed;
+            } catch (e) { stored = []; }
+            this.requestLogCache = stored.slice(-this.REQUEST_LOG_LIMIT);
+        }
+        return this.requestLogCache.slice();
+    },
+
+    recordRequest(entry) {
+        const log = this.getRequestLog();
+        log.push({
+            label: String(entry.label || 'UNBEKANNT'),
+            at: new Date().toISOString(),
+            ms: Math.max(0, Math.round(entry.ms || 0)),
+            parseMs: Math.max(0, Math.round(entry.parseMs || 0)),
+            bytes: Math.max(0, Math.round(entry.bytes || 0)),
+            ok: entry.ok !== false,
+            error: entry.ok === false ? String(entry.error || 'Fehler').slice(0, 80) : ''
+        });
+        this.requestLogCache = log.slice(-this.REQUEST_LOG_LIMIT);
+        try {
+            localStorage.setItem(this.getRequestLogStorage(), JSON.stringify(this.requestLogCache));
+        } catch (e) { /* Diagnose darf nie den eigentlichen Abruf stören */ }
+        try {
+            if (typeof document !== 'undefined' && document && typeof CustomEvent !== 'undefined') {
+                document.dispatchEvent(new CustomEvent('hv-request-timing'));
+            }
+        } catch (e) { /* ignorieren */ }
+    },
+
+    clearRequestLog() {
+        this.requestLogCache = [];
+        try { localStorage.removeItem(this.getRequestLogStorage()); } catch (e) { /* ignorieren */ }
+    },
+
+    formatDuration(ms) {
+        if (ms < 1000) return `${Math.round(ms)} ms`;
+        return `${(ms / 1000).toFixed(1).replace('.', ',')} s`;
+    },
+
+    formatBytes(bytes) {
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`;
+    },
+
+    /** Kurzfassung: letzter Lauf je Anfrageart, die langsamste zuerst. */
+    requestSummary() {
+        const latest = new Map();
+        this.getRequestLog().forEach(entry => latest.set(entry.label, entry));
+        return Array.from(latest.values())
+            .sort((a, b) => (b.ms + b.parseMs) - (a.ms + a.parseMs))
+            .map(entry => entry.ok
+                ? `${entry.label}: ${this.formatDuration(entry.ms + entry.parseMs)} · ${this.formatBytes(entry.bytes)}`
+                : `${entry.label}: Fehler nach ${this.formatDuration(entry.ms)}`)
+            .join(' | ');
+    },
+
     async post(payload, { allowPrompt = true, timeoutMs = this.REQUEST_TIMEOUT_MS } = {}) {
+        const label = this.requestLabel(payload);
         for (let attempt = 0; attempt < this.MAX_KEY_ATTEMPTS; attempt++) {
-            const text = await this.requestText(JSON.stringify({ ...payload, key: this.getAccessKey() }), timeoutMs);
+            const startedAt = this.now();
+            let text;
+            try {
+                text = await this.requestText(JSON.stringify({ ...payload, key: this.getAccessKey() }), timeoutMs);
+            } catch (error) {
+                this.recordRequest({ label, ms: this.now() - startedAt, ok: false, error: error && error.message });
+                throw error;
+            }
+            const receivedAt = this.now();
             let result = null;
             if (text && text.trim() !== '') {
                 try { result = JSON.parse(text); } catch (e) {
+                    this.recordRequest({ label, ms: receivedAt - startedAt, bytes: this.byteSize(text), ok: false, error: 'Antwortformat nicht lesbar' });
                     const error = new Error('Antwortformat nicht lesbar.');
                     error.unclear = true;
                     throw error;
                 }
             }
+            this.recordRequest({
+                label: result && result.code === 'UNAUTHORIZED' ? `${label} (abgelehnt)` : label,
+                ms: receivedAt - startedAt,
+                parseMs: this.now() - receivedAt,
+                bytes: this.byteSize(text)
+            });
             if (!result || result.code !== 'UNAUTHORIZED') return result;
 
             if (!allowPrompt || typeof accessUi === 'undefined') throw this.accessError(result.message);
