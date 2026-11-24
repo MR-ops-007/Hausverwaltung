@@ -148,6 +148,30 @@ const contractUiService = {
     return this.rentIncreaseReviewState(contract, reminder).reviewedAt;
   },
 
+  /**
+   * Sperrt die Prüf-Schaltflächen eines Vertrags während des Speicherns und zeigt
+   * sofort eine Rückmeldung. Das Speichern dauert je nach Netz mehrere Sekunden.
+   */
+  setRentIncreaseReviewBusy(id, busy) {
+    if (typeof document === 'undefined' || !document || typeof document.querySelectorAll !== 'function') return;
+    const selector = `button[data-review-action][data-vertrag-id="${String(id).replace(/["\\]/g, '\\$&')}"]`;
+    document.querySelectorAll(selector).forEach(button => {
+      if (busy) {
+        if (!button.dataset.idleLabel) button.dataset.idleLabel = button.textContent;
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+        button.classList.add('is-busy');
+        button.textContent = 'Speichert …';
+      } else {
+        button.disabled = false;
+        button.removeAttribute('aria-busy');
+        button.classList.remove('is-busy');
+        if (button.dataset.idleLabel) button.textContent = button.dataset.idleLabel;
+        delete button.dataset.idleLabel;
+      }
+    });
+  },
+
   async completeRentIncreaseReview(id) {
     const contract = (dataService.state.vertraege || []).find(row => String(row.vertrag_id) === String(id));
     if (!contract) return;
@@ -155,6 +179,7 @@ const contractUiService = {
     if (reminder.status !== 'DUE' || this.reviewBusy && this.reviewBusy[id]) return;
     this.reviewBusy = this.reviewBusy || {};
     this.reviewBusy[id] = true;
+    this.setRentIncreaseReviewBusy(id, true);
     try {
       const result = await cloudService.saveRentIncreaseReview({
         typ: 'MIETERHOEHUNG_PRUEFUNG_SPEICHERN',
@@ -177,6 +202,9 @@ const contractUiService = {
       this.message(error && error.message || 'Prüfstatus konnte nicht gespeichert werden.', 'error');
     } finally {
       this.reviewBusy[id] = false;
+      // Nach erfolgreichem Speichern hat render() die Schaltflächen bereits ersetzt;
+      // nach einem Fehler werden die vorhandenen wieder freigegeben.
+      this.setRentIncreaseReviewBusy(id, false);
     }
   },
 
@@ -185,6 +213,7 @@ const contractUiService = {
     if (!contract || this.reviewBusy && this.reviewBusy[id]) return;
     this.reviewBusy = this.reviewBusy || {};
     this.reviewBusy[id] = true;
+    this.setRentIncreaseReviewBusy(id, true);
     try {
       const result = await cloudService.saveRentIncreaseReview({
         typ: 'MIETERHOEHUNG_PRUEFUNG_SPEICHERN',
@@ -202,6 +231,9 @@ const contractUiService = {
       this.message(error && error.message || 'Prüfstatus konnte nicht zurückgesetzt werden.', 'error');
     } finally {
       this.reviewBusy[id] = false;
+      // Nach erfolgreichem Speichern hat render() die Schaltflächen bereits ersetzt;
+      // nach einem Fehler werden die vorhandenen wieder freigegeben.
+      this.setRentIncreaseReviewBusy(id, false);
     }
   },
 
@@ -241,10 +273,12 @@ const contractUiService = {
     const actions = [
       `<button type="button" class="contract-button-secondary" data-vertrag-id="${this.escape(contract.vertrag_id)}" onclick="contractUiService.selectContractFromOverview(this.dataset.vertragId)">Vertrag anzeigen</button>`
     ];
+    const busy = Boolean(this.reviewBusy && this.reviewBusy[contract.vertrag_id]);
+    const reviewButton = (action, handler, label) => `<button type="button" class="contract-button-tertiary${busy ? ' is-busy' : ''}" data-review-action="${action}" data-vertrag-id="${this.escape(contract.vertrag_id)}"${busy ? ` disabled aria-busy="true" data-idle-label="${this.escape(label)}"` : ''} onclick="contractUiService.${handler}(this.dataset.vertragId)">${busy ? 'Speichert …' : label}</button>`;
     if (reviewedAt) {
-      actions.push(`<button type="button" class="contract-button-tertiary" data-vertrag-id="${this.escape(contract.vertrag_id)}" onclick="contractUiService.reopenRentIncreaseReview(this.dataset.vertragId)">Prüfung wieder öffnen</button>`);
+      actions.push(reviewButton('reopen', 'reopenRentIncreaseReview', 'Prüfung wieder öffnen'));
     } else if (reminder.status === 'DUE') {
-      actions.push(`<button type="button" class="contract-button-tertiary" data-vertrag-id="${this.escape(contract.vertrag_id)}" onclick="contractUiService.completeRentIncreaseReview(this.dataset.vertragId)">Prüfung als erledigt markieren</button>`);
+      actions.push(reviewButton('complete', 'completeRentIncreaseReview', 'Prüfung als erledigt markieren'));
     }
     return `<article id="rent-increase-contract-${this.escape(contract.vertrag_id)}" class="rent-increase-item rent-increase-status-${reminder.status.toLowerCase()}${reviewedAt ? ' is-completed' : ''}${String(contract.vertrag_id) === this.selectedId ? ' is-selected' : ''}">
       <div class="rent-increase-item-main">

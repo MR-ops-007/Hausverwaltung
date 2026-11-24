@@ -720,6 +720,24 @@ describe('contract client data access', () => {
     expect(result.review.status).toBe('ERLEDIGT');
     expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({ ...payload, key: 'test-key' });
   });
+  it('reuses a positive rent review capability for five minutes and rechecks after a rejection', async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(reply({ rent_increase_review_writes: true }))
+      .mockResolvedValueOnce(reply({ status: 'success', review: { vertrag_id: current.vertrag_id, status: 'ERLEDIGT' } }))
+      .mockResolvedValueOnce(reply({ status: 'success', review: { vertrag_id: current.vertrag_id, status: 'OFFEN' } }))
+      .mockResolvedValueOnce(reply({ status: 'error', message: 'Keine Berechtigung' }))
+      .mockResolvedValueOnce(reply({ rent_increase_review_writes: true }))
+      .mockResolvedValueOnce(reply({ status: 'success', review: { vertrag_id: current.vertrag_id, status: 'ERLEDIGT' } }));
+    const cloud = loadCloud(fetch);
+    const payload = { typ: 'MIETERHOEHUNG_PRUEFUNG_SPEICHERN', aktion: 'ABSCHLIESSEN', vertrag_id: current.vertrag_id };
+    await cloud.saveRentIncreaseReview(payload);
+    await cloud.saveRentIncreaseReview({ ...payload, aktion: 'WIEDER_OEFFNEN' });
+    expect(fetch).toHaveBeenCalledTimes(3);
+    await expect(cloud.saveRentIncreaseReview(payload)).rejects.toThrow('Keine Berechtigung');
+    await cloud.saveRentIncreaseReview(payload);
+    const views = fetch.mock.calls.map(call => JSON.parse(call[1].body).view).filter(Boolean);
+    expect(views).toEqual(['vertrag_capabilities', 'vertrag_capabilities']);
+  });
   it('does not turn network or backend failures into queued success', async () => {
     const fetch = vi.fn()
       .mockResolvedValueOnce(reply({ contract_writes: true }))
@@ -936,6 +954,46 @@ describe('contract view', () => {
     expect(saveRentIncreaseReview).toHaveBeenCalledTimes(2);
     expect(dataService.state.mieterhoehungspruefungen[0].status).toBe('OFFEN');
     expect(ui.render).toHaveBeenCalledTimes(2);
+  });
+  it('shows a busy state while saving, ignores repeated taps and restores the button after an error', async () => {
+    const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
+    const dataService = { state: { vertraege: [current], einheiten: [unit], mietanpassungen: [], mieterhoehungspruefungen: [] } };
+    const fields = { 'contract-message': { textContent: '', className: '', setAttribute() {} } };
+    const classes = new Set();
+    const attributes = {};
+    const button = {
+      textContent: 'Prüfung als erledigt markieren', disabled: false, dataset: {},
+      classList: { add: name => classes.add(name), remove: name => classes.delete(name) },
+      setAttribute: (name, value) => { attributes[name] = value; },
+      removeAttribute: name => { delete attributes[name]; }
+    };
+    const selectors = [];
+    const document = {
+      getElementById: id => fields[id] || null,
+      querySelectorAll: selector => { selectors.push(selector); return [button]; }
+    };
+    let rejectSave;
+    const saveRentIncreaseReview = vi.fn(() => new Promise((resolve, reject) => { rejectSave = reject; }));
+    const ui = new Function('dataService', 'contractService', 'cloudService', 'uiService', 'document', `${source};return contractUiService;`)(
+      dataService, service, { saveRentIncreaseReview }, { escapeHtml: value => String(value ?? '') }, document
+    );
+    ui.render = vi.fn();
+    const pending = ui.completeRentIncreaseReview(current.vertrag_id);
+    expect(button).toMatchObject({ disabled: true, textContent: 'Speichert …' });
+    expect(attributes['aria-busy']).toBe('true');
+    expect(classes.has('is-busy')).toBe(true);
+    expect(selectors[0]).toBe(`button[data-review-action][data-vertrag-id="${current.vertrag_id}"]`);
+    const html = ui.renderRentIncreaseItem({ contract: current, tenant: 'Mieter', unit: 'WE 01', reminder: service.rentIncreaseReminder(current, [], new Date()) });
+    expect(html).toContain('disabled aria-busy="true"');
+    expect(html).toContain('Speichert …');
+    await ui.completeRentIncreaseReview(current.vertrag_id);
+    expect(saveRentIncreaseReview).toHaveBeenCalledTimes(1);
+    rejectSave(new Error('Zeitüberschreitung: keine Antwort vom Server.'));
+    await pending;
+    expect(button).toMatchObject({ disabled: false, textContent: 'Prüfung als erledigt markieren' });
+    expect(attributes['aria-busy']).toBeUndefined();
+    expect(classes.has('is-busy')).toBe(false);
+    expect(fields['contract-message'].textContent).toContain('Zeitüberschreitung');
   });
   it('reopens a completed review when the reminder signature changes', () => {
     const source = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
