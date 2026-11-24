@@ -250,15 +250,18 @@ button:active {
 .rent-increase-global-reminder span { margin-top: 3px; font-size: 0.82rem; line-height: 1.4; }
 .rent-increase-list {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
     gap: 10px;
-    container-type: inline-size;
+    align-items: start;
 }
 .rent-increase-item {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 6px 10px;
     min-width: 0;
+    align-self: start;
+    align-content: start;
+    container-type: inline-size;
     padding: 12px;
     background: #fff;
     border: 1px solid #cbd5e1;
@@ -267,19 +270,27 @@ button:active {
 }
 .rent-increase-item.is-selected { box-shadow: 0 0 0 2px #bfdbfe; }
 .rent-increase-item-main { min-width: 0; }
+.rent-increase-item > * { min-width: 0; }
 .rent-increase-item-main strong,
 .rent-increase-item-main span,
 .rent-increase-item-meta span { display: block; overflow-wrap: break-word; word-break: normal; }
 .rent-increase-item-main strong { color: #1e293b; }
 .rent-increase-item-main span,
 .rent-increase-item-meta { color: #64748b; font-size: 0.78rem; }
-.rent-increase-item-meta { grid-column: 1 / -1; display: grid; gap: 2px; }
+.rent-increase-item-meta {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-self: start;
+    gap: 4px;
+}
 .rent-increase-item p { grid-column: 1 / -1; font-size: 0.78rem; }
 .rent-increase-review-fields {
     grid-column: 1 / -1;
     display: grid;
-    grid-template-columns: minmax(180px, 0.7fr) minmax(220px, 1.3fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
+    min-width: 0;
     padding: 8px;
     background: #f8fafc;
     border: 1px solid #e2e8f0;
@@ -288,6 +299,7 @@ button:active {
 .rent-increase-review-fields label {
     display: grid;
     gap: 4px;
+    min-width: 0;
     color: #475569;
     font-size: 0.72rem;
     font-weight: 700;
@@ -295,6 +307,7 @@ button:active {
 .rent-increase-review-fields input,
 .rent-increase-review-fields textarea {
     width: 100%;
+    max-width: 100%;
     min-width: 0;
     box-sizing: border-box;
     padding: 6px 8px;
@@ -325,7 +338,8 @@ button:active {
     border-radius: 999px;
     font-size: 0.74rem;
     font-weight: 800;
-    white-space: nowrap;
+    max-width: 100%;
+    white-space: normal;
 }
 .rent-increase-status-due { border-left-color: #d97706; }
 .rent-increase-status-due .rent-increase-status { background: #fef3c7; color: #92400e; }
@@ -344,6 +358,9 @@ button:active {
 .rent-increase-empty { margin: 0; color: #475569; }
 .contract-editor-anchor { scroll-margin-top: 18px; outline: none; }
 .contract-editor-anchor:focus { outline: 3px solid #bfdbfe; outline-offset: 5px; border-radius: 8px; }
+@container (max-width: 560px) {
+    .rent-increase-review-fields { grid-template-columns: 1fr; }
+}
 @container (max-width: 420px) {
     .rent-increase-item { grid-template-columns: minmax(0, 1fr); }
     .rent-increase-status { justify-self: start; white-space: normal; }
