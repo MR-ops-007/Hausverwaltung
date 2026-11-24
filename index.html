@@ -11,7 +11,7 @@
     <link rel="manifest" href="manifest.webmanifest?v=20261111-pwa-v1">
     <link rel="icon" type="image/png" href="favicon.png?v=20261022">
     <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20261111-pwa-v1">
-    <link rel="stylesheet" href="style.css?v=20261124-review-busy-v1">
+    <link rel="stylesheet" href="style.css?v=20261124-request-timing-v1">
 </head>
 <body>
     <div class="container" style="max-width: 1180px; margin: 0 auto; padding: 20px; font-family: sans-serif;">
@@ -19,6 +19,11 @@
             <h1 style="margin: 0;">Hausverwaltung</h1>
             <div id="sync-status" style="font-size: 0.85em; margin-top: 5px; color: #666;">Prüfe Verbindung...</div>
             <div id="sync-queue-status" class="sync-queue-status" role="status" aria-live="polite" style="display:none;"></div>
+            <details id="request-diagnostics" class="request-diagnostics" hidden>
+                <summary id="request-diagnostics-summary"></summary>
+                <ol id="request-diagnostics-list"></ol>
+                <button type="button" id="request-diagnostics-clear">Protokoll leeren</button>
+            </details>
             <div id="environment-banner" class="environment-banner" role="status" hidden>
                 <div>
                     <strong id="environment-banner-label"></strong>
@@ -111,7 +116,7 @@
     <script src="environment-service.js?v=20261110-environment-switch-v1"></script>
     <script src="data-service.js?v=20261120-p6-6c-review-status-v1"></script>
     <script src="access-ui.js?v=20261028-access-v1"></script>
-    <script src="cloud-service.js?v=20261124-review-busy-v1"></script>
+    <script src="cloud-service.js?v=20261124-request-timing-v1"></script>
     <script src="apps-script/ContractService.js?v=20261117-p6-7-enforcement-v3"></script>
     <script src="apps-script/PaymentRules.js?v=20261117-p6-2-payment-rules-v1"></script>
     <script src="vpi-service.js?v=20261021-vpi-v1"></script>
@@ -234,6 +239,32 @@
         }
     }
 
+    // Ladezeit-Diagnose: zeigt nur Anfrageart, Dauer und Datenmenge, keine Inhalte.
+    function renderRequestDiagnostics() {
+        const root = document.getElementById('request-diagnostics');
+        if (!root || typeof cloudService === 'undefined') return;
+        const log = cloudService.getRequestLog();
+        root.hidden = log.length === 0;
+        if (!log.length) return;
+        document.getElementById('request-diagnostics-summary').textContent = 'Ladezeiten: ' + cloudService.requestSummary();
+        const list = document.getElementById('request-diagnostics-list');
+        list.replaceChildren(...log.slice().reverse().map(entry => {
+            const item = document.createElement('li');
+            const time = new Date(entry.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            item.textContent = entry.ok
+                ? `${time} · ${entry.label} · Netz ${cloudService.formatDuration(entry.ms)} · Auswerten ${cloudService.formatDuration(entry.parseMs)} · ${cloudService.formatBytes(entry.bytes)}`
+                : `${time} · ${entry.label} · Fehler nach ${cloudService.formatDuration(entry.ms)}: ${entry.error}`;
+            return item;
+        }));
+    }
+    document.addEventListener('hv-request-timing', renderRequestDiagnostics);
+    document.addEventListener('DOMContentLoaded', () => {
+        renderRequestDiagnostics();
+        document.getElementById('request-diagnostics-clear')?.addEventListener('click', () => {
+            cloudService.clearRequestLog();
+            renderRequestDiagnostics();
+        });
+    });
     document.addEventListener('DOMContentLoaded', initApp);
     document.addEventListener('hv-queue-changed', () => uiService.renderSyncQueueStatus());
     // Auslöser für die Nachübertragung: online-Ereignis und Rückkehr zur App. Das online-Ereignis
