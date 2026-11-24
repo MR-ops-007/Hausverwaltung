@@ -21,8 +21,10 @@ Regel:
 Das Backend arbeitet fail-closed: Ohne gültige Script-Property wird kein Datenzugriff
 zugelassen. Für zwei Geräte kann `APP_ACCESS_KEYS_JSON` als JSON-Array mit `id`, `label`,
 `key`, `role` (`admin` oder `erfassen`) und optional `aktiv` gesetzt werden. `erfassen`
-darf Zählerstände und Zahlungen schreiben sowie Mieterhöhungsprüfungen abschließen;
-`admin` darf zusätzlich Verträge, Indexänderungen und Mieterwechsel schreiben. `APP_ACCESS_KEY` bleibt als einzelner Admin-Fallback für den
+darf Zählerstände und Zahlungen schreiben; `admin` darf zusätzlich Verträge,
+Indexänderungen und Mieterwechsel schreiben. Technisch darf `erfassen` derzeit auch
+Mieterhöhungsprüfungen abschließen; ob das so bleiben soll, ist eine offene
+Produktentscheidung (`ROADMAP.md`, Paket 1c). `APP_ACCESS_KEY` bleibt als einzelner Admin-Fallback für den
 Übergang kompatibel. Keine Schlüssel in Git oder Sheets speichern.
 
 ### Vertragsausbau (ab 4.7.0)
@@ -116,11 +118,12 @@ Hinweis: `Migration.gs.gs` wirkt doppelt benannt, weil die Datei im bestehenden 
 1. Änderung im Branch umsetzen, Version in `Code.gs` erhöhen und CHANGELOG-Eintrag ergänzen.
 2. `npm test` ausführen und den Git-Diff prüfen.
 3. Nach Freigabe mit `npm run clasp:test:pull` den TEST-Stand abgleichen, dann
-   `npm run clasp:test:push` und `npm run clasp:test:deploy`; in TEST abnehmen.
-4. Nach Freigabe für PROD `npm run clasp:prod:status`, `clasp:prod:push` und
-   `clasp:prod:deploy` (jeweils mit Bestätigung).
-5. Deployment und Rollback-Stand in der Deployment-Historie im CHANGELOG ergänzen,
-   im selben PR; danach mergen.
+   `npm run clasp:test:push` und `npm run clasp:test:deploy` aus dem PR-Stand; in TEST
+   abnehmen und den TEST-Deploy im selben PR in der Deployment-Historie eintragen.
+4. Nach Merge-Freigabe mergen.
+5. Nach ausdrücklicher PROD-Freigabe aus `main`: `npm run clasp:prod:status`,
+   `clasp:prod:push` und `clasp:prod:deploy` (jeweils mit Bestätigung). Den PROD-Eintrag
+   in der Deployment-Historie im nächsten ohnehin anstehenden PR ergänzen.
 
 Die vollständige Checkliste inklusive Schemafunktionen und Trigger steht in
 [`docs/betrieb.md`](../docs/betrieb.md).

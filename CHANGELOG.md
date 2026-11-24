@@ -23,21 +23,25 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
   eine Version `produktiv` ist.
 - Datumsangaben bis 4.6.4 stammen aus der Git-Historie (Commit, der die Version
   eingeführt hat), nicht aus dem Deployment.
-- Ein Deploy wird in der Deployment-Historie im selben PR protokolliert, in dem die
-  Version freigegeben wird: TEST und PROD werden aus dem freigegebenen PR-Stand
-  bereitgestellt, danach wird gemergt. So entsteht kein eigener Doku-PR. Die Neuordnung
-  des Release-Ablaufs ist ein eigenes Roadmap-Paket.
+- Ablauf bis zur Neuordnung des Release-Ablaufs (Roadmap-Paket 2): Ein TEST-Deploy zur
+  Abnahme darf aus dem PR-Stand vor dem Merge erfolgen und wird im selben PR in der
+  Deployment-Historie protokolliert. PROD wird ausschließlich aus `main` nach dem Merge und
+  nach ausdrücklicher Freigabe bereitgestellt; dieser Eintrag folgt im nächsten ohnehin
+  anstehenden PR, ein eigener Doku-PR ist nicht nötig. Bis dahin ist
+  `npm run clasp:prod:status` bzw. die Deployment-Liste in Apps Script die Prüfquelle.
 
 ## Deployment-Historie
 
-Neueste zuerst. Nur Bereitstellungen, die in den Versionseinträgen dokumentiert sind;
-Zwischenversionen wurden teils nicht einzeln bereitgestellt (siehe jeweiliger Eintrag).
+Neueste zuerst. Die Tabelle gibt wieder, was in den Versionseinträgen dokumentiert ist;
+sie wurde bei der Doku-Bereinigung am 2026-11-23 **nicht** per `clasp` gegen Apps Script
+verifiziert. Zwischenversionen wurden teils nicht einzeln bereitgestellt (siehe jeweiliger
+Eintrag).
 Alle Deployments aktualisieren die bestehenden Bereitstellungen; die URLs bleiben gleich.
 
 | Datum | Version | Umgebung | Deployment-Version | Hinweis |
 | --- | --- | --- | --- | --- |
-| 2026-11-18 | 4.8.14 | PROD | nicht dokumentiert | aktueller PROD-Stand; Rollback-Stand 4.8.13 |
-| 2026-11-18 | 4.8.14 | TEST | `@9` | aktueller TEST-Stand; TEST-Abnahme mit 25 Checks |
+| 2026-11-18 | 4.8.14 | PROD | nicht dokumentiert | letzter dokumentierter PROD-Deploy; Rollback-Stand 4.8.13 |
+| 2026-11-18 | 4.8.14 | TEST | `@9` | letzter dokumentierter TEST-Deploy; TEST-Abnahme mit 25 Checks |
 | 2026-11-17 | 4.8.13 | PROD | `@43` | Schema und Tagestrigger eingerichtet |
 | 2026-11-17 | 4.8.13 | TEST | `@8` | Schema und Tagestrigger eingerichtet |
 | 2026-11-14 | 4.8.12 | PROD | `@42` | nach PR #39; Schreibtest nur im Objekt `TEST` |
@@ -48,8 +52,9 @@ Alle Deployments aktualisieren die bestehenden Bereitstellungen; die URLs bleibe
 | 2026-10-29 | 4.8.0 | PROD | nicht dokumentiert | Zugriffsschutz |
 | 2026-10-22 | 4.7.0 | PROD | nicht dokumentiert | zusammen mit 4.6.4; Tag `v4.7.0` |
 
-Offen: Die PROD-Deployment-Version von 4.8.14 wird beim nächsten `clasp:prod:status`
-nachgetragen. Für 4.8.13 und 4.8.14 fehlen die Release-Tags (Roadmap-Paket 1c).
+Offen: Der tatsächliche TEST- und PROD-Stand wird vor dem Release 4.8.16 per `clasp`
+verifiziert und die PROD-Deployment-Version von 4.8.14 dann nachgetragen. Release-Tags für
+4.8.13 und 4.8.14 werden erst gesetzt, wenn der Stand verifiziert ist (Roadmap-Paket 1c).
 
 ## 4.8.16 · 2026-11-20 · main
 
@@ -98,7 +103,9 @@ einzeln bereitgestellt; wird mit 4.8.16 ausgerollt.
 - PR #49 (2026-11-19): QA-Härtung der P6.2-Abnahme und der Baseline-Prüfung.
 - PR #50 (2026-11-19): P6.6 interne Mieterhöhungs-Prüfübersicht (siehe Eintrag
   „Frontend P6.6“).
-- P6.6b (2026-11-20, PR #51/#52): Die Mieterhöhungsübersicht bündelt offene Prüfungen
+- PR #52 (2026-11-20): nur Doku-Nachtrag; P6.6c (synchronisierter Prüfstatus mit
+  Wiedervorlage) als Folgepaket vorgemerkt, keine Funktionsänderung.
+- P6.6b (2026-11-20, PR #51): Die Mieterhöhungsübersicht bündelt offene Prüfungen
   objektübergreifend, zeigt Informationsfälle eingeklappt und springt beim Öffnen
   eines Vertrags sichtbar zum Editor. Die zunächst lokale Arbeitsmarkierung wird
   mit P6.6c durch den geräteübergreifenden Backend-Status ersetzt.

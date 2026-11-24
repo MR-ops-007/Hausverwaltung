@@ -133,7 +133,6 @@ Zugehörige Stammdaten:
 objekt_id: TEST
 einheit_id: TEST_WE_01
 einheit_id: TEST_WE_02
-einheit_id: TEST_WE_03
 einheit_id: TEST_Allgemein
 zaehler_id: Z_STROM_KWH_WOHNUNG_1
 zaehler_id: Z_KALTWASSER_KW_WOHNUNG_1
@@ -148,7 +147,7 @@ zaehler_id: Z_OEL_STAND_IN_CM
 zaehler_id: Z_OEL_GETANKT_LITER
 ```
 
-Der Testbereich enthält eine belegte Testwohnung (`TEST_WE_01`), einen Leerstand (`TEST_WE_02`), eine belegte Testwohnung für Zahlungs- und Kautionstests (`TEST_WE_03`, Vertrag 34 mit synthetischen Testpersonen) und einen Allgemeinbereich (`TEST_Allgemein`). Er nutzt noch die historisch gewachsenen Test-IDs. Die UI muss Vorwerte unabhängig davon immer nach `zaehler_id`, `objekt_id` und `einheit_id` filtern.
+Der Testbereich enthält eine belegte Testwohnung (`TEST_WE_01`), einen Leerstand (`TEST_WE_02`) und einen Allgemeinbereich (`TEST_Allgemein`); diese legt `ensureProdTestData()` an. Für die PROD-Zahlungsabnahme am 2026-11-14 wurde zusätzlich manuell ein Fixture `TEST_WE_03` mit Vertrag 34 und synthetischen Testpersonen ergänzt (siehe `docs/betrieb.md`). Es ist kein Bestandteil der Seed-Funktion; ob es im Sheet noch existiert, ist vor weiteren Tests zu prüfen. Er nutzt noch die historisch gewachsenen Test-IDs. Die UI muss Vorwerte unabhängig davon immer nach `zaehler_id`, `objekt_id` und `einheit_id` filtern.
 
 Auswertungen und spätere Dashboards sollen diesen Testbereich entweder sichtbar als Testdaten markieren oder aus produktiven Kennzahlen ausschließen.
 

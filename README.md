@@ -153,7 +153,8 @@ npm test
 Der Vertragsausbau ist produktiv (Stand siehe `CHANGELOG.md`). Die Vertragsansicht
 liest auch Bestandsdaten ohne neue Spalten. Schreiben erfordert Backend ab 4.7.0,
 die einmalige Schema-Vorbereitung (`prepareContractSchema()`) und die Script
-Property `CONTRACT_WRITE_TOKEN`. Es wurden keine Produktivdaten migriert.
+Property `CONTRACT_WRITE_TOKEN`. Die Schemafunktionen hängen nur Spalten und Blätter an;
+bestehende Vertragsdaten werden dabei nicht umgeschrieben.
 Siehe `docs/contracts-index-plan.md`.
 
 Offline-Queue und Korrekturen (Backend ab 4.8.4): Nicht gespeicherte Werte werden oben angezeigt und lassen sich erneut senden; Überschreiben nur mit Grund. Siehe `docs/offline-sync-und-korrekturen.md`.

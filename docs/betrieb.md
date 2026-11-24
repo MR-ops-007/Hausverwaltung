@@ -354,7 +354,8 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
 8. Mit dem passenden Umgebungsschlüssel einen geschützten Lese- und Schreibtest
    durchführen.
 9. Ergebnis, Deployment-Version und Rollback-Stand in der Deployment-Historie im
-   `CHANGELOG.md` ergänzen, und zwar im selben PR, aus dem bereitgestellt wurde.
+   `CHANGELOG.md` ergänzen: einen TEST-Deploy aus dem PR-Stand im selben PR, einen
+   PROD-Deploy (nur aus `main` nach Merge) im nächsten ohnehin anstehenden PR.
 
 Für P6.6c muss die Capability `rent_increase_review_writes: true` mit einem
 autorisierten `admin`- oder `erfassen`-Profil zurückkommen. Danach mindestens einen
