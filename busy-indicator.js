@@ -37,6 +37,7 @@ const busyIndicator = {
   releaseTimer: null,
   resultTimer: null,
   overlayTimer: null,
+  focusBeforeOverlay: null,
   pending: [],
   nextId: 1,
 
@@ -48,6 +49,8 @@ const busyIndicator = {
     // Ohne touchstart-Listener zeigt iOS Safari keinen :active-Zustand an.
     doc.addEventListener('touchstart', () => {}, { passive: true });
     doc.addEventListener('click', event => this.onClick(event), true);
+    // Tastatur: Während des Overlays kein Tab/Enter auf Elemente dahinter.
+    doc.addEventListener('keydown', event => this.onKeydown(event), true);
     const view = doc.defaultView;
     if (view && typeof view.confirm === 'function' && !view.confirm.busyIndicatorWrapped) {
       // Eine Rückfrage („Wirklich stornieren?“) verzögert die Anfrage: danach gilt der Tipp neu.
@@ -86,6 +89,13 @@ const busyIndicator = {
     this.activatorAt = this.now();
   },
 
+  onKeydown(event) {
+    if (!this.isOverlayOpen()) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    this.focusOverlay();
+  },
+
   isBusy(element) {
     return Boolean(element && element.classList && element.classList.contains('is-busy'));
   },
@@ -116,24 +126,28 @@ const busyIndicator = {
     return entry.id;
   },
 
-  /** Meldet das Ende einer Anfrage. ok=false bei Fehler (die Ansicht meldet ihn selbst). */
+  /** Meldet das Ende einer Anfrage. ok=false bei Fehler oder unklarer Antwort (die Ansicht meldet ihn selbst). */
   end(id, { ok = true } = {}) {
     const index = this.pending.findIndex(entry => entry.id === id);
     if (index < 0) return;
     const [entry] = this.pending.splice(index, 1);
-    if (this.pending.some(item => item.overlay)) return;
+    const overlayPending = this.pending.some(item => item.overlay);
+    // Das Overlay endet mit seiner eigenen Anfrage, egal ob noch Ladevorgänge laufen.
+    if (entry.overlay && !overlayPending) {
+      if (ok) this.showOverlaySuccess(`${this.successText(entry)} · ${this.formatTime(new Date(this.now()))}`);
+      else this.hideOverlay();
+    }
+    if (overlayPending) return;
     if (this.pending.some(item => item.visible)) {
-      if (!this.isOverlayOpen()) this.showProgress();
+      // Unter dem Overlay vorbereiten; sichtbar, sobald es schließt.
+      this.showProgress();
       return;
     }
     this.scheduleRelease();
-    if (entry.overlay) {
-      if (ok) this.showOverlaySuccess(`${this.successText(entry)} · ${this.formatTime(new Date(this.now()))}`);
-      else this.hideOverlay();
-      this.hide();
+    if (entry.overlay || !entry.visible) {
+      if (entry.overlay) this.hide();
       return;
     }
-    if (!entry.visible) return;
     if (entry.write && ok) this.showResult(`✓ Gespeichert · ${this.formatTime(new Date(this.now()))}`, 'success');
     else if (entry.write) this.showResult('Nicht gespeichert – Hinweis beachten', 'error');
     else this.hide();
@@ -239,10 +253,13 @@ const busyIndicator = {
       overlay.setAttribute('role', 'alertdialog');
       overlay.setAttribute('aria-modal', 'true');
       overlay.setAttribute('aria-live', 'assertive');
+      overlay.setAttribute('aria-labelledby', 'busy-overlay-title');
+      overlay.setAttribute('aria-describedby', 'busy-overlay-detail');
       overlay.hidden = true;
-      overlay.innerHTML = '<div class="busy-overlay-card">'
+      overlay.innerHTML = '<div class="busy-overlay-card" tabindex="-1">'
         + '<img class="busy-overlay-stamp" alt="" src="assets/hausmeister-stempel-loading.svg">'
-        + '<strong class="busy-overlay-title"></strong><small class="busy-overlay-detail"></small></div>';
+        + '<strong class="busy-overlay-title" id="busy-overlay-title"></strong>'
+        + '<small class="busy-overlay-detail" id="busy-overlay-detail"></small></div>';
       this.doc.body.appendChild(overlay);
     }
     return overlay;
@@ -268,7 +285,19 @@ const busyIndicator = {
     if (titleElement) titleElement.textContent = title;
     const detailElement = overlay.querySelector('.busy-overlay-detail');
     if (detailElement) detailElement.textContent = detail;
+    const wasHidden = overlay.hidden;
     overlay.hidden = false;
+    if (wasHidden) {
+      // Fokus ins Overlay, damit Tastatur und Screenreader nicht hinter der Sperre bleiben.
+      this.focusBeforeOverlay = this.doc.activeElement || null;
+      this.focusOverlay();
+    }
+  },
+
+  focusOverlay() {
+    const overlay = this.doc && this.doc.getElementById('busy-overlay');
+    const card = overlay && overlay.querySelector('.busy-overlay-card');
+    if (card && typeof card.focus === 'function') card.focus({ preventScroll: true });
   },
 
   showOverlay(text) {
@@ -284,7 +313,16 @@ const busyIndicator = {
     if (this.overlayTimer) clearTimeout(this.overlayTimer);
     this.overlayTimer = null;
     const overlay = this.doc && this.doc.getElementById('busy-overlay');
-    if (overlay) overlay.hidden = true;
+    if (!overlay || overlay.hidden) return;
+    overlay.hidden = true;
+    const previous = this.focusBeforeOverlay;
+    this.focusBeforeOverlay = null;
+    if (previous && previous.isConnected !== false && typeof previous.focus === 'function') {
+      previous.focus({ preventScroll: true });
+    } else {
+      const card = overlay.querySelector('.busy-overlay-card');
+      if (card && typeof card.blur === 'function') card.blur();
+    }
   }
 };
 

@@ -213,7 +213,8 @@ const cloudService = {
         let ok = false;
         try {
             const result = await this.postOnce(payload, options);
-            ok = !result || result.status !== 'error';
+            // Leere Antwort (null) ist keine Bestätigung: niemals als gespeichert anzeigen.
+            ok = result != null && result.status !== 'error';
             return result;
         } finally {
             if (indicator) indicator.end(token, { ok });

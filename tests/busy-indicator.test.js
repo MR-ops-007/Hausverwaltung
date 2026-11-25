@@ -184,6 +184,81 @@ describe('Rückmeldung bei Aktionen (busy-indicator.js)', () => {
     indicator.end(token, { ok: false });
     expect(doc.getElementById('busy-indicator').textContent).toContain('Nicht gespeichert');
   });
+
+  it('schließt das Overlay, auch wenn ein langsamer Ladevorgang danach noch läuft', () => {
+    const { indicator, click, doc } = load();
+    const tab = fakeElement();
+    click(tab);
+    const read = indicator.begin({ typ: 'LESEN', view: 'verbrauch' });
+    click(fakeElement());
+    const write = indicator.begin({ typ: 'ZAHLUNG' });
+    const overlay = doc.getElementById('busy-overlay');
+
+    indicator.end(write, { ok: true });
+    expect(overlay.dataset.state).toBe('success');
+    vi.advanceTimersByTime(indicator.STAMP_SUCCESS_MS);
+    expect(overlay.hidden).toBe(true);
+    expect(click(fakeElement()).stopped).toBe(false);
+    expect(doc.getElementById('busy-indicator').hidden).toBe(false);
+
+    indicator.end(read, { ok: true });
+    expect(doc.getElementById('busy-indicator').hidden).toBe(true);
+    vi.advanceTimersByTime(indicator.RELEASE_GRACE_MS);
+    expect(tab.classList.contains('is-busy')).toBe(false);
+  });
+
+  it('schließt das Overlay auch bei Fehler, während noch geladen wird', () => {
+    const { indicator, click, doc } = load();
+    click(fakeElement());
+    indicator.begin({ typ: 'LESEN', view: 'verbrauch' });
+    click(fakeElement());
+    const write = indicator.begin({ typ: 'ZAHLUNG' });
+    indicator.end(write, { ok: false });
+    expect(doc.getElementById('busy-overlay').hidden).toBe(true);
+  });
+
+  it('hält das Overlay offen, wenn der Ladevorgang vor dem Speichern fertig ist', () => {
+    const { indicator, click, doc } = load();
+    click(fakeElement());
+    const read = indicator.begin({ typ: 'LESEN', view: 'verbrauch' });
+    click(fakeElement());
+    const write = indicator.begin({ typ: 'ZAHLUNG' });
+    indicator.end(read, { ok: true });
+    const overlay = doc.getElementById('busy-overlay');
+    expect(overlay.hidden).toBe(false);
+    expect(overlay.dataset.state).toBe('loading');
+    indicator.end(write, { ok: true });
+    expect(overlay.dataset.state).toBe('success');
+  });
+
+  it('verknüpft Titel und Text, setzt den Fokus ins Overlay und sperrt die Tastatur', () => {
+    const { indicator, click, doc, listeners } = load();
+    const button = fakeElement();
+    button.focus = vi.fn();
+    doc.activeElement = button;
+    const overlay = indicator.overlay();
+    const card = overlay.querySelector('.busy-overlay-card');
+    card.focus = vi.fn();
+    expect(overlay.getAttribute('aria-labelledby')).toBe('busy-overlay-title');
+    expect(overlay.getAttribute('aria-describedby')).toBe('busy-overlay-detail');
+    expect(overlay.innerHTML).toContain('id="busy-overlay-title"');
+    expect(overlay.innerHTML).toContain('id="busy-overlay-detail"');
+
+    click(button);
+    const token = indicator.begin({ typ: 'ZAHLUNG' });
+    expect(card.focus).toHaveBeenCalledTimes(1);
+    const key = { key: 'Tab', defaultPrevented: false, stopped: false,
+      preventDefault() { this.defaultPrevented = true; }, stopImmediatePropagation() { this.stopped = true; } };
+    listeners.keydown[0](key);
+    expect(key.defaultPrevented).toBe(true);
+    expect(key.stopped).toBe(true);
+
+    indicator.end(token, { ok: false });
+    expect(button.focus).toHaveBeenCalledTimes(1);
+    const after = { key: 'Tab', preventDefault: vi.fn(), stopImmediatePropagation: vi.fn() };
+    listeners.keydown[0](after);
+    expect(after.preventDefault).not.toHaveBeenCalled();
+  });
 });
 
 describe('cloudService.post meldet Anfragen an den Hinweis', () => {
@@ -212,6 +287,14 @@ describe('cloudService.post meldet Anfragen an den Hinweis', () => {
     const broken = loadCloud(async () => { throw new TypeError('offline'); }, indicator);
     await expect(broken.post({ typ: 'ZAHLUNG', data: [] })).rejects.toThrow('offline');
     expect(indicator.end).toHaveBeenCalledWith(7, { ok: false });
+  });
+
+  it('zeigt eine leere oder unklare Antwort nie als gespeichert', async () => {
+    const indicator = { begin: vi.fn(() => 9), end: vi.fn() };
+    const empty = loadCloud(async () => ({ ok: true, text: async () => '' }), indicator);
+    const result = await empty.post({ typ: 'ZAHLUNG', data: [] });
+    expect(result).toBeNull();
+    expect(indicator.end).toHaveBeenCalledWith(9, { ok: false });
   });
 });
 
