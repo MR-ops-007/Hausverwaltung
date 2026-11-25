@@ -15,11 +15,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  # Bauen und Hochladen in einem eigenen Job. Der Deploy-Job startet erst, wenn dieser
+  # Job abgeschlossen ist. Im selben Job fand deploy-pages das gerade hochgeladene
+  # Paket wiederholt noch nicht ("Found 0 artifact(s)", 2026-11-25).
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Checkout
@@ -96,6 +96,14 @@ jobs:
           # deploy-pages bei mehreren gleichnamigen Paketen ab.
           name: github-pages-${{ github.run_attempt }}
 
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
       - name: Deploy Pages
         id: deployment
         uses: actions/deploy-pages@v4
