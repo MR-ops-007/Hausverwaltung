@@ -15,6 +15,17 @@ describe('GitHub-Pages-Build', () => {
     expect(workflow).toContain('actions/deploy-pages@v4');
   });
 
+  it('veröffentlicht erst in einem eigenen Job nach abgeschlossenem Build', () => {
+    expect(workflow).toMatch(/\n  build:\n    runs-on: ubuntu-latest\n/);
+    expect(workflow).toMatch(/\n  deploy:\n    needs: build\n/);
+    const buildJob = workflow.slice(workflow.indexOf('\n  build:'), workflow.indexOf('\n  deploy:'));
+    const deployJob = workflow.slice(workflow.indexOf('\n  deploy:'));
+    expect(buildJob).toContain('actions/upload-pages-artifact@v3');
+    expect(buildJob).not.toContain('actions/deploy-pages');
+    expect(deployJob).toContain('actions/deploy-pages@v4');
+    expect(deployJob).toContain('name: github-pages');
+  });
+
   it('benennt das Pages-Paket je Versuch, damit ein Neustart des Laufs veröffentlichen kann', () => {
     const artifactName = 'github-pages-${{ github.run_attempt }}';
     expect(workflow).toContain(`name: ${artifactName}`);
