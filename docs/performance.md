@@ -87,12 +87,24 @@ Verwendet: `PropertiesService` (bereits genutzt), `CacheService`, `Utilities`.
   6-Stunden-Regel.
 - Ältere Backends ignorieren `known_stamp` und liefern wie bisher Daten; das Frontend ist
   in beide Richtungen kompatibel.
-- Scheitert nur der Dashboard-Abruf, übernimmt die App trotzdem die Stammdaten und meldet
-  „Mieterliste nicht aktualisiert“. Nur ein abgelehnter Schlüssel bricht sofort ab.
-- Der lokale Stand wird nur mit allen Pflichtblättern gespeichert und geladen (Objekte,
-  Einheiten, Personen, Verträge, Vertragsparteien, Mietanpassungen, Zähler, Zählerstände,
-  Zahlungen; `localCache.REQUIRED_SHEETS`). Ein unvollständiger Stand wird verworfen und
-  vollständig neu geladen, nie als „unverändert“ bestätigt.
+- Dashboard und Stammdaten werden unabhängig voneinander übernommen: Ein langsames Dashboard
+  hält die Stammdaten nicht auf; kommt es später, ersetzt es nur die Mieterliste. Scheitert
+  der Dashboard-Abruf, meldet die App „Mieterliste nicht aktualisiert“. Nur ein abgelehnter
+  Schlüssel bricht sofort ab, ohne auf die Stammdaten zu warten.
+- Der lokale Stand wird nur mit allen Pflichtblättern gespeichert und geladen. Ein
+  unvollständiger Stand wird verworfen und vollständig neu geladen, nie als „unverändert“
+  bestätigt. Einordnung jedes Blatts, das `dataService.setInitialData()` übernimmt
+  (`local-cache.js`, per Test erzwungen):
+
+  | Blatt | Einordnung |
+  | --- | --- |
+  | Objekte, Einheiten, Personen, Vertraege, Vertragsparteien, Mietanpassungen, Zaehler, Zaehlerstaende, Zahlungen, Parameter, Fixkosten | Pflicht (`REQUIRED_SHEETS`) |
+  | MieterhöhungsPrüfungen (oder MieterhoehungsPruefungen) | Pflicht, eine der beiden Schreibweisen (`REQUIRED_ONE_OF`) |
+  | Haustechnik | bewusst optional (`OPTIONAL_SHEETS`): fehlt in TEST, liefert nur Zusatzangaben zur Heizöl-Auswertung |
+
+  Fehlt ein Pflichtblatt in einer Umgebung ganz, speichert die App keinen Stand und startet
+  wie ohne Zwischenspeicher: langsamer, aber nie mit Lücken. Erkennbar daran, dass auch der
+  zweite Start nicht „keine Änderungen“ meldet.
 - Solange der gespeicherte Stand angezeigt wird (`dataStale`), bleiben Zahlungen, Verträge
   und Prüfungen lesbar. Zahlungsdialog, Storno, CSV-Import, Vertragsänderung und
   Prüfabschluss/Wiederöffnung zeigen dann einen Hinweis; zusätzlich sperrt `cloudService`
@@ -105,8 +117,12 @@ Verwendet: `PropertiesService` (bereits genutzt), `CacheService`, `Utilities`.
   Zwischenspeicher, wird die Antwort aus den Blättern neu gebaut. `onEdit` je Blatt,
   unbekannter Typ ohne, fehlgeschlagene Zahlung mit neuem Stempel.
 - Start (`tests/init-app.test.js`, echter `initApp` aus `index.html`): Dashboard-Fehler bei
-  erfolgreichen Stammdaten, abgelehnter Schlüssel, „unverändert“ mit vollständigem Stand,
-  unvollständiger Stand ohne `Zahlungen`.
+  erfolgreichen Stammdaten, langsames Dashboard, abgelehnter Schlüssel (auch ohne auf die
+  Stammdaten zu warten), „unverändert“ mit vollständigem Stand und ohne `Haustechnik`,
+  unvollständiger Stand ohne `Zahlungen`, `MieterhöhungsPrüfungen` oder `Parameter`.
+- Pflichtblätter (`tests/local-cache.test.js`): jedes von `setInitialData()` übernommene
+  Blatt muss als Pflicht oder optional eingeordnet sein.
+- Neuberechnung des Verbrauchs schreibt den Stempel genau einmal.
 - Oberfläche (`tests/local-cache.test.js`): Hinweise statt Dialog/Schreibvorgang auf
   gespeichertem Stand.
 
@@ -150,7 +166,8 @@ aber keine Daten. In TEST wurden keine Daten geschrieben.
 3. **Verbrauch aktualisieren (TEST):** „Verbrauchsdaten aktualisieren“ → danach lädt der
    Reiter die Views vollständig neu.
 4. **Manuelle Änderung in `Zahlungen` (TEST):** danach lädt der Start die Stammdaten neu,
-   der Verbrauch bleibt „unverändert“.
+   der Verbrauch bleibt „unverändert“. Umgekehrt ändert „Verbrauchsdaten aktualisieren“ nur
+   den Verbrauchsstand; der nächste Start meldet weiter „keine Änderungen“.
 5. **Gespeicherter Stand (TEST):** App öffnen und sofort, solange „wird aktualisiert“ steht,
    eine Zahlung erfassen wollen → Hinweis statt Dialog.
 
@@ -164,7 +181,8 @@ Nur nach ausdrücklicher Freigabe (Release-Regel in `docs/betrieb.md`).
 3. `npm run clasp:prod:deploy`. **Kein Schemaschritt**, keine neue Autorisierung. Die
    Properties `HV_DATENSTAND_*` entstehen beim ersten Lesen automatisch.
 4. Anonymer Abruf liefert `UNAUTHORIZED`; in der App „Backend 4.8.18“ und beim zweiten Start
-   „keine Änderungen“.
+   „keine Änderungen“. Fehlt diese Meldung dauerhaft, fehlt in PROD ein Pflichtblatt (siehe
+   Tabelle oben); die App funktioniert dann wie vorher, nur ohne Sofortstart.
 5. Rollback: Version 4.8.17 (`@46`). Die zusätzlichen Properties stören 4.8.17 nicht.
 
 ## Mögliche nächste Schritte

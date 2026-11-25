@@ -118,7 +118,7 @@
     <script src="environment-service.js?v=20261110-environment-switch-v1"></script>
     <script src="data-service.js?v=20261125-stale-guard-v1"></script>
     <script src="access-ui.js?v=20261028-access-v1"></script>
-    <script src="local-cache.js?v=20261125-required-sheets-v1"></script>
+    <script src="local-cache.js?v=20261125-required-sheets-v2"></script>
     <script src="cloud-service.js?v=20261125-datenstand-v1"></script>
     <script src="apps-script/ContractService.js?v=20261117-p6-7-enforcement-v3"></script>
     <script src="apps-script/PaymentRules.js?v=20261117-p6-2-payment-rules-v1"></script>
@@ -197,34 +197,35 @@
             ? snapshot.stammdaten._datenstand : '';
 
         try {
-            // STUFE 1 und 2 starten gleichzeitig; angezeigt wird in fester Reihenfolge.
+            // STUFE 1 und 2 starten gleichzeitig und werden unabhängig voneinander übernommen:
+            // Ein langsames oder fehlgeschlagenes Dashboard hält die Stammdaten nicht auf.
             const fastRequest = cloudService.loadDashboardData();
             const fullRequest = cloudService.loadBackgroundData(knownStamp);
             fullRequest.catch(() => {}); // Fehler werden unten beim Warten behandelt
 
-            // STUFE 1: Schneller Ladevorgang (nur Dashboard-Tabelle)
-            // Ein Fehler hier darf den parallel laufenden Vollabruf nicht verwerfen; nur ein
-            // abgelehnter Schlüssel bricht sofort ab.
+            // STUFE 1: Dashboard (aktive Mieter), sobald es da ist. Kommen die Stammdaten
+            // zuerst, wird nur noch die Mieterliste ersetzt (setActiveTenants).
             let fastError = null;
-            const fastData = await fastRequest.catch(error => {
-                if (error && error.code === 'UNAUTHORIZED') throw error;
-                console.warn("Dashboard-Abruf fehlgeschlagen, Stammdaten laufen weiter:", error);
-                fastError = error;
-                return null;
-            });
-            if (fastData) {
+            const fastDone = fastRequest.then(fastData => {
+                if (!fastData) return null;
                 if (dataService.state.fullDataLoaded) {
-                    // Stammdaten (aus dem Cache) bleiben stehen, nur die Mieterliste wird frisch.
                     dataService.setActiveTenants(fastData);
                 } else {
                     dataService.setDashboardData(fastData);
                     setStatus(statusEl, "✅ UI bereit. Lade Hintergrunddaten...", "orange");
                 }
                 uiService.renderAll();
-            }
+                return fastData;
+            }, error => {
+                // Nur ein abgelehnter Schlüssel bricht ab; sonst laufen die Stammdaten weiter.
+                if (error && error.code === 'UNAUTHORIZED') throw error;
+                console.warn("Dashboard-Abruf fehlgeschlagen, Stammdaten laufen weiter:", error);
+                fastError = error;
+                return null;
+            });
+            fastDone.catch(() => {}); // wird unten ausgewertet
 
-            // Versionsanzeige parallel zu Stufe 2 laden statt danach: spart eine
-            // volle Anfrage-Laufzeit. Der Schlüssel ist nach Stufe 1 bereits geprüft.
+            // Versionsanzeige parallel laden; scheitert sie, bleibt nur die Anzeige leer.
             const capabilitiesRequest = cloudService.loadCapabilities().then(capabilities => {
                 if (capabilities && capabilities.backend_version) {
                     environmentService.setBackendVersion(capabilities.backend_version);
@@ -232,24 +233,22 @@
                 return capabilities;
             }).catch(() => null);
 
-            // STUFE 2: Hintergrund-Ladevorgang (Stammdaten ohne Verbrauchs-Views)
-            const fullData = await fullRequest;
+            // STUFE 2: Stammdaten. Ein abgelehnter Schlüssel im Dashboard-Abruf bricht sofort ab,
+            // sonst wird nur auf die Stammdaten gewartet.
+            const fullData = await Promise.race([fullRequest, fastDone.then(() => fullRequest)]);
+            let savedStammdaten = null;
             if (fullData && fullData.unchanged === true && snapshot) {
                 // Gespeicherter Stand ist aktuell: nichts neu übertragen, nur bestätigen.
                 dataService.state.dataStale = false;
                 dataService.state.cachedAt = '';
-                if (typeof localCache !== 'undefined') {
-                    localCache.save(fastData || snapshot.dashboard, snapshot.stammdaten);
-                }
+                savedStammdaten = snapshot.stammdaten;
                 renderVisibleDataViews();
                 if (typeof uiService.prefetchConsumptionData === 'function') uiService.prefetchConsumptionData();
                 setStatus(statusEl, "✅ System vollständig geladen (" + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ", keine Änderungen)", "green");
             } else if (fullData && typeof fullData === 'object' && !Array.isArray(fullData)
                 && fullData.unchanged !== true && Object.keys(fullData).length > 0) {
                 dataService.setInitialData(fullData);
-                if (typeof localCache !== 'undefined') {
-                    localCache.save(fastData || (snapshot && snapshot.dashboard), fullData);
-                }
+                savedStammdaten = fullData;
 
                 // Eine während des Ladens geöffnete Ansicht zeigt jetzt den frischen Stand.
                 renderVisibleDataViews();
@@ -260,6 +259,13 @@
                 const error = new Error('Leere oder ungültige Hintergrunddaten empfangen.');
                 error.code = 'FULL_DATA_EMPTY';
                 throw error;
+            }
+
+            // Lokal speichern, sobald auch das Dashboard da ist (Anzeige wartet darauf nicht).
+            const fastData = await fastDone;
+            if (typeof localCache !== 'undefined') {
+                localCache.save(fastData || (snapshot && snapshot.dashboard)
+                    || { _view_aktive_mieter: dataService.state.view_aktive_mieter }, savedStammdaten);
             }
 
             if (fastError) {
@@ -278,8 +284,8 @@
             console.error("KRITISCHER FEHLER:", error);
 
             if (error && error.code === 'UNAUTHORIZED') {
-                // Ein abgelehnter Schlüssel darf keine zwischengespeicherten Daten mehr zeigen.
-                if (dataService.state.dataStale) {
+                // Ein abgelehnter Schlüssel darf keine (zwischengespeicherten) Daten mehr zeigen.
+                if (dataService.state.dataStale || dataService.state.fullDataLoaded) {
                     dataService.reset();
                     uiService.renderAll();
                     renderVisibleDataViews();

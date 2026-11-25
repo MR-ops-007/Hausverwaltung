@@ -10,7 +10,8 @@ const cacheSource = readFileSync(new URL('../local-cache.js', import.meta.url), 
 
 const completeStammdaten = (extra = {}) => ({
   Objekte: [{ objekt_id: 'O1' }], Einheiten: [], Personen: [], Vertraege: [{ vertrag_id: 'V1' }],
-  Vertragsparteien: [], Mietanpassungen: [], Zaehler: [], Zaehlerstaende: [], Zahlungen: [{ zahlung_id: 'Z1' }],
+  Vertragsparteien: [], Mietanpassungen: [], 'MieterhöhungsPrüfungen': [{ vertrag_id: 'V1' }], Zaehler: [],
+  Zaehlerstaende: [], Zahlungen: [{ zahlung_id: 'Z1' }], Parameter: [], Fixkosten: [], Haustechnik: [],
   _datenstand: 'stempel-1', ...extra
 });
 
@@ -54,6 +55,31 @@ describe('App-Start', () => {
     expect((await env.localCache.load()).stammdaten.Vertraege).toEqual([{ vertrag_id: 'V1' }]);
   });
 
+  it('übernimmt die Stammdaten, ohne auf ein langsames Dashboard zu warten', async () => {
+    let releaseDashboard;
+    const env = setup({ dashboard: () => new Promise(resolve => { releaseDashboard = () => resolve({ _view_aktive_mieter: [{ name: 'Spät' }] }); }) });
+    const done = env.initApp();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(env.dataService.state.fullDataLoaded).toBe(true);
+    expect(env.dataService.state.vertraege).toEqual([{ vertrag_id: 'V1' }]);
+    expect(env.status.textContent).toContain('System vollständig geladen');
+
+    releaseDashboard();
+    await done;
+    // Das späte Dashboard ersetzt nur die Mieterliste und setzt die Stammdaten nicht zurück.
+    expect(env.dataService.state.fullDataLoaded).toBe(true);
+    expect(env.dataService.state.view_aktive_mieter).toEqual([{ name: 'Spät' }]);
+    expect(env.status.textContent).toContain('System vollständig geladen');
+    expect((await env.localCache.load()).dashboard._view_aktive_mieter).toEqual([{ name: 'Spät' }]);
+  });
+
+  it('bricht bei abgelehntem Schlüssel im Dashboard-Abruf ab, ohne auf die Stammdaten zu warten', async () => {
+    const unauthorized = Object.assign(new Error('Schlüssel'), { code: 'UNAUTHORIZED' });
+    const env = setup({ dashboard: async () => { throw unauthorized; }, stammdaten: () => new Promise(() => {}) });
+    await env.initApp();
+    expect(env.status.textContent).toContain('Zugangsschlüssel erforderlich');
+  });
+
   it('bricht bei abgelehntem Schlüssel im Dashboard-Abruf sofort ab', async () => {
     const unauthorized = Object.assign(new Error('Schlüssel'), { code: 'UNAUTHORIZED' });
     const env = setup({ dashboard: async () => { throw unauthorized; }, stammdaten: async () => { throw unauthorized; } });
@@ -70,13 +96,23 @@ describe('App-Start', () => {
     expect(env.status.textContent).toContain('keine Änderungen');
   });
 
-  it('verwendet einen unvollständigen gespeicherten Stand nicht und lädt alles neu', async () => {
+  it.each(['Zahlungen', 'MieterhöhungsPrüfungen', 'Parameter'])('verwendet einen gespeicherten Stand ohne %s nicht und lädt alles neu', async missing => {
     const incomplete = completeStammdaten();
-    delete incomplete.Zahlungen;
+    delete incomplete[missing];
     const env = setup({ stored: { stammdaten: incomplete } });
     await env.initApp();
     expect(env.cloudService.loadBackgroundData).toHaveBeenCalledWith('');
     expect(env.dataService.state.zahlungen).toEqual([{ zahlung_id: 'Z1' }]);
+    expect(env.dataService.state.mieterhoehungspruefungen).toEqual([{ vertrag_id: 'V1' }]);
     expect(env.dataService.state.dataStale).toBe(false);
+  });
+
+  it('bestätigt einen gespeicherten Stand ohne das optionale Blatt Haustechnik', async () => {
+    const withoutOptional = completeStammdaten();
+    delete withoutOptional.Haustechnik;
+    const env = setup({ stored: { stammdaten: withoutOptional }, stammdaten: async () => ({ unchanged: true, _datenstand: 'stempel-1' }) });
+    await env.initApp();
+    expect(env.cloudService.loadBackgroundData).toHaveBeenCalledWith('stempel-1');
+    expect(env.status.textContent).toContain('keine Änderungen');
   });
 });

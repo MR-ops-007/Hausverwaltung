@@ -115,7 +115,7 @@ describe('Verbrauchsdaten aus dem lokalen Speicher', () => {
 describe('Lokaler Speicher: Verbrauchseintrag', () => {
   it('wird zusammen mit dem Startstand der Umgebung gelöscht', async () => {
     const { cache, store } = memoryCache();
-    await cache.save({}, Object.fromEntries(cache.REQUIRED_SHEETS.map(name => [name, []])));
+    await cache.save({}, Object.fromEntries([...cache.REQUIRED_SHEETS, ...cache.REQUIRED_ONE_OF.map(names => names[0])].map(name => [name, []])));
     await cache.saveConsumption(views());
     expect([...store.keys()].sort()).toEqual(['snapshot:test', 'verbrauch:test']);
     await cache.clear();

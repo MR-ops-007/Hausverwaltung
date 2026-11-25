@@ -95,6 +95,10 @@ Performance Schritt 3: Datenstand-Stempel und Zwischenspeicher im Backend.
   gespeichert, angezeigt oder als „unverändert“ bestätigt; Zahlungsdialog, Storno, Import,
   Vertragsänderung und Prüfabschluss zeigen auf gespeichertem Stand einen Hinweis statt erst
   beim Speichern zu scheitern.
+- Zweite Review-Runde: Pflichtblätter vollständig (inkl. `MieterhöhungsPrüfungen`,
+  `Parameter`, `Fixkosten`; `Haustechnik` bewusst optional), Stammdaten werden ohne Warten
+  auf ein langsames Dashboard übernommen, Verbrauchsstempel bei der Neuberechnung nur
+  einmal geschrieben.
 - Details, Messungen und Abnahme: `docs/performance.md`.
 
 ## 4.8.17 · 2026-11-25 · produktiv

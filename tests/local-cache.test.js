@@ -24,7 +24,8 @@ function loadCache(environment = 'test', backend = memoryBackend()) {
 
 const stammdaten = {
   Objekte: [{ objekt_id: 'O1' }], Einheiten: [], Personen: [], Vertraege: [{ vertrag_id: 'V1' }],
-  Vertragsparteien: [], Mietanpassungen: [], Zaehler: [], Zaehlerstaende: [], Zahlungen: []
+  Vertragsparteien: [], Mietanpassungen: [], 'MieterhöhungsPrüfungen': [], Zaehler: [], Zaehlerstaende: [],
+  Zahlungen: [], Parameter: [], Fixkosten: [], Haustechnik: []
 };
 const dashboard = { _view_aktive_mieter: [{ name: 'Donald' }] };
 
@@ -61,6 +62,26 @@ describe('Lokaler Zwischenspeicher', () => {
     expect(await cache.load()).toBeNull();
     backend.store.set('snapshot:test', { format: 1, savedAt: new Date().toISOString(), stammdaten: { ...stammdaten, Zahlungen: null } });
     expect(await cache.load()).toBeNull();
+  });
+
+  it('verlangt den Prüfstatus in einer der beiden Schreibweisen', () => {
+    const cache = loadCache();
+    const { 'MieterhöhungsPrüfungen': reviews, ...ohnePruefungen } = stammdaten;
+    expect(cache.isCompleteStammdaten(ohnePruefungen)).toBe(false);
+    expect(cache.isCompleteStammdaten({ ...ohnePruefungen, MieterhoehungsPruefungen: [] })).toBe(true);
+    const { Haustechnik, ...ohneHaustechnik } = stammdaten;
+    expect(cache.isCompleteStammdaten(ohneHaustechnik)).toBe(true);
+  });
+
+  it('ordnet jedes Blatt, das dataService übernimmt, als Pflicht oder bewusst optional ein', () => {
+    const cache = loadCache();
+    const body = dataSource.slice(dataSource.indexOf('setInitialData(data)'));
+    const read = new Set([...body.slice(0, body.indexOf('fullDataLoaded = true')).matchAll(/data(?:\.([A-Za-zÄÖÜäöüß]+)|\['([^']+)'\])/g)]
+      .map(match => match[1] || match[2]));
+    const classified = new Set([...cache.REQUIRED_SHEETS, ...cache.REQUIRED_ONE_OF.flat(), ...cache.OPTIONAL_SHEETS]);
+    expect(read.size).toBeGreaterThanOrEqual(13);
+    for (const name of read) expect(classified.has(name), `${name} ist weder Pflicht noch optional`).toBe(true);
+    expect(cache.OPTIONAL_SHEETS).toEqual(['Haustechnik']);
   });
 
   it('meldet Speicherfehler nicht an die App weiter', async () => {

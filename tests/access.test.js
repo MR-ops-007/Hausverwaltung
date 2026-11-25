@@ -8,7 +8,7 @@ const KEY = 'test-only-key';
 function backend({ key, accessKeys, paymentRows, cacheService, utilities } = {}) {
   const paymentRules = readFileSync(new URL('../apps-script/PaymentRules.js', import.meta.url), 'utf8');
   const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
-  const calls = { locks: 0, viewUpdates: 0, sheetReads: 0, contractWrites: [], tenantChanges: [] };
+  const calls = { locks: 0, viewUpdates: 0, sheetReads: 0, propertyWrites: [], contractWrites: [], tenantChanges: [] };
   const rows = {
     Zaehlerstaende: [['stand_id', 'zaehler_id', 'wert']],
     Zahlungen: paymentRows || [['zahlung_id', 'betrag']]
@@ -48,7 +48,7 @@ function backend({ key, accessKeys, paymentRows, cacheService, utilities } = {})
   const globals = {
     PropertiesService: { getScriptProperties: () => ({
       getProperty: name => properties[name] ?? null,
-      setProperty: (name, value) => { properties[name] = String(value); }
+      setProperty: (name, value) => { calls.propertyWrites.push(name); properties[name] = String(value); }
     }) },
     CacheService: cacheService,
     Utilities: utilities,
@@ -58,7 +58,7 @@ function backend({ key, accessKeys, paymentRows, cacheService, utilities } = {})
   };
   const factory = new Function(...Object.keys(globals), 'calls', `${paymentRules}; ${code}
     updateAktiveMieterView = () => { calls.viewUpdates++; };
-    updateVerbrauchViews = () => { calls.viewUpdates++; return { status: 'success', message: 'Verbrauchsviews aktualisiert' }; };
+    updateVerbrauchViews = () => { calls.viewUpdates++; bumpDatenstandSafe(['VERBRAUCH']); return { status: 'success', message: 'Verbrauchsviews aktualisiert' }; };
     handleContractWrite = (spreadsheet, payload) => { calls.contractWrites.push(payload); return { status: 'success', vertrag: {}, anpassung: {} }; };
     handleTenantChange = (spreadsheet, payload) => { calls.tenantChanges.push(payload); return { status: 'success', vertrag_neu: payload.data }; };
     return { doGet, doPost, constantTimeEquals, getAccessPrincipal, canWriteType, onEdit, getDatenstand, bumpDatenstand, datenstandKindsForSheet, DATENSTAND_MAX_AGE_MS };`);
@@ -168,7 +168,7 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     }
     expect(api.rows.Zaehlerstaende).toHaveLength(1);
     expect(api.rows.Zahlungen).toHaveLength(1);
-    expect(api.calls).toEqual({ locks: 0, viewUpdates: 0, sheetReads: 0, contractWrites: [], tenantChanges: [] });
+    expect(api.calls).toEqual({ locks: 0, viewUpdates: 0, sheetReads: 0, propertyWrites: [], contractWrites: [], tenantChanges: [] });
   });
 
   it('schreibt mit richtigem Schlüssel und reicht Vertragsänderungen weiter', () => {
@@ -517,6 +517,14 @@ describe('Datenstand-Stempel', () => {
     api.post({ typ: 'VERBRAUCH_VIEWS_AKTUALISIEREN', key: KEY });
     expect(api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY, known_stamp: daten }).unchanged).toBe(true);
     expect(api.post({ typ: 'LESEN', view: 'verbrauch', key: KEY, known_stamp: verbrauch }).unchanged).toBeUndefined();
+  });
+
+  it('schreibt den Verbrauchsstempel bei der Neuberechnung genau einmal', () => {
+    const api = backend({ key: KEY });
+    api.getDatenstand('VERBRAUCH');
+    api.calls.propertyWrites.length = 0;
+    api.post({ typ: 'VERBRAUCH_VIEWS_AKTUALISIEREN', key: KEY });
+    expect(api.calls.propertyWrites).toEqual(['HV_DATENSTAND_VERBRAUCH']);
   });
 
   it('legt Verbrauchsdaten nicht im Zwischenspeicher ab', () => {

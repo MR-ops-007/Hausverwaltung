@@ -809,7 +809,11 @@ function doPost(e) {
 
     if (BACKEND_ACTION_TYPES.indexOf(payload.typ) !== -1) {
       if (payload.typ === 'VERBRAUCH_VIEWS_AKTUALISIEREN') {
-        return sendJSON(updateVerbrauchViews());
+        const result = updateVerbrauchViews();
+        // updateVerbrauchViews() erneuert den Verbrauchsstempel nach dem Schreiben selbst
+        // (auch bei Aufruf aus dem Editor). Nur wenn es vorher scheitert, greift finally.
+        datenstandKinds = [];
+        return sendJSON(result);
       }
     }
 
