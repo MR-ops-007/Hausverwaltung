@@ -226,7 +226,9 @@ describe('Zahlungstabelle auf schmalen Handys', () => {
     expect(block).toMatch(/hyphens: auto/);
     // Miete pro Monat bleibt sichtbar, nur der Vertragszeitraum entfällt.
     expect(block).toContain('.payment-tenant-cell > small { margin-top: 3px;');
-    expect(block).not.toMatch(/\.payment-tenant-cell > small \{ display: none/);
+    expect(block).not.toMatch(/^\s*\.payment-tenant-cell > small \{ display: none/m);
+    // Leerstand: die langen Hinweise bleiben auf schmalen Handys ausgeblendet.
+    expect(block).toContain('.payment-row-vacancy .payment-tenant-cell > small { display: none; }');
     expect(html).toMatch(/<html lang="de">/);
   });
 
