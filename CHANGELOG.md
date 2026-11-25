@@ -105,6 +105,10 @@ einzeln bereitgestellt; wird mit 4.8.16 ausgerollt.
 
 ## Frontend- und Betriebsmeilensteine ohne Backend-Versionserhöhung
 
+- Performance Schritt 2b (2026-11-25, lokal): Verbrauchsdaten werden ebenfalls lokal
+  gespeichert, nach dem Start im Hintergrund vorgeladen (nur ohne oder mit mehr als 6 Stunden
+  altem Stand) und beim Öffnen des Reiters sofort angezeigt. Erstes Öffnen ohne Speicher zeigt
+  eine Ladeanzeige. Keine Backend-Änderung.
 - Performance Schritt 2 (2026-11-25, lokal): Sofortstart aus einem lokalen Zwischenspeicher
   (IndexedDB, je Umgebung, ohne Verbrauchsdaten). Bis frische Daten da sind, sind Zahlungen,
   Vertragsänderungen und Prüfabschlüsse gesperrt; Zählerstände bleiben erfassbar. Ein
