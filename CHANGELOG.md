@@ -41,6 +41,7 @@ Alle Deployments aktualisieren die bestehenden Bereitstellungen; die URLs bleibe
 
 | Datum | Version | Umgebung | Deployment-Version | Hinweis |
 | --- | --- | --- | --- | --- |
+| 2026-11-25 | 4.8.18 | TEST | `@13` | **per `clasp` verifiziert:** TEST vorher bytegleich mit `main` (4.8.17 `@11`); `@12` mit Backend-Cache auch für Verbrauch, nach Messung durch `@13` ersetzt (Cache nur Stammdaten, Verbrauchsstempel nur bei Neuberechnung); Messungen und Inhaltsvergleich in `docs/performance.md`; keine Daten geschrieben; Rollback-Stand 4.8.17 `@11` |
 | 2026-11-25 | 4.8.17 | PROD | `@46` | **per `clasp` verifiziert:** PROD vorher bytegleich mit 4.8.16 (`0ccdbed`, `@45`), Push aus `main` (`d0aa765`) bytegleich geprüft, danach Deploy; anonyme Abrufe (`vertrag_capabilities`, `stammdaten`) liefern `UNAUTHORIZED`; kein Schemaschritt nötig; Rollback-Stand 4.8.16 `@45` |
 | 2026-11-25 | 4.8.17 | TEST | `@11` | **per `clasp` verifiziert:** TEST vorher bytegleich mit `main` (4.8.16 `@10`); Deploy aus dem PR-Stand; Capabilities `backend_version: 4.8.17`, `stammdaten_view: true`; Messung je 3 Läufe: `alle` 11,2–13,3 s / 5.144 KB, `stammdaten` 5,3–7,9 s / 653 KB; App lädt Verträge, Zahlungen und Zählerstände vollständig, Verbrauchsansicht lädt bei Bedarf; Rollback-Stand 4.8.16 `@10` |
 | 2026-11-24 | 4.8.16 | PROD | `@45` | **per `clasp` verifiziert:** PROD vorher bytegleich mit 4.8.14 (`f41bcd4`), Push aus `main` (`0ccdbed`) bytegleich geprüft; Sheet-Kopie angelegt, `prepareContractSchema()` (`Contracts.gs`) vom Product Owner ausgeführt, danach Deploy; anonymer Abruf liefert `UNAUTHORIZED`; Abnahme in der App: Prüfung abschließen und wieder öffnen; Rollback-Stand 4.8.14 `@44` |
@@ -61,6 +62,32 @@ Verifikation am 2026-11-24 (nur lesend per `clasp`): Beide Projekte haben je ein
 Web-App-Bereitstellung neben `@HEAD`; PROD steht auf Version 44 (4.8.14), TEST auf Version 10
 (4.8.16). Release-Tags für 4.8.13 und 4.8.14 werden in Roadmap-Paket 1c gesetzt.
 Nach dem PROD-Deploy am selben Abend steht PROD auf Version 45 (4.8.16).
+
+## 4.8.18 · 2026-11-25 · test
+
+Performance Schritt 3: Datenstand-Stempel und Zwischenspeicher im Backend.
+
+- Je ein Stempel für Stammdaten (`DATEN`) und Verbrauchs-Views (`VERBRAUCH`) in den Script
+  Properties (`HV_DATENSTAND_DATEN`, `HV_DATENSTAND_VERBRAUCH`). `DATEN` wird nach jedem
+  Schreibvorgang über die App erneuert (auch bei Fehlern), `VERBRAUCH` nach der Neuberechnung
+  der Verbrauchs-Views (`updateVerbrauchViews()`); beide bei manuellen Änderungen im Sheet
+  (einfacher Trigger `onEdit`) und automatisch nach 6 Stunden.
+- `stammdaten` und `verbrauch` liefern den Stempel als `_datenstand`. Schickt die App
+  `known_stamp` mit dem aktuellen Stempel, antwortet das Backend `{ unchanged: true }`, ohne
+  ein Blatt zu lesen.
+- Die fertige `stammdaten`-Antwort wird gzip-komprimiert in Stücken unter 100 KB im
+  `CacheService` abgelegt (Schlüssel enthält den Stempel, Ablauf nach 6 Stunden). Fehler im
+  Zwischenspeicher sind unkritisch, dann wird wie bisher gelesen. Die Verbrauchs-Views
+  (4 MB) werden bewusst nicht im Backend zwischengespeichert: In TEST war das Ablegen teurer
+  als das Lesen und der CacheService hielt die Einträge nicht zuverlässig.
+- Capabilities melden `datenstand: true`.
+- **Keine neue Berechtigung:** kein `DriveApp`, nur `PropertiesService` (bereits genutzt),
+  `CacheService` und `Utilities`. Kein Schemaschritt nötig.
+- Grenze: Änderungen, die weder über die App noch als manuelle Bearbeitung im Sheet
+  passieren (z. B. Skriptfunktionen im Editor, Sortieren, Zeilen einfügen ohne Werte),
+  werden spätestens nach 6 Stunden sichtbar. Sofort: eine beliebige Zelle bearbeiten oder
+  in `Code.gs` die Funktion `bumpDatenstandSafe` ausführen.
+- Details, Messungen und Abnahme: `docs/performance.md`.
 
 ## 4.8.17 · 2026-11-25 · produktiv
 

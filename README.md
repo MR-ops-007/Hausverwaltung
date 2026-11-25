@@ -55,6 +55,7 @@ Das Google Apps Script Backend wird im Repository unter `apps-script/Code.gs` ve
 | `docs/contracts-index-plan.md` | Analyse, Datenmodell-Diff und freizugebende Migration |
 | `docs/offline-sync-und-korrekturen.md` | Offline-Queue, Konflikte, Überschreiben mit Grund, Protokoll |
 | `docs/betrieb.md` | Umgebungen, Deployment-Checkliste, Testdaten |
+| `docs/performance.md` | Ladezeiten: Messungen, lokaler Speicher, Datenstand-Stempel, Backend-Cache |
 | `DATA_MODEL.md` | Fachliches Datenmodell des Google Sheets |
 | `PROJECT_STATE.md` | Was gilt jetzt; Tabelle der Quellen der Wahrheit |
 | `ROADMAP.md` | Prioritäten, offene Pakete, Entscheidungen |

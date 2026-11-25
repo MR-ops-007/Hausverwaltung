@@ -1414,14 +1414,19 @@ const uiService = {
   },
 
   // --- Verbrauchsdaten: gespeicherter Stand zuerst, frische Daten nach Bedarf -------
-  // Die Views sind mehrere MB groß und ändern sich nur nach einer Neuberechnung. Ein
-  // gespeicherter Stand wird deshalb erst nach CONSUMPTION_MAX_AGE_MS neu geladen;
-  // „Verbrauchsdaten aktualisieren“ lädt jederzeit frisch.
+  // Die Views sind mehrere MB groß und ändern sich nur nach einer Neuberechnung.
+  // Ab Backend 4.8.18 trägt der gespeicherte Stand einen Datenstand-Stempel; die App
+  // fragt dann günstig nach („unverändert“ ohne Datenübertragung), höchstens alle
+  // CONSUMPTION_RECHECK_MS. Ohne Stempel (älteres Backend) wird erst nach
+  // CONSUMPTION_MAX_AGE_MS neu geladen. „Verbrauchsdaten aktualisieren“ lädt jederzeit.
   CONSUMPTION_MAX_AGE_MS: 6 * 60 * 60 * 1000,
+  CONSUMPTION_RECHECK_MS: 5 * 60 * 1000,
   consumptionFetchPromise: null,
   consumptionSavedAt: '',
+  consumptionData: null,
 
   applyConsumptionData(data) {
+    this.consumptionData = data;
     if (dataService.setConsumptionData) {
       dataService.setConsumptionData(data);
     } else {
@@ -1436,9 +1441,15 @@ const uiService = {
     return typeof localCache !== 'undefined' && localCache && typeof localCache.loadConsumption === 'function';
   },
 
-  isConsumptionCacheOutdated(savedAt, now = Date.now()) {
+  consumptionStamp(data = this.consumptionData) {
+    return data && data._datenstand ? String(data._datenstand) : '';
+  },
+
+  /** true, wenn der Stand geprüft bzw. neu geladen werden soll. */
+  isConsumptionCacheOutdated(savedAt, now = Date.now(), stamp = this.consumptionStamp()) {
     const time = Date.parse(savedAt);
-    return !Number.isFinite(time) || now - time >= this.CONSUMPTION_MAX_AGE_MS;
+    const limit = stamp ? this.CONSUMPTION_RECHECK_MS : this.CONSUMPTION_MAX_AGE_MS;
+    return !Number.isFinite(time) || now - time >= limit;
   },
 
   /** Lädt die Views frisch vom Backend (nie doppelt gleichzeitig) und speichert sie lokal. */
@@ -1448,9 +1459,16 @@ const uiService = {
       return Promise.reject(new Error('Die Verbrauchsdaten konnten nicht geladen werden.'));
     }
     this.consumptionFetchPromise = (async () => {
-      const data = await cloudService.loadConsumptionData();
-      this.applyConsumptionData(data);
+      const current = this.consumptionData;
+      const data = await cloudService.loadConsumptionData(this.consumptionStamp(current));
       const savedAt = new Date();
+      if (data && data.unchanged === true && current) {
+        // Gespeicherter Stand ist aktuell: nur den Prüfzeitpunkt erneuern.
+        this.consumptionSavedAt = savedAt.toISOString();
+        if (this.hasLocalCache()) await localCache.saveConsumption(current, savedAt);
+        return current;
+      }
+      this.applyConsumptionData(data);
       this.consumptionSavedAt = savedAt.toISOString();
       if (this.hasLocalCache()) await localCache.saveConsumption(data, savedAt);
       return data;
@@ -1468,9 +1486,12 @@ const uiService = {
   /** Lädt im Hintergrund nach und zeichnet eine offene Verbrauchsansicht neu. */
   refreshConsumptionInBackground() {
     if (this.consumptionFetchPromise) return this.consumptionFetchPromise;
+    const before = this.consumptionData;
     const request = this.fetchConsumptionData();
-    request.then(() => {
-      if (this.isConsumptionSectionVisible()) this.renderConsumptionDashboard();
+    request.then(data => {
+      if (!this.isConsumptionSectionVisible()) return;
+      if (data !== before) this.renderConsumptionDashboard();
+      else this.updateConsumptionRefreshStatus(data);
     }).catch(error => {
       const status = document.getElementById('consumption-view-refresh-status');
       if (status && this.isConsumptionSectionVisible()) {
@@ -1486,8 +1507,15 @@ const uiService = {
    */
   async prefetchConsumptionData() {
     if (this.consumptionFetchPromise || (Array.isArray(dataService.state.view_verbrauch_jahr) && dataService.state.view_verbrauch_jahr.length && !this.isConsumptionCacheOutdated(this.consumptionSavedAt))) return;
-    const cached = this.hasLocalCache() ? await localCache.loadConsumption() : null;
-    if (cached && !this.isConsumptionCacheOutdated(cached.savedAt)) return;
+    if (!this.consumptionData) {
+      const cached = this.hasLocalCache() ? await localCache.loadConsumption() : null;
+      if (cached) {
+        // Nur merken, nicht anzeigen: der Stempel erlaubt die günstige Nachfrage.
+        this.consumptionData = cached.data;
+        this.consumptionSavedAt = cached.savedAt;
+        if (!this.isConsumptionCacheOutdated(cached.savedAt, Date.now(), this.consumptionStamp(cached.data))) return;
+      }
+    }
     try {
       await this.refreshConsumptionInBackground();
     } catch (error) { /* beim Öffnen des Reiters wird erneut geladen */ }
@@ -1507,7 +1535,7 @@ const uiService = {
     if (cached) {
       this.applyConsumptionData(cached.data);
       this.consumptionSavedAt = cached.savedAt;
-      if (this.isConsumptionCacheOutdated(cached.savedAt)) this.refreshConsumptionInBackground();
+      if (this.isConsumptionCacheOutdated(cached.savedAt, Date.now(), this.consumptionStamp(cached.data))) this.refreshConsumptionInBackground();
       this.updateConsumptionRefreshStatus(cached.data);
       return;
     }

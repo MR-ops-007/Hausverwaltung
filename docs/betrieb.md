@@ -376,6 +376,11 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
    `CHANGELOG.md` ergänzen: einen TEST-Deploy aus dem PR-Stand im selben PR, einen
    PROD-Deploy (nur aus `main` nach Merge) im nächsten ohnehin anstehenden PR.
 
+Ab 4.8.18 (Datenstand-Stempel, siehe `docs/performance.md`): Skriptfunktionen im Editor,
+die Daten ändern (z. B. Migrationen, `prepareContractSchema()`), lösen keinen Stempel aus.
+Danach in `Code.gs` die Funktion `bumpDatenstandSafe` ausführen, sonst zeigt die App die
+Änderung erst nach spätestens 6 Stunden.
+
 Für P6.6c muss die Capability `rent_increase_review_writes: true` mit einem
 autorisierten `admin`- oder `erfassen`-Profil zurückkommen. Danach mindestens einen
 fälligen Prüfabschluss, eine Wiederöffnung und die Wiedervorlage nach zwölf Monaten

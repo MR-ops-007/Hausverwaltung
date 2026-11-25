@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.17
+ * Version: 4.8.18
  * Stand: 2026-11-20
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
@@ -139,8 +139,12 @@
  * Änderungen seit v4.8.17:
  * - Schlanke Lese-View `stammdaten` für den App-Start ohne Verbrauchs-Views,
  *   Kopien und Migrationsblätter
+ *
+ * Änderungen seit v4.8.18:
+ * - Datenstand-Stempel für Stammdaten und Verbrauch: Antwort „unverändert“ ohne
+ *   Lesen der Blätter, Zwischenspeicher der fertigen Antwort im CacheService
  */
-const BACKEND_VERSION = "4.8.17";
+const BACKEND_VERSION = "4.8.18";
 
 function sendJSON(obj) {
   return ContentService
@@ -234,7 +238,8 @@ function sendUnauthorized() {
 }
 
 /** Lesezugriff auf Views; produktiv nur per POST mit validiertem Geräteschlüssel. */
-function readView(ss, view, principal) {
+function readView(ss, view, principal, options) {
+  const knownStamp = options && options.knownStamp ? String(options.knownStamp) : '';
   if (view === 'vertrag_capabilities') {
     const paymentSchema = getPaymentSchemaStatus(ss);
     return {
@@ -247,6 +252,7 @@ function readView(ss, view, principal) {
       payment_schema_missing: paymentSchema.missing,
       access_protected: true,
       stammdaten_view: true,
+      datenstand: true,
       access_role: principal ? principal.role : ''
     };
   }
@@ -263,25 +269,32 @@ function readView(ss, view, principal) {
   }
 
   if (view === 'verbrauch') {
-    const names = ['_view_verbrauch_monat', '_view_verbrauch_jahr', '_view_verbrauch_audit', '_view_verbrauch_bilanz_jahr'];
-    const result = {};
-    names.forEach(name => {
-      const sheet = ss.getSheetByName(name);
-      result[name] = sheet ? getSheetData(sheet) : [];
+    // Kein Zwischenspeicher im Backend: 4 MB komprimiert abzulegen war in TEST teurer als
+    // das Lesen und wurde vom CacheService nicht zuverlässig gehalten. „Unverändert“ und
+    // der lokale Speicher der App decken den Verbrauch ab.
+    return readStampedView('VERBRAUCH', knownStamp, { backendCache: false }, () => {
+      const names = ['_view_verbrauch_monat', '_view_verbrauch_jahr', '_view_verbrauch_audit', '_view_verbrauch_bilanz_jahr'];
+      const result = {};
+      names.forEach(name => {
+        const sheet = ss.getSheetByName(name);
+        result[name] = sheet ? getSheetData(sheet) : [];
+      });
+      return result;
     });
-    return result;
   }
 
   if (view === 'stammdaten') {
     // Schlanker Startabruf: nur die Blätter, die das Frontend nach dem Dashboard
     // übernimmt (dataService.setInitialData). Verbrauchs-Views, Kopien und
     // Migrationsblätter bleiben außen vor; Verbrauch lädt die App bei Bedarf.
-    const result = {};
-    STAMMDATEN_SHEETS.forEach(name => {
-      const sheet = ss.getSheetByName(name);
-      if (sheet) result[name] = getSheetData(sheet);
+    return readStampedView('DATEN', knownStamp, { backendCache: true }, () => {
+      const result = {};
+      STAMMDATEN_SHEETS.forEach(name => {
+        const sheet = ss.getSheetByName(name);
+        if (sheet) result[name] = getSheetData(sheet);
+      });
+      return result;
     });
-    return result;
   }
 
   const data = {};
@@ -292,6 +305,152 @@ function readView(ss, view, principal) {
     }
   });
   return data;
+}
+
+// --- Datenstand und Zwischenspeicher (ab 4.8.18) ----------------------------------
+//
+// Ein Datenstand-Stempel je Bereich (DATEN = Stammdaten, VERBRAUCH = Verbrauchs-Views)
+// liegt in den Script Properties. Er wird erneuert
+//   - DATEN: nach jedem Schreibvorgang über die App (doPost, auch bei Fehlern),
+//   - VERBRAUCH: wenn die Verbrauchs-Views neu berechnet werden,
+//   - bei manuellen Änderungen im Sheet (einfacher Trigger onEdit),
+//   - automatisch, wenn er älter als DATENSTAND_MAX_AGE_MS ist. Damit werden auch
+//     Änderungen, die keinen Trigger auslösen (z. B. durch Skriptfunktionen im Editor
+//     oder Strukturänderungen), spätestens nach dieser Zeit sichtbar.
+//
+// Kennt die App den aktuellen Stempel, antwortet das Backend „unverändert“ und liest
+// kein Blatt. Für die Stammdaten wird die fertige JSON-Antwort zusätzlich komprimiert
+// im CacheService unter dem Stempel abgelegt; ein neuer Stempel macht alte Einträge
+// automatisch wirkungslos.
+
+const DATENSTAND_KINDS = ['DATEN', 'VERBRAUCH'];
+const DATENSTAND_PROPERTY_PREFIX = 'HV_DATENSTAND_';
+const DATENSTAND_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+const BACKEND_CACHE_TTL_SECONDS = 6 * 60 * 60;
+const BACKEND_CACHE_CHUNK_SIZE = 90000;
+const BACKEND_CACHE_PREFIX = 'hv_view_';
+
+/** Kennzeichnet eine bereits serialisierte Antwort, die doPost unverändert ausliefert. */
+function RawJsonResponse(json) {
+  this.json = json;
+}
+
+function newDatenstandValue(now) {
+  return Number(now).toString(36) + '-' + Math.floor(Math.random() * 1e8).toString(36);
+}
+
+function bumpDatenstand(kind, now) {
+  const time = now === undefined ? Date.now() : now;
+  const value = newDatenstandValue(time);
+  PropertiesService.getScriptProperties().setProperty(
+    DATENSTAND_PROPERTY_PREFIX + kind,
+    JSON.stringify({ v: value, at: time })
+  );
+  return value;
+}
+
+/** Erneuert die Stempel, ohne dass ein Fehler den eigentlichen Vorgang stört. */
+function bumpDatenstandSafe(kinds) {
+  (kinds || DATENSTAND_KINDS).forEach(kind => {
+    try { bumpDatenstand(kind); } catch (error) { /* Stempel läuft spätestens nach MAX_AGE ab */ }
+  });
+}
+
+/** Aktueller Stempel; fehlt er oder ist er zu alt, wird ein neuer angelegt. */
+function getDatenstand(kind, now) {
+  const time = now === undefined ? Date.now() : now;
+  let stored = null;
+  try {
+    stored = JSON.parse(PropertiesService.getScriptProperties().getProperty(DATENSTAND_PROPERTY_PREFIX + kind) || 'null');
+  } catch (error) {
+    stored = null;
+  }
+  if (!stored || !stored.v || !Number.isFinite(Number(stored.at)) || time - Number(stored.at) > DATENSTAND_MAX_AGE_MS) {
+    return bumpDatenstand(kind, time);
+  }
+  return String(stored.v);
+}
+
+/**
+ * Einfacher Trigger: jede manuelle Änderung im Sheet erneuert die Stempel.
+ * Läuft ohne Installation; Fehler werden bewusst geschluckt, damit das Bearbeiten
+ * im Sheet nie blockiert wird.
+ */
+function onEdit(e) {
+  bumpDatenstandSafe(DATENSTAND_KINDS);
+}
+
+function backendCache() {
+  try {
+    return typeof CacheService !== 'undefined' && CacheService ? CacheService.getScriptCache() : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function backendCacheKey(kind, stamp, part) {
+  return BACKEND_CACHE_PREFIX + kind + '_' + stamp + '_' + part;
+}
+
+/** Legt die JSON-Antwort komprimiert und in Stücken ab. Fehler sind unkritisch. */
+function backendCachePut(kind, stamp, json) {
+  const cache = backendCache();
+  if (!cache || typeof Utilities === 'undefined') return false;
+  try {
+    const packed = Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(json, 'application/json')).getBytes());
+    const entries = {};
+    let count = 0;
+    for (let start = 0; start < packed.length; start += BACKEND_CACHE_CHUNK_SIZE) {
+      entries[backendCacheKey(kind, stamp, count)] = packed.slice(start, start + BACKEND_CACHE_CHUNK_SIZE);
+      count++;
+    }
+    entries[backendCacheKey(kind, stamp, 'meta')] = JSON.stringify({ chunks: count });
+    cache.putAll(entries, BACKEND_CACHE_TTL_SECONDS);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+/** Liefert die zwischengespeicherte JSON-Antwort oder null. */
+function backendCacheGet(kind, stamp) {
+  const cache = backendCache();
+  if (!cache || typeof Utilities === 'undefined') return null;
+  try {
+    const meta = JSON.parse(cache.get(backendCacheKey(kind, stamp, 'meta')) || 'null');
+    if (!meta || !(meta.chunks > 0)) return null;
+    const keys = [];
+    for (let index = 0; index < meta.chunks; index++) keys.push(backendCacheKey(kind, stamp, index));
+    const parts = cache.getAll(keys);
+    if (keys.some(key => typeof parts[key] !== 'string')) return null;
+    const packed = keys.map(key => parts[key]).join('');
+    const blob = Utilities.newBlob(Utilities.base64Decode(packed), 'application/x-gzip');
+    return Utilities.ungzip(blob).getDataAsString('UTF-8');
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Gemeinsamer Lesepfad für gestempelte Views. `build` liest die Blätter und wird nur
+ * aufgerufen, wenn weder „unverändert“ noch ein Zwischenspeichertreffer möglich ist.
+ */
+function readStampedView(kind, knownStamp, options, build) {
+  const stamp = getDatenstand(kind);
+  if (knownStamp && knownStamp === stamp) {
+    return { unchanged: true, _datenstand: stamp };
+  }
+  const useCache = Boolean(options && options.backendCache);
+  if (useCache) {
+    const cached = backendCacheGet(kind, stamp);
+    if (cached) return new RawJsonResponse(cached);
+  }
+  const result = build();
+  result._datenstand = stamp;
+  if (!useCache) return result;
+  const json = JSON.stringify(result);
+  backendCachePut(kind, stamp, json);
+  return new RawJsonResponse(json);
 }
 
 /** Blätter des schlanken Startabrufs (`view: 'stammdaten'`). */
@@ -589,7 +748,13 @@ function doPost(e) {
 
   if (payload.typ === 'LESEN') {
     try {
-      return sendJSON(readView(SpreadsheetApp.getActiveSpreadsheet(), payload.view, principal));
+      const result = readView(SpreadsheetApp.getActiveSpreadsheet(), payload.view, principal, {
+        knownStamp: payload.known_stamp
+      });
+      if (result instanceof RawJsonResponse) {
+        return ContentService.createTextOutput(result.json).setMimeType(ContentService.MimeType.JSON);
+      }
+      return sendJSON(result);
     } catch (err) {
       return sendJSON({
         status: "error",
@@ -659,6 +824,9 @@ function doPost(e) {
     if (err && err.details) response.details = err.details;
     return sendJSON(response);
   } finally {
+    // Neuberechnung der Verbrauchs-Views ändert nur den Verbrauchsstand; alle anderen
+    // Schreibvorgänge (Zählerstände, Zahlungen, Verträge, Prüfungen) die Stammdaten.
+    bumpDatenstandSafe(payload.typ === 'VERBRAUCH_VIEWS_AKTUALISIEREN' ? ['VERBRAUCH'] : ['DATEN']);
     lock.releaseLock();
   }
 }
@@ -2993,6 +3161,8 @@ function updateVerbrauchViews() {
   writeViewSheet(ss, "_view_verbrauch_jahr", VERBRAUCH_JAHR_HEADERS, views.jahrRows);
   writeViewSheet(ss, "_view_verbrauch_audit", VERBRAUCH_AUDIT_HEADERS, views.auditRows);
   writeViewSheet(ss, "_view_verbrauch_bilanz_jahr", VERBRAUCH_BILANZ_JAHR_HEADERS, views.bilanzJahrRows);
+
+  bumpDatenstandSafe(['VERBRAUCH']);
 
   Logger.log("Verbrauchsviews aktualisiert: " + JSON.stringify({
     monatRows: views.monatRows.length,
