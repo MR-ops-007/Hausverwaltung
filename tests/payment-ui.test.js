@@ -1452,3 +1452,55 @@ describe('paymentUiService CSV-Import', () => {
     expect(state.zahlungen.map(row => row.zahlung_id)).toEqual(['SPLIT_1', 'SPLIT_2']);
   });
 });
+
+describe('paymentUiService Sperre während des Speicherns', () => {
+  function withIndicator(run) {
+    const calls = [];
+    globalThis.busyIndicator = {
+      hold: vi.fn(text => { calls.push(['hold', text]); return 41; }),
+      end: vi.fn((id, options) => { calls.push(['end', id, options]); })
+    };
+    return Promise.resolve(run(calls)).finally(() => { delete globalThis.busyIndicator; });
+  }
+  const payment = { zahlung_id: 'Z1', vertrag_id: 'V1', datum: '2026-11-25', mietmonat: '2026-11', betrag: 10, art: 'Miete' };
+
+  it('sperrt schon vor der Rechteprüfung und stempelt erst nach bestätigtem Speichern', () => withIndicator(async calls => {
+    const service = loadPaymentService(baseState(), {}, {
+      loadPaymentCapabilities: async () => { calls.push(['capabilities']); },
+      saveTransaction: async () => { calls.push(['save']); return { status: 'success', angelegt: 1 }; }
+    });
+    service.render = () => {};
+    service.showMessage = () => {};
+    await service.persistPayment(payment);
+    expect(calls).toEqual([
+      ['hold', 'Zahlung wird gespeichert …'], ['capabilities'], ['save'], ['end', 41, { ok: true }]
+    ]);
+  }));
+
+  it('zeigt bei Fehler oder nur vorgemerkter Zahlung keinen Erfolgsstempel', () => withIndicator(async calls => {
+    const failing = loadPaymentService(baseState(), {}, { saveTransaction: async () => ({ status: 'error', message: 'nein' }) });
+    failing.showMessage = () => {};
+    await failing.persistPayment(payment);
+    const queued = loadPaymentService(baseState(), {}, { saveTransaction: async () => ({ status: 'success', queued: true }) });
+    queued.render = () => {};
+    queued.showMessage = () => {};
+    await queued.persistPayment(payment);
+    expect(calls.filter(call => call[0] === 'end')).toEqual([['end', 41, { ok: false }], ['end', 41, { ok: false }]]);
+  }));
+
+  it('löscht eine alte Fehlermeldung, bevor erneut gespeichert wird', async () => {
+    const message = { textContent: 'Bitte einen gültigen Betrag eingeben.', hidden: false };
+    const fields = {
+      'payment-amount': { value: '10' }, 'payment-date': { value: '2026-11-25' }, 'payment-art': { value: 'Miete' },
+      'modal-body': { querySelector: () => message }
+    };
+    let seenMessage;
+    const service = loadPaymentService(baseState(), { getElementById: id => fields[id] || null }, {
+      saveTransaction: async () => { seenMessage = message.hidden ? '' : message.textContent; return { status: 'success', angelegt: 1 }; }
+    });
+    service.render = () => {};
+    service.showMessage = () => {};
+    await service.savePayment('V1', '2026-11');
+    expect(seenMessage).toBe('');
+  });
+});

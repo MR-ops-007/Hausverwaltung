@@ -185,6 +185,42 @@ describe('Rückmeldung bei Aktionen (busy-indicator.js)', () => {
     expect(doc.getElementById('busy-indicator').textContent).toContain('Nicht gespeichert');
   });
 
+  it('sperrt mit hold() sofort und stempelt erst, wenn der ganze Vorgang fertig ist', () => {
+    const { indicator, click, doc } = load();
+    const button = fakeElement();
+    click(button);
+    const hold = indicator.hold('Zahlung wird gespeichert …');
+    const overlay = doc.getElementById('busy-overlay');
+    expect(overlay.hidden).toBe(false);
+    expect(button.classList.contains('is-busy')).toBe(true);
+    expect(click(fakeElement()).stopped).toBe(true);
+
+    const rights = indicator.begin({ typ: 'LESEN', view: 'vertrag_capabilities' });
+    indicator.end(rights, { ok: true });
+    const write = indicator.begin({ typ: 'ZAHLUNG' });
+    indicator.end(write, { ok: true });
+    expect(overlay.dataset.state).toBe('loading');
+
+    indicator.end(hold, { ok: true });
+    expect(overlay.dataset.state).toBe('success');
+    expect(overlay.querySelector('.busy-overlay-detail').textContent).toBe('Zahlung gespeichert · 14:03');
+    vi.advanceTimersByTime(indicator.STAMP_SUCCESS_MS);
+    expect(overlay.hidden).toBe(true);
+    vi.advanceTimersByTime(indicator.RELEASE_GRACE_MS);
+    expect(button.classList.contains('is-busy')).toBe(false);
+  });
+
+  it('schließt die hold()-Sperre ohne Stempel, wenn nicht gespeichert wurde', () => {
+    const { indicator, doc } = load();
+    const hold = indicator.hold('Zahlung wird gespeichert …');
+    const write = indicator.begin({ typ: 'ZAHLUNG' });
+    indicator.end(write, { ok: false });
+    indicator.end(hold, { ok: false });
+    expect(doc.getElementById('busy-overlay').hidden).toBe(true);
+    const pill = doc.getElementById('busy-indicator');
+    expect(pill === null || pill.hidden === true).toBe(true);
+  });
+
   it('schließt das Overlay, auch wenn ein langsamer Ladevorgang danach noch läuft', () => {
     const { indicator, click, doc } = load();
     const tab = fakeElement();

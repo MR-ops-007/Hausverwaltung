@@ -126,6 +126,22 @@ const busyIndicator = {
     return entry.id;
   },
 
+  /**
+   * Sperrt die App ab sofort mit dem Overlay, bis end(id) kommt – für einen ganzen Speichervorgang,
+   * der vor dem Schreiben noch liest (z. B. Rechte prüfen). Ohne Sperre wären andere Schaltflächen
+   * in dieser Zeit noch antippbar. end(id, { ok }) entscheidet über den Erfolgsstempel.
+   */
+  hold(text) {
+    this.init();
+    const fromTap = Boolean(this.activator) && this.now() - this.activatorAt <= this.ACTIVATOR_WINDOW_MS
+      && this.activator.isConnected !== false;
+    if (fromTap) this.markBusy(this.activator);
+    const entry = { id: this.nextId++, write: true, text, visible: true, overlay: true, hold: true };
+    this.pending.push(entry);
+    this.showOverlay(text);
+    return entry.id;
+  },
+
   /** Meldet das Ende einer Anfrage. ok=false bei Fehler oder unklarer Antwort (die Ansicht meldet ihn selbst). */
   end(id, { ok = true } = {}) {
     const index = this.pending.findIndex(entry => entry.id === id);

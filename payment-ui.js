@@ -1248,6 +1248,7 @@ const paymentUiService = {
   },
 
   async savePayment(contractId, month) {
+    this.clearMessage();
     const rawAmount = this.parseNumber(document.getElementById('payment-amount')?.value);
     const date = document.getElementById('payment-date')?.value || this.todayInput();
     const art = document.getElementById('payment-art')?.value || 'Miete';
@@ -1292,6 +1293,11 @@ const paymentUiService = {
     if (this.busy) return null;
     this.busy = true;
     const payments = Array.isArray(paymentOrPayments) ? paymentOrPayments : [paymentOrPayments];
+    this.clearMessage();
+    // Sperre ab sofort, nicht erst beim Schreiben: Die Rechteprüfung davor dauert einige Sekunden.
+    const indicator = typeof busyIndicator !== 'undefined' && busyIndicator ? busyIndicator : null;
+    const hold = indicator ? indicator.hold('Zahlung wird gespeichert …') : null;
+    let saved = false;
     try {
       if (typeof cloudService.loadPaymentCapabilities === 'function'
         && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
@@ -1306,6 +1312,8 @@ const paymentUiService = {
       }
       const result = await cloudService.saveTransaction({ typ: 'ZAHLUNG', data: payments });
       if (!result || result.status !== 'success') throw new Error(result && result.message || 'Zahlung wurde nicht bestätigt.');
+      // Vorgemerkt ist nicht gespeichert: dann kein Erfolgsstempel.
+      saved = result.queued !== true;
       if (result.queued === true) {
         if (typeof uiService !== 'undefined' && typeof uiService.closeModal === 'function') uiService.closeModal();
         this.render();
@@ -1328,7 +1336,17 @@ const paymentUiService = {
       return null;
     } finally {
       this.busy = false;
+      if (indicator) indicator.end(hold, { ok: saved });
     }
+  },
+
+  /** Entfernt eine alte Meldung im Zahlungsdialog, bevor ein neuer Versuch startet. */
+  clearMessage() {
+    if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+    const output = document.getElementById('modal-body')?.querySelector('[data-payment-dialog-message]');
+    if (!output) return;
+    output.textContent = '';
+    output.hidden = true;
   },
 
   showMessage(message, kind = 'info') {
