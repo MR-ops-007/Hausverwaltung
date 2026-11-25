@@ -27,6 +27,17 @@ const localCache = {
 
     KINDS: ['snapshot', 'verbrauch'],
 
+    // Blätter, ohne die ein Stand nicht angezeigt oder als „aktuell“ bestätigt werden darf.
+    // dataService.setInitialData ersetzt fehlende Blätter durch leere Listen; ein Stand ohne
+    // z. B. Zahlungen sähe deshalb gültig aus, wäre fachlich aber falsch.
+    REQUIRED_SHEETS: ['Objekte', 'Einheiten', 'Personen', 'Vertraege', 'Vertragsparteien',
+        'Mietanpassungen', 'Zaehler', 'Zaehlerstaende', 'Zahlungen'],
+
+    isCompleteStammdaten(stammdaten) {
+        if (!stammdaten || typeof stammdaten !== 'object' || Array.isArray(stammdaten)) return false;
+        return this.REQUIRED_SHEETS.every(name => Array.isArray(stammdaten[name]));
+    },
+
     key(environment = this.environment(), kind = 'snapshot') {
         return `${kind}:${environment}`;
     },
@@ -79,8 +90,7 @@ const localCache = {
         try {
             const snapshot = await this.storage().get(this.key());
             if (!snapshot || snapshot.format !== this.FORMAT) return null;
-            if (!snapshot.stammdaten || typeof snapshot.stammdaten !== 'object' || Array.isArray(snapshot.stammdaten)) return null;
-            if (!Array.isArray(snapshot.stammdaten.Vertraege) || !Array.isArray(snapshot.stammdaten.Objekte)) return null;
+            if (!this.isCompleteStammdaten(snapshot.stammdaten)) return null;
             const savedAt = Date.parse(snapshot.savedAt);
             if (!Number.isFinite(savedAt) || now - savedAt > this.MAX_AGE_MS) return null;
             return snapshot;
@@ -91,7 +101,7 @@ const localCache = {
 
     /** Speichert den frisch geladenen Stand. Fehler stören die App nie. */
     async save(dashboard, stammdaten, savedAt = new Date()) {
-        if (!stammdaten || typeof stammdaten !== 'object' || Array.isArray(stammdaten)) return false;
+        if (!this.isCompleteStammdaten(stammdaten)) return false;
         try {
             await this.storage().put(this.key(), {
                 format: this.FORMAT,

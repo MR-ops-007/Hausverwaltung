@@ -31,6 +31,13 @@ const dataService = {
         cachedAt: ''
     },
 
+    STALE_WRITE_MESSAGE: 'Angezeigt wird noch der gespeicherte Stand. Erfassen und Ändern ist möglich, sobald oben „System vollständig geladen“ steht.',
+
+    /** Meldungstext, solange nur der gespeicherte Stand angezeigt wird, sonst ''. */
+    staleWriteBlock() {
+        return this.state.dataStale === true ? this.STALE_WRITE_MESSAGE : '';
+    },
+
     /** Zeigt einen lokal gespeicherten Stand an, bis frische Daten geladen sind. */
     applySnapshot(snapshot) {
         if (!snapshot || !snapshot.stammdaten) return false;

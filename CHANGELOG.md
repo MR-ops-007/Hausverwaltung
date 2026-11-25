@@ -69,9 +69,11 @@ Performance Schritt 3: Datenstand-Stempel und Zwischenspeicher im Backend.
 
 - Je ein Stempel für Stammdaten (`DATEN`) und Verbrauchs-Views (`VERBRAUCH`) in den Script
   Properties (`HV_DATENSTAND_DATEN`, `HV_DATENSTAND_VERBRAUCH`). `DATEN` wird nach jedem
-  Schreibvorgang über die App erneuert (auch bei Fehlern), `VERBRAUCH` nach der Neuberechnung
-  der Verbrauchs-Views (`updateVerbrauchViews()`); beide bei manuellen Änderungen im Sheet
-  (einfacher Trigger `onEdit`) und automatisch nach 6 Stunden.
+  Schreibvorgang über die App erneuert (auch bei Fehlern, nicht bei unbekanntem Typ),
+  `VERBRAUCH` nach der Neuberechnung der Verbrauchs-Views (`updateVerbrauchViews()`).
+  Manuelle Änderungen im Sheet (einfacher Trigger `onEdit`) erneuern den Stempel des
+  betroffenen Blatts: `_view_verbrauch_*` → `VERBRAUCH`, alle anderen → `DATEN`. Beide
+  laufen automatisch nach 6 Stunden ab.
 - `stammdaten` und `verbrauch` liefern den Stempel als `_datenstand`. Schickt die App
   `known_stamp` mit dem aktuellen Stempel, antwortet das Backend `{ unchanged: true }`, ohne
   ein Blatt zu lesen.
@@ -87,6 +89,11 @@ Performance Schritt 3: Datenstand-Stempel und Zwischenspeicher im Backend.
   passieren (z. B. Skriptfunktionen im Editor, Sortieren, Zeilen einfügen ohne Werte),
   werden spätestens nach 6 Stunden sichtbar. Sofort: eine beliebige Zelle bearbeiten oder
   in `Code.gs` die Funktion `bumpDatenstandSafe` ausführen.
+- Nach Review vor dem Merge (2026-11-25): Ein fehlgeschlagener Dashboard-Abruf verwirft die
+  parallel geladenen Stammdaten nicht mehr; der lokale Stand wird nur mit allen Pflichtblättern
+  gespeichert, angezeigt oder als „unverändert“ bestätigt; Zahlungsdialog, Storno, Import,
+  Vertragsänderung und Prüfabschluss zeigen auf gespeichertem Stand einen Hinweis statt erst
+  beim Speichern zu scheitern.
 - Details, Messungen und Abnahme: `docs/performance.md`.
 
 ## 4.8.17 · 2026-11-25 · produktiv

@@ -37,14 +37,19 @@ Je Bereich ein Stempel in den Script Properties:
 
 | Bereich | Property | Erneuert bei |
 | --- | --- | --- |
-| Stammdaten | `HV_DATENSTAND_DATEN` | jedem Schreibvorgang über die App (auch bei Fehlern), manueller Änderung im Sheet, nach 6 Stunden |
-| Verbrauch | `HV_DATENSTAND_VERBRAUCH` | Neuberechnung der Verbrauchs-Views, manueller Änderung im Sheet, nach 6 Stunden |
+| Stammdaten | `HV_DATENSTAND_DATEN` | jedem Schreibvorgang über die App (auch bei Fehlern, nicht bei unbekanntem Typ), manueller Änderung in einem Blatt außer `_view_verbrauch_*`, nach 6 Stunden |
+| Verbrauch | `HV_DATENSTAND_VERBRAUCH` | Neuberechnung der Verbrauchs-Views, manueller Änderung in einem Blatt `_view_verbrauch_*`, nach 6 Stunden |
+
+Warum fehlgeschlagene Schreibvorgänge den Stempel trotzdem erneuern: Ein Schreibvorgang kann
+vor dem Fehler bereits Zeilen geschrieben haben. Ein unnötiges Neuladen der Stammdaten
+(rund 650 KB) ist billiger als ein falsches „unverändert“. Den großen Verbrauchsstand
+betrifft das nicht.
 
 - Die Views `stammdaten` und `verbrauch` liefern den aktuellen Stempel als `_datenstand`.
 - Schickt die App `known_stamp` mit dem aktuellen Stempel, antwortet das Backend
   `{ "unchanged": true, "_datenstand": "…" }` und liest kein Blatt.
 - Manuelle Änderungen im Sheet erkennt der einfache Trigger `onEdit` in `Code.gs`. Er muss
-  nicht installiert werden.
+  nicht installiert werden. Ist das Blatt nicht erkennbar, erneuert er beide Stempel.
 - Zählerstände, Zahlungen und Vertragsänderungen ändern die Verbrauchs-Views nicht; diese
   werden nur über „Verbrauchsdaten aktualisieren“ neu berechnet. Deshalb erneuern
   Schreibvorgänge nur den Stammdaten-Stempel.
@@ -82,6 +87,28 @@ Verwendet: `PropertiesService` (bereits genutzt), `CacheService`, `Utilities`.
   6-Stunden-Regel.
 - Ältere Backends ignorieren `known_stamp` und liefern wie bisher Daten; das Frontend ist
   in beide Richtungen kompatibel.
+- Scheitert nur der Dashboard-Abruf, übernimmt die App trotzdem die Stammdaten und meldet
+  „Mieterliste nicht aktualisiert“. Nur ein abgelehnter Schlüssel bricht sofort ab.
+- Der lokale Stand wird nur mit allen Pflichtblättern gespeichert und geladen (Objekte,
+  Einheiten, Personen, Verträge, Vertragsparteien, Mietanpassungen, Zähler, Zählerstände,
+  Zahlungen; `localCache.REQUIRED_SHEETS`). Ein unvollständiger Stand wird verworfen und
+  vollständig neu geladen, nie als „unverändert“ bestätigt.
+- Solange der gespeicherte Stand angezeigt wird (`dataStale`), bleiben Zahlungen, Verträge
+  und Prüfungen lesbar. Zahlungsdialog, Storno, CSV-Import, Vertragsänderung und
+  Prüfabschluss/Wiederöffnung zeigen dann einen Hinweis; zusätzlich sperrt `cloudService`
+  diese Schreibvorgänge (`DATA_STALE`). Zählerstände bleiben erlaubt.
+
+### Tests
+
+- Backend (`tests/access.test.js`): zählt Blatt-Lesezugriffe; bei bekanntem Stempel und bei
+  einem Treffer im Zwischenspeicher wird kein Blatt gelesen. Fehlt ein Stück im
+  Zwischenspeicher, wird die Antwort aus den Blättern neu gebaut. `onEdit` je Blatt,
+  unbekannter Typ ohne, fehlgeschlagene Zahlung mit neuem Stempel.
+- Start (`tests/init-app.test.js`, echter `initApp` aus `index.html`): Dashboard-Fehler bei
+  erfolgreichen Stammdaten, abgelehnter Schlüssel, „unverändert“ mit vollständigem Stand,
+  unvollständiger Stand ohne `Zahlungen`.
+- Oberfläche (`tests/local-cache.test.js`): Hinweise statt Dialog/Schreibvorgang auf
+  gespeichertem Stand.
 
 ## Messungen in TEST (2026-11-25, nachts, Mac, nur lesend)
 
@@ -122,6 +149,10 @@ aber keine Daten. In TEST wurden keine Daten geschrieben.
    zeigt `LESEN stammdaten (unverändert)`.
 3. **Verbrauch aktualisieren (TEST):** „Verbrauchsdaten aktualisieren“ → danach lädt der
    Reiter die Views vollständig neu.
+4. **Manuelle Änderung in `Zahlungen` (TEST):** danach lädt der Start die Stammdaten neu,
+   der Verbrauch bleibt „unverändert“.
+5. **Gespeicherter Stand (TEST):** App öffnen und sofort, solange „wird aktualisiert“ steht,
+   eine Zahlung erfassen wollen → Hinweis statt Dialog.
 
 ## PROD-Deploy 4.8.18
 

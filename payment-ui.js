@@ -1035,6 +1035,8 @@ const paymentUiService = {
       this.renderLoadingState();
       return;
     }
+    const staleBlock = dataService.staleWriteBlock ? dataService.staleWriteBlock() : '';
+    if (staleBlock) return this.showMessage(staleBlock, 'info');
     const contract = (dataService.state.vertraege || []).find(row => String(row.vertrag_id) === String(contractId));
     if (!contract) return;
     this.pendingAllocation = null;
@@ -1272,6 +1274,8 @@ const paymentUiService = {
   },
 
   async saveStorno(contractId, month, paymentId, amount, originalArt = 'Miete', assignedMonth = '') {
+    const staleBlock = dataService.staleWriteBlock ? dataService.staleWriteBlock() : '';
+    if (staleBlock) return this.showMessage(staleBlock, 'info');
     if (!confirm(`Zahlung ${this.formatMoney(amount)} EUR wirklich stornieren? Es wird eine Gegenbuchung angelegt.`)) return;
     const stornoAmount = amount >= 0 ? -Math.abs(amount) : Math.abs(amount);
     const original = (dataService.state.zahlungen || []).find(payment => String(payment.zahlung_id) === String(paymentId));
@@ -1425,6 +1429,8 @@ const paymentUiService = {
   async importPayment(index) {
     const row = this.importRows[index];
     if (!row || !row.vertrag_id) return;
+    const staleBlock = dataService.staleWriteBlock ? dataService.staleWriteBlock() : '';
+    if (staleBlock) { this.showMessage(staleBlock, 'info'); return null; }
     const month = row.mietmonat || this.monthKey(row.datum);
     const id = row.zahlung_id || (row.zahlung_id = this.makeActionId('Import'));
     const candidate = { zahlung_id: id, vertrag_id: row.vertrag_id, datum: row.datum, mietmonat: month, betrag: row.betrag, art: 'Miete' };

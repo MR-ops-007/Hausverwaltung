@@ -116,9 +116,9 @@
     <script src="runtime-config.js?v=20261120-runtime-config-v2" onerror="this.remove()"></script>
     <script src="config.js?v=20260707-consumption-dashboard-controls-v1"></script>
     <script src="environment-service.js?v=20261110-environment-switch-v1"></script>
-    <script src="data-service.js?v=20261125-local-cache-v1"></script>
+    <script src="data-service.js?v=20261125-stale-guard-v1"></script>
     <script src="access-ui.js?v=20261028-access-v1"></script>
-    <script src="local-cache.js?v=20261125-consumption-cache-v1"></script>
+    <script src="local-cache.js?v=20261125-required-sheets-v1"></script>
     <script src="cloud-service.js?v=20261125-datenstand-v1"></script>
     <script src="apps-script/ContractService.js?v=20261117-p6-7-enforcement-v3"></script>
     <script src="apps-script/PaymentRules.js?v=20261117-p6-2-payment-rules-v1"></script>
@@ -138,8 +138,8 @@
 
     <script src="consumption-charts.js?v=20261106-heizoel-v3"></script>
     <script src="ui-service.js?v=20261125-datenstand-v1"></script>
-    <script src="contract-ui.js?v=20261124-review-busy-v1"></script>
-    <script src="payment-ui.js?v=20261125-default-year-v1"></script>
+    <script src="contract-ui.js?v=20261125-stale-guard-v1"></script>
+    <script src="payment-ui.js?v=20261125-stale-guard-v1"></script>
 
     <script>
     // Bereits geöffnete Vertrags- oder Zahlungsansicht nach neuen Daten neu zeichnen.
@@ -203,7 +203,15 @@
             fullRequest.catch(() => {}); // Fehler werden unten beim Warten behandelt
 
             // STUFE 1: Schneller Ladevorgang (nur Dashboard-Tabelle)
-            const fastData = await fastRequest;
+            // Ein Fehler hier darf den parallel laufenden Vollabruf nicht verwerfen; nur ein
+            // abgelehnter Schlüssel bricht sofort ab.
+            let fastError = null;
+            const fastData = await fastRequest.catch(error => {
+                if (error && error.code === 'UNAUTHORIZED') throw error;
+                console.warn("Dashboard-Abruf fehlgeschlagen, Stammdaten laufen weiter:", error);
+                fastError = error;
+                return null;
+            });
             if (fastData) {
                 if (dataService.state.fullDataLoaded) {
                     // Stammdaten (aus dem Cache) bleiben stehen, nur die Mieterliste wird frisch.
@@ -240,7 +248,7 @@
                 && fullData.unchanged !== true && Object.keys(fullData).length > 0) {
                 dataService.setInitialData(fullData);
                 if (typeof localCache !== 'undefined') {
-                    localCache.save(fastData, fullData);
+                    localCache.save(fastData || (snapshot && snapshot.dashboard), fullData);
                 }
 
                 // Eine während des Ladens geöffnete Ansicht zeigt jetzt den frischen Stand.
@@ -252,6 +260,11 @@
                 const error = new Error('Leere oder ungültige Hintergrunddaten empfangen.');
                 error.code = 'FULL_DATA_EMPTY';
                 throw error;
+            }
+
+            if (fastError) {
+                // Stammdaten sind aktuell, nur die Mieterliste auf der Startseite fehlt oder ist alt.
+                setStatus(statusEl, statusEl.textContent + " ⚠️ Mieterliste nicht aktualisiert – hier tippen zum erneuten Laden", "darkorange", initApp);
             }
 
             // Hinweis, solange das Backend nicht durch einen Zugangsschlüssel geschützt ist (Übergangsmodus)

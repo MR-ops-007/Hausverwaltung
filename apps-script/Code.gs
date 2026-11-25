@@ -372,12 +372,26 @@ function getDatenstand(kind, now) {
 }
 
 /**
- * Einfacher Trigger: jede manuelle Änderung im Sheet erneuert die Stempel.
+ * Welche Stempel eine manuelle Änderung in einem Blatt betrifft. Die App liest den
+ * Verbrauch nur aus den materialisierten Blättern `_view_verbrauch_*`; Änderungen an
+ * Zählerständen wirken dort erst nach updateVerbrauchViews(). Ohne erkennbares Blatt
+ * werden vorsichtshalber beide Stempel erneuert.
+ */
+function datenstandKindsForSheet(sheetName) {
+  const name = String(sheetName || '');
+  if (!name) return DATENSTAND_KINDS.slice();
+  return name.indexOf('_view_verbrauch') === 0 ? ['VERBRAUCH'] : ['DATEN'];
+}
+
+/**
+ * Einfacher Trigger: eine manuelle Änderung im Sheet erneuert den betroffenen Stempel.
  * Läuft ohne Installation; Fehler werden bewusst geschluckt, damit das Bearbeiten
  * im Sheet nie blockiert wird.
  */
 function onEdit(e) {
-  bumpDatenstandSafe(DATENSTAND_KINDS);
+  let sheetName = '';
+  try { sheetName = e && e.range ? e.range.getSheet().getName() : ''; } catch (error) { sheetName = ''; }
+  bumpDatenstandSafe(datenstandKindsForSheet(sheetName));
 }
 
 function backendCache() {
@@ -777,6 +791,7 @@ function doPost(e) {
     });
   }
 
+  let datenstandKinds = payload.typ === 'VERBRAUCH_VIEWS_AKTUALISIEREN' ? ['VERBRAUCH'] : ['DATEN'];
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
@@ -799,6 +814,7 @@ function doPost(e) {
     }
 
     if (ZAEHLER_WRITE_TYPES.indexOf(payload.typ) === -1) {
+      datenstandKinds = []; // nichts geschrieben
       return sendJSON({
         status: "error",
         message: "Unbekannter Typ."
@@ -826,7 +842,10 @@ function doPost(e) {
   } finally {
     // Neuberechnung der Verbrauchs-Views ändert nur den Verbrauchsstand; alle anderen
     // Schreibvorgänge (Zählerstände, Zahlungen, Verträge, Prüfungen) die Stammdaten.
-    bumpDatenstandSafe(payload.typ === 'VERBRAUCH_VIEWS_AKTUALISIEREN' ? ['VERBRAUCH'] : ['DATEN']);
+    // Auch ein fehlgeschlagener Schreibversuch erneuert den Stempel: Er kann vor dem
+    // Fehler bereits Zeilen geschrieben haben, und ein unnötiges Neuladen der
+    // Stammdaten (rund 650 KB) ist billiger als ein falsches „unverändert“.
+    if (datenstandKinds.length) bumpDatenstandSafe(datenstandKinds);
     lock.releaseLock();
   }
 }

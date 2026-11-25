@@ -173,6 +173,8 @@ const contractUiService = {
   },
 
   async completeRentIncreaseReview(id) {
+    const staleBlock = dataService.staleWriteBlock ? dataService.staleWriteBlock() : '';
+    if (staleBlock) { this.message(staleBlock, 'info'); return; }
     const contract = (dataService.state.vertraege || []).find(row => String(row.vertrag_id) === String(id));
     if (!contract) return;
     const reminder = this.rentIncreaseReminderFor(contract);
@@ -209,6 +211,8 @@ const contractUiService = {
   },
 
   async reopenRentIncreaseReview(id) {
+    const staleBlock = dataService.staleWriteBlock ? dataService.staleWriteBlock() : '';
+    if (staleBlock) { this.message(staleBlock, 'info'); return; }
     const contract = (dataService.state.vertraege || []).find(row => String(row.vertrag_id) === String(id));
     if (!contract || this.reviewBusy && this.reviewBusy[id]) return;
     this.reviewBusy = this.reviewBusy || {};
@@ -578,6 +582,8 @@ const contractUiService = {
 
   async save(isIndex) {
     if (this.busy) return;
+    const staleBlock = dataService.staleWriteBlock ? dataService.staleWriteBlock() : '';
+    if (staleBlock) { this.message(staleBlock, 'info'); return; }
     try {
       const current = this.current();
       const data = isIndex ? this.indexInput() : contractService.diff(current, contractService.editable.reduce((values, key) => {
