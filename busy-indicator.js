@@ -2,13 +2,15 @@
  * Sichtbare Rückmeldung für jede Aktion, die mit dem Backend spricht.
  *
  * - Antippen: Schaltflächen reagieren sofort (iOS zeigt :active nur mit touchstart-Listener).
- * - Anfrage läuft: Die zuletzt angetippte Schaltfläche zeigt einen Spinner und ist gesperrt,
- *   damit ein zweiter Tipp nichts doppelt auslöst. Unten erscheint ein Hinweis
- *   („Zahlung wird gespeichert …“).
- * - Fertig: Der Hinweis zeigt kurz „✓ Gespeichert · 14:03“ und verschwindet.
+ * - Speichern per Tipp: Ein graues Overlay sperrt die ganze App, der Hausmeister sucht den
+ *   Stempel („Zahlung wird gespeichert …“). Danach kurz „Amtlich gespeichert!“ mit Uhrzeit.
+ *   So kann während des Speicherns keine zweite Aktion ausgelöst werden.
+ * - Laden per Tipp (z. B. Reiter): Spinner auf der Schaltfläche, unten „Wird geladen …“.
+ * - Zählerstände haben im Erfassungsdialog eine eigene Stempel-Animation; dort nur Spinner.
+ * - Schreiben ohne Tipp (Offline-Warteschlange): nur der Hinweis unten, kein Overlay.
  *
  * cloudService.post meldet jede Anfrage über begin()/end(). Hintergrundabrufe ohne
- * vorherigen Tipp (Start, Vorladen) bleiben unsichtbar; Schreibvorgänge werden immer gezeigt.
+ * vorherigen Tipp (Start, Vorladen) bleiben unsichtbar.
  */
 const busyIndicator = {
   // Ein Tipp gehört zu einer Anfrage, wenn sie kurz danach startet.
@@ -16,12 +18,17 @@ const busyIndicator = {
   // Folgeanfragen derselben Aktion (z. B. erst Rechte prüfen, dann speichern) behalten den Spinner.
   RELEASE_GRACE_MS: 250,
   RESULT_VISIBLE_MS: 2500,
+  // So lange bleibt der Erfolgsstempel stehen (wie beim Zählerstand).
+  STAMP_SUCCESS_MS: 1200,
 
   WRITE_LABELS: {
     ZAHLUNG: 'Zahlung wird gespeichert …',
     ZAEHLERSTAND_NEU: 'Zählerstand wird gespeichert …',
+    MIETERHOEHUNG_PRUEFUNG_SPEICHERN: 'Prüfung wird gespeichert …',
     VERBRAUCH_VIEWS_AKTUALISIEREN: 'Verbrauchsdaten werden neu berechnet …'
   },
+  // Diese Schreibvorgänge zeigen ihre Animation selbst im Dialog.
+  OWN_ANIMATION_TYPES: ['ZAEHLERSTAND_NEU'],
 
   doc: null,
   activator: null,
@@ -29,6 +36,7 @@ const busyIndicator = {
   busyElement: null,
   releaseTimer: null,
   resultTimer: null,
+  overlayTimer: null,
   pending: [],
   nextId: 1,
 
@@ -60,10 +68,16 @@ const busyIndicator = {
   },
 
   onClick(event) {
+    if (this.isOverlayOpen()) {
+      // Während gespeichert wird, ist die App gesperrt.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     const element = this.activatorFor(event.target);
     if (!element) return;
     if (this.isBusy(element)) {
-      // Zweiter Tipp während des Speicherns: verwerfen statt doppelt auslösen.
+      // Zweiter Tipp während des Ladens: verwerfen statt doppelt auslösen.
       event.preventDefault();
       event.stopImmediatePropagation();
       return;
@@ -78,22 +92,27 @@ const busyIndicator = {
 
   labelFor(payload) {
     const typ = payload && payload.typ ? String(payload.typ) : '';
-    if (!typ || typ === 'LESEN') return { write: false, text: 'Wird geladen …' };
-    return { write: true, text: this.WRITE_LABELS[typ] || 'Wird gespeichert …' };
+    if (!typ || typ === 'LESEN') return { typ, write: false, text: 'Wird geladen …' };
+    return { typ, write: true, text: this.WRITE_LABELS[typ] || 'Wird gespeichert …' };
   },
 
   /** Meldet den Beginn einer Anfrage; gibt ein Kennzeichen für end() zurück. */
   begin(payload) {
     this.init();
     const label = this.labelFor(payload);
-    const fromTap = this.activator && this.now() - this.activatorAt <= this.ACTIVATOR_WINDOW_MS
+    const fromTap = Boolean(this.activator) && this.now() - this.activatorAt <= this.ACTIVATOR_WINDOW_MS
       && this.activator.isConnected !== false;
+    // Folgeanfrage derselben Aktion: Die Schaltfläche dreht sich noch.
+    const continuing = !fromTap && Boolean(this.busyElement);
     if (fromTap) this.markBusy(this.activator);
-    else if (this.busyElement && this.releaseTimer) this.cancelRelease();
-    const visible = label.write || fromTap || Boolean(this.busyElement);
-    const entry = { id: this.nextId++, write: label.write, text: label.text, visible };
+    else if (continuing) this.cancelRelease();
+    const interactive = fromTap || continuing;
+    const overlay = label.write && interactive && !this.OWN_ANIMATION_TYPES.includes(label.typ);
+    const visible = label.write || interactive;
+    const entry = { id: this.nextId++, write: label.write, text: label.text, visible, overlay };
     this.pending.push(entry);
-    if (visible) this.showProgress();
+    if (overlay) this.showOverlay(entry.text);
+    else if (visible && !this.isOverlayOpen()) this.showProgress();
     return entry.id;
   },
 
@@ -102,15 +121,29 @@ const busyIndicator = {
     const index = this.pending.findIndex(entry => entry.id === id);
     if (index < 0) return;
     const [entry] = this.pending.splice(index, 1);
+    if (this.pending.some(item => item.overlay)) return;
     if (this.pending.some(item => item.visible)) {
-      this.showProgress();
+      if (!this.isOverlayOpen()) this.showProgress();
       return;
     }
     this.scheduleRelease();
+    if (entry.overlay) {
+      if (ok) this.showOverlaySuccess(`${this.successText(entry)} · ${this.formatTime(new Date(this.now()))}`);
+      else this.hideOverlay();
+      this.hide();
+      return;
+    }
     if (!entry.visible) return;
     if (entry.write && ok) this.showResult(`✓ Gespeichert · ${this.formatTime(new Date(this.now()))}`, 'success');
     else if (entry.write) this.showResult('Nicht gespeichert – Hinweis beachten', 'error');
     else this.hide();
+  },
+
+  successText(entry) {
+    if (entry.text.indexOf('Zahlung') === 0) return 'Zahlung gespeichert';
+    if (entry.text.indexOf('Prüfung') === 0) return 'Prüfung gespeichert';
+    if (entry.text.indexOf('Verbrauchsdaten') === 0) return 'Verbrauchsdaten neu berechnet';
+    return 'Gespeichert';
   },
 
   markBusy(element) {
@@ -149,6 +182,7 @@ const busyIndicator = {
     return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
   },
 
+  // --- Hinweis unten -----------------------------------------------------------
   element() {
     if (!this.doc) return null;
     let output = this.doc.getElementById('busy-indicator');
@@ -192,6 +226,65 @@ const busyIndicator = {
     this.resultTimer = null;
     const output = this.doc && this.doc.getElementById('busy-indicator');
     if (output) output.hidden = true;
+  },
+
+  // --- Overlay mit Hausmeister-Stempel -----------------------------------------
+  overlay() {
+    if (!this.doc) return null;
+    let overlay = this.doc.getElementById('busy-overlay');
+    if (!overlay && this.doc.body) {
+      overlay = this.doc.createElement('div');
+      overlay.id = 'busy-overlay';
+      overlay.className = 'busy-overlay';
+      overlay.setAttribute('role', 'alertdialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.setAttribute('aria-live', 'assertive');
+      overlay.hidden = true;
+      overlay.innerHTML = '<div class="busy-overlay-card">'
+        + '<img class="busy-overlay-stamp" alt="" src="assets/hausmeister-stempel-loading.svg">'
+        + '<strong class="busy-overlay-title"></strong><small class="busy-overlay-detail"></small></div>';
+      this.doc.body.appendChild(overlay);
+    }
+    return overlay;
+  },
+
+  isOverlayOpen() {
+    const overlay = this.doc && this.doc.getElementById('busy-overlay');
+    return Boolean(overlay && !overlay.hidden);
+  },
+
+  setOverlay(state, title, detail) {
+    const overlay = this.overlay();
+    if (!overlay) return;
+    if (this.overlayTimer) clearTimeout(this.overlayTimer);
+    this.overlayTimer = null;
+    overlay.dataset.state = state;
+    const stamp = overlay.querySelector('.busy-overlay-stamp');
+    if (stamp) {
+      stamp.src = state === 'success' ? 'assets/hausmeister-stempel-erfolg.svg' : 'assets/hausmeister-stempel-loading.svg';
+      stamp.alt = state === 'success' ? 'Erfolgreich gespeichert' : 'Der Hausmeister sucht den richtigen Stempel';
+    }
+    const titleElement = overlay.querySelector('.busy-overlay-title');
+    if (titleElement) titleElement.textContent = title;
+    const detailElement = overlay.querySelector('.busy-overlay-detail');
+    if (detailElement) detailElement.textContent = detail;
+    overlay.hidden = false;
+  },
+
+  showOverlay(text) {
+    this.setOverlay('loading', 'Der Hausmeister sucht noch den richtigen Stempel …', text);
+  },
+
+  showOverlaySuccess(detail) {
+    this.setOverlay('success', 'Amtlich gespeichert!', detail);
+    this.overlayTimer = setTimeout(() => this.hideOverlay(), this.STAMP_SUCCESS_MS);
+  },
+
+  hideOverlay() {
+    if (this.overlayTimer) clearTimeout(this.overlayTimer);
+    this.overlayTimer = null;
+    const overlay = this.doc && this.doc.getElementById('busy-overlay');
+    if (overlay) overlay.hidden = true;
   }
 };
 

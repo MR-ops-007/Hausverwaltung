@@ -10,7 +10,12 @@ function fakeElement(tag = 'button') {
   const classes = new Set();
   const attributes = new Map();
   return {
-    tag, isConnected: true, hidden: false, textContent: '', innerHTML: '', children: [],
+    tag, isConnected: true, hidden: false, textContent: '', innerHTML: '', children: [], dataset: {},
+    parts: {},
+    querySelector(selector) {
+      if (!this.parts[selector]) this.parts[selector] = { textContent: '', src: '', alt: '' };
+      return this.parts[selector];
+    },
     classList: {
       add: name => classes.add(name), remove: name => classes.delete(name),
       contains: name => classes.has(name)
@@ -64,30 +69,63 @@ describe('Rückmeldung bei Aktionen (busy-indicator.js)', () => {
     expect(listeners.click).toHaveLength(1);
   });
 
-  it('zeigt beim Speichern Spinner auf der Schaltfläche und danach die Uhrzeit', () => {
+  it('sperrt beim Speichern per Tipp die App mit Overlay und zeigt danach den Erfolgsstempel', () => {
     const { indicator, click, doc } = load();
     const button = fakeElement();
     click(button);
     const token = indicator.begin({ typ: 'ZAHLUNG' });
     expect(button.classList.contains('is-busy')).toBe(true);
-    expect(button.getAttribute('aria-busy')).toBe('true');
-    const pill = doc.getElementById('busy-indicator');
-    expect(pill.hidden).toBe(false);
-    expect(pill.textContent).toContain('Zahlung wird gespeichert');
+    const overlay = doc.getElementById('busy-overlay');
+    expect(overlay.hidden).toBe(false);
+    expect(overlay.dataset.state).toBe('loading');
+    expect(overlay.querySelector('.busy-overlay-stamp').src).toContain('hausmeister-stempel-loading.svg');
+    expect(overlay.querySelector('.busy-overlay-detail').textContent).toBe('Zahlung wird gespeichert …');
 
     indicator.end(token, { ok: true });
-    expect(pill.textContent).toBe('✓ Gespeichert · 14:03');
+    expect(overlay.dataset.state).toBe('success');
+    expect(overlay.querySelector('.busy-overlay-stamp').src).toContain('hausmeister-stempel-erfolg.svg');
+    expect(overlay.querySelector('.busy-overlay-title').textContent).toBe('Amtlich gespeichert!');
+    expect(overlay.querySelector('.busy-overlay-detail').textContent).toBe('Zahlung gespeichert · 14:03');
     vi.advanceTimersByTime(indicator.RELEASE_GRACE_MS);
     expect(button.classList.contains('is-busy')).toBe(false);
-    vi.advanceTimersByTime(indicator.RESULT_VISIBLE_MS);
-    expect(pill.hidden).toBe(true);
+    vi.advanceTimersByTime(indicator.STAMP_SUCCESS_MS);
+    expect(overlay.hidden).toBe(true);
   });
 
-  it('verwirft einen zweiten Tipp, solange gespeichert wird', () => {
+  it('blockiert während des Overlays jeden Tipp, auch auf andere Schaltflächen', () => {
+    const { indicator, click } = load();
+    click(fakeElement());
+    indicator.begin({ typ: 'ZAHLUNG' });
+    const other = click(fakeElement());
+    expect(other.defaultPrevented).toBe(true);
+    expect(other.stopped).toBe(true);
+  });
+
+  it('schließt das Overlay bei einem Fehler sofort (Dialog meldet den Fehler)', () => {
+    const { indicator, click, doc } = load();
+    click(fakeElement());
+    const token = indicator.begin({ typ: 'ZAHLUNG' });
+    indicator.end(token, { ok: false });
+    expect(doc.getElementById('busy-overlay').hidden).toBe(true);
+    expect(click(fakeElement()).stopped).toBe(false);
+  });
+
+  it('zeigt Speichern ohne Tipp (Warteschlange) nur unten, ohne Overlay', () => {
+    const { indicator, doc } = load();
+    const token = indicator.begin({ typ: 'ZAHLUNG' });
+    expect(doc.getElementById('busy-overlay')).toBeNull();
+    expect(doc.getElementById('busy-indicator').textContent).toContain('Zahlung wird gespeichert');
+    indicator.end(token, { ok: true });
+    expect(doc.getElementById('busy-indicator').textContent).toBe('✓ Gespeichert · 14:03');
+    vi.advanceTimersByTime(indicator.RESULT_VISIBLE_MS);
+    expect(doc.getElementById('busy-indicator').hidden).toBe(true);
+  });
+
+  it('verwirft einen zweiten Tipp, solange geladen wird', () => {
     const { indicator, click } = load();
     const button = fakeElement();
     click(button);
-    indicator.begin({ typ: 'ZAHLUNG' });
+    indicator.begin({ typ: 'LESEN', view: 'verbrauch' });
     const second = click(button);
     expect(second.defaultPrevented).toBe(true);
     expect(second.stopped).toBe(true);
@@ -103,6 +141,7 @@ describe('Rückmeldung bei Aktionen (busy-indicator.js)', () => {
     const write = indicator.begin({ typ: 'ZAHLUNG' });
     vi.advanceTimersByTime(indicator.RELEASE_GRACE_MS);
     expect(button.classList.contains('is-busy')).toBe(true);
+    expect(indicator.isOverlayOpen()).toBe(true);
     indicator.end(write, { ok: true });
     vi.advanceTimersByTime(indicator.RELEASE_GRACE_MS);
     expect(button.classList.contains('is-busy')).toBe(false);
@@ -134,10 +173,13 @@ describe('Rückmeldung bei Aktionen (busy-indicator.js)', () => {
     expect(button.classList.contains('is-busy')).toBe(true);
   });
 
-  it('zeigt einen Fehlschlag beim Schreiben an', () => {
+  it('lässt Zählerstände bei ihrer eigenen Stempel-Animation im Dialog', () => {
     const { indicator, click, doc } = load();
-    click(fakeElement());
+    const button = fakeElement();
+    click(button);
     const token = indicator.begin({ typ: 'ZAEHLERSTAND_NEU' });
+    expect(button.classList.contains('is-busy')).toBe(true);
+    expect(doc.getElementById('busy-overlay')).toBeNull();
     expect(doc.getElementById('busy-indicator').textContent).toContain('Zählerstand wird gespeichert');
     indicator.end(token, { ok: false });
     expect(doc.getElementById('busy-indicator').textContent).toContain('Nicht gespeichert');
@@ -182,6 +224,9 @@ describe('Zahlungstabelle auf schmalen Handys', () => {
     expect(block).toContain('.payment-tenant-col { width: 112px; }');
     expect(block).toMatch(/left: 50px; width: 112px;/);
     expect(block).toMatch(/hyphens: auto/);
+    // Miete pro Monat bleibt sichtbar, nur der Vertragszeitraum entfällt.
+    expect(block).toContain('.payment-tenant-cell > small { margin-top: 3px;');
+    expect(block).not.toMatch(/\.payment-tenant-cell > small \{ display: none/);
     expect(html).toMatch(/<html lang="de">/);
   });
 
