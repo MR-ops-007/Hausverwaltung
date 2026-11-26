@@ -25,16 +25,14 @@ allen erledigten Paketen steht unverändert in
 Eigenes Paket mit eigener Entscheidung; die bestehende Veröffentlichung läuft unverändert
 weiter, bis der neue Ablauf vollständig erprobt ist.
 
-- Zuerst den Ablauf festlegen: Tag-Konventionen, fehlgeschlagene Deployments, Rollback,
-  erneutes Deployment und reine Frontend-Releases.
-- `npm run status` fragt den tatsächlichen Stand in Apps Script (TEST/PROD) und GitHub Pages ab;
-  Tags dienen als unveränderliche Release-Historie, nicht als alleinige Statusanzeige.
-- Die Deployment-Historie bleibt verlässlich auffindbar.
-- Fehlende Release-Tags nachziehen: `v4.8.13` bis `v4.8.18` auf die Commits, die die
-  Deployment-Historie im `CHANGELOG.md` nennt (bisher existiert nur `v4.8.12`).
-- Erst danach entscheiden, ob GitHub Pages weiter bei jedem Merge oder nur noch über einen
-  Release-Tag veröffentlicht. Ein Frontend-only-Release erzeugt dann selbst einen
-  nachvollziehbaren Release-Tag.
+- Erledigt: `npm run status` zeigt nur lesend den tatsächlichen Stand von TEST, PROD und
+  GitHub Pages samt zugehörigem Commit; alle `clasp:*`-Skripte reichen Argumente durch
+  (Voraussetzung für Rollback und Beschreibung).
+- **Offen, Entscheidung des Product Owners:** Entwurf E1–E6 in `docs/betrieb.md`
+  (Abschnitt „Release-Ablauf: Entwurf zur Entscheidung“): Tag-Konvention, reine
+  Frontend-Releases, Rollback, Auslöser für GitHub Pages, fehlgeschlagene Deployments.
+- Danach die belegten Tags `v4.8.13` bis `v4.8.18` setzen und pushen (Liste in E6) und die
+  Entscheidungen in die Tabelle unten übernehmen.
 
 ### 2. P1.3 Backup und Restore
 
