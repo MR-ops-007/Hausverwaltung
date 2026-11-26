@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { tenantChangeFixture } from '../tools/mock-rental-fixtures.mjs';
 
@@ -1502,5 +1502,64 @@ describe('paymentUiService Sperre während des Speicherns', () => {
     service.showMessage = () => {};
     await service.savePayment('V1', '2026-11');
     expect(seenMessage).toBe('');
+  });
+});
+
+describe('paymentUiService Sperre je Einstiegspunkt', () => {
+  function setup(calls, { confirmAnswer = true, document = {} } = {}) {
+    globalThis.busyIndicator = {
+      hold: vi.fn(() => { calls.push('hold'); return 7; }),
+      end: vi.fn((id, options) => { calls.push(`end:${options.ok}`); })
+    };
+    const service = loadPaymentService(baseState(), document, {
+      saveTransaction: async () => { calls.push('save'); return { status: 'success', angelegt: 1 }; }
+    }, { confirm: () => { calls.push('confirm'); return confirmAnswer; } });
+    service.render = () => {};
+    service.showMessage = () => {};
+    service.renderImportRows = () => {};
+    return service;
+  }
+  afterEach(() => { delete globalThis.busyIndicator; });
+
+  it('Storno: sperrt direkt nach der Rückfrage, bei Abbruch gar nicht', async () => {
+    const calls = [];
+    await setup(calls).saveStorno('V1', '2026-02', 'Z1', 650, 'Miete', '2026-02');
+    expect(calls).toEqual(['confirm', 'hold', 'save', 'end:true']);
+
+    const cancelled = [];
+    await setup(cancelled, { confirmAnswer: false }).saveStorno('V1', '2026-02', 'Z1', 650, 'Miete', '2026-02');
+    expect(cancelled).toEqual(['confirm']);
+  });
+
+  it('Verteilung: keine Sperre beim Öffnen, Sperre erst beim Bestätigen', async () => {
+    const calls = [];
+    const fields = {
+      'payment-amount': { value: '900' }, 'payment-date': { value: '2026-11-11' }, 'payment-art': { value: 'Miete' }
+    };
+    const inputs = [
+      { value: '650', getAttribute: () => '2026-02' },
+      { value: '250', getAttribute: () => '2026-01' },
+      { value: '0', getAttribute: () => '' }
+    ];
+    const body = { innerHTML: '', querySelectorAll: () => inputs, querySelector: () => null };
+    const service = setup(calls, { document: { getElementById: id => (id === 'modal-body' ? body : fields[id] || null) } });
+    let pending;
+    service.showAllocationDialog = value => { pending = value; service.pendingAllocation = value; };
+
+    await service.savePayment('V1', '2026-02');
+    expect(pending).toBeTruthy();
+    expect(calls).toEqual([]);
+
+    await service.confirmPaymentAllocation();
+    expect(calls).toEqual(['hold', 'save', 'end:true']);
+  });
+
+  it('CSV-Import: sperrt beim Übernehmen einer Zeile', async () => {
+    const calls = [];
+    const service = setup(calls);
+    service.importRows = [{ vertrag_id: 'V1', datum: '2026-11-11', mietmonat: '2026-02', betrag: 650, name: 'Duck' }];
+    await service.importPayment(0);
+    expect(calls).toEqual(['hold', 'save', 'end:true']);
+    expect(service.importRows).toHaveLength(0);
   });
 });
