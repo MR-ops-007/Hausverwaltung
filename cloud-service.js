@@ -227,7 +227,22 @@ const cloudService = {
             .join(' | ');
     },
 
-    async post(payload, { allowPrompt = true, timeoutMs = this.REQUEST_TIMEOUT_MS } = {}) {
+    /** Sendet eine Anfrage und zeigt dabei Spinner/Hinweis (busy-indicator.js), falls geladen. */
+    async post(payload, options = {}) {
+        const indicator = typeof busyIndicator !== 'undefined' && busyIndicator ? busyIndicator : null;
+        const token = indicator ? indicator.begin(payload) : null;
+        let ok = false;
+        try {
+            const result = await this.postOnce(payload, options);
+            // Leere Antwort (null) ist keine Bestätigung: niemals als gespeichert anzeigen.
+            ok = result != null && result.status !== 'error';
+            return result;
+        } finally {
+            if (indicator) indicator.end(token, { ok });
+        }
+    },
+
+    async postOnce(payload, { allowPrompt = true, timeoutMs = this.REQUEST_TIMEOUT_MS } = {}) {
         const label = this.requestLabel(payload);
         for (let attempt = 0; attempt < this.MAX_KEY_ATTEMPTS; attempt++) {
             const startedAt = this.now();
