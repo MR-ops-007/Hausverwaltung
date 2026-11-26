@@ -122,11 +122,31 @@ describe('Drift: CHANGELOG-Status passt zur Deployment-Historie', () => {
     expect(prodRows[0][2]).toBe(produktiv[0]);
   });
 
-  it('jede TEST- oder PROD-Zeile nennt eine Version mit eigenem CHANGELOG-Eintrag', () => {
+  it('jede Zeile der Deployment-Historie hat das feste Format und eine Version mit eigenem Eintrag', () => {
     const changelog = read('CHANGELOG.md');
     const versions = new Set([...changelog.matchAll(/^## (\d+\.\d+\.\d+) · /gm)].map(m => m[1]));
-    const rows = [...changelog.matchAll(/^\| \d{4}-\d{2}-\d{2} \| (\d+\.\d+\.\d+) \| (?:PROD|TEST) \|/gm)]
-      .map(m => m[1]);
-    expect(rows.filter(version => !versions.has(version))).toEqual([]);
+    const start = changelog.indexOf('## Deployment-Historie');
+    const end = changelog.indexOf('\n## ', start + 1);
+    const section = changelog.slice(start, end < 0 ? undefined : end);
+    // Alle Datenzeilen der Tabelle (ohne Kopf- und Trennzeile), damit keine Zeile
+    // mit abweichendem Format unbemerkt übersprungen wird.
+    const rows = section.split('\n')
+      .filter(line => line.startsWith('| ') && !line.startsWith('| Datum') && !line.startsWith('| ---'));
+    expect(rows.length).toBeGreaterThan(0);
+    // Datum ist ein Tag oder ein Zeitraum „zwischen … und …“ (nicht genau bekannter Deploy-Tag).
+    // Deployment-Version ist `@N`; „nicht dokumentiert“ ist nur für Altzeilen bis 4.8.12 erlaubt.
+    const ROW = /^\| (\d{4}-\d{2}-\d{2}|zwischen \d{4}-\d{2}-\d{2} und \d{4}-\d{2}-\d{2}) \| (\d+\.\d+\.\d+) \| (PROD|TEST) \| (`@\d+`|nicht dokumentiert) \| .+ \|$/;
+    const problems = rows.flatMap(line => {
+      const match = line.match(ROW);
+      if (!match) return [`Format: ${line.slice(0, 60)}`];
+      const [, , version, , deployment] = match;
+      const issues = [];
+      if (!versions.has(version)) issues.push(`ohne Versionseintrag: ${version}`);
+      const [major, minor, patch] = version.split('.').map(Number);
+      const legacy = major < 4 || (major === 4 && (minor < 8 || (minor === 8 && patch <= 12)));
+      if (deployment === 'nicht dokumentiert' && !legacy) issues.push(`Deployment-Version fehlt: ${version}`);
+      return issues;
+    });
+    expect(problems).toEqual([]);
   });
 });
