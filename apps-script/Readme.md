@@ -23,8 +23,8 @@ zugelassen. Für zwei Geräte kann `APP_ACCESS_KEYS_JSON` als JSON-Array mit `id
 `key`, `role` (`admin` oder `erfassen`) und optional `aktiv` gesetzt werden. `erfassen`
 darf Zählerstände und Zahlungen schreiben; `admin` darf zusätzlich Verträge,
 Indexänderungen und Mieterwechsel schreiben. Technisch darf `erfassen` derzeit auch
-Mieterhöhungsprüfungen abschließen; ob das so bleiben soll, ist eine offene
-Produktentscheidung (`ROADMAP.md`, Paket 1c). `APP_ACCESS_KEY` bleibt als einzelner Admin-Fallback für den
+Mieterhöhungsprüfungen abschließen; das ist vorerst so entschieden (2026-11-24,
+Tabelle „Entscheidungen“ in `ROADMAP.md`). `APP_ACCESS_KEY` bleibt als einzelner Admin-Fallback für den
 Übergang kompatibel. Keine Schlüssel in Git oder Sheets speichern.
 
 ### Vertragsausbau (ab 4.7.0)
