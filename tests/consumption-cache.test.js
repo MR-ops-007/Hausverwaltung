@@ -115,7 +115,7 @@ describe('Verbrauchsdaten aus dem lokalen Speicher', () => {
 describe('Lokaler Speicher: Verbrauchseintrag', () => {
   it('wird zusammen mit dem Startstand der Umgebung gelöscht', async () => {
     const { cache, store } = memoryCache();
-    await cache.save({}, { Objekte: [], Vertraege: [] });
+    await cache.save({}, Object.fromEntries([...cache.REQUIRED_SHEETS, ...cache.REQUIRED_ONE_OF.map(names => names[0])].map(name => [name, []])));
     await cache.saveConsumption(views());
     expect([...store.keys()].sort()).toEqual(['snapshot:test', 'verbrauch:test']);
     await cache.clear();
@@ -127,5 +127,56 @@ describe('Lokaler Speicher: Verbrauchseintrag', () => {
     expect(await cache.saveConsumption({ _view_verbrauch_monat: [] })).toBe(false);
     store.set('verbrauch:test', { format: 1, savedAt: new Date().toISOString(), data: {} });
     expect(await cache.loadConsumption()).toBeNull();
+  });
+});
+
+describe('Verbrauchsdaten mit Datenstand-Stempel (ab Backend 4.8.18)', () => {
+  const stamped = (marker, stamp) => ({ ...views(marker), _datenstand: stamp });
+
+  async function stampedSetup({ savedMinutesAgo, reply }) {
+    const env = setup({ loadImpl: async knownStamp => reply(knownStamp) });
+    await env.cache.saveConsumption(stamped('gespeichert', 'S1'), new Date(Date.now() - savedMinutesAgo * 60 * 1000));
+    return env;
+  }
+
+  it('fragt bei gestempeltem Stand nach fünf Minuten günstig nach und behält ihn bei „unverändert“', async () => {
+    const env = await stampedSetup({ savedMinutesAgo: 10, reply: () => ({ unchanged: true, _datenstand: 'S1' }) });
+    env.section.style.display = 'block';
+    await env.ui.ensureConsumptionViewData();
+    await env.ui.consumptionFetchPromise;
+    await Promise.resolve();
+    expect(env.loadConsumptionData).toHaveBeenCalledWith('S1');
+    expect(env.dataService.state.view_verbrauch_jahr[0].marker).toBe('gespeichert');
+    expect(env.ui.renderConsumptionDashboard).not.toHaveBeenCalled();
+    const entry = await env.cache.loadConsumption();
+    expect(Date.now() - Date.parse(entry.savedAt)).toBeLessThan(5000);
+    expect(entry.data._datenstand).toBe('S1');
+  });
+
+  it('übernimmt neue Daten, wenn sich der Stempel geändert hat', async () => {
+    const env = await stampedSetup({ savedMinutesAgo: 10, reply: () => stamped('neu', 'S2') });
+    env.section.style.display = 'block';
+    await env.ui.ensureConsumptionViewData();
+    await env.ui.consumptionFetchPromise;
+    await Promise.resolve();
+    expect(env.dataService.state.view_verbrauch_jahr[0].marker).toBe('neu');
+    expect(env.ui.renderConsumptionDashboard).toHaveBeenCalled();
+    expect((await env.cache.loadConsumption()).data._datenstand).toBe('S2');
+  });
+
+  it('fragt innerhalb von fünf Minuten nicht erneut nach', async () => {
+    const env = await stampedSetup({ savedMinutesAgo: 2, reply: () => ({ unchanged: true, _datenstand: 'S1' }) });
+    await env.ui.ensureConsumptionViewData();
+    expect(env.loadConsumptionData).not.toHaveBeenCalled();
+  });
+
+  it('prüft beim Vorladen nach dem Start mit dem gespeicherten Stempel, ohne Daten anzuzeigen', async () => {
+    const env = await stampedSetup({ savedMinutesAgo: 30, reply: () => ({ unchanged: true, _datenstand: 'S1' }) });
+    await env.ui.prefetchConsumptionData();
+    expect(env.loadConsumptionData).toHaveBeenCalledWith('S1');
+    expect(env.dataService.state.view_verbrauch_jahr).toEqual([]);
+    await env.ui.ensureConsumptionViewData();
+    expect(env.loadConsumptionData).toHaveBeenCalledOnce();
+    expect(env.dataService.state.view_verbrauch_jahr[0].marker).toBe('gespeichert');
   });
 });

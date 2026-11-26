@@ -22,7 +22,11 @@ function loadCache(environment = 'test', backend = memoryBackend()) {
   return cache;
 }
 
-const stammdaten = { Objekte: [{ objekt_id: 'O1' }], Vertraege: [{ vertrag_id: 'V1' }], Zahlungen: [] };
+const stammdaten = {
+  Objekte: [{ objekt_id: 'O1' }], Einheiten: [], Personen: [], Vertraege: [{ vertrag_id: 'V1' }],
+  Vertragsparteien: [], Mietanpassungen: [], 'MieterhöhungsPrüfungen': [], Zaehler: [], Zaehlerstaende: [],
+  Zahlungen: [], Parameter: [], Fixkosten: [], Haustechnik: []
+};
 const dashboard = { _view_aktive_mieter: [{ name: 'Donald' }] };
 
 describe('Lokaler Zwischenspeicher', () => {
@@ -46,6 +50,38 @@ describe('Lokaler Zwischenspeicher', () => {
     expect(await cache.load()).toBeNull();
     backend.store.set('snapshot:test', { format: 1, savedAt: new Date().toISOString(), stammdaten: { Objekte: [] } });
     expect(await cache.load()).toBeNull();
+  });
+
+  it('speichert und lädt keinen Stand, dem ein Pflichtblatt fehlt', async () => {
+    const backend = memoryBackend();
+    const cache = loadCache('test', backend);
+    const { Zahlungen, ...ohneZahlungen } = stammdaten;
+    expect(await cache.save(dashboard, ohneZahlungen)).toBe(false);
+    expect(backend.store.size).toBe(0);
+    backend.store.set('snapshot:test', { format: 1, savedAt: new Date().toISOString(), stammdaten: { ...ohneZahlungen, _datenstand: 'x' } });
+    expect(await cache.load()).toBeNull();
+    backend.store.set('snapshot:test', { format: 1, savedAt: new Date().toISOString(), stammdaten: { ...stammdaten, Zahlungen: null } });
+    expect(await cache.load()).toBeNull();
+  });
+
+  it('verlangt den Prüfstatus in einer der beiden Schreibweisen', () => {
+    const cache = loadCache();
+    const { 'MieterhöhungsPrüfungen': reviews, ...ohnePruefungen } = stammdaten;
+    expect(cache.isCompleteStammdaten(ohnePruefungen)).toBe(false);
+    expect(cache.isCompleteStammdaten({ ...ohnePruefungen, MieterhoehungsPruefungen: [] })).toBe(true);
+    const { Haustechnik, ...ohneHaustechnik } = stammdaten;
+    expect(cache.isCompleteStammdaten(ohneHaustechnik)).toBe(true);
+  });
+
+  it('ordnet jedes Blatt, das dataService übernimmt, als Pflicht oder bewusst optional ein', () => {
+    const cache = loadCache();
+    const body = dataSource.slice(dataSource.indexOf('setInitialData(data)'));
+    const read = new Set([...body.slice(0, body.indexOf('fullDataLoaded = true')).matchAll(/data(?:\.([A-Za-zÄÖÜäöüß]+)|\['([^']+)'\])/g)]
+      .map(match => match[1] || match[2]));
+    const classified = new Set([...cache.REQUIRED_SHEETS, ...cache.REQUIRED_ONE_OF.flat(), ...cache.OPTIONAL_SHEETS]);
+    expect(read.size).toBeGreaterThanOrEqual(13);
+    for (const name of read) expect(classified.has(name), `${name} ist weder Pflicht noch optional`).toBe(true);
+    expect(cache.OPTIONAL_SHEETS).toEqual(['Haustechnik']);
   });
 
   it('meldet Speicherfehler nicht an die App weiter', async () => {
@@ -102,6 +138,51 @@ describe('Datenstand aus dem Zwischenspeicher', () => {
     expect(data.state.vertraege).toEqual([]);
     expect(data.state.objekte).toEqual([]);
     expect(data.state).toMatchObject({ dataStale: false, fullDataLoaded: false });
+  });
+});
+
+describe('Oberfläche auf zwischengespeichertem Stand', () => {
+  const paymentSource = readFileSync(new URL('../payment-ui.js', import.meta.url), 'utf8');
+  const rulesSource = readFileSync(new URL('../apps-script/PaymentRules.js', import.meta.url), 'utf8');
+  const contractSource = readFileSync(new URL('../contract-ui.js', import.meta.url), 'utf8');
+
+  function staleData() {
+    const data = new Function('CONFIG', `${dataSource};return dataService;`)({});
+    data.applySnapshot({ savedAt: '2026-11-25T07:15:00Z', dashboard, stammdaten });
+    return data;
+  }
+
+  it('öffnet keinen Zahlungsdialog und bucht keinen Storno oder Import, sondern zeigt einen Hinweis', async () => {
+    const data = staleData();
+    const cloudService = { saveTransaction: vi.fn() };
+    const uiService = { openModal: vi.fn() };
+    const ui = new Function('dataService', 'uiService', 'document', 'cloudService', 'confirm',
+      `${rulesSource}; ${paymentSource}; return paymentUiService;`)(data, uiService, { getElementById: () => null }, cloudService, () => true);
+    ui.showMessage = vi.fn();
+    ui.openPaymentDialog('V1', '2026-11');
+    await ui.saveStorno('V1', '2026-11', 'Z1', 100);
+    ui.importRows = [{ vertrag_id: 'V1', datum: '2026-11-03', betrag: 100 }];
+    await ui.importPayment(0);
+    expect(ui.pendingPaymentIntent).toBeFalsy();
+    expect(uiService.openModal).not.toHaveBeenCalled();
+    expect(cloudService.saveTransaction).not.toHaveBeenCalled();
+    expect(ui.showMessage).toHaveBeenCalledTimes(3);
+    expect(ui.showMessage.mock.calls[0][0]).toContain('gespeicherte Stand');
+  });
+
+  it('speichert keine Vertragsänderung und keinen Prüfabschluss, sondern zeigt einen Hinweis', async () => {
+    const data = staleData();
+    const cloudService = { saveContract: vi.fn(), saveRentIncreaseReview: vi.fn() };
+    const ui = new Function('dataService', 'contractService', 'cloudService', 'document', `${contractSource};return contractUiService;`)(
+      data, {}, cloudService, { getElementById: () => null });
+    ui.message = vi.fn();
+    await ui.save(false);
+    await ui.completeRentIncreaseReview('V1');
+    await ui.reopenRentIncreaseReview('V1');
+    expect(cloudService.saveContract).not.toHaveBeenCalled();
+    expect(cloudService.saveRentIncreaseReview).not.toHaveBeenCalled();
+    expect(ui.message).toHaveBeenCalledTimes(3);
+    expect(ui.message.mock.calls[0]).toEqual([data.STALE_WRITE_MESSAGE, 'info']);
   });
 });
 

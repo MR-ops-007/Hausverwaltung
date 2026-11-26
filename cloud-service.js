@@ -249,7 +249,8 @@ const cloudService = {
                 }
             }
             this.recordRequest({
-                label: result && result.code === 'UNAUTHORIZED' ? `${label} (abgelehnt)` : label,
+                label: result && result.code === 'UNAUTHORIZED' ? `${label} (abgelehnt)`
+                    : result && result.unchanged === true ? `${label} (unverändert)` : label,
                 ms: receivedAt - startedAt,
                 parseMs: this.now() - receivedAt,
                 bytes: this.byteSize(text)
@@ -268,9 +269,9 @@ const cloudService = {
         throw this.accessError('Zugangsschlüssel wurde mehrfach abgelehnt.');
     },
 
-    async read(view) {
+    async read(view, extra = {}) {
         // data: [] schützt ein älteres Backend (< 4.8.0): Es würde die Anfrage sonst als Zählerstand anhängen.
-        const result = await this.post({ typ: 'LESEN', view, data: [] }, { timeoutMs: this.READ_TIMEOUT_MS });
+        const result = await this.post({ typ: 'LESEN', view, data: [], ...extra }, { timeoutMs: this.READ_TIMEOUT_MS });
         if (!result || result.status === 'success' || result.status === 'error') {
             throw new Error((result && result.status === 'error' && result.message)
                 || 'Das Backend unterstützt Lesen per POST nicht (Version 4.8.0 erforderlich).');
@@ -299,7 +300,15 @@ const cloudService = {
     },
 
     loadDashboardData() { return this.read('dashboard'); },
-    loadConsumptionData() { return this.read('verbrauch'); },
+    /**
+     * Mit bekanntem Datenstand (ab Backend 4.8.18) antwortet das Backend bei unveränderten
+     * Daten nur mit `{ unchanged: true }`. Ältere Backends ignorieren den Parameter.
+     */
+    stampOptions(knownStamp) {
+        return knownStamp ? { known_stamp: String(knownStamp) } : {};
+    },
+
+    loadConsumptionData(knownStamp = '') { return this.read('verbrauch', this.stampOptions(knownStamp)); },
     loadZaehlerstaende() { return this.read('zaehlerstaende'); },
 
     async refreshConsumptionViews() {
@@ -310,13 +319,13 @@ const cloudService = {
         return result;
     },
 
-    async loadBackgroundData() {
+    async loadBackgroundData(knownStamp = '') {
         // Erst offene Einträge senden, dann lesen: So zeigen die geladenen Daten den Stand der Datenbank
         // nach der Synchronisation und nicht davor.
         await this.processOfflineQueue();
         // Schlanker Startabruf ab Backend 4.8.17. Ältere Backends kennen die View nicht
         // und liefern dafür alle Blätter; das Frontend bleibt damit kompatibel.
-        return this.read('stammdaten');
+        return this.read('stammdaten', this.stampOptions(knownStamp));
     },
 
     // --- Schutz vor Schreiben auf altem Datenstand -------------------------------

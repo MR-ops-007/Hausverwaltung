@@ -376,6 +376,23 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
    `CHANGELOG.md` ergänzen: einen TEST-Deploy aus dem PR-Stand im selben PR, einen
    PROD-Deploy (nur aus `main` nach Merge) im nächsten ohnehin anstehenden PR.
 
+Ab 4.8.18 (Datenstand-Stempel, Details in `docs/performance.md`):
+
+- **Initialisierung:** keine. Die Properties `HV_DATENSTAND_DATEN` und
+  `HV_DATENSTAND_VERBRAUCH` entstehen beim ersten Lesen. Kein Schemaschritt, keine neue
+  Autorisierung (`PropertiesService`, `CacheService`, `Utilities`).
+- **Skriptfunktionen im Editor**, die Daten ändern (z. B. Migrationen,
+  `prepareContractSchema()` in `Contracts.gs`), lösen keinen Stempel aus. Danach in
+  `Code.gs` die Funktion `bumpDatenstandSafe` ausführen, sonst zeigt die App die Änderung
+  erst nach spätestens 6 Stunden.
+- **Prüfung nach dem Deploy:** App zweimal öffnen → beim zweiten Mal „keine Änderungen“.
+  Dann eine Zelle in `Zahlungen` ändern und die App neu öffnen → vollständiges Laden ohne
+  „keine Änderungen“ (bestätigt den einfachen Trigger `onEdit`).
+- **Zwischenspeicher:** Fällt der `CacheService` aus oder fehlt ein Stück, liest das Backend
+  wie bisher aus den Blättern. Es ist nichts zu tun.
+- **Rollback:** auf die vorherige Bereitstellung (4.8.17); die zusätzlichen Properties
+  stören ältere Versionen nicht. Die Stempel-Properties können bleiben.
+
 Für P6.6c muss die Capability `rent_increase_review_writes: true` mit einem
 autorisierten `admin`- oder `erfassen`-Profil zurückkommen. Danach mindestens einen
 fälligen Prüfabschluss, eine Wiederöffnung und die Wiedervorlage nach zwölf Monaten
