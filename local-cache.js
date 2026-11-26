@@ -27,6 +27,27 @@ const localCache = {
 
     KINDS: ['snapshot', 'verbrauch'],
 
+    // Blätter, ohne die ein Stand nicht angezeigt oder als „aktuell“ bestätigt werden darf.
+    // dataService.setInitialData ersetzt fehlende Blätter durch leere Listen; ein Stand ohne
+    // z. B. Zahlungen oder Prüfstatus sähe deshalb gültig aus, wäre fachlich aber falsch.
+    // Fehlt ein Pflichtblatt in der Umgebung ganz, wird kein Stand gespeichert: Die App
+    // startet dann wie ohne Zwischenspeicher (langsamer, aber nie mit Lücken).
+    REQUIRED_SHEETS: ['Objekte', 'Einheiten', 'Personen', 'Vertraege', 'Vertragsparteien',
+        'Mietanpassungen', 'Zaehler', 'Zaehlerstaende', 'Zahlungen', 'Parameter', 'Fixkosten'],
+    // Prüfstatus P6.6: Das Blatt heißt in den Umgebungen mit Umlaut; die Schreibweise ohne
+    // Umlaut akzeptiert dataService ebenfalls. Eine der beiden muss vorhanden sein.
+    REQUIRED_ONE_OF: [['MieterhöhungsPrüfungen', 'MieterhoehungsPruefungen']],
+    // Bewusst optional: Haustechnik gibt es nicht in jeder Umgebung (TEST hat das Blatt
+    // nicht). Es liefert nur Zusatzangaben zur Heizöl-Auswertung; fehlt es, rechnet die
+    // Verbrauchsansicht wie ohne diese Angaben. Ein Stand ohne Haustechnik ist vollständig.
+    OPTIONAL_SHEETS: ['Haustechnik'],
+
+    isCompleteStammdaten(stammdaten) {
+        if (!stammdaten || typeof stammdaten !== 'object' || Array.isArray(stammdaten)) return false;
+        return this.REQUIRED_SHEETS.every(name => Array.isArray(stammdaten[name]))
+            && this.REQUIRED_ONE_OF.every(names => names.some(name => Array.isArray(stammdaten[name])));
+    },
+
     key(environment = this.environment(), kind = 'snapshot') {
         return `${kind}:${environment}`;
     },
@@ -79,8 +100,7 @@ const localCache = {
         try {
             const snapshot = await this.storage().get(this.key());
             if (!snapshot || snapshot.format !== this.FORMAT) return null;
-            if (!snapshot.stammdaten || typeof snapshot.stammdaten !== 'object' || Array.isArray(snapshot.stammdaten)) return null;
-            if (!Array.isArray(snapshot.stammdaten.Vertraege) || !Array.isArray(snapshot.stammdaten.Objekte)) return null;
+            if (!this.isCompleteStammdaten(snapshot.stammdaten)) return null;
             const savedAt = Date.parse(snapshot.savedAt);
             if (!Number.isFinite(savedAt) || now - savedAt > this.MAX_AGE_MS) return null;
             return snapshot;
@@ -91,7 +111,7 @@ const localCache = {
 
     /** Speichert den frisch geladenen Stand. Fehler stören die App nie. */
     async save(dashboard, stammdaten, savedAt = new Date()) {
-        if (!stammdaten || typeof stammdaten !== 'object' || Array.isArray(stammdaten)) return false;
+        if (!this.isCompleteStammdaten(stammdaten)) return false;
         try {
             await this.storage().put(this.key(), {
                 format: this.FORMAT,

@@ -1,19 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { gzipSync, gunzipSync } from 'node:zlib';
+import { randomBytes } from 'node:crypto';
 
 const KEY = 'test-only-key';
 
-function backend({ key, accessKeys, paymentRows } = {}) {
+function backend({ key, accessKeys, paymentRows, cacheService, utilities } = {}) {
   const paymentRules = readFileSync(new URL('../apps-script/PaymentRules.js', import.meta.url), 'utf8');
   const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
-  const calls = { locks: 0, viewUpdates: 0, contractWrites: [], tenantChanges: [] };
+  const calls = { locks: 0, viewUpdates: 0, sheetReads: 0, propertyWrites: [], contractWrites: [], tenantChanges: [] };
   const rows = {
     Zaehlerstaende: [['stand_id', 'zaehler_id', 'wert']],
     Zahlungen: paymentRows || [['zahlung_id', 'betrag']]
   };
   const makeSheet = (name, values) => ({
     getName: () => name,
-    getDataRange: () => ({ getValues: () => values.map(row => row.slice()) }),
+    getDataRange: () => ({ getValues: () => { calls.sheetReads++; return values.map(row => row.slice()); } }),
     getLastColumn: () => values[0].length,
     getLastRow: () => values.length,
     getRange: (...args) => {
@@ -36,28 +38,34 @@ function backend({ key, accessKeys, paymentRows } = {}) {
     Zahlungen: makeSheet('Zahlungen', rows.Zahlungen),
     Mieter: makeSheet('Mieter', [['name'], ['Max Muster']]),
     OLD_Mieter: makeSheet('OLD_Mieter', [['name'], ['Alt Archiv']]),
-    _view_aktive_mieter: makeSheet('_view_aktive_mieter', [['name'], ['Aktiv Mieter']])
+    _view_aktive_mieter: makeSheet('_view_aktive_mieter', [['name'], ['Aktiv Mieter']]),
+    _view_verbrauch_jahr: makeSheet('_view_verbrauch_jahr', [['objekt_id', 'jahr'], ['O1', 2026]])
   };
   const ss = { getSheets: () => Object.values(sheets), getSheetByName: name => sheets[name] || null };
   const properties = {};
   if (key !== undefined) properties.APP_ACCESS_KEY = key;
   if (accessKeys !== undefined) properties.APP_ACCESS_KEYS_JSON = JSON.stringify(accessKeys);
   const globals = {
-    PropertiesService: { getScriptProperties: () => ({ getProperty: name => properties[name] ?? null }) },
+    PropertiesService: { getScriptProperties: () => ({
+      getProperty: name => properties[name] ?? null,
+      setProperty: (name, value) => { calls.propertyWrites.push(name); properties[name] = String(value); }
+    }) },
+    CacheService: cacheService,
+    Utilities: utilities,
     ContentService: { createTextOutput: text => ({ text, setMimeType() { return this; } }), MimeType: { JSON: 'json' } },
     LockService: { getScriptLock: () => { calls.locks++; return { waitLock() {}, releaseLock() {} }; } },
     SpreadsheetApp: { getActiveSpreadsheet: () => ss }
   };
   const factory = new Function(...Object.keys(globals), 'calls', `${paymentRules}; ${code}
     updateAktiveMieterView = () => { calls.viewUpdates++; };
-    updateVerbrauchViews = () => { calls.viewUpdates++; return { status: 'success', message: 'Verbrauchsviews aktualisiert' }; };
+    updateVerbrauchViews = () => { calls.viewUpdates++; bumpDatenstandSafe(['VERBRAUCH']); return { status: 'success', message: 'Verbrauchsviews aktualisiert' }; };
     handleContractWrite = (spreadsheet, payload) => { calls.contractWrites.push(payload); return { status: 'success', vertrag: {}, anpassung: {} }; };
     handleTenantChange = (spreadsheet, payload) => { calls.tenantChanges.push(payload); return { status: 'success', vertrag_neu: payload.data }; };
-    return { doGet, doPost, constantTimeEquals, getAccessPrincipal, canWriteType };`);
+    return { doGet, doPost, constantTimeEquals, getAccessPrincipal, canWriteType, onEdit, getDatenstand, bumpDatenstand, datenstandKindsForSheet, DATENSTAND_MAX_AGE_MS };`);
   const api = factory(...Object.values(globals), calls);
   const parse = output => JSON.parse(output.text);
   return {
-    ...api, calls, rows,
+    ...api, calls, rows, properties, sheets,
     get: parameter => parse(api.doGet({ parameter: parameter || {} })),
     raw: payload => api.doPost({ postData: { contents: JSON.stringify(payload) } }),
     post: payload => parse(api.doPost({ postData: { contents: JSON.stringify(payload) } }))
@@ -110,7 +118,7 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     const data = api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY });
     // Im Test-Spreadsheet existieren nur Zaehlerstaende und Zahlungen aus der Liste;
     // Mieter, OLD_- und _view_-Blätter gehören nicht zum Startabruf.
-    expect(Object.keys(data).sort()).toEqual(['Zaehlerstaende', 'Zahlungen']);
+    expect(Object.keys(data).sort()).toEqual(['Zaehlerstaende', 'Zahlungen', '_datenstand']);
     expect(JSON.stringify(data)).not.toContain('Aktiv Mieter');
     expect(api.post({ typ: 'LESEN', view: 'vertrag_capabilities', key: KEY })).toMatchObject({ stammdaten_view: true });
   });
@@ -124,7 +132,7 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     expect(api.post({ typ: 'LESEN', view: 'alle', key: KEY }).Mieter).toHaveLength(1);
     expect(api.post({ typ: 'LESEN', view: 'dashboard', key: KEY })).toEqual({ _view_aktive_mieter: [{ name: 'Aktiv Mieter' }] });
     expect(Object.keys(api.post({ typ: 'LESEN', view: 'verbrauch', key: KEY })).sort()).toEqual([
-      '_view_verbrauch_audit', '_view_verbrauch_bilanz_jahr', '_view_verbrauch_jahr', '_view_verbrauch_monat'
+      '_datenstand', '_view_verbrauch_audit', '_view_verbrauch_bilanz_jahr', '_view_verbrauch_jahr', '_view_verbrauch_monat'
     ]);
     expect(api.post({ typ: 'LESEN', view: 'vertrag_capabilities', key: KEY })).toMatchObject({ access_protected: true, access_role: 'admin' });
   });
@@ -160,7 +168,7 @@ describe('Zugriff mit gesetztem APP_ACCESS_KEY', () => {
     }
     expect(api.rows.Zaehlerstaende).toHaveLength(1);
     expect(api.rows.Zahlungen).toHaveLength(1);
-    expect(api.calls).toEqual({ locks: 0, viewUpdates: 0, contractWrites: [], tenantChanges: [] });
+    expect(api.calls).toEqual({ locks: 0, viewUpdates: 0, sheetReads: 0, propertyWrites: [], contractWrites: [], tenantChanges: [] });
   });
 
   it('schreibt mit richtigem Schlüssel und reicht Vertragsänderungen weiter', () => {
@@ -445,5 +453,220 @@ describe('Schlüsselvergleich', () => {
     expect(constantTimeEquals(undefined, 'abc')).toBe(false);
     expect(constantTimeEquals(null, '')).toBe(true);
     expect(constantTimeEquals(123, '123')).toBe(true);
+  });
+});
+
+// --- Datenstand-Stempel und Zwischenspeicher (4.8.18) ------------------------------
+
+function memoryCacheService({ failPut = false } = {}) {
+  const store = new Map();
+  const calls = { putAll: 0, getAll: 0 };
+  return {
+    store, calls,
+    getScriptCache: () => ({
+      get: key => store.get(key) ?? null,
+      getAll: keys => { calls.getAll++; return Object.fromEntries(keys.filter(key => store.has(key)).map(key => [key, store.get(key)])); },
+      putAll: (entries, ttl) => {
+        calls.putAll++;
+        if (failPut) throw new Error('Argument too large');
+        expect(ttl).toBeLessThanOrEqual(21600);
+        Object.entries(entries).forEach(([key, value]) => {
+          expect(String(value).length).toBeLessThanOrEqual(100 * 1024);
+          store.set(key, value);
+        });
+      }
+    })
+  };
+}
+
+const blob = bytes => ({ getBytes: () => bytes, getDataAsString: () => Buffer.from(bytes).toString('utf8') });
+const nodeUtilities = {
+  newBlob: (data) => blob(typeof data === 'string' ? Buffer.from(data, 'utf8') : Buffer.from(data)),
+  gzip: input => blob(gzipSync(Buffer.from(input.getBytes()))),
+  ungzip: input => blob(gunzipSync(Buffer.from(input.getBytes()))),
+  base64Encode: bytes => Buffer.from(bytes).toString('base64'),
+  base64Decode: text => Buffer.from(text, 'base64')
+};
+
+describe('Datenstand-Stempel', () => {
+  it('antwortet mit unverändert, solange sich nichts geändert hat', () => {
+    const api = backend({ key: KEY });
+    const first = api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY });
+    expect(first._datenstand).toMatch(/^[a-z0-9]+-[a-z0-9]+$/);
+    const second = api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY, known_stamp: first._datenstand });
+    expect(second).toEqual({ unchanged: true, _datenstand: first._datenstand });
+  });
+
+  it('liefert nach einem Schreibvorgang wieder vollständige Daten', () => {
+    const api = backend({ key: KEY });
+    const before = api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY })._datenstand;
+    const verbrauchBefore = api.post({ typ: 'LESEN', view: 'verbrauch', key: KEY })._datenstand;
+    api.post({ typ: 'ZAEHLERSTAND_NEU', data: [meter], key: KEY });
+    const after = api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY, known_stamp: before });
+    expect(after.unchanged).toBeUndefined();
+    expect(after._datenstand).not.toBe(before);
+    expect(after.Zaehlerstaende).toHaveLength(1);
+    // Zählerstände ändern die Verbrauchs-Views erst nach einer Neuberechnung.
+    expect(api.post({ typ: 'LESEN', view: 'verbrauch', key: KEY, known_stamp: verbrauchBefore }).unchanged).toBe(true);
+  });
+
+  it('erneuert nach der Neuberechnung nur den Verbrauchsstand', () => {
+    const api = backend({ key: KEY });
+    const daten = api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY })._datenstand;
+    const verbrauch = api.post({ typ: 'LESEN', view: 'verbrauch', key: KEY })._datenstand;
+    api.post({ typ: 'VERBRAUCH_VIEWS_AKTUALISIEREN', key: KEY });
+    expect(api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY, known_stamp: daten }).unchanged).toBe(true);
+    expect(api.post({ typ: 'LESEN', view: 'verbrauch', key: KEY, known_stamp: verbrauch }).unchanged).toBeUndefined();
+  });
+
+  it('schreibt den Verbrauchsstempel bei der Neuberechnung genau einmal', () => {
+    const api = backend({ key: KEY });
+    api.getDatenstand('VERBRAUCH');
+    api.calls.propertyWrites.length = 0;
+    api.post({ typ: 'VERBRAUCH_VIEWS_AKTUALISIEREN', key: KEY });
+    expect(api.calls.propertyWrites).toEqual(['HV_DATENSTAND_VERBRAUCH']);
+  });
+
+  it('legt Verbrauchsdaten nicht im Zwischenspeicher ab', () => {
+    const cacheService = memoryCacheService();
+    const api = backend({ key: KEY, cacheService, utilities: nodeUtilities });
+    api.post({ typ: 'LESEN', view: 'verbrauch', key: KEY });
+    expect(cacheService.calls.putAll).toBe(0);
+  });
+
+  it('liest bei bekanntem Stempel kein einziges Blatt', () => {
+    const api = backend({ key: KEY });
+    const daten = api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY })._datenstand;
+    const verbrauch = api.post({ typ: 'LESEN', view: 'verbrauch', key: KEY })._datenstand;
+    expect(api.calls.sheetReads).toBeGreaterThan(0);
+    api.calls.sheetReads = 0;
+    expect(api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY, known_stamp: daten }).unchanged).toBe(true);
+    expect(api.post({ typ: 'LESEN', view: 'verbrauch', key: KEY, known_stamp: verbrauch }).unchanged).toBe(true);
+    expect(api.calls.sheetReads).toBe(0);
+  });
+
+  it('erneuert den Stempel nach einem fehlgeschlagenen Schreibversuch, nicht nach einem unbekannten Typ', () => {
+    const api = backend({ key: KEY });
+    const before = api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY })._datenstand;
+    api.post({ typ: 'GIBT_ES_NICHT', key: KEY });
+    expect(api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY, known_stamp: before }).unchanged).toBe(true);
+    const failed = api.post({ typ: 'ZAHLUNG', data: [{ zahlung_id: '' }], key: KEY });
+    expect(failed.status).toBe('error');
+    expect(api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY, known_stamp: before }).unchanged).toBeUndefined();
+  });
+
+  it('ordnet manuelle Änderungen im Sheet dem betroffenen Stempel zu', () => {
+    const api = backend({ key: KEY });
+    const edit = name => api.onEdit({ range: { getSheet: () => ({ getName: () => name }) } });
+    let daten = api.getDatenstand('DATEN');
+    let verbrauch = api.getDatenstand('VERBRAUCH');
+    edit('Zahlungen');
+    expect(api.getDatenstand('DATEN')).not.toBe(daten);
+    expect(api.getDatenstand('VERBRAUCH')).toBe(verbrauch);
+
+    daten = api.getDatenstand('DATEN');
+    edit('_view_verbrauch_jahr');
+    expect(api.getDatenstand('DATEN')).toBe(daten);
+    expect(api.getDatenstand('VERBRAUCH')).not.toBe(verbrauch);
+
+    // Ohne erkennbares Blatt vorsichtshalber beide.
+    daten = api.getDatenstand('DATEN');
+    verbrauch = api.getDatenstand('VERBRAUCH');
+    api.onEdit({});
+    expect(api.getDatenstand('DATEN')).not.toBe(daten);
+    expect(api.getDatenstand('VERBRAUCH')).not.toBe(verbrauch);
+    expect(api.datenstandKindsForSheet('Zaehlerstaende')).toEqual(['DATEN']);
+  });
+
+  it('läuft nach der Höchstdauer ab, damit nicht erfasste Änderungen sichtbar werden', () => {
+    const api = backend({ key: KEY });
+    const now = Date.now();
+    api.bumpDatenstand('DATEN', now - api.DATENSTAND_MAX_AGE_MS - 1000);
+    const stale = JSON.parse(api.properties.HV_DATENSTAND_DATEN).v;
+    expect(api.getDatenstand('DATEN', now)).not.toBe(stale);
+    const fresh = api.getDatenstand('DATEN', now);
+    expect(api.getDatenstand('DATEN', now + 1000)).toBe(fresh);
+  });
+
+  it('gibt ohne gültigen Schlüssel weder Daten noch Stempel preis', () => {
+    const api = backend({ key: KEY });
+    const stamp = api.getDatenstand('DATEN');
+    const text = api.raw({ typ: 'LESEN', view: 'stammdaten', key: 'falsch', known_stamp: stamp }).text;
+    expect(JSON.parse(text)).toMatchObject({ code: 'UNAUTHORIZED' });
+    expect(text).not.toContain(stamp);
+  });
+
+  it('meldet den Datenstand in den Capabilities', () => {
+    expect(backend({ key: KEY }).post({ typ: 'LESEN', view: 'vertrag_capabilities', key: KEY })).toMatchObject({ datenstand: true });
+  });
+});
+
+describe('Zwischenspeicher der Lese-Antworten', () => {
+  it('liefert die zweite Anfrage aus dem Zwischenspeicher, bis sich der Stempel ändert', () => {
+    const cacheService = memoryCacheService();
+    const api = backend({ key: KEY, cacheService, utilities: nodeUtilities, paymentRows: [['zahlung_id', 'betrag', 'notiz'], ['Z1', 100, 'Prüfung übernommen – Größe']] });
+    const first = api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY });
+    expect(first.Zahlungen).toEqual([{ zahlung_id: 'Z1', betrag: 100, notiz: 'Prüfung übernommen – Größe' }]);
+    expect(cacheService.calls.putAll).toBe(1);
+
+    // Sheet ändert sich ohne Stempel: die Antwort kommt nachweislich aus dem Zwischenspeicher.
+    api.rows.Zahlungen.push(['Z2', 50, 'neu']);
+    const cached = api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY });
+    expect(cached).toEqual(first);
+    expect(cacheService.calls.putAll).toBe(1);
+
+    api.onEdit({});
+    const fresh = api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY });
+    expect(fresh.Zahlungen).toHaveLength(2);
+    expect(fresh._datenstand).not.toBe(first._datenstand);
+  });
+
+  it('baut die Antwort neu, wenn ein Stück im Zwischenspeicher fehlt', () => {
+    const cacheService = memoryCacheService();
+    const rows = [['zahlung_id', 'notiz']];
+    for (let index = 0; index < 4000; index++) rows.push([`Z${index}`, randomBytes(32).toString('hex')]);
+    const api = backend({ key: KEY, cacheService, utilities: nodeUtilities, paymentRows: rows });
+    const first = api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY });
+    const chunkKeys = [...cacheService.store.keys()].filter(key => !key.endsWith('_meta'));
+    cacheService.store.delete(chunkKeys[1]);
+    api.calls.sheetReads = 0;
+    expect(api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY })).toEqual(first);
+    expect(api.calls.sheetReads).toBeGreaterThan(0);
+  });
+
+  it('liest bei einem Treffer im Zwischenspeicher kein Blatt', () => {
+    const cacheService = memoryCacheService();
+    const api = backend({ key: KEY, cacheService, utilities: nodeUtilities });
+    const first = api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY });
+    api.calls.sheetReads = 0;
+    expect(api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY })).toEqual(first);
+    expect(api.calls.sheetReads).toBe(0);
+  });
+
+  it('teilt große Antworten in Stücke unter 100 KB', () => {
+    const cacheService = memoryCacheService();
+    const rows = [['zahlung_id', 'notiz']];
+    for (let index = 0; index < 4000; index++) rows.push([`Z${index}`, randomBytes(32).toString('hex')]);
+    const api = backend({ key: KEY, cacheService, utilities: nodeUtilities, paymentRows: rows });
+    const first = api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY });
+    const chunkKeys = [...cacheService.store.keys()].filter(key => !key.endsWith('_meta'));
+    expect(chunkKeys.length).toBeGreaterThan(1);
+    expect(api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY })).toEqual(first);
+  });
+
+  it('funktioniert weiter, wenn der Zwischenspeicher nicht schreiben kann', () => {
+    const cacheService = memoryCacheService({ failPut: true });
+    const api = backend({ key: KEY, cacheService, utilities: nodeUtilities });
+    expect(api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY }).Zahlungen).toEqual([]);
+    expect(api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY }).Zahlungen).toEqual([]);
+  });
+
+  it('ignoriert unvollständige Einträge im Zwischenspeicher', () => {
+    const cacheService = memoryCacheService();
+    const api = backend({ key: KEY, cacheService, utilities: nodeUtilities });
+    const first = api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY });
+    const chunk = [...cacheService.store.keys()].find(key => key.endsWith('_0'));
+    cacheService.store.delete(chunk);
+    expect(api.post({ typ: 'LESEN', view: 'stammdaten', key: KEY })).toEqual(first);
   });
 });

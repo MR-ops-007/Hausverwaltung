@@ -40,6 +40,20 @@ afterEach(() => vi.useRealTimers());
 const transaction = { typ: 'ZAEHLERSTAND_NEU', data: [{ zaehler_id: 'Z1', wert: 5 }] };
 
 describe('Lesen per POST mit Zugangsschlüssel', () => {
+  it('schickt einen bekannten Datenstand nur mit, wenn einer vorliegt', async () => {
+    const { cloud, fetch } = loadCloud({ key: 'k1' });
+    fetch.mockResolvedValueOnce(reply({ Objekte: [] }));
+    fetch.mockResolvedValueOnce(reply({ unchanged: true, _datenstand: 'S1' }));
+    fetch.mockResolvedValueOnce(reply({ unchanged: true, _datenstand: 'V1' }));
+    await cloud.loadBackgroundData();
+    expect(await cloud.loadBackgroundData('S1')).toEqual({ unchanged: true, _datenstand: 'S1' });
+    await cloud.loadConsumptionData('V1');
+    expect(bodyOf(fetch, 0)).not.toHaveProperty('known_stamp');
+    expect(bodyOf(fetch, 1)).toMatchObject({ view: 'stammdaten', known_stamp: 'S1' });
+    expect(bodyOf(fetch, 2)).toMatchObject({ view: 'verbrauch', known_stamp: 'V1' });
+    expect(cloud.getRequestLog().map(entry => entry.label)).toEqual(['LESEN stammdaten', 'LESEN stammdaten (unverändert)', 'LESEN verbrauch (unverändert)']);
+  });
+
   it('trennt Schlüssel nach Laufzeitumgebung', () => {
     const testCloud = loadCloud({ key: 'test-key', environment: 'test' });
     const productionCloud = loadCloud({ key: 'prod-key', environment: 'production' });
