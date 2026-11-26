@@ -962,3 +962,29 @@ input[type="text"] {
 @media (prefers-reduced-motion: reduce) {
     .consumption-loading-spinner { animation: none; }
 }
+
+/* Info-Symbol für Ladezeiten und lokale Daten */
+.sync-status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.diagnostics-toggle {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    margin-top: 5px;
+    padding: 0 !important;
+    border: 1px solid #cbd5e1;
+    border-radius: 50% !important;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    line-height: 1;
+    cursor: pointer;
+}
+.diagnostics-toggle.is-active {
+    background: #e2e8f0;
+    color: #1e293b;
+}
