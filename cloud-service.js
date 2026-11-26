@@ -178,6 +178,27 @@ const cloudService = {
         } catch (e) { /* ignorieren */ }
     },
 
+    // Sichtbarkeit der Ladezeit-Anzeige: auf TEST standardmäßig offen, sonst hinter dem
+    // Info-Symbol. Die Wahl wird je Umgebung auf dem Gerät gemerkt.
+    DIAGNOSTICS_VISIBLE_STORAGE: 'hv_diagnostics_visible',
+
+    getDiagnosticsStorage() {
+        const environment = CONFIG && CONFIG.ENVIRONMENT;
+        return environment ? `${this.DIAGNOSTICS_VISIBLE_STORAGE}:${environment}` : this.DIAGNOSTICS_VISIBLE_STORAGE;
+    },
+
+    isDiagnosticsVisible() {
+        let stored = null;
+        try { stored = localStorage.getItem(this.getDiagnosticsStorage()); } catch (e) { stored = null; }
+        if (stored === '1') return true;
+        if (stored === '0') return false;
+        return Boolean(CONFIG && CONFIG.ENVIRONMENT === 'test');
+    },
+
+    setDiagnosticsVisible(visible) {
+        try { localStorage.setItem(this.getDiagnosticsStorage(), visible ? '1' : '0'); } catch (e) { /* ignorieren */ }
+    },
+
     clearRequestLog() {
         this.requestLogCache = [];
         try { localStorage.removeItem(this.getRequestLogStorage()); } catch (e) { /* ignorieren */ }

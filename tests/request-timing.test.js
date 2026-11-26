@@ -82,3 +82,20 @@ describe('Ladezeit-Diagnose', () => {
     expect(store['hv_request_log:test']).toBeUndefined();
   });
 });
+
+describe('Sichtbarkeit der Ladezeit-Anzeige', () => {
+  it('ist auf TEST standardmäßig offen und auf PROD hinter dem Info-Symbol', () => {
+    expect(loadCloud({ environment: 'test' }).cloud.isDiagnosticsVisible()).toBe(true);
+    expect(loadCloud({ environment: 'production' }).cloud.isDiagnosticsVisible()).toBe(false);
+  });
+
+  it('merkt sich die Wahl je Umgebung', () => {
+    const { cloud, store } = loadCloud({ environment: 'production' });
+    cloud.setDiagnosticsVisible(true);
+    expect(cloud.isDiagnosticsVisible()).toBe(true);
+    expect(store['hv_diagnostics_visible:production']).toBe('1');
+    expect(store['hv_diagnostics_visible:test']).toBeUndefined();
+    cloud.setDiagnosticsVisible(false);
+    expect(cloud.isDiagnosticsVisible()).toBe(false);
+  });
+});
