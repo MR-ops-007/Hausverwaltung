@@ -19,7 +19,9 @@ Sie ist deshalb nicht geheim. Geschützt wird der Zugriff durch einen Zugangssch
    {"id":"ipad-erfassen","label":"iPad Erfassen","key":"...","role":"erfassen","aktiv":true}]
   ```
 
-- `erfassen` darf lesen sowie Zählerstände und Zahlungen schreiben.
+- `erfassen` darf lesen sowie Zählerstände und Zahlungen schreiben. Außerdem darf
+  `erfassen` derzeit Mieterhöhungsprüfungen abschließen und wieder öffnen
+  (`MIETERHOEHUNG_PRUEFUNG_SPEICHERN`; Entscheidung vom 2026-11-24 in `ROADMAP.md`).
 - `admin` darf zusätzlich Verträge und Indexänderungen schreiben.
 - `APP_ACCESS_KEY` bleibt als einzelner Admin-Fallback für die Übergangsphase kompatibel.
   Sobald `APP_ACCESS_KEYS_JSON` gesetzt ist, wird diese Mehrgeräte-Konfiguration verwendet.

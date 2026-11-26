@@ -688,6 +688,11 @@ Aktuelle Einschränkung bei Mieterwechseln:
 ### Migration: kanonische Zählerstand-Identitäten
 Historische, eindeutig auflösbare Abweichungen zwischen `Zaehlerstaende` und `Zaehler` werden über `previewCanonicalZaehlerstandMigration`, `writeCanonicalZaehlerstandMigrationReport` und `applyCanonicalZaehlerstandMigration` korrigiert.
 
+`writeCanonicalZaehlerstandMigrationReport` schreibt die Vorschau in das Prüfblatt
+`_migration_canonical_zaehlerstaende`. Das Blatt wird bei jedem Lauf neu befüllt: oben eine
+Zusammenfassung (`summary_key`, `summary_value`), darunter je Zeile der Status mit alter und
+neuer `objekt_id`, `einheit_id`, `zaehler_id` und `stand_id`. Die App liest das Blatt nicht.
+
 Die Migration darf nur eindeutige Zuordnungen anwenden. Sie aktualisiert `objekt_id`, `einheit_id`, `zaehler_id` und die daraus abgeleitete `stand_id`.
 
 Fälle mit leerer Ziel-`einheit_id` im Zählerstamm werden nicht automatisch migriert. Sie erhalten den Status `ZIEL_EINHEIT_FEHLT`, weil sonst neue `stand_id`s mit `UNKNOWN_EINHEIT` entstehen würden. Zuerst muss in `Zaehler` eine fachlich richtige Einheit gesetzt werden.

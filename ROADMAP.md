@@ -19,28 +19,7 @@ allen erledigten Paketen steht unverändert in
 
 ## Priorisierte nächste Pakete
 
-### 1. Doku- und Release-Hygiene
-
-**Ziel:** Doku und tatsächlicher Stand stimmen überein, ohne dass nach jedem Merge oder
-Deploy ein eigener Doku-Release nötig ist.
-
-- **1a Doku entrümpeln:** Quellen der Wahrheit festlegen (siehe `PROJECT_STATE.md`),
-  wechselnde Statusangaben aus Übersichten entfernen, Datenmodell um die Blätter und Spalten
-  aus 4.8.13 bis 4.8.16 ergänzen, Historie verlustfrei nach `docs/archiv/` verschieben.
-  Keine Änderung am Deploy-Verhalten.
-- **1b Drift-Prüfungen in CI:** Tests prüfen konkrete Fakten, keine Formulierungen:
-  Backend-Version gegen CHANGELOG, in der Doku referenzierte Repository-Dateien, und dass
-  jedes vom Backend angelegte Blatt in `DATA_MODEL.md` beschrieben ist.
-- **1c Release 4.8.16 in TEST und PROD:** `prepareContractSchema()` ausführen, Backend
-  bereitstellen, in TEST abnehmen, nach Freigabe in PROD. Danach die Release-Tags
-  `v4.8.13`, `v4.8.14` und `v4.8.16` nachziehen.
-  Voraussetzungen durch den Product Owner:
-  - örtliche Kappungsgrenze (15 % oder 20 %) je Objekt mit Quelle und Gültigkeit,
-  - Entscheidung, ob die Rolle `erfassen` Mieterhöhungsprüfungen abschließen darf
-    (aktuell erlaubt; die Rollenentscheidung vom 2026-11-10 sieht für `erfassen` nur
-    Zählerstände und Zahlungen vor).
-
-### 2. Release-Ablauf neu ordnen
+### 1. Release-Ablauf neu ordnen
 
 **Ziel:** Frontend und Backend werden nachvollziehbar und passend zueinander veröffentlicht.
 Eigenes Paket mit eigener Entscheidung; die bestehende Veröffentlichung läuft unverändert
@@ -51,11 +30,13 @@ weiter, bis der neue Ablauf vollständig erprobt ist.
 - `npm run status` fragt den tatsächlichen Stand in Apps Script (TEST/PROD) und GitHub Pages ab;
   Tags dienen als unveränderliche Release-Historie, nicht als alleinige Statusanzeige.
 - Die Deployment-Historie bleibt verlässlich auffindbar.
+- Fehlende Release-Tags nachziehen: `v4.8.13` bis `v4.8.18` auf die Commits, die die
+  Deployment-Historie im `CHANGELOG.md` nennt (bisher existiert nur `v4.8.12`).
 - Erst danach entscheiden, ob GitHub Pages weiter bei jedem Merge oder nur noch über einen
   Release-Tag veröffentlicht. Ein Frontend-only-Release erzeugt dann selbst einen
   nachvollziehbaren Release-Tag.
 
-### 3. P1.3 Backup und Restore
+### 2. P1.3 Backup und Restore
 
 **Ziel:** Wenige, brauchbare Sicherungen mit einem tatsächlich getesteten Restore.
 
@@ -69,7 +50,7 @@ weiter, bis der neue Ablauf vollständig erprobt ist.
 
 **Nicht-Ziel:** tägliche Kopierflut oder automatische Wiederherstellung der Produktion.
 
-### 4. P6.7c Vertragsanlage in der Oberfläche
+### 3. P6.7c Vertragsanlage in der Oberfläche
 
 **Ziel:** Neue Verträge ohne direkten API-Aufruf anlegen.
 
@@ -84,6 +65,8 @@ Noch nicht priorisiert; Reihenfolge wird vor Beginn mit dem Product Owner festge
 
 - **P1.2b Restabnahme Geräte:** Persistenz des Zugangsschlüssels über URL-Änderungen auf dem
   iPhone; Erfassungsgerät mit Rolle `erfassen` im Alltag abnehmen.
+- **Rollenmodell überarbeiten:** Rechte von `admin` und `erfassen` fachlich neu festlegen,
+  spätestens bevor eine zweite Person mit eigenem Gerät erfasst (Entscheidung 2026-11-24).
 - **P7.1 CSV-Monatsparser:** Verwendungszwecke wie `Miete Februar 2026` und `02/2026`
   erkennen, Datumsangaben nicht als Mietmonat deuten, Quelle des Vorschlags anzeigen.
 - **P6.4 Zahlungsfristen:** gesetzliche Feiertage je Bundesland und Objekt; individuelle
@@ -133,6 +116,9 @@ Noch nicht priorisiert; Reihenfolge wird vor Beginn mit dem Product Owner festge
 | 2026-11-14 | Dublettenwarnung bleibt eine weiche Frontend-Warnung; Backend-Idempotenz über `zahlung_id` bleibt die technische Schutzschicht. |
 | 2026-11-23 | Jeder Fakt hat genau eine Quelle (Tabelle in `PROJECT_STATE.md`); Übersichten enthalten keine Testzahlen, PR-Stände oder Deployment-Details. |
 | 2026-11-23 | Paket 1 wird in getrennte PRs geschnitten (Doku, Drift-Prüfungen); der Release-Umbau ist ein eigenes Paket. |
+| 2026-11-24 | Kappungsgrenze wird je Objekt im Blatt `Objekte` gepflegt (`kappungsgrenze_prozent` mit Gültigkeit und Quelle), weil sie sich ändern kann. Für die bestehenden Objekte gelten 20 %; für Gießen (nach der Pilotphase) voraussichtlich 15 %, bei der Aufnahme mit Quelle zu prüfen. |
+| 2026-11-24 | Die Rolle `erfassen` darf Mieterhöhungsprüfungen vorerst abschließen (abweichend von der Rollenentscheidung vom 2026-11-10). Aktuell gibt es nur einen Nutzer; eine zweite Person wird voraussichtlich nur Mieteingänge und Zähler kontrollieren. Das Rollenmodell wird gesondert überarbeitet. |
+| 2026-11-24 | Lesender Zugriff mit Schlüssel für Messungen durch den Assistenten nur auf TEST, nicht auf PROD; Ladezeiten werden in der App selbst gemessen. |
 
 ## Definition of Done
 
