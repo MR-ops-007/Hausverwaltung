@@ -76,7 +76,8 @@ Deployment-Historie im [`CHANGELOG.md`](CHANGELOG.md).
   Objekte werden für Tests nicht verwendet.
 - Schlüssel, Tokens und produktive Daten gehören weder ins Repository noch in Logs oder Chats.
 - Schemafunktionen (`prepareContractSchema()`, `preparePaymentSchema()`) und Trigger-Einrichtung
-  laufen nur manuell und nach Freigabe; vorher wird eine Sheet-Kopie gesichert.
+  laufen nur manuell und nach Freigabe; vorher wird eine manuelle Kopie gesichert
+  (`createManualBackup()`, `docs/backup-restore.md`).
 - Jede Änderung läuft über Branch und Pull Request; Merges und Deployments erfolgen erst nach
   ausdrücklicher Freigabe durch den Product Owner.
 - Ein Merge auf `main` veröffentlicht das Frontend automatisch über GitHub Pages, das Backend

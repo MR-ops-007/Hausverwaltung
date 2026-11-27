@@ -1,61 +1,120 @@
 # Backup und Restore
 
-Stand: 2026-11-09
+Stand: 2026-11-27 (Backup-Projekt 1.0.0)
 
-Dieses Runbook beschreibt den sicheren Umgang mit Backups der Google-Sheets-Daten.
-Ein Restore wird niemals direkt auf die produktive Datei ausprobiert. Zuerst wird
-immer eine neue, nicht produktive Zieldatei verwendet.
+Sicherungen der Hausverwaltungs-Tabelle laufen in einem **eigenen Apps-Script-Projekt**
+(`apps-script-backup/`), getrennt von der Web-App in `apps-script/`. Nur das Backup-Projekt
+hat Zugriff auf Google Drive; die öffentlich erreichbare Web-App bleibt ohne
+(Entscheidung 2026-11-27, `ROADMAP.md`). Das Backup-Projekt hat keine Web-App, liest die
+Quelltabelle nur und schreibt nie hinein.
 
-## Backup anlegen
+Ein Restore wird nie direkt auf die produktive Datei ausprobiert, sondern immer zuerst in
+eine neue, separate Testdatei. Eine automatische Wiederherstellung der Produktion gibt es
+bewusst nicht.
 
-1. In Google Drive die produktive Tabelle als Kopie anlegen.
-2. Den Dateinamen mit Datum und Zweck versehen, zum Beispiel
-   `Hausverwaltung Backup 2026-11-09`.
-3. Die Freigabe auf den Administrator beschränken. Die Kopie darf nicht als
-   öffentliches Testsystem verwendet werden.
-4. In der Kopie dokumentieren:
-   - Quelldateiname und Quell-Sheet-ID,
-   - Zieldateiname und Ziel-Sheet-ID,
-   - Zeitpunkt und ausführende Person,
-   - Apps-Script-Version und Deployment-Stand.
-5. Stichprobenartig Tabellenköpfe, Zeilenzahlen und die vier Verbrauchsviews
-   prüfen. Ein Backup gilt erst dann als verwendbar, wenn diese Prüfung
-   protokolliert ist.
+## Was das Backup-Projekt tut
+
+| Funktion (`apps-script-backup/Backup.js`) | Zweck |
+| --- | --- |
+| `setupBackup()` | Einmalig: prüft die Quelle, legt den privaten Ordner an und richtet genau einen Wochen-Trigger ein (sonntags gegen 3 Uhr). Wiederholbar. |
+| `runWeeklyBackup()` | Vom Trigger: Kopie nur, wenn sich der Datenbestand seit der letzten automatischen Kopie geändert hat; danach Rotation. |
+| `createManualBackup()` | Kopie vor einem Release oder einer Migration; außerhalb der Rotation, wird nie automatisch gelöscht. |
+| `listBackups()` | Übersicht aller Kopien im Ordner samt Freigabe-Warnungen (Ausführungslog). |
+| `restoreLatestBackupToTestFile()` | Restore-Test: neueste Kopie in eine neue Testdatei, Vergleich von Blättern, Größen, Kopfzeilen und Zellinhalten (Hash je Blatt). |
+
+**Geänderter Datenbestand.** Verglichen wird ein SHA-256-Fingerabdruck über alle Blätter
+außer den abgeleiteten (Name beginnt mit `_`, z. B. `_view_verbrauch_monat`). Der tägliche
+View-Refresh allein löst also keine Kopie aus.
+
+**Rotation.** Es bleiben höchstens drei automatische Kopien: die neueste, eine mittlere bis
+49 Tage und eine ältere. Wird die mittlere älter als 49 Tage, ersetzt sie die ältere, und
+die nächstjüngere rückt nach. Bei wöchentlichen Kopien ist die mittlere damit 1–7 Wochen,
+die ältere 8–14 Wochen alt; ohne Änderungen entstehen keine Kopien und nichts wird
+gelöscht. Überzählige Kopien gehen in den Papierkorb (30 Tage wiederherstellbar).
+Manuelle Kopien und Restore-Testdateien sind über die Dateibeschreibung
+(`hv-backup:manuell`, `hv-backup:restore-test`) gekennzeichnet und von der Rotation
+ausgenommen.
+
+**Freigabe.** Vor jeder Kopie prüft das Projekt, dass der Ordner privat ist (keine
+Linkfreigabe, keine weiteren Bearbeiter oder Betrachter). Sonst bricht es ohne Kopie ab;
+eine Kopie, die durch die Ordnerfreigabe sichtbar würde, wird sofort in den Papierkorb
+gelegt. Zusätzlich prüft jeder Wochenlauf die Einzelfreigaben aller vorhandenen Kopien:
+Ist eine Kopie nachträglich freigegeben, schlägt der Lauf fehl, und Apps Script meldet den
+fehlgeschlagenen Trigger per E-Mail. Kopien können die Script-Properties der gebundenen Web-App mitnehmen (Geräteschlüssel,
+Vertragstoken) und dürfen deshalb nie freigegeben werden.
+
+**Lock.** Einrichtung, Wochenlauf, manuelle Kopie und Restore-Test laufen unter dem Script-Lock des
+Backup-Projekts; ein paralleler Aufruf meldet `LOCK_BUSY` und legt nichts an.
+
+**Grenzen.** Das Backup-Projekt kann den Script-Lock der Web-App nicht nutzen. Läuft
+während der Kopie gerade ein Schreibvorgang, enthält die Kopie ihn ganz oder gar nicht
+(Drive kopiert die Datei als Ganzes); eine Änderung zwischen Fingerabdruck und Kopie führt
+höchstens zu einer zusätzlichen Kopie in der Folgewoche.
+
+## Einrichtung je Umgebung (einmalig)
+
+Zuerst TEST, PROD erst nach Abnahme und ausdrücklicher Freigabe.
+
+1. Auf script.google.com ein neues, eigenständiges Projekt anlegen, z. B.
+   „Hausverwaltung Backup TEST“. Die Script-ID (Projekteinstellungen) in `config.local.js`
+   beim Profil als `backupScriptId` eintragen (Vorlage: `config.local.example.js`).
+2. Code übertragen: `npm run clasp:test:backup:push` (PROD:
+   `npm run clasp:prod:backup:push`, verlangt `--confirm-prod`, ist im Skript enthalten).
+   `npm run clasp:test:backup:status` zeigt das Ziel vorab.
+3. In den Projekteinstellungen die Script-Properties setzen:
+   `SOURCE_SPREADSHEET_ID` (ID der Hausverwaltungs-Tabelle der Umgebung) und
+   `BACKUP_LABEL` (`TEST` bzw. `PROD`).
+4. Im Backup-Projekt in der Datei `Backup.js` die Funktion `setupBackup()` ausführen und
+   die Berechtigungen bestätigen (Drive, Tabellen lesen, Trigger). Rückmeldung prüfen:
+   `created_folder`, `trigger_already_present`, `folder_url`.
+5. Einmal `runWeeklyBackup()` ausführen: Die erste Kopie entsteht immer. Ein zweiter
+   Aufruf direkt danach muss `UNCHANGED` melden.
+6. Restore-Test nach dem Abschnitt unten durchführen und protokollieren.
+
+## Kopie vor Release oder Migration
+
+Vor `prepareContractSchema()` oder einer Migration im Backup-Projekt der Umgebung
+`createManualBackup()` (Datei `Backup.js`) ausführen und den Dateinamen aus der Rückmeldung
+im PR oder in der Deployment-Historie nennen.
 
 ## Restore-Test
 
-1. Eine neue leere Google-Sheets-Datei als Restore-Ziel anlegen.
-2. Die Tabellen aus der Backup-Kopie in das Ziel kopieren. Die produktive Datei
-   bleibt dabei unverändert.
-3. Tabellenköpfe und Zeilenzahlen gegen das Backup vergleichen.
-4. Das Apps Script nur an das Restore-Ziel binden beziehungsweise ein separates
-   Restore-Projekt verwenden. Keine produktiven Script Properties übernehmen.
-5. Mit einer lokalen `runtime-config.js` gegen das Restore-Ziel lesen. Schreibtests
-   sind nur im ausdrücklich dafür angelegten TEST-Bereich erlaubt.
-6. `npm test`, einen geschützten Lesetest und die Verbrauchsview-Prüfung ausführen.
-7. Das Ergebnis als `verworfen`, `als Test akzeptiert` oder `produktiv freigegeben`
-   dokumentieren. Eine produktive Freigabe erfordert eine separate Entscheidung.
+1. Im Backup-Projekt `restoreLatestBackupToTestFile()` (Datei `Backup.js`) ausführen. Die
+   Funktion legt `HV-Restore-Test <Umgebung> <Zeit>` im Backup-Ordner an und vergleicht
+   Blätter, Zeilen-/Spaltenzahl, Kopfzeilen und je Blatt einen SHA-256-Hash über alle
+   Zellwerte mit der Kopie. `status: success` gibt es nur bei vollständiger Übereinstimmung;
+   eine Abweichung nennt nur den Blattnamen, keine Zellinhalte. `status: success` und
+   `abweichungen: []` sind die Voraussetzung für die weiteren Schritte.
+2. Die Testdatei stichprobenartig öffnen: Stammdaten, letzte Zahlungen, letzte
+   Zählerstände und die vier Verbrauchsviews.
+3. Optional einen Lesetest mit der App: Das an die Testdatei gebundene Script-Projekt
+   (Kopie der Web-App) nur in dieser Datei bereitstellen, eigenen Testschlüssel setzen,
+   keine produktiven Script-Properties weiterverwenden; mit lokaler `runtime-config.js`
+   lesen. Schreibtests sind dort nicht vorgesehen.
+4. Ergebnis mit der Vorlage unten protokollieren: `verworfen`, `als Test akzeptiert` oder
+   `produktiv freigegeben`. Eine Wiederherstellung der Produktion ist eine eigene
+   Entscheidung und wird manuell durchgeführt.
+5. Die Testdatei danach in den Papierkorb legen, sofern sie nicht weiter gebraucht wird.
 
 ## Restore-Protokollvorlage
 
 ```text
 Datum/Uhrzeit:
 Ausführende Person:
-Quelle (Name und Sheet-ID):
-Ziel (Name und Sheet-ID):
-Datenstand / Backup-Datum:
-Apps-Script-Version und Deployment:
-Geprüfte Tabellen und Zeilenzahlen:
-npm test:
-Lesetest:
-Verbrauchsview-Prüfung:
+Umgebung:
+Quelle (Kopie, Name und ID):
+Ziel (Testdatei, Name und ID):
+Datenstand (Erstellzeit der Kopie):
+Backup-Projekt-Version:
+Abweichungen laut restoreLatestBackupToTestFile():
+Stichprobe Stammdaten/Zahlungen/Zählerstände/Verbrauchsviews:
+Lesetest mit der App (optional):
 Ergebnis: verworfen / als Test akzeptiert / produktiv freigegeben
 Bemerkungen:
 ```
 
-## Aktueller Stand
+## Protokoll
 
-Der Restore-Test ist in diesem Paket als manueller Betriebsschritt vorbereitet,
-aber noch nicht mit einer Produktivkopie ausgeführt. Dafür müssen Quelle, Ziel und
-der Zugriffskreis im Google-Konto bewusst ausgewählt werden. Es werden keine
-Produktivdaten automatisch kopiert oder überschrieben.
+| Datum | Umgebung | Schritt | Ergebnis |
+| --- | --- | --- | --- |
+| – | – | noch keine Einrichtung | – |

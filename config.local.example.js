@@ -11,13 +11,16 @@
             label: 'TEST · Entenhausen',
             apiUrl: 'https://<TEST-GAS-DEPLOYMENT-ID>.exec',
             scriptId: '<TEST-SCRIPT-ID>',
-            deploymentId: '<TEST-DEPLOYMENT-ID>'
+            deploymentId: '<TEST-DEPLOYMENT-ID>',
+            // Eigenes Backup-Projekt ohne Web-App (docs/backup-restore.md), optional
+            backupScriptId: '<TEST-BACKUP-SCRIPT-ID>'
         },
         production: {
             label: 'PRODUKTION',
             apiUrl: 'https://<PROD-GAS-DEPLOYMENT-ID>.exec',
             scriptId: '<PROD-SCRIPT-ID>',
-            deploymentId: '<PROD-DEPLOYMENT-ID>'
+            deploymentId: '<PROD-DEPLOYMENT-ID>',
+            backupScriptId: '<PROD-BACKUP-SCRIPT-ID>'
         }
     };
     let storedEnvironment = '';
