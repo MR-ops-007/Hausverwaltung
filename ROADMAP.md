@@ -27,8 +27,9 @@ allen erledigten Paketen steht unverändert in
   `docs/backup-restore.md`): Wochen-Trigger nur bei geändertem Datenbestand, höchstens drei
   automatische Kopien mit gestaffeltem Alter, manuelle Kopien außerhalb der Rotation,
   privater Drive-Ordner mit Freigabeprüfung, Restore-Test in eine separate Testdatei.
-- Offen: Einrichtung und Restore-Test in TEST, danach PROD nach Freigabe; jeweils im
-  Protokoll von `docs/backup-restore.md`.
+- TEST eingerichtet und Restore-Test bestanden (2026-11-27, Protokoll in
+  `docs/backup-restore.md`). Offen: Einrichtung in PROD nach Freigabe; die Rotation zeigt
+  sich real erst nach einigen Sonntagsläufen.
 - Im selben Zug klein mitnehmen: Vertrags-Token mit `constantTimeEquals` vergleichen und die
   Entscheidung dokumentieren, ob das Repository privat gestellt und die produktive
   Bereitstellung rotiert wird (die frühere PROD-URL ist in der Git-Historie sichtbar).
