@@ -1,6 +1,6 @@
 # Backup und Restore
 
-Stand: 2026-11-27 (Backup-Projekt 1.0.0)
+Stand: 2026-11-27 (Backup-Projekt 1.0.1)
 
 Sicherungen der Hausverwaltungs-Tabelle laufen in einem **eigenen Apps-Script-Projekt**
 (`apps-script-backup/`), getrennt von der Web-App in `apps-script/`. Nur das Backup-Projekt
@@ -65,7 +65,9 @@ Zuerst TEST, PROD erst nach Abnahme und ausdrücklicher Freigabe.
    `SOURCE_SPREADSHEET_ID` (ID der Hausverwaltungs-Tabelle der Umgebung) und
    `BACKUP_LABEL` (`TEST` bzw. `PROD`).
 4. Im Backup-Projekt in der Datei `Backup.js` die Funktion `setupBackup()` ausführen und
-   die Berechtigungen bestätigen (Drive, Tabellen lesen, Trigger). Rückmeldung prüfen:
+   die Berechtigungen bestätigen (Drive, Tabellen, Trigger). `SpreadsheetApp.openById`
+   verlangt den vollen Tabellen-Scope; der Code liest trotzdem nur (Test in
+   `tests/backup.test.js`). Rückmeldung prüfen:
    `created_folder`, `trigger_already_present`, `folder_url`.
 5. Einmal `runWeeklyBackup()` ausführen: Die erste Kopie entsteht immer. Ein zweiter
    Aufruf direkt danach muss `UNCHANGED` melden.

@@ -1,16 +1,18 @@
 /**
  * Hausverwaltung · Backup
- * Version: 1.0.0
+ * Version: 1.0.1
  *
  * Eigenes Apps-Script-Projekt ohne Web-App (Entscheidung 2026-11-27): Nur dieses Projekt
  * hat Drive-Zugriff; die öffentlich erreichbare Web-App bleibt ohne. Es liest die
  * Hausverwaltungs-Tabelle, legt Kopien in einem privaten Drive-Ordner ab und rotiert die
- * automatischen Kopien. Es schreibt nie in die Quelltabelle.
+ * automatischen Kopien. Es schreibt nie in die Quelltabelle. `SpreadsheetApp.openById`
+ * verlangt den Scope `spreadsheets` (der Lese-Scope reicht dafür nicht); dass der Code nur
+ * liest, sichert ein Test in tests/backup.test.js ab.
  *
  * Einmalig: Script-Property SOURCE_SPREADSHEET_ID (und BACKUP_LABEL, z. B. TEST oder
  * PROD) setzen, dann setupBackup() ausführen. Ablauf in docs/backup-restore.md.
  */
-const BACKUP_VERSION = '1.0.0';
+const BACKUP_VERSION = '1.0.1';
 const BACKUP_TIME_ZONE = 'Europe/Berlin';
 const BACKUP_MARKER = {
   auto: 'hv-backup:auto',

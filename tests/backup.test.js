@@ -110,8 +110,18 @@ describe('Backup: Projekt-Manifest', () => {
     expect(manifest.oauthScopes.sort()).toEqual([
       'https://www.googleapis.com/auth/drive',
       'https://www.googleapis.com/auth/script.scriptapp',
-      'https://www.googleapis.com/auth/spreadsheets.readonly'
+      'https://www.googleapis.com/auth/spreadsheets'
     ]);
+  });
+
+  it('liest Tabellen nur: keine schreibenden Tabellen-Aufrufe im Backup-Code', () => {
+    // Der Scope `spreadsheets` erlaubt Schreiben (openById verlangt ihn); der Code nutzt es nicht.
+    const writes = /\.(setValues?|setFormulas?|appendRow|insertSheet|deleteSheet|deleteRows?|deleteColumns?|insertRows?|insertColumns?|clear\w*|setName|copyTo|moveTo|setFrozen\w*|merge\w*)\(/;
+    expect(code).not.toMatch(writes);
+    // Range.sort(spalte) sortiert in der Tabelle; Array.sort bekommt hier nur Vergleichsfunktionen.
+    expect(code).not.toMatch(/\.sort\((?!\(|\))/);
+    expect(code).not.toMatch(/SpreadsheetApp\.(create|flush)/);
+    expect(code).not.toMatch(/\b(UrlFetchApp|MailApp|GmailApp)\b/);
   });
 
   it('die Web-App im Projekt apps-script nutzt kein DriveApp', () => {
