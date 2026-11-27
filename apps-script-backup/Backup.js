@@ -262,6 +262,10 @@ function rotateAutomaticBackups_(folder, now) {
  * (falls noch keiner eingetragen ist) und richtet genau einen Wochen-Trigger ein.
  */
 function setupBackup() {
+  return withScriptLock_('setupBackup', setupBackup_);
+}
+
+function setupBackup_() {
   const config = backupConfig_();
   const source = SpreadsheetApp.openById(config.sourceId);
   const props = backupProperties_();

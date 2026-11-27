@@ -329,9 +329,10 @@ describe('Backup: Freigabe bestehender Kopien und Lock', () => {
     expect(backup.listBackups().freigabe_warnungen).toHaveLength(1);
   });
 
-  it('manuelle Kopie und Restore-Test überspringen bei belegtem Lock', () => {
+  it('Einrichtung, manuelle Kopie und Restore-Test überspringen bei belegtem Lock', () => {
     const env = fakeEnvironment({ sheets: SHEETS, lockFree: false, properties: props });
     const backup = load(env.globals);
+    expect(backup.setupBackup()).toEqual({ status: 'skipped', reason: 'LOCK_BUSY' });
     expect(backup.createManualBackup()).toEqual({ status: 'skipped', reason: 'LOCK_BUSY' });
     expect(backup.restoreLatestBackupToTestFile()).toEqual({ status: 'skipped', reason: 'LOCK_BUSY' });
     expect(env.files).toHaveLength(1);

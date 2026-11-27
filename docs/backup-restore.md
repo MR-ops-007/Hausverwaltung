@@ -43,7 +43,7 @@ Ist eine Kopie nachträglich freigegeben, schlägt der Lauf fehl, und Apps Scrip
 fehlgeschlagenen Trigger per E-Mail. Kopien können die Script-Properties der gebundenen Web-App mitnehmen (Geräteschlüssel,
 Vertragstoken) und dürfen deshalb nie freigegeben werden.
 
-**Lock.** Wochenlauf, manuelle Kopie und Restore-Test laufen unter dem Script-Lock des
+**Lock.** Einrichtung, Wochenlauf, manuelle Kopie und Restore-Test laufen unter dem Script-Lock des
 Backup-Projekts; ein paralleler Aufruf meldet `LOCK_BUSY` und legt nichts an.
 
 **Grenzen.** Das Backup-Projekt kann den Script-Lock der Web-App nicht nutzen. Läuft
