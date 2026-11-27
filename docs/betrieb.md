@@ -372,18 +372,18 @@ Repositorys bleibt unverändert. Voraussetzung sind `config.local.js` mit beiden
 Alle `clasp:*`-Skripte reichen Argumente durch, zum Beispiel
 `npm run clasp:prod:deploy -- --description "Backend 4.8.19"`.
 
-### Release-Ablauf: Entwurf zur Entscheidung
+### Release-Ablauf
 
-Stand 2026-11-26, **noch nicht beschlossen**. Bis zur Entscheidung gilt die Release-Regel
-oben unverändert. Jeder Punkt nennt eine Empfehlung; die Entscheidung trifft der Product
-Owner und sie wird danach in `ROADMAP.md` (Entscheidungen) eingetragen.
+**Beschlossen am 2026-11-27** durch den Product Owner, jeweils wie empfohlen (eingetragen in
+`ROADMAP.md`, Abschnitt „Entscheidungen“). E1–E5 ergänzen die Release-Regel oben; sie
+ersetzen sie nicht.
 
 **E1 Tag-Konvention (Backend).** Präzisiert die bestehende Regel im `CHANGELOG.md`
 (Abschnitt „Regeln“), die seit 4.8.13 nicht mehr angewendet wurde. Annotierter Tag `vX.Y.Z` auf den Merge-Commit in `main`,
 mit dem der Code-Stand kam (Zeile „entspricht“ in `npm run status`). Gesetzt wird er
 direkt nach dem PROD-Deploy; TEST-Deploys erhalten keinen Tag. Versionen, die nie in PROD
 waren (z. B. 4.8.15), bleiben ohne Tag.
-*Empfehlung:* so beschließen. Ein Tag ist unveränderlich; ein falscher Tag wird nicht
+*Beschluss:* so. Ein Tag ist unveränderlich; ein falscher Tag wird nicht
 verschoben, sondern im CHANGELOG richtiggestellt.
 
 **E2 Reine Frontend-Releases.** Optionen:
@@ -391,7 +391,7 @@ verschoben, sondern im CHANGELOG richtiggestellt.
 und den gemergten PRs;
 (b) eigener Tag `web-JJJJ-MM-TT[.n]` auf den Merge-Commit;
 (c) gemeinsame Versionsnummer für Frontend und Backend.
-*Empfehlung:* (a), solange Pages bei jedem Merge veröffentlicht (E4). (c) koppelt zwei
+*Beschluss:* (a), solange Pages bei jedem Merge veröffentlicht (E4). (c) koppelt zwei
 unabhängige Auslieferungen und erzeugt Backend-Versionen ohne Backend-Änderung.
 
 **E3 Rollback.**
@@ -404,12 +404,12 @@ unabhängige Auslieferungen und erzeugt Backend-Versionen ohne Backend-Änderung
   zurückgenommen; deshalb sind Schemaschritte nur additiv (neue Spalten oder Blätter).
 - *Frontend:* Revert-PR auf `main`; Pages veröffentlicht den vorherigen Stand.
 - Ein Rollback braucht dieselbe ausdrückliche Freigabe wie ein Deploy.
-*Empfehlung:* so beschließen.
+*Beschluss:* so.
 
 **E4 Wann veröffentlicht GitHub Pages?** Optionen:
 (a) wie bisher bei jedem Merge auf `main`;
 (b) nur bei einem Release-Tag oder manuell (`workflow_dispatch`).
-*Empfehlung:* vorerst (a). Bei einem Nutzer ist der Merge bereits die Freigabe, und der
+*Beschluss:* vorerst (a). Bei einem Nutzer ist der Merge bereits die Freigabe, und der
 lokale Testserver vor dem Merge ersetzt die Vorschau. (b) lohnt sich, sobald mehrere
 Personen mit der App arbeiten oder mehrere PRs gebündelt ausgeliefert werden sollen.
 
@@ -438,7 +438,7 @@ der PROD-Versionen: Jede Version entspricht exakt dem genannten Merge-Commit.
 `@42` (4.8.12) entspricht in allen Script-Dateien dem bestehenden Tag `v4.8.12`;
 `ContractService` war damals noch nicht im PROD-Projekt. `@41` (4.8.5) hat keinen Tag; es
 entspricht `b84f7d0` bis auf das fehlende `ContractService`. Ein nachträglicher Tag ist
-nicht nötig. Die Tags werden erst nach Entscheidung über E1 gesetzt und gepusht.
+nicht nötig. Die Tags werden nach Freigabe des Pushs gesetzt und gepusht.
 
 ### Frontend
 
