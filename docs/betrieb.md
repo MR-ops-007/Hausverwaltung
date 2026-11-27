@@ -424,7 +424,7 @@ Personen mit der App arbeiten oder mehrere PRs gebündelt ausgeliefert werden so
 - Jeder dieser Fälle bekommt eine Zeile in der Deployment-Historie, auch wenn nichts
   live gegangen ist.
 
-**E6 Fehlende Tags nachziehen.** Belegt am 2026-11-26 per `clasp pull --versionNumber`
+**E6 Fehlende Tags nachziehen (erledigt 2026-11-27).** Belegt am 2026-11-26 per `clasp pull --versionNumber`
 der PROD-Versionen: Jede Version entspricht exakt dem genannten Merge-Commit.
 
 | Tag | Commit | PROD-Version | Merge |
@@ -438,7 +438,7 @@ der PROD-Versionen: Jede Version entspricht exakt dem genannten Merge-Commit.
 `@42` (4.8.12) entspricht in allen Script-Dateien dem bestehenden Tag `v4.8.12`;
 `ContractService` war damals noch nicht im PROD-Projekt. `@41` (4.8.5) hat keinen Tag; es
 entspricht `b84f7d0` bis auf das fehlende `ContractService`. Ein nachträglicher Tag ist
-nicht nötig. Die Tags werden nach Freigabe des Pushs gesetzt und gepusht.
+nicht nötig. Die Tags wurden am 2026-11-27 nach Freigabe gesetzt und gepusht.
 
 ### Frontend
 
