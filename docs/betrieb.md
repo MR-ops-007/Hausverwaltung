@@ -461,7 +461,8 @@ nicht nötig. Die Tags wurden am 2026-11-27 nach Freigabe gesetzt und gepusht.
    zusätzlich `MieterwechselProtokoll`, bei 4.8.15 das Blatt
    `MieterhöhungsPrüfungen` und bei 4.8.16 die optionalen Regelspalten im Blatt
    `Objekte` an; sie wird nicht automatisch durch einen API-Aufruf gestartet.
-   Vor dem Ausführen eine Sheet-Kopie als Rückfallstand sichern.
+   Vorher im Backup-Projekt der Umgebung `createManualBackup()` (Datei `Backup.js`)
+   als Rückfallstand ausführen (`docs/backup-restore.md`).
 6. `installDailyViewTrigger()` einmal manuell ausführen und die Rückmeldung
    `already_present` prüfen. Die Funktion legt nur einen täglichen Trigger für
    `refreshAktiveMieterViewDaily()` an und entfernt einen alten Trigger auf

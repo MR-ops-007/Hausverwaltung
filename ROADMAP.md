@@ -23,10 +23,12 @@ allen erledigten Paketen steht unverändert in
 
 **Ziel:** Wenige, brauchbare Sicherungen mit einem tatsächlich getesteten Restore.
 
-- Wöchentlicher Trigger, nur bei geändertem Datenbestand; höchstens drei automatische Kopien,
-  manuelle Release-/Migrationskopien außerhalb der Rotation.
-- Eigener, nur für den Product Owner freigegebener Drive-Ordner.
-- Restore zuerst in eine separate Testdatei, protokolliert nach `docs/backup-restore.md`.
+- Umgesetzt im eigenen Backup-Projekt `apps-script-backup/` (Ablauf in
+  `docs/backup-restore.md`): Wochen-Trigger nur bei geändertem Datenbestand, höchstens drei
+  automatische Kopien mit gestaffeltem Alter, manuelle Kopien außerhalb der Rotation,
+  privater Drive-Ordner mit Freigabeprüfung, Restore-Test in eine separate Testdatei.
+- Offen: Einrichtung und Restore-Test in TEST, danach PROD nach Freigabe; jeweils im
+  Protokoll von `docs/backup-restore.md`.
 - Im selben Zug klein mitnehmen: Vertrags-Token mit `constantTimeEquals` vergleichen und die
   Entscheidung dokumentieren, ob das Repository privat gestellt und die produktive
   Bereitstellung rotiert wird (die frühere PROD-URL ist in der Git-Historie sichtbar).
@@ -106,6 +108,8 @@ Noch nicht priorisiert; Reihenfolge wird vor Beginn mit dem Product Owner festge
 | 2026-11-27 | Reine Frontend-Releases (E2) erhalten keinen Tag; was live ist, zeigt `npm run status`. |
 | 2026-11-27 | Rollback (E3): Backend durch Zurückstellen der PROD-Bereitstellung auf die vorherige Version ohne Code-Push, Frontend per Revert-PR; beides mit derselben ausdrücklichen Freigabe wie ein Deploy. Schemaschritte bleiben additiv. |
 | 2026-11-27 | GitHub Pages veröffentlicht vorerst weiter bei jedem Merge auf `main` (E4); Umstellung auf Tag oder manuellen Auslöser, sobald mehrere Personen mit der App arbeiten. |
+| 2026-11-27 | Backups laufen in einem eigenen Apps-Script-Projekt ohne Web-App; nur dieses hat Drive-Zugriff, die öffentlich erreichbare Web-App bleibt ohne. |
+| 2026-11-27 | Backup-Rotation: höchstens drei automatische Kopien, gestaffelt neu / mittlere bis 7 Wochen / ältere bis etwa 14 Wochen (gewählt: „neu, ~1 Monat, ~3 Monate“; mit drei Plätzen lückenlos nur als Nachrücken umsetzbar). |
 | 2026-11-27 | Fehlgeschlagene Deployments (E5) werden nach dem Ablauf in `docs/betrieb.md` behandelt und bekommen immer eine Zeile in der Deployment-Historie. |
 
 ## Definition of Done
