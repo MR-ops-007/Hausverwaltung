@@ -19,8 +19,8 @@ bewusst nicht.
 | `setupBackup()` | Einmalig: prüft die Quelle, legt den privaten Ordner an und richtet genau einen Wochen-Trigger ein (sonntags gegen 3 Uhr). Wiederholbar. |
 | `runWeeklyBackup()` | Vom Trigger: Kopie nur, wenn sich der Datenbestand seit der letzten automatischen Kopie geändert hat; danach Rotation. |
 | `createManualBackup()` | Kopie vor einem Release oder einer Migration; außerhalb der Rotation, wird nie automatisch gelöscht. |
-| `listBackups()` | Übersicht aller Kopien im Ordner (Protokoll im Ausführungslog). |
-| `restoreLatestBackupToTestFile()` | Restore-Test: neueste Kopie in eine neue Testdatei, Vergleich von Blättern, Größen und Kopfzeilen. |
+| `listBackups()` | Übersicht aller Kopien im Ordner samt Freigabe-Warnungen (Ausführungslog). |
+| `restoreLatestBackupToTestFile()` | Restore-Test: neueste Kopie in eine neue Testdatei, Vergleich von Blättern, Größen, Kopfzeilen und Zellinhalten (Hash je Blatt). |
 
 **Geänderter Datenbestand.** Verglichen wird ein SHA-256-Fingerabdruck über alle Blätter
 außer den abgeleiteten (Name beginnt mit `_`, z. B. `_view_verbrauch_monat`). Der tägliche
@@ -38,8 +38,13 @@ ausgenommen.
 **Freigabe.** Vor jeder Kopie prüft das Projekt, dass der Ordner privat ist (keine
 Linkfreigabe, keine weiteren Bearbeiter oder Betrachter). Sonst bricht es ohne Kopie ab;
 eine Kopie, die durch die Ordnerfreigabe sichtbar würde, wird sofort in den Papierkorb
-gelegt. Kopien können die Script-Properties der gebundenen Web-App mitnehmen (Geräteschlüssel,
+gelegt. Zusätzlich prüft jeder Wochenlauf die Einzelfreigaben aller vorhandenen Kopien:
+Ist eine Kopie nachträglich freigegeben, schlägt der Lauf fehl, und Apps Script meldet den
+fehlgeschlagenen Trigger per E-Mail. Kopien können die Script-Properties der gebundenen Web-App mitnehmen (Geräteschlüssel,
 Vertragstoken) und dürfen deshalb nie freigegeben werden.
+
+**Lock.** Wochenlauf, manuelle Kopie und Restore-Test laufen unter dem Script-Lock des
+Backup-Projekts; ein paralleler Aufruf meldet `LOCK_BUSY` und legt nichts an.
 
 **Grenzen.** Das Backup-Projekt kann den Script-Lock der Web-App nicht nutzen. Läuft
 während der Kopie gerade ein Schreibvorgang, enthält die Kopie ihn ganz oder gar nicht
@@ -76,7 +81,9 @@ im PR oder in der Deployment-Historie nennen.
 
 1. Im Backup-Projekt `restoreLatestBackupToTestFile()` (Datei `Backup.js`) ausführen. Die
    Funktion legt `HV-Restore-Test <Umgebung> <Zeit>` im Backup-Ordner an und vergleicht
-   Blätter, Zeilen-/Spaltenzahl und Kopfzeilen mit der Kopie. `status: success` und
+   Blätter, Zeilen-/Spaltenzahl, Kopfzeilen und je Blatt einen SHA-256-Hash über alle
+   Zellwerte mit der Kopie. `status: success` gibt es nur bei vollständiger Übereinstimmung;
+   eine Abweichung nennt nur den Blattnamen, keine Zellinhalte. `status: success` und
    `abweichungen: []` sind die Voraussetzung für die weiteren Schritte.
 2. Die Testdatei stichprobenartig öffnen: Stammdaten, letzte Zahlungen, letzte
    Zählerstände und die vier Verbrauchsviews.

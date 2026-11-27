@@ -59,10 +59,11 @@ function selectBackupsToKeep(backups, now) {
 /**
  * Inhalt, über den „Datenbestand geändert?“ entschieden wird: alle Blätter außer den
  * abgeleiteten (`_view_*`, `_migration_*` usw., Name beginnt mit `_`), nach Namen sortiert.
+ * Mit `includeDerived` zählen alle Blätter (Restore-Vergleich).
  */
-function backupFingerprintSource(sheets) {
+function backupFingerprintSource(sheets, includeDerived) {
   return JSON.stringify(sheets
-    .filter(sheet => String(sheet.name).charAt(0) !== '_')
+    .filter(sheet => includeDerived || String(sheet.name).charAt(0) !== '_')
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
     .map(sheet => [sheet.name, sheet.values]));
 }
@@ -169,13 +170,54 @@ function sheetSummaries_(spreadsheet) {
   });
 }
 
+function sha256_(text) {
+  return Utilities.base64Encode(Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256, text, Utilities.Charset.UTF_8
+  ));
+}
+
 function sourceFingerprint_(spreadsheet) {
-  const digest = Utilities.computeDigest(
-    Utilities.DigestAlgorithm.SHA_256,
-    backupFingerprintSource(sheetValues_(spreadsheet)),
-    Utilities.Charset.UTF_8
-  );
-  return Utilities.base64Encode(digest);
+  return sha256_(backupFingerprintSource(sheetValues_(spreadsheet)));
+}
+
+/** Je Blatt ein Hash über alle Zellwerte; Rohdaten verlassen die Funktion nicht. */
+function sheetContentHashes_(spreadsheet) {
+  const hashes = {};
+  sheetValues_(spreadsheet).forEach(sheet => {
+    hashes[sheet.name] = sha256_(backupFingerprintSource([sheet], true));
+  });
+  return hashes;
+}
+
+/** Namen der Blätter, deren Inhalt abweicht (fehlende Blätter meldet der Strukturvergleich). */
+function contentMismatches(expected, actual) {
+  return Object.keys(expected).sort()
+    .filter(name => name in actual && actual[name] !== expected[name])
+    .map(name => 'Inhalt weicht ab: ' + name);
+}
+
+function withScriptLock_(name, fn) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) {
+    backupLog_(name + ' übersprungen: Script-Lock ist belegt.');
+    return { status: 'skipped', reason: 'LOCK_BUSY' };
+  }
+  try {
+    return fn();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Prüft die Einzelfreigaben aller gekennzeichneten Dateien im Backup-Ordner. */
+function auditBackupSharing_(folder) {
+  const issues = [];
+  [BACKUP_MARKER.auto, BACKUP_MARKER.manual, BACKUP_MARKER.restore].forEach(marker => {
+    filesWithMarker_(folder, marker).forEach(file => {
+      sharingIssuesOf_(file).forEach(issue => issues.push(file.getName() + ': ' + issue));
+    });
+  });
+  return issues;
 }
 
 function filesWithMarker_(folder, marker) {
@@ -268,14 +310,13 @@ function setupBackup() {
 
 /** Wochen-Trigger: Kopie nur bei geändertem Datenbestand, danach Rotation. */
 function runWeeklyBackup() {
-  const lock = LockService.getScriptLock();
-  if (!lock.tryLock(30000)) {
-    backupLog_('runWeeklyBackup übersprungen: Script-Lock ist belegt.');
-    return { status: 'skipped', reason: 'LOCK_BUSY' };
-  }
-  try {
+  return withScriptLock_('runWeeklyBackup', () => {
     const config = backupConfig_();
     const folder = backupFolder_(config);
+    // Fällt eine einzeln freigegebene Kopie auf, schlägt der Lauf fehl; Apps Script meldet
+    // fehlgeschlagene Trigger per E-Mail an den Eigentümer.
+    const sharing = auditBackupSharing_(folder);
+    if (sharing.length) throw new Error('Kopien im Backup-Ordner sind freigegeben: ' + sharing.join('; '));
     const props = backupProperties_();
     const fingerprint = sourceFingerprint_(SpreadsheetApp.openById(config.sourceId));
     const hasAutomatic = filesWithMarker_(folder, BACKUP_MARKER.auto).length > 0;
@@ -296,9 +337,7 @@ function runWeeklyBackup() {
     };
     backupLog_(JSON.stringify(result));
     return result;
-  } finally {
-    lock.releaseLock();
-  }
+  });
 }
 
 /**
@@ -306,11 +345,13 @@ function runWeeklyBackup() {
  * und außerhalb der Rotation; wird nie automatisch gelöscht.
  */
 function createManualBackup() {
-  const config = backupConfig_();
-  const copy = createCopy_(config, backupFolder_(config), 'manuell', BACKUP_MARKER.manual, Date.now());
-  const result = { status: 'success', backup_version: BACKUP_VERSION, created: copy.getName(), url: copy.getUrl() };
-  backupLog_(JSON.stringify(result));
-  return result;
+  return withScriptLock_('createManualBackup', () => {
+    const config = backupConfig_();
+    const copy = createCopy_(config, backupFolder_(config), 'manuell', BACKUP_MARKER.manual, Date.now());
+    const result = { status: 'success', backup_version: BACKUP_VERSION, created: copy.getName(), url: copy.getUrl() };
+    backupLog_(JSON.stringify(result));
+    return result;
+  });
 }
 
 /** Übersicht aller Kopien im Backup-Ordner, neueste zuerst. */
@@ -324,17 +365,23 @@ function listBackups() {
     }));
   });
   rows.sort((a, b) => (a.erstellt < b.erstellt ? 1 : -1));
-  backupLog_(JSON.stringify(rows, null, 2));
-  return rows;
+  const result = { kopien: rows, freigabe_warnungen: auditBackupSharing_(folder) };
+  backupLog_(JSON.stringify(result, null, 2));
+  return result;
 }
 
 /**
  * Restore-Test: kopiert die neueste Kopie (automatisch oder manuell) in eine neue,
- * separate Testdatei und vergleicht Blätter, Größen und Kopfzeilen. Die Quelltabelle
- * wird weder gelesen noch verändert. Das Ergebnis wird nach docs/backup-restore.md
- * protokolliert.
+ * separate Testdatei und vergleicht Blätter, Größen, Kopfzeilen und je Blatt einen Hash
+ * über alle Zellwerte. Erfolg nur bei vollständiger Übereinstimmung; geloggt werden nur
+ * Blattnamen und Größen, keine Zellinhalte. Die Quelltabelle wird weder gelesen noch
+ * verändert. Das Ergebnis wird nach docs/backup-restore.md protokolliert.
  */
 function restoreLatestBackupToTestFile() {
+  return withScriptLock_('restoreLatestBackupToTestFile', restoreLatestBackupToTestFile_);
+}
+
+function restoreLatestBackupToTestFile_() {
   const config = backupConfig_();
   const folder = backupFolder_(config);
   const candidates = filesWithMarker_(folder, BACKUP_MARKER.auto)
@@ -349,9 +396,11 @@ function restoreLatestBackupToTestFile() {
     target.setTrashed(true);
     throw new Error('Restore-Ziel wäre nicht privat, in den Papierkorb gelegt: ' + issues.join('; '));
   }
-  const expected = sheetSummaries_(SpreadsheetApp.openById(backup.getId()));
-  const actual = sheetSummaries_(SpreadsheetApp.openById(target.getId()));
-  const problems = compareSheetSummaries(expected, actual);
+  const backupSheet = SpreadsheetApp.openById(backup.getId());
+  const targetSheet = SpreadsheetApp.openById(target.getId());
+  const expected = sheetSummaries_(backupSheet);
+  const problems = compareSheetSummaries(expected, sheetSummaries_(targetSheet))
+    .concat(contentMismatches(sheetContentHashes_(backupSheet), sheetContentHashes_(targetSheet)));
   const result = {
     status: problems.length ? 'error' : 'success',
     backup_version: BACKUP_VERSION,

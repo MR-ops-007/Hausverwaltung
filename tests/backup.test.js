@@ -7,7 +7,7 @@ const DAY = 24 * 60 * 60 * 1000;
 
 const EXPORTS = [
   'BACKUP_VERSION', 'BACKUP_MARKER', 'selectBackupsToKeep', 'backupFingerprintSource', 'backupFileName',
-  'backupSharingIssues', 'compareSheetSummaries', 'setupBackup', 'runWeeklyBackup', 'createManualBackup',
+  'backupSharingIssues', 'compareSheetSummaries', 'contentMismatches', 'listBackups', 'setupBackup', 'runWeeklyBackup', 'createManualBackup',
   'restoreLatestBackupToTestFile'
 ];
 
@@ -124,7 +124,7 @@ describe('Backup: Projekt-Manifest', () => {
 
 // ---------------------------------------------------------------- Abläufe mit nachgebauten Diensten
 
-function fakeEnvironment({ sheets, properties = {}, folderAccess = 'PRIVATE', folderViewers = [], lockFree = true }) {
+function fakeEnvironment({ sheets, properties = {}, folderAccess = 'PRIVATE', folderViewers = [], lockFree = true, onCopy = null }) {
   let clock = Date.parse('2026-11-29T02:00:00Z');
   const props = { ...properties };
   const triggers = [];
@@ -137,6 +137,12 @@ function fakeEnvironment({ sheets, properties = {}, folderAccess = 'PRIVATE', fo
     getEditors: () => [owner],
     getViewers: () => viewers.map(user)
   });
+  const fileSharing = file => ({
+    getOwner: () => owner,
+    getSharingAccess: () => file.access,
+    getEditors: () => [owner],
+    getViewers: () => file.viewers.map(user)
+  });
 
   const makeFile = (name, folder, content) => {
     const file = {
@@ -145,9 +151,14 @@ function fakeEnvironment({ sheets, properties = {}, folderAccess = 'PRIVATE', fo
       getDescription: () => file.description, setDescription: text => { file.description = text; return file; },
       isTrashed: () => file.trashed, setTrashed: value => { file.trashed = value; return file; },
       getDateCreated: () => file.created,
-      makeCopy: (copyName, target) => makeFile(copyName, target, JSON.parse(JSON.stringify(file.content))),
-      ...sharing(folder ? folder.access : 'PRIVATE')
+      makeCopy: (copyName, target) => {
+        const copy = makeFile(copyName, target, JSON.parse(JSON.stringify(file.content)));
+        if (onCopy) onCopy(copy);
+        return copy;
+      },
+      access: folder ? folder.access : 'PRIVATE', viewers: []
     };
+    Object.assign(file, fileSharing(file));
     files.push(file);
     return file;
   };
@@ -297,6 +308,36 @@ describe('Backup: wöchentlicher Lauf', () => {
   });
 });
 
+describe('Backup: Inhaltsvergleich', () => {
+  it('nennt nur Blätter mit abweichendem Inhalt', () => {
+    expect(pure.contentMismatches({ A: 'h1', B: 'h2', C: 'h3' }, { A: 'h1', B: 'x', D: 'h4' }))
+      .toEqual(['Inhalt weicht ab: B']);
+  });
+});
+
+describe('Backup: Freigabe bestehender Kopien und Lock', () => {
+  const props = { SOURCE_SPREADSHEET_ID: 'f1', BACKUP_LABEL: 'TEST', BACKUP_FOLDER_ID: 'folder1' };
+
+  it('eine nachträglich einzeln freigegebene Kopie lässt den Wochenlauf fehlschlagen und erscheint in listBackups', () => {
+    const env = fakeEnvironment({ sheets: SHEETS, properties: props });
+    const backup = load(env.globals);
+    withClock(env, () => backup.runWeeklyBackup());
+    env.autoCopies()[0].viewers.push('x@example.org');
+    env.source.content[1].values.push(['z9', 1]);
+    expect(() => withClock(env, () => backup.runWeeklyBackup())).toThrow(/freigegeben: HV-Backup TEST .* auto: Betrachter: x@example.org/);
+    expect(env.autoCopies()).toHaveLength(1);
+    expect(backup.listBackups().freigabe_warnungen).toHaveLength(1);
+  });
+
+  it('manuelle Kopie und Restore-Test überspringen bei belegtem Lock', () => {
+    const env = fakeEnvironment({ sheets: SHEETS, lockFree: false, properties: props });
+    const backup = load(env.globals);
+    expect(backup.createManualBackup()).toEqual({ status: 'skipped', reason: 'LOCK_BUSY' });
+    expect(backup.restoreLatestBackupToTestFile()).toEqual({ status: 'skipped', reason: 'LOCK_BUSY' });
+    expect(env.files).toHaveLength(1);
+  });
+});
+
 describe('Backup: Restore-Test', () => {
   it('stellt die neueste Kopie in eine neue Testdatei wieder her und vergleicht sie', () => {
     const env = fakeEnvironment({ sheets: SHEETS, properties: { SOURCE_SPREADSHEET_ID: 'f1', BACKUP_LABEL: 'TEST', BACKUP_FOLDER_ID: 'folder1' } });
@@ -308,6 +349,21 @@ describe('Backup: Restore-Test', () => {
     expect(result.ziel).toMatch(/^HV-Restore-Test TEST /);
     expect(result.blaetter).toEqual(['Objekte 2×2', 'Zahlungen 2×2', '_view_verbrauch_monat 2×1']);
     expect(env.files.filter(file => file.description === 'hv-backup:restore-test')).toHaveLength(1);
+  });
+
+  it('schlägt fehl, wenn die Restore-Datei bei gleicher Struktur andere Zellinhalte hat', () => {
+    const env = fakeEnvironment({
+      sheets: SHEETS,
+      properties: { SOURCE_SPREADSHEET_ID: 'f1', BACKUP_LABEL: 'TEST', BACKUP_FOLDER_ID: 'folder1' },
+      onCopy: copy => { if (copy.name.startsWith('HV-Restore-Test')) copy.content[1].values[1][1] = 501; }
+    });
+    const backup = load(env.globals);
+    withClock(env, () => backup.runWeeklyBackup());
+    const result = backup.restoreLatestBackupToTestFile();
+    expect(result.status).toBe('error');
+    expect(result.abweichungen).toEqual(['Inhalt weicht ab: Zahlungen']);
+    // Keine Rohdaten im Ergebnis
+    expect(JSON.stringify(result)).not.toMatch(/501|500/);
   });
 
   it('meldet einen fehlenden Backup-Bestand', () => {
