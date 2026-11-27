@@ -24,9 +24,8 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
 - Datumsangaben bis 4.6.4 stammen aus der Git-Historie (Commit, der die Version
   eingeführt hat), nicht aus dem Deployment.
 - Verbindlich ist die Release-Regel in `docs/betrieb.md` (Deployment-Checkliste).
-- Ablauf bis zur Neuordnung des Release-Ablaufs (Roadmap-Paket „Release-Ablauf neu ordnen“): Ein TEST-Deploy zur
-  Abnahme darf aus dem PR-Stand vor dem Merge erfolgen und wird im selben PR in der
-  Deployment-Historie protokolliert. PROD wird ausschließlich aus `main` nach dem Merge und
+- Ein TEST-Deploy zur Abnahme darf aus dem PR-Stand vor dem Merge erfolgen und wird im
+  selben PR in der Deployment-Historie protokolliert. PROD wird ausschließlich aus `main` nach dem Merge und
   nach ausdrücklicher Freigabe bereitgestellt; dieser Eintrag folgt im nächsten ohnehin
   anstehenden PR, ein eigener Doku-PR ist nicht nötig. Prüfquelle für den
   tatsächlichen Stand ist `npm run status` (siehe `docs/betrieb.md`).
@@ -63,7 +62,7 @@ Alle Deployments aktualisieren die bestehenden Bereitstellungen; die URLs bleibe
 
 Verifikation am 2026-11-24 (nur lesend per `clasp`): Beide Projekte haben je eine
 Web-App-Bereitstellung neben `@HEAD`; PROD steht auf Version 44 (4.8.14), TEST auf Version 10
-(4.8.16). Fehlende Release-Tags ab 4.8.13 werden im Roadmap-Paket „Release-Ablauf neu ordnen“ gesetzt.
+(4.8.16). Die fehlenden Release-Tags ab 4.8.13 wurden am 2026-11-27 nachgezogen (`docs/betrieb.md`, E6).
 Nach dem PROD-Deploy am selben Abend steht PROD auf Version 45 (4.8.16).
 
 ## 4.8.18 · 2026-11-25 · produktiv

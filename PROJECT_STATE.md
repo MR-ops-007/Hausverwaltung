@@ -82,8 +82,8 @@ Deployment-Historie im [`CHANGELOG.md`](CHANGELOG.md).
 - Ein Merge auf `main` veröffentlicht das Frontend automatisch über GitHub Pages, das Backend
   dagegen erst mit einem eigenen Deploy. Neue Schreibwege prüfen vorher die Capability-Abfrage
   `vertrag_capabilities` und brechen bei einem älteren Backend verständlich ab; neue Anzeigen
-  können bis zum Backend-Deploy mit Standardwerten erscheinen. Die Neuordnung dieses Ablaufs
-  ist ein eigenes Roadmap-Paket.
+  können bis zum Backend-Deploy mit Standardwerten erscheinen. Tags, Rollback und
+  Fehlerfälle regelt der Abschnitt „Release-Ablauf“ in `docs/betrieb.md`.
 
 ## Bekannte Einschränkungen
 

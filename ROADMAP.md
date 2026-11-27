@@ -19,21 +19,7 @@ allen erledigten Paketen steht unverändert in
 
 ## Priorisierte nächste Pakete
 
-### 1. Release-Ablauf neu ordnen
-
-**Ziel:** Frontend und Backend werden nachvollziehbar und passend zueinander veröffentlicht.
-Eigenes Paket mit eigener Entscheidung; die bestehende Veröffentlichung läuft unverändert
-weiter, bis der neue Ablauf vollständig erprobt ist.
-
-- Erledigt: `npm run status` zeigt nur lesend den tatsächlichen Stand von TEST, PROD und
-  GitHub Pages samt zugehörigem Commit; alle `clasp:*`-Skripte reichen Argumente durch
-  (Voraussetzung für Rollback und Beschreibung).
-- Erledigt: Ablauf E1–E5 beschlossen (2026-11-27, Tabelle unten; Einzelheiten in
-  `docs/betrieb.md`, Abschnitt „Release-Ablauf“).
-- Offen: die belegten Tags `v4.8.13` bis `v4.8.18` setzen und pushen (Liste in E6); der
-  Push braucht eine eigene Freigabe. Danach ist das Paket abgeschlossen.
-
-### 2. P1.3 Backup und Restore
+### 1. P1.3 Backup und Restore
 
 **Ziel:** Wenige, brauchbare Sicherungen mit einem tatsächlich getesteten Restore.
 
@@ -47,7 +33,7 @@ weiter, bis der neue Ablauf vollständig erprobt ist.
 
 **Nicht-Ziel:** tägliche Kopierflut oder automatische Wiederherstellung der Produktion.
 
-### 3. P6.7c Vertragsanlage in der Oberfläche
+### 2. P6.7c Vertragsanlage in der Oberfläche
 
 **Ziel:** Neue Verträge ohne direkten API-Aufruf anlegen.
 
