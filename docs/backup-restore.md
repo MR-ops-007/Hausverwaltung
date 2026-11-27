@@ -1,6 +1,6 @@
 # Backup und Restore
 
-Stand: 2026-11-27 (Backup-Projekt 1.0.0)
+Stand: 2026-11-27 (Backup-Projekt 1.0.1)
 
 Sicherungen der Hausverwaltungs-Tabelle laufen in einem **eigenen Apps-Script-Projekt**
 (`apps-script-backup/`), getrennt von der Web-App in `apps-script/`. Nur das Backup-Projekt
@@ -65,7 +65,9 @@ Zuerst TEST, PROD erst nach Abnahme und ausdrücklicher Freigabe.
    `SOURCE_SPREADSHEET_ID` (ID der Hausverwaltungs-Tabelle der Umgebung) und
    `BACKUP_LABEL` (`TEST` bzw. `PROD`).
 4. Im Backup-Projekt in der Datei `Backup.js` die Funktion `setupBackup()` ausführen und
-   die Berechtigungen bestätigen (Drive, Tabellen lesen, Trigger). Rückmeldung prüfen:
+   die Berechtigungen bestätigen (Drive, Tabellen, Trigger). `SpreadsheetApp.openById`
+   verlangt den vollen Tabellen-Scope; der Code liest trotzdem nur (Test in
+   `tests/backup.test.js`). Rückmeldung prüfen:
    `created_folder`, `trigger_already_present`, `folder_url`.
 5. Einmal `runWeeklyBackup()` ausführen: Die erste Kopie entsteht immer. Ein zweiter
    Aufruf direkt danach muss `UNCHANGED` melden.
@@ -117,4 +119,9 @@ Bemerkungen:
 
 | Datum | Umgebung | Schritt | Ergebnis |
 | --- | --- | --- | --- |
-| – | – | noch keine Einrichtung | – |
+| 2026-11-27 | TEST | Projekt „Hausverwaltung Backup TEST“ angelegt, 1.0.0 gepusht | `setupBackup()` scheiterte: `openById` verlangt Scope `spreadsheets` → 1.0.1 |
+| 2026-11-27 | TEST | `setupBackup()` (1.0.1), Quelle `Hausverwaltung_Daten_TEST_Entenhausen` | Ordner „Hausverwaltung Backups TEST“ angelegt, ein Wochen-Trigger; zweiter Aufruf: `created_folder: false`, `trigger_already_present: true` |
+| 2026-11-27 | TEST | `runWeeklyBackup()` zweimal | erste Kopie `HV-Backup TEST 2026-11-27 13-54 auto`; zweiter Lauf `UNCHANGED` |
+| 2026-11-27 | TEST | Zählerstand über die App erfasst, `runWeeklyBackup()` | neue Kopie `HV-Backup TEST 2026-11-27 13-58 auto` mit dem neuen Wert; zwei Kopien behalten, nichts gelöscht |
+| 2026-11-27 | TEST | `restoreLatestBackupToTestFile()` aus der 13-58-Kopie | `status: success`, `abweichungen: []`, 30 Blätter (u. a. `Zaehlerstaende` 1926 Zeilen, `Zahlungen` 641); Ziel `HV-Restore-Test TEST 2026-11-27 14-07` |
+| 2026-11-27 | TEST | Stichprobe in der Restore-Datei | ausstehend |
