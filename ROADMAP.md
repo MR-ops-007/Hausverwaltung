@@ -25,16 +25,13 @@ allen erledigten Paketen steht unverändert in
 Eigenes Paket mit eigener Entscheidung; die bestehende Veröffentlichung läuft unverändert
 weiter, bis der neue Ablauf vollständig erprobt ist.
 
-- Zuerst den Ablauf festlegen: Tag-Konventionen, fehlgeschlagene Deployments, Rollback,
-  erneutes Deployment und reine Frontend-Releases.
-- `npm run status` fragt den tatsächlichen Stand in Apps Script (TEST/PROD) und GitHub Pages ab;
-  Tags dienen als unveränderliche Release-Historie, nicht als alleinige Statusanzeige.
-- Die Deployment-Historie bleibt verlässlich auffindbar.
-- Fehlende Release-Tags nachziehen: `v4.8.13` bis `v4.8.18` auf die Commits, die die
-  Deployment-Historie im `CHANGELOG.md` nennt (bisher existiert nur `v4.8.12`).
-- Erst danach entscheiden, ob GitHub Pages weiter bei jedem Merge oder nur noch über einen
-  Release-Tag veröffentlicht. Ein Frontend-only-Release erzeugt dann selbst einen
-  nachvollziehbaren Release-Tag.
+- Erledigt: `npm run status` zeigt nur lesend den tatsächlichen Stand von TEST, PROD und
+  GitHub Pages samt zugehörigem Commit; alle `clasp:*`-Skripte reichen Argumente durch
+  (Voraussetzung für Rollback und Beschreibung).
+- Erledigt: Ablauf E1–E5 beschlossen (2026-11-27, Tabelle unten; Einzelheiten in
+  `docs/betrieb.md`, Abschnitt „Release-Ablauf“).
+- Offen: die belegten Tags `v4.8.13` bis `v4.8.18` setzen und pushen (Liste in E6); der
+  Push braucht eine eigene Freigabe. Danach ist das Paket abgeschlossen.
 
 ### 2. P1.3 Backup und Restore
 
@@ -119,6 +116,11 @@ Noch nicht priorisiert; Reihenfolge wird vor Beginn mit dem Product Owner festge
 | 2026-11-24 | Kappungsgrenze wird je Objekt im Blatt `Objekte` gepflegt (`kappungsgrenze_prozent` mit Gültigkeit und Quelle), weil sie sich ändern kann. Für die bestehenden Objekte gelten 20 %; für Gießen (nach der Pilotphase) voraussichtlich 15 %, bei der Aufnahme mit Quelle zu prüfen. |
 | 2026-11-24 | Die Rolle `erfassen` darf Mieterhöhungsprüfungen vorerst abschließen (abweichend von der Rollenentscheidung vom 2026-11-10). Aktuell gibt es nur einen Nutzer; eine zweite Person wird voraussichtlich nur Mieteingänge und Zähler kontrollieren. Das Rollenmodell wird gesondert überarbeitet. |
 | 2026-11-24 | Lesender Zugriff mit Schlüssel für Messungen durch den Assistenten nur auf TEST, nicht auf PROD; Ladezeiten werden in der App selbst gemessen. |
+| 2026-11-27 | Release-Tags (E1): nach jedem PROD-Deploy ein annotierter Tag `vX.Y.Z` auf den Merge-Commit in `main`, mit dem der Code-Stand kam; TEST-Deploys und nie produktive Versionen erhalten keinen Tag; ein falscher Tag wird nicht verschoben, sondern im CHANGELOG richtiggestellt. |
+| 2026-11-27 | Reine Frontend-Releases (E2) erhalten keinen Tag; was live ist, zeigt `npm run status`. |
+| 2026-11-27 | Rollback (E3): Backend durch Zurückstellen der PROD-Bereitstellung auf die vorherige Version ohne Code-Push, Frontend per Revert-PR; beides mit derselben ausdrücklichen Freigabe wie ein Deploy. Schemaschritte bleiben additiv. |
+| 2026-11-27 | GitHub Pages veröffentlicht vorerst weiter bei jedem Merge auf `main` (E4); Umstellung auf Tag oder manuellen Auslöser, sobald mehrere Personen mit der App arbeiten. |
+| 2026-11-27 | Fehlgeschlagene Deployments (E5) werden nach dem Ablauf in `docs/betrieb.md` behandelt und bekommen immer eine Zeile in der Deployment-Historie. |
 
 ## Definition of Done
 

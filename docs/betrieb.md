@@ -339,6 +339,107 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
 5. **Lesender Zugriff** auf TEST und PROD (Status, Deployments, Versionen, Pull in einen
    getrennten Hilfsordner zum Vergleich) ist ohne gesonderte Freigabe erlaubt.
 
+### Release-Status prüfen (`npm run status`)
+
+Ein Befehl zeigt nur lesend, was tatsächlich bereitgestellt ist:
+
+```bash
+npm run status
+```
+
+```bash
+npm run status -- --env=production
+```
+
+```bash
+npm run status -- --json
+```
+
+| Zeile | Bedeutung |
+| --- | --- |
+| Bereitstellung | Version (`@N`), auf die die bestehende Web-App-Bereitstellung zeigt |
+| Backend-Version | `BACKEND_VERSION` im gepullten Code dieser Bereitstellung |
+| Code | Script-Dateien gleich oder ungleich `origin/main` (bei Abweichung mit Dateinamen) |
+| entspricht | Merge-Commit auf `main`, mit dem genau dieser Code-Stand kam, samt Tag |
+| anonym | Abruf ohne Schlüssel; erwartet wird `UNAUTHORIZED` |
+| GitHub Pages | Commit der letzten **erfolgreichen** Bereitstellung und ob die ausgelieferte `index.html` diesem Commit entspricht |
+
+Der Code wird in einen temporären Ordner gepullt (Release-Regel 5); die `.clasp.json` des
+Repositorys bleibt unverändert. Voraussetzung sind `config.local.js` mit beiden Profilen,
+`.clasprc.json` und ein angemeldetes `gh`. Der Befehl ist die Prüfquelle für
+„Vor jedem Push“ (Regel 1) und für den Eintrag in der Deployment-Historie.
+
+Alle `clasp:*`-Skripte reichen Argumente durch, zum Beispiel
+`npm run clasp:prod:deploy -- --description "Backend 4.8.19"`.
+
+### Release-Ablauf
+
+**Beschlossen am 2026-11-27** durch den Product Owner, jeweils wie empfohlen (eingetragen in
+`ROADMAP.md`, Abschnitt „Entscheidungen“). E1–E5 ergänzen die Release-Regel oben; sie
+ersetzen sie nicht.
+
+**E1 Tag-Konvention (Backend).** Präzisiert die bestehende Regel im `CHANGELOG.md`
+(Abschnitt „Regeln“), die seit 4.8.13 nicht mehr angewendet wurde. Annotierter Tag `vX.Y.Z` auf den Merge-Commit in `main`,
+mit dem der Code-Stand kam (Zeile „entspricht“ in `npm run status`). Gesetzt wird er
+direkt nach dem PROD-Deploy; TEST-Deploys erhalten keinen Tag. Versionen, die nie in PROD
+waren (z. B. 4.8.15), bleiben ohne Tag.
+*Beschluss:* so. Ein Tag ist unveränderlich; ein falscher Tag wird nicht
+verschoben, sondern im CHANGELOG richtiggestellt.
+
+**E2 Reine Frontend-Releases.** Optionen:
+(a) kein Tag; die Historie ergibt sich aus den Pages-Bereitstellungen (`npm run status`)
+und den gemergten PRs;
+(b) eigener Tag `web-JJJJ-MM-TT[.n]` auf den Merge-Commit;
+(c) gemeinsame Versionsnummer für Frontend und Backend.
+*Beschluss:* (a), solange Pages bei jedem Merge veröffentlicht (E4). (c) koppelt zwei
+unabhängige Auslieferungen und erzeugt Backend-Versionen ohne Backend-Änderung.
+
+**E3 Rollback.**
+- *Backend:* die bestehende Bereitstellung auf die vorherige Version zurückstellen,
+  ohne Code-Push:
+  `npm run clasp:prod:deploy -- --versionNumber <N> --description "Rollback auf X.Y.Z"`.
+  Der Rollback-Stand steht in jeder PROD-Zeile der Deployment-Historie. Danach
+  `npm run status` (Bereitstellung `@N`, „Code ≠ main“ ist dann erwartet) und ein
+  Eintrag in der Deployment-Historie. Schemaänderungen werden dadurch nicht
+  zurückgenommen; deshalb sind Schemaschritte nur additiv (neue Spalten oder Blätter).
+- *Frontend:* Revert-PR auf `main`; Pages veröffentlicht den vorherigen Stand.
+- Ein Rollback braucht dieselbe ausdrückliche Freigabe wie ein Deploy.
+*Beschluss:* so.
+
+**E4 Wann veröffentlicht GitHub Pages?** Optionen:
+(a) wie bisher bei jedem Merge auf `main`;
+(b) nur bei einem Release-Tag oder manuell (`workflow_dispatch`).
+*Beschluss:* vorerst (a). Bei einem Nutzer ist der Merge bereits die Freigabe, und der
+lokale Testserver vor dem Merge ersetzt die Vorschau. (b) lohnt sich, sobald mehrere
+Personen mit der App arbeiten oder mehrere PRs gebündelt ausgeliefert werden sollen.
+
+**E5 Fehlgeschlagene Deployments.**
+- *Push erfolgreich, Deploy fehlgeschlagen:* Die Bereitstellung zeigt weiter auf die alte
+  Version, nur `@HEAD` ist neu. Deploy wiederholen; `npm run status` zeigt, ob die
+  Bereitstellung umgestellt ist.
+- *Deploy erfolgreich, Prüfung danach fehlgeschlagen:* Rollback nach E3, dann Ursache in
+  TEST nachstellen.
+- *Pages-Build fehlgeschlagen:* Der vorherige Stand bleibt online. `npm run status` zeigt
+  dann einen Commit ≠ `main`. Lauf neu starten oder Fehler per PR beheben.
+- Jeder dieser Fälle bekommt eine Zeile in der Deployment-Historie, auch wenn nichts
+  live gegangen ist.
+
+**E6 Fehlende Tags nachziehen.** Belegt am 2026-11-26 per `clasp pull --versionNumber`
+der PROD-Versionen: Jede Version entspricht exakt dem genannten Merge-Commit.
+
+| Tag | Commit | PROD-Version | Merge |
+| --- | --- | --- | --- |
+| `v4.8.13` | `51a6be7` | `@43` | PR #47 |
+| `v4.8.14` | `f41bcd4` | `@44` | PR #48 |
+| `v4.8.16` | `b338bd8` | `@45` | PR #54 (Deploy erfolgte vom späteren Stand `0ccdbed`; die Script-Dateien sind identisch) |
+| `v4.8.17` | `d0aa765` | `@46` | PR #61 |
+| `v4.8.18` | `d7fe547` | `@47` | PR #65 |
+
+`@42` (4.8.12) entspricht in allen Script-Dateien dem bestehenden Tag `v4.8.12`;
+`ContractService` war damals noch nicht im PROD-Projekt. `@41` (4.8.5) hat keinen Tag; es
+entspricht `b84f7d0` bis auf das fehlende `ContractService`. Ein nachträglicher Tag ist
+nicht nötig. Die Tags werden nach Freigabe des Pushs gesetzt und gepusht.
+
 ### Frontend
 
 1. `main` aktualisieren und Feature-Branch anlegen.
@@ -349,7 +450,8 @@ Restore und kein automatisches Zurückrollen einzelner Requests.
 
 ### Apps Script
 
-1. `npm run clasp:test:pull` oder bewusst `npm run clasp:prod:status` ausführen und den Pull-Diff prüfen.
+1. `npm run status` ausführen: Bereitstellung, Code-Stand gegenüber `main` und Schutz prüfen.
+   Für einen Datei-Diff zusätzlich in einen getrennten Hilfsordner pullen.
 2. Backend-Version und Changelog-Status abgleichen.
 3. `npm run clasp:test:push` nur für TEST ausführen; PROD nutzt `npm run clasp:prod:push`
    und verlangt die zusätzliche Bestätigung.

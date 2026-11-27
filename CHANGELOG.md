@@ -28,8 +28,8 @@ wiederholen keine Versionsnummern (Ausnahme: Mindestversionen wie „ab 4.7.0“
   Abnahme darf aus dem PR-Stand vor dem Merge erfolgen und wird im selben PR in der
   Deployment-Historie protokolliert. PROD wird ausschließlich aus `main` nach dem Merge und
   nach ausdrücklicher Freigabe bereitgestellt; dieser Eintrag folgt im nächsten ohnehin
-  anstehenden PR, ein eigener Doku-PR ist nicht nötig. Bis dahin ist
-  `npm run clasp:prod:status` bzw. die Deployment-Liste in Apps Script die Prüfquelle.
+  anstehenden PR, ein eigener Doku-PR ist nicht nötig. Prüfquelle für den
+  tatsächlichen Stand ist `npm run status` (siehe `docs/betrieb.md`).
 
 ## Deployment-Historie
 
