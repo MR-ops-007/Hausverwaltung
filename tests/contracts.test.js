@@ -414,7 +414,10 @@ function backendFixture({ token = 'test-only', writeFailure = false, partyWriteF
   };
   let viewUpdates = 0;
   const source = readFileSync(new URL('../apps-script/Contracts.gs', import.meta.url), 'utf8');
-  const factory = new Function('PropertiesService', 'Utilities', 'SpreadsheetApp', 'getSheetData', 'updateAktiveMieterView', `${shared};${source};return { handleContractWrite, handleTenantChange };`);
+  // Contracts.gs nutzt constantTimeEquals aus Code.gs (gemeinsamer globaler Scope in Apps Script).
+  const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
+  const constantTimeEquals = code.match(/function constantTimeEquals\([\s\S]*?\n}\n/)[0];
+  const factory = new Function('PropertiesService', 'Utilities', 'SpreadsheetApp', 'getSheetData', 'updateAktiveMieterView', `${shared};${constantTimeEquals};${source};return { handleContractWrite, handleTenantChange };`);
   const handlers = factory({ getScriptProperties: () => ({ getProperty: () => token }) }, { getUuid: () => 'test-history-id' }, { flush() {} },
     sheet => { const rows = sheet.getDataRange().getValues(); return rows.slice(1).map(row => Object.fromEntries(rows[0].map((key, i) => [key, row[i]]))); },
     () => { viewUpdates++; });
@@ -624,6 +627,24 @@ describe('contract backend persistence', () => {
       token: 'wrong-token', vertrag_id: current.vertrag_id, erwarteter_stand: service.snapshot(forbidden.original),
       data: { vertrag_id: 'V_FORBIDDEN', einheit_id: current.einheit_id, hauptperson_id: 'P_NEW', start_datum: '2026-06-01' }
     })).toThrow(/freigeschaltet/);
+  });
+});
+
+describe('Vertrags-Token (constantTimeEquals, Backend 4.8.19)', () => {
+  it('Contracts.gs vergleicht das Token nur über constantTimeEquals', () => {
+    const source = readFileSync(new URL('../apps-script/Contracts.gs', import.meta.url), 'utf8');
+    expect(source).not.toMatch(/token\s*[!=]==?\s*configuredToken|configuredToken\s*[!=]==?/);
+    expect(source.match(/constantTimeEquals\(payload\.token, configuredToken\)/g)).toHaveLength(2);
+  });
+
+  it('weist gleich lange, verkürzte und fehlende Tokens ab', () => {
+    for (const token of ['test-onlx', 'test-onl', 'test-only-', null]) {
+      const fixture = backendFixture();
+      expect(() => fixture.tenantChange({
+        token, vertrag_id: current.vertrag_id, erwarteter_stand: service.snapshot(fixture.original),
+        data: { vertrag_id: 'V_T', einheit_id: current.einheit_id, hauptperson_id: 'P_NEW', start_datum: '2026-06-01' }
+      }), String(token)).toThrow(/freigeschaltet/);
+    }
   });
 });
 
