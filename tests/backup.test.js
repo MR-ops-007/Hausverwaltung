@@ -8,7 +8,7 @@ const DAY = 24 * 60 * 60 * 1000;
 const EXPORTS = [
   'BACKUP_VERSION', 'BACKUP_MARKER', 'selectBackupsToKeep', 'backupFingerprintSource', 'backupFileName',
   'backupSharingIssues', 'compareSheetSummaries', 'contentMismatches', 'listBackups', 'setupBackup', 'runWeeklyBackup', 'createManualBackup',
-  'restoreLatestBackupToTestFile'
+  'restoreLatestBackupToTestFile', 'restoreBackupToTestFile', 'prepareRestore', 'restoreSchemaIssues', 'restoreImpact'
 ];
 
 function load(globals = {}) {
@@ -125,7 +125,7 @@ describe('Backup: Projekt-Manifest', () => {
   });
 
   it('die Web-App im Projekt apps-script nutzt kein DriveApp', () => {
-    for (const name of ['Code.gs', 'Contracts.gs', 'ContractService.js', 'Payments.gs', 'PaymentRules.js', 'RentIncreaseReviews.gs', 'StandIdMigration.gs', 'Migration.gs.gs']) {
+    for (const name of ['Code.gs', 'Restore.gs', 'Contracts.gs', 'ContractService.js', 'Payments.gs', 'PaymentRules.js', 'RentIncreaseReviews.gs', 'StandIdMigration.gs', 'Migration.gs.gs']) {
       const source = readFileSync(new URL(`../apps-script/${name}`, import.meta.url), 'utf8');
       expect(source, name).not.toMatch(/\bDriveApp\b/);
     }
@@ -200,7 +200,8 @@ function fakeEnvironment({ sheets, properties = {}, folderAccess = 'PRIVATE', fo
     PropertiesService: {
       getScriptProperties: () => ({
         getProperty: key => (key in props ? props[key] : null),
-        setProperty: (key, value) => { props[key] = value; }
+        setProperty: (key, value) => { props[key] = value; },
+        deleteProperty: key => { delete props[key]; }
       })
     },
     DriveApp: {
@@ -380,5 +381,119 @@ describe('Backup: Restore-Test', () => {
   it('meldet einen fehlenden Backup-Bestand', () => {
     const env = fakeEnvironment({ sheets: SHEETS, properties: { SOURCE_SPREADSHEET_ID: 'f1', BACKUP_FOLDER_ID: 'folder1' } });
     expect(() => load(env.globals).restoreLatestBackupToTestFile()).toThrow(/Keine Kopie/);
+  });
+});
+
+describe('Backup: Rücksicherung vorbereiten (1.1.0)', () => {
+  const base = { SOURCE_SPREADSHEET_ID: 'f1', BACKUP_LABEL: 'TEST', BACKUP_FOLDER_ID: 'folder1' };
+  const withBackup = (options = {}) => {
+    const env = fakeEnvironment({ sheets: SHEETS, properties: base, ...options });
+    const backup = load(env.globals);
+    withClock(env, () => backup.runWeeklyBackup());
+    const copy = env.autoCopies()[0];
+    env.source.content[1].values.push(['z2', 650]); // heute eine Zahlung mehr als in der Kopie
+    return { env, backup, copy };
+  };
+
+  it('Schema-Prüfung und Auswirkung vergleichen nur Datenblätter', () => {
+    const s = (name, header, rows = 2) => ({ name, header, rows, columns: header.length });
+    expect(pure.restoreSchemaIssues(
+      [s('A', ['id']), s('B', ['id', 'x']), s('C', ['id']), s('_view', ['neu'])],
+      [s('A', ['id', '']), s('B', ['id']), s('D', ['id']), s('_view', ['alt'])]
+    )).toEqual(['Kopfzeile weicht ab: B', 'fehlt in der Kopie: C', 'nicht mehr in der Tabelle: D']);
+    expect(pure.restoreImpact([s('A', ['id'], 5), s('B', ['id'], 3), s('_v', ['x'], 9)], [s('A', ['id'], 2), s('B', ['id'], 3)]))
+      .toEqual([{ blatt: 'A', zeilen_jetzt: 4, zeilen_danach: 1 }]);
+  });
+
+  it('listBackups zeigt ID, Umgebung, Art, Zeit, Fingerabdruck und Blattübersicht, keine Zellinhalte', () => {
+    const { backup, copy } = withBackup();
+    backup.restoreLatestBackupToTestFile();
+    const list = backup.listBackups().kopien;
+    const auto = list.find(item => item.art === 'auto');
+    expect(auto).toMatchObject({ id: copy.id, umgebung: 'TEST', name: copy.name, blaetter: ['Objekte 2×2', 'Zahlungen 2×2', '_view_verbrauch_monat 2×1'] });
+    expect(auto.fingerabdruck).toMatch(/^\d{1,12}$/);
+    expect(list.find(item => item.art === 'restore-test').fingerabdruck).toBeUndefined();
+    expect(JSON.stringify(list)).not.toMatch(/Lokstedt|500/);
+  });
+
+  it('ohne, mit fremder oder mit Quell-ID gibt es keinen stillen Standard', () => {
+    const { env, backup } = withBackup();
+    expect(() => backup.prepareRestore()).toThrow(/RESTORE_BACKUP_ID fehlt/);
+    expect(() => backup.restoreBackupToTestFile()).toThrow(/RESTORE_BACKUP_ID fehlt/);
+    env.props.RESTORE_BACKUP_ID = 'f1';
+    expect(() => backup.prepareRestore()).toThrow(/Quelltabelle selbst/);
+    const probe = backup.restoreLatestBackupToTestFile().ziel.match(/\((f\d+)\)/)[1];
+    env.props.RESTORE_BACKUP_ID = probe; // Restore-Testdatei ist keine Quelle
+    expect(() => backup.prepareRestore()).toThrow(/Keine wiederherstellbare Kopie/);
+    expect(env.files.filter(file => file.description === 'hv-backup:vor-restore')).toHaveLength(0);
+  });
+
+  it('restoreBackupToTestFile prüft genau die gewählte Kopie', () => {
+    const { env, backup, copy } = withBackup();
+    env.props.RESTORE_BACKUP_ID = copy.id;
+    expect(backup.restoreBackupToTestFile()).toMatchObject({ status: 'success', quelle: `${copy.name} (${copy.id})`, abweichungen: [] });
+    expect(env.props.RESTORE_BACKUP_ID).toBe(copy.id);
+  });
+
+  it('prepareRestore: Probe-Restore, Schema, Vor-Restore-Kopie und nächste Schritte', () => {
+    const { env, backup, copy } = withBackup();
+    env.props.RESTORE_BACKUP_ID = copy.id;
+    const result = withClock(env, () => backup.prepareRestore());
+    const pre = env.files.find(file => file.description === 'hv-backup:vor-restore');
+    expect(result).toMatchObject({
+      status: 'prepared', umgebung: 'TEST', backup: `${copy.name} (${copy.id})`,
+      vor_restore_kopie: `${pre.name} (${pre.id})`,
+      auswirkung: [{ blatt: 'Zahlungen', zeilen_jetzt: 2, zeilen_danach: 1 }]
+    });
+    expect(result.warnung).toMatch(/Alle Änderungen seit .* gehen verloren/);
+    expect(result.naechster_schritt).toContain(`RESTORE_BACKUP_ID=${copy.id}`);
+    expect(result.naechster_schritt).toContain(`RESTORE_PRE_COPY_ID=${pre.id}`);
+    expect(result.naechster_schritt).toContain('Restore.gs');
+    expect(pre.name).toMatch(/vor-restore$/);
+    expect(pre.content).toEqual(env.source.content);
+    expect(env.files.filter(file => file.description === 'hv-backup:restore-test').every(file => file.trashed)).toBe(true);
+    expect(env.props.RESTORE_BACKUP_ID).toBeUndefined();
+    expect(JSON.stringify(result)).not.toMatch(/Lokstedt|650/);
+    // Vor-Restore-Kopien sind von der Rotation ausgenommen
+    for (let week = 0; week < 5; week++) {
+      env.source.content[1].values.push([`w${week}`, week]);
+      env.advance(7);
+      withClock(env, () => backup.runWeeklyBackup());
+    }
+    expect(pre.trashed).toBe(false);
+  });
+
+  it('prepareRestore blockiert bei abweichendem Schema ohne Vor-Restore-Kopie', () => {
+    const { env, backup, copy } = withBackup();
+    env.source.content[1].values[0].push('mietmonat'); // neue Spalte seit der Kopie
+    env.props.RESTORE_BACKUP_ID = copy.id;
+    expect(backup.prepareRestore()).toMatchObject({ status: 'error', schritt: 'Schema', abweichungen: ['Kopfzeile weicht ab: Zahlungen'] });
+    expect(env.files.filter(file => file.description === 'hv-backup:vor-restore')).toHaveLength(0);
+    expect(env.props.RESTORE_BACKUP_ID).toBe(copy.id);
+  });
+
+  it('prepareRestore blockiert, wenn der Probe-Restore abweicht', () => {
+    const { env, backup, copy } = withBackup({
+      onCopy: file => { if (file.name.startsWith('HV-Restore-Test')) file.content[0].values[1][1] = 'anders'; }
+    });
+    env.props.RESTORE_BACKUP_ID = copy.id;
+    expect(backup.prepareRestore()).toMatchObject({ status: 'error', schritt: 'Probe-Restore', abweichungen: ['Inhalt weicht ab: Objekte'] });
+    expect(env.files.filter(file => file.description === 'hv-backup:vor-restore')).toHaveLength(0);
+  });
+
+  it('prepareRestore verwirft eine Vor-Restore-Kopie, die nicht dem heutigen Stand entspricht', () => {
+    const { env, backup, copy } = withBackup({
+      onCopy: file => { if (file.name.endsWith('vor-restore')) file.content[1].values.push(['später', 1]); }
+    });
+    env.props.RESTORE_BACKUP_ID = copy.id;
+    expect(backup.prepareRestore()).toMatchObject({ status: 'error', schritt: 'Vor-Restore-Kopie' });
+    expect(env.files.find(file => file.description === 'hv-backup:vor-restore').trashed).toBe(true);
+  });
+
+  it('Vorbereitung und Restore-Test einer Kopie überspringen bei belegtem Lock', () => {
+    const env = fakeEnvironment({ sheets: SHEETS, lockFree: false, properties: { ...base, RESTORE_BACKUP_ID: 'f2' } });
+    const backup = load(env.globals);
+    expect(backup.prepareRestore()).toEqual({ status: 'skipped', reason: 'LOCK_BUSY' });
+    expect(backup.restoreBackupToTestFile()).toEqual({ status: 'skipped', reason: 'LOCK_BUSY' });
   });
 });

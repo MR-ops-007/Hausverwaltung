@@ -87,7 +87,8 @@ describe('Apps Script Zaehlerstaende helpers', () => {
     };
     const LockService = { getScriptLock: () => lock };
     const SpreadsheetApp = { getActiveSpreadsheet: () => ({ getSheetByName: () => null }) };
-    const refresh = new Function('LockService', 'SpreadsheetApp', `${code}; return refreshAktiveMieterViewDaily;`)(LockService, SpreadsheetApp);
+    const PropertiesService = { getScriptProperties: () => ({ getProperty: () => null }) };
+    const refresh = new Function('LockService', 'SpreadsheetApp', 'PropertiesService', `${code}; return refreshAktiveMieterViewDaily;`)(LockService, SpreadsheetApp, PropertiesService);
 
     expect(refresh()).toEqual({ status: 'success' });
     expect(waitMs).toBe(30000);

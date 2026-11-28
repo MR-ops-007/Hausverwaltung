@@ -1,6 +1,6 @@
 /**
  * HAUSVERWALTUNG - BACKEND
- * Version: 4.8.18
+ * Version: 4.8.19
  * Stand: 2026-11-20
  * Deploy-Status und Historie: CHANGELOG.md im Repository
  *
@@ -143,8 +143,14 @@
  * Änderungen seit v4.8.18:
  * - Datenstand-Stempel für Stammdaten und Verbrauch: Antwort „unverändert“ ohne
  *   Lesen der Blätter, Zwischenspeicher der fertigen Antwort im CacheService
+ *
+ * Änderungen seit v4.8.19:
+ * - Rücksicherung aus einer Backup-Kopie (Restore.gs, nur im Editor) mit Zustandsautomat
+ *   und Wartungssperre: Schreibvorgänge melden während der Sperre MAINTENANCE
+ *   (vorübergehend, die Offline-Queue sendet später erneut); Lesen bleibt möglich
+ * - Vertrags-Token wird ohne frühen Abbruch verglichen (constantTimeEquals)
  */
-const BACKEND_VERSION = "4.8.18";
+const BACKEND_VERSION = "4.8.19";
 
 function sendJSON(obj) {
   return ContentService
@@ -227,6 +233,38 @@ function canWriteType(principal, type) {
   }
   if (type === 'MIETERHOEHUNG_PRUEFUNG_SPEICHERN') return ['admin', 'erfassen'].indexOf(principal.role) !== -1;
   return principal.role === 'admin' || principal.role === 'erfassen';
+}
+
+// ---------------------------------------------------------------- Wartungssperre (Restore.gs)
+
+const RESTORE_STATE_PROPERTY = 'HV_RESTORE_STATE';
+
+/** Zustand der letzten Rücksicherung oder null. Nicht lesbar heißt gesperrt (fail-closed). */
+function readRestoreState() {
+  const raw = PropertiesService.getScriptProperties().getProperty(RESTORE_STATE_PROPERTY);
+  if (!raw) return null;
+  try {
+    const state = JSON.parse(raw);
+    return state && typeof state === 'object' ? state : { state: 'failed', fehler: 'Restore-Zustand nicht lesbar' };
+  } catch (error) {
+    return { state: 'failed', fehler: 'Restore-Zustand nicht lesbar' };
+  }
+}
+
+/** Gesperrt, solange eine Rücksicherung läuft oder nach dem ersten Schreiben fehlschlug. */
+function isMaintenanceActive() {
+  const state = readRestoreState();
+  return Boolean(state && (state.state === 'running' || state.state === 'failed'));
+}
+
+function maintenanceResponse() {
+  return {
+    status: 'error',
+    code: 'MAINTENANCE',
+    transient: true,
+    message: 'Wartung: Die Daten werden gerade wiederhergestellt. Bitte später erneut versuchen; ' +
+      'zwischengespeicherte Einträge werden automatisch erneut gesendet.'
+  };
 }
 
 function sendUnauthorized() {
@@ -789,6 +827,12 @@ function doPost(e) {
       transient: true,
       message: "Das Backend ist gerade ausgelastet. Bitte später erneut versuchen."
     });
+  }
+
+  // Alle Schreibwege laufen hier durch; Lesen (oben) bleibt während der Sperre möglich.
+  if (isMaintenanceActive()) {
+    lock.releaseLock();
+    return sendJSON(maintenanceResponse());
   }
 
   let datenstandKinds = payload.typ === 'VERBRAUCH_VIEWS_AKTUALISIEREN' ? ['VERBRAUCH'] : ['DATEN'];
@@ -3330,6 +3374,10 @@ function refreshAktiveMieterViewDaily() {
     return { status: 'skipped', reason: 'LOCK_BUSY' };
   }
   try {
+    if (isMaintenanceActive()) {
+      if (typeof Logger !== 'undefined') Logger.log('refreshAktiveMieterViewDaily übersprungen: Wartungssperre (Restore).');
+      return { status: 'skipped', reason: 'MAINTENANCE' };
+    }
     updateAktiveMieterView();
     return { status: 'success' };
   } finally {

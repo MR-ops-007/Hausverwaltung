@@ -65,6 +65,28 @@ Web-App-Bereitstellung neben `@HEAD`; PROD steht auf Version 44 (4.8.14), TEST a
 (4.8.16). Die fehlenden Release-Tags ab 4.8.13 wurden am 2026-11-27 nachgezogen (`docs/betrieb.md`, E6).
 Nach dem PROD-Deploy am selben Abend steht PROD auf Version 45 (4.8.16).
 
+## 4.8.19 · 2026-11-28 · lokal
+
+P1.3b Rücksicherung aus einer Backup-Kopie und Vertrags-Token ohne frühen Abbruch.
+
+- Neue Datei `Restore.gs`, nur im Editor ausführbar: `restoreFromBackup()` setzt die Tabelle
+  vollständig auf die Kopie aus der Script-Property `RESTORE_BACKUP_ID` zurück. Voraussetzung
+  ist `RESTORE_PRE_COPY_ID` aus `prepareRestore()` (Backup-Projekt 1.1.0); die Tabelle muss
+  per Hash noch der Vor-Restore-Kopie entsprechen. Schema-Prüfung vor dem ersten Schreiben,
+  Formeln bleiben Formeln, Text wird nicht als Datum/Zahl neu gedeutet, Hash-Prüfung danach, Ansichten und Datenstempel werden erneuert.
+  Dazu `restoreStatus()` und `cancelRestore()`.
+- Zustandsautomat in `HV_RESTORE_STATE` (`prepared`, `running`, `failed`, `completed`,
+  `abgebrochen`). Bei einem Fehler nach dem ersten Schreiben bleiben Wartungssperre und IDs für
+  eine Wiederholung; gelöscht werden die IDs nur nach `completed` oder `cancelRestore()`.
+- Wartungssperre in `doPost`: Während `running`/`failed` melden alle Schreibwege
+  `MAINTENANCE` mit `transient: true` (die Offline-Queue behält die Einträge). Lesen bleibt
+  möglich, der tägliche View-Refresh setzt aus.
+- Vertrags-Token (`CONTRACT_WRITE_TOKEN`) wird in `Contracts.gs` mit `constantTimeEquals`
+  verglichen (eigener Testblock in `tests/contracts.test.js`).
+- **Keine neue Berechtigung:** `SpreadsheetApp.openById` fällt unter den Tabellen-Scope, den
+  die Web-App bereits hat; kein `DriveApp`. Kein Schemaschritt nötig.
+- Ablauf und Abnahme: `docs/backup-restore.md`, Abschnitt „Rücksicherung“.
+
 ## 4.8.18 · 2026-11-25 · produktiv
 
 Performance Schritt 3: Datenstand-Stempel und Zwischenspeicher im Backend.

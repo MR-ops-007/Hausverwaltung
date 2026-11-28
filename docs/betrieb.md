@@ -311,8 +311,8 @@ Ein Restore-Protokoll enthält mindestens:
 - Ergebnis von `npm test` und dem manuellen Test,
 - Entscheidung: verworfen, als Test akzeptiert oder produktiv freigegeben.
 
-Der vollständige Ablauf und eine ausfüllbare Protokollvorlage stehen in
-`docs/backup-restore.md`.
+Der vollständige Ablauf, die zweistufige Rücksicherung (ab Backend 4.8.19) und eine
+ausfüllbare Protokollvorlage stehen in `docs/backup-restore.md`.
 
 Ein Backup ist keine Transaktion und ersetzt keine fachliche Prüfung. Das Apps Script
 arbeitet mit Google-Sheets-Operationen; ein Rollback ist deshalb ein kontrollierter
