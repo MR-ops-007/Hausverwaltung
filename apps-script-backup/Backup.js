@@ -1,6 +1,6 @@
 /**
  * Hausverwaltung · Backup
- * Version: 1.0.1
+ * Version: 1.1.0
  *
  * Eigenes Apps-Script-Projekt ohne Web-App (Entscheidung 2026-11-27): Nur dieses Projekt
  * hat Drive-Zugriff; die öffentlich erreichbare Web-App bleibt ohne. Es liest die
@@ -11,14 +11,21 @@
  *
  * Einmalig: Script-Property SOURCE_SPREADSHEET_ID (und BACKUP_LABEL, z. B. TEST oder
  * PROD) setzen, dann setupBackup() ausführen. Ablauf in docs/backup-restore.md.
+ *
+ * Rücksicherung (ab 1.1.0): Dieses Projekt bereitet nur vor (prepareRestore: Probe-Restore,
+ * Schema-Prüfung, Vor-Restore-Kopie). Geschrieben wird ausschließlich von der Web-App
+ * (apps-script/Restore.gs) unter ihrem eigenen Lock und mit Wartungssperre.
  */
-const BACKUP_VERSION = '1.0.1';
+const BACKUP_VERSION = '1.1.0';
 const BACKUP_TIME_ZONE = 'Europe/Berlin';
 const BACKUP_MARKER = {
   auto: 'hv-backup:auto',
   manual: 'hv-backup:manuell',
-  restore: 'hv-backup:restore-test'
+  restore: 'hv-backup:restore-test',
+  preRestore: 'hv-backup:vor-restore'
 };
+// Kopien, aus denen zurückgesichert werden darf (Restore-Testdateien nicht).
+const BACKUP_RESTORABLE = [BACKUP_MARKER.auto, BACKUP_MARKER.manual, BACKUP_MARKER.preRestore];
 // Neben der neuesten Kopie bleibt eine mittlere (bis 49 Tage) und eine ältere. Überschreitet
 // die mittlere die Grenze, ersetzt sie die ältere. Bei wöchentlichen Kopien ist die mittlere
 // damit 1–7 und die ältere 7–14 Wochen alt (Entscheidung 2026-11-27: neu, ~1, ~3 Monate).
@@ -29,7 +36,8 @@ const BACKUP_PROPERTY = {
   source: 'SOURCE_SPREADSHEET_ID',
   label: 'BACKUP_LABEL',
   folder: 'BACKUP_FOLDER_ID',
-  fingerprint: 'BACKUP_LAST_FINGERPRINT'
+  fingerprint: 'BACKUP_LAST_FINGERPRINT',
+  restoreId: 'RESTORE_BACKUP_ID'
 };
 const BACKUP_TRIGGER_HANDLER = 'runWeeklyBackup';
 
@@ -102,6 +110,46 @@ function compareSheetSummaries(expected, actual) {
   });
   byName.forEach((sheet, name) => problems.push('zusätzlich: ' + name));
   return problems;
+}
+
+function isDataSheetName(name) {
+  return String(name).charAt(0) !== '_';
+}
+
+function trimmedHeader_(header) {
+  const cells = (header || []).map(cell => String(cell).trim());
+  while (cells.length && cells[cells.length - 1] === '') cells.pop();
+  return cells;
+}
+
+/**
+ * Passt eine Kopie zum heutigen Schema? `current`/`backup`: [{ name, header }]. Verglichen
+ * werden nur Datenblätter (abgeleitete `_`-Blätter werden nach dem Restore neu berechnet).
+ * Leer heißt kompatibel. Gleiche Prüfung in apps-script/Restore.gs.
+ */
+function restoreSchemaIssues(current, backup) {
+  const issues = [];
+  const backupByName = new Map(backup.filter(sheet => isDataSheetName(sheet.name)).map(sheet => [sheet.name, sheet]));
+  current.filter(sheet => isDataSheetName(sheet.name)).forEach(sheet => {
+    const other = backupByName.get(sheet.name);
+    if (!other) { issues.push('fehlt in der Kopie: ' + sheet.name); return; }
+    if (JSON.stringify(trimmedHeader_(other.header)) !== JSON.stringify(trimmedHeader_(sheet.header))) {
+      issues.push('Kopfzeile weicht ab: ' + sheet.name);
+    }
+    backupByName.delete(sheet.name);
+  });
+  backupByName.forEach((sheet, name) => issues.push('nicht mehr in der Tabelle: ' + name));
+  return issues;
+}
+
+/** Was eine Rücksicherung verändert: Datenzeilen je Datenblatt jetzt und danach. */
+function restoreImpact(current, backup) {
+  const backupRows = new Map(backup.map(sheet => [sheet.name, sheet.rows]));
+  return current.filter(sheet => isDataSheetName(sheet.name)).map(sheet => ({
+    blatt: sheet.name,
+    zeilen_jetzt: Math.max(sheet.rows - 1, 0),
+    zeilen_danach: Math.max((backupRows.get(sheet.name) || 0) - 1, 0)
+  })).filter(item => item.zeilen_jetzt !== item.zeilen_danach);
 }
 
 // ---------------------------------------------------------------- Apps Script
@@ -214,7 +262,7 @@ function withScriptLock_(name, fn) {
 /** Prüft die Einzelfreigaben aller gekennzeichneten Dateien im Backup-Ordner. */
 function auditBackupSharing_(folder) {
   const issues = [];
-  [BACKUP_MARKER.auto, BACKUP_MARKER.manual, BACKUP_MARKER.restore].forEach(marker => {
+  Object.keys(BACKUP_MARKER).map(key => BACKUP_MARKER[key]).forEach(marker => {
     filesWithMarker_(folder, marker).forEach(file => {
       sharingIssuesOf_(file).forEach(issue => issues.push(file.getName() + ': ' + issue));
     });
@@ -360,41 +408,61 @@ function createManualBackup() {
   });
 }
 
-/** Übersicht aller Kopien im Backup-Ordner, neueste zuerst. */
+/**
+ * Übersicht aller Kopien im Backup-Ordner, neueste zuerst. Für Kopien, aus denen
+ * zurückgesichert werden kann, mit Datei-ID, Fingerabdruck (Datenblätter) und
+ * Blattübersicht; keine Zellinhalte. Die ID ist die Eingabe für RESTORE_BACKUP_ID.
+ */
 function listBackups() {
   const config = backupConfig_();
   const folder = backupFolder_(config);
   const rows = [];
-  [BACKUP_MARKER.auto, BACKUP_MARKER.manual, BACKUP_MARKER.restore].forEach(marker => {
-    filesWithMarker_(folder, marker).forEach(file => rows.push({
-      name: file.getName(), art: marker.replace('hv-backup:', ''), erstellt: file.getDateCreated().toISOString()
-    }));
+  BACKUP_RESTORABLE.forEach(marker => {
+    filesWithMarker_(folder, marker).forEach(file => {
+      const spreadsheet = SpreadsheetApp.openById(file.getId());
+      rows.push({
+        id: file.getId(),
+        name: file.getName(),
+        umgebung: config.label,
+        art: marker.replace('hv-backup:', ''),
+        erstellt: file.getDateCreated().toISOString(),
+        fingerabdruck: sourceFingerprint_(spreadsheet).slice(0, 12),
+        blaetter: sheetSummaries_(spreadsheet).map(sheet => sheet.name + ' ' + sheet.rows + '×' + sheet.columns)
+      });
+    });
   });
+  filesWithMarker_(folder, BACKUP_MARKER.restore).forEach(file => rows.push({
+    id: file.getId(), name: file.getName(), umgebung: config.label, art: 'restore-test',
+    erstellt: file.getDateCreated().toISOString()
+  }));
   rows.sort((a, b) => (a.erstellt < b.erstellt ? 1 : -1));
   const result = { kopien: rows, freigabe_warnungen: auditBackupSharing_(folder) };
   backupLog_(JSON.stringify(result, null, 2));
   return result;
 }
 
-/**
- * Restore-Test: kopiert die neueste Kopie (automatisch oder manuell) in eine neue,
- * separate Testdatei und vergleicht Blätter, Größen, Kopfzeilen und je Blatt einen Hash
- * über alle Zellwerte. Erfolg nur bei vollständiger Übereinstimmung; geloggt werden nur
- * Blattnamen und Größen, keine Zellinhalte. Die Quelltabelle wird weder gelesen noch
- * verändert. Das Ergebnis wird nach docs/backup-restore.md protokolliert.
- */
-function restoreLatestBackupToTestFile() {
-  return withScriptLock_('restoreLatestBackupToTestFile', restoreLatestBackupToTestFile_);
+/** Eine Kopie aus dem Backup-Ordner über ihre Datei-ID; nie ein stiller Standard. */
+function restorableBackupById_(config, folder, id) {
+  const wanted = String(id || '').trim();
+  if (!wanted) {
+    throw new Error('Script-Property ' + BACKUP_PROPERTY.restoreId + ' fehlt. Die Datei-ID steht in listBackups().');
+  }
+  if (wanted === config.sourceId) throw new Error('Die Quelltabelle selbst ist keine Kopie.');
+  let found = null;
+  BACKUP_RESTORABLE.forEach(marker => {
+    filesWithMarker_(folder, marker).forEach(file => { if (file.getId() === wanted) found = file; });
+  });
+  if (!found) {
+    throw new Error('Keine wiederherstellbare Kopie mit der ID ' + wanted + ' im Backup-Ordner ' + config.label + '.');
+  }
+  return found;
 }
 
-function restoreLatestBackupToTestFile_() {
-  const config = backupConfig_();
-  const folder = backupFolder_(config);
-  const candidates = filesWithMarker_(folder, BACKUP_MARKER.auto)
-    .concat(filesWithMarker_(folder, BACKUP_MARKER.manual))
-    .sort((a, b) => b.getDateCreated().getTime() - a.getDateCreated().getTime());
-  if (!candidates.length) throw new Error('Keine Kopie im Backup-Ordner gefunden.');
-  const backup = candidates[0];
+/**
+ * Kopiert `backup` in eine neue Testdatei und vergleicht Blätter, Größen, Kopfzeilen und
+ * je Blatt einen Hash über alle Zellwerte. Liest und ändert die Quelltabelle nicht.
+ */
+function probeRestore_(config, folder, backup) {
   const target = backup.makeCopy('HV-Restore-Test ' + config.label + ' ' + backupStamp_(new Date(Date.now())), folder);
   target.setDescription(BACKUP_MARKER.restore);
   const issues = sharingIssuesOf_(target);
@@ -407,15 +475,108 @@ function restoreLatestBackupToTestFile_() {
   const expected = sheetSummaries_(backupSheet);
   const problems = compareSheetSummaries(expected, sheetSummaries_(targetSheet))
     .concat(contentMismatches(sheetContentHashes_(backupSheet), sheetContentHashes_(targetSheet)));
+  return {
+    target,
+    result: {
+      status: problems.length ? 'error' : 'success',
+      backup_version: BACKUP_VERSION,
+      quelle: backup.getName() + ' (' + backup.getId() + ')',
+      ziel: target.getName() + ' (' + target.getId() + ')',
+      ziel_url: target.getUrl(),
+      datenstand: backup.getDateCreated().toISOString(),
+      blaetter: expected.map(sheet => sheet.name + ' ' + sheet.rows + '×' + sheet.columns),
+      abweichungen: problems
+    }
+  };
+}
+
+/**
+ * Restore-Test der neuesten Kopie (automatisch oder manuell) in eine neue Testdatei.
+ * Ungefährlich, deshalb mit Standard „neueste“. Für eine bestimmte Kopie:
+ * restoreBackupToTestFile(). Das Ergebnis wird nach docs/backup-restore.md protokolliert.
+ */
+function restoreLatestBackupToTestFile() {
+  return withScriptLock_('restoreLatestBackupToTestFile', () => {
+    const config = backupConfig_();
+    const folder = backupFolder_(config);
+    const candidates = filesWithMarker_(folder, BACKUP_MARKER.auto)
+      .concat(filesWithMarker_(folder, BACKUP_MARKER.manual))
+      .sort((a, b) => b.getDateCreated().getTime() - a.getDateCreated().getTime());
+    if (!candidates.length) throw new Error('Keine Kopie im Backup-Ordner gefunden.');
+    const result = probeRestore_(config, folder, candidates[0]).result;
+    backupLog_(JSON.stringify(result, null, 2));
+    return result;
+  });
+}
+
+/** Restore-Test der Kopie aus der Script-Property RESTORE_BACKUP_ID in eine neue Testdatei. */
+function restoreBackupToTestFile() {
+  return withScriptLock_('restoreBackupToTestFile', () => {
+    const config = backupConfig_();
+    const folder = backupFolder_(config);
+    const backup = restorableBackupById_(config, folder, backupProperties_().getProperty(BACKUP_PROPERTY.restoreId));
+    const result = probeRestore_(config, folder, backup).result;
+    backupLog_(JSON.stringify(result, null, 2));
+    return result;
+  });
+}
+
+/**
+ * Schritt 1 der Rücksicherung (Ablauf docs/backup-restore.md). Für die Kopie aus
+ * RESTORE_BACKUP_ID: Probe-Restore mit Inhaltsvergleich, Schema-Prüfung gegen die heutige
+ * Tabelle, Übersicht der Auswirkung und eine Vor-Restore-Kopie des heutigen Stands, deren
+ * Datenblätter mit der Tabelle übereinstimmen müssen. Schreibt nicht in die Tabelle.
+ * Schritt 2 ist restoreFromBackup() in der Web-App (Datei Restore.gs).
+ */
+function prepareRestore() {
+  return withScriptLock_('prepareRestore', prepareRestore_);
+}
+
+function prepareRestore_() {
+  const config = backupConfig_();
+  const folder = backupFolder_(config);
+  const props = backupProperties_();
+  const backup = restorableBackupById_(config, folder, props.getProperty(BACKUP_PROPERTY.restoreId));
+  const fail = (schritt, abweichungen, extra) => {
+    const result = Object.assign({ status: 'error', backup_version: BACKUP_VERSION, schritt, abweichungen }, extra || {});
+    backupLog_(JSON.stringify(result, null, 2));
+    return result;
+  };
+
+  const probe = probeRestore_(config, folder, backup);
+  if (probe.result.status !== 'success') {
+    return fail('Probe-Restore', probe.result.abweichungen, { probe: probe.result.ziel });
+  }
+
+  const source = SpreadsheetApp.openById(config.sourceId);
+  const backupSpreadsheet = SpreadsheetApp.openById(backup.getId());
+  const currentSummaries = sheetSummaries_(source);
+  const backupSummaries = sheetSummaries_(backupSpreadsheet);
+  const schema = restoreSchemaIssues(currentSummaries, backupSummaries);
+  if (schema.length) return fail('Schema', schema);
+
+  const preCopy = createCopy_(config, folder, 'vor-restore', BACKUP_MARKER.preRestore, Date.now());
+  if (sourceFingerprint_(SpreadsheetApp.openById(preCopy.getId())) !== sourceFingerprint_(source)) {
+    preCopy.setTrashed(true);
+    return fail('Vor-Restore-Kopie', ['Die Tabelle hat sich während der Kopie geändert. prepareRestore() erneut ausführen.']);
+  }
+  probe.target.setTrashed(true);
+  // Die Freigabe gilt für genau diesen Lauf; eine spätere Vorbereitung braucht die ID erneut.
+  props.deleteProperty(BACKUP_PROPERTY.restoreId);
+
+  const datenstand = backup.getDateCreated().toISOString();
   const result = {
-    status: problems.length ? 'error' : 'success',
+    status: 'prepared',
     backup_version: BACKUP_VERSION,
-    quelle: backup.getName() + ' (' + backup.getId() + ')',
-    ziel: target.getName() + ' (' + target.getId() + ')',
-    ziel_url: target.getUrl(),
-    datenstand: backup.getDateCreated().toISOString(),
-    blaetter: expected.map(sheet => sheet.name + ' ' + sheet.rows + '×' + sheet.columns),
-    abweichungen: problems
+    umgebung: config.label,
+    backup: backup.getName() + ' (' + backup.getId() + ')',
+    datenstand,
+    vor_restore_kopie: preCopy.getName() + ' (' + preCopy.getId() + ')',
+    warnung: 'Alle Änderungen seit ' + datenstand + ' gehen verloren; sie bleiben in der Vor-Restore-Kopie erhalten.',
+    auswirkung: restoreImpact(currentSummaries, backupSummaries),
+    naechster_schritt: 'In der Web-App (Projekt der Tabelle) die Script-Properties RESTORE_BACKUP_ID=' + backup.getId() +
+      ' und RESTORE_PRE_COPY_ID=' + preCopy.getId() + ' setzen und in der Datei Restore.gs restoreFromBackup() ausführen. ' +
+      'Bis dahin darf sich in der Tabelle nichts ändern, sonst lehnt die Web-App ab.'
   };
   backupLog_(JSON.stringify(result, null, 2));
   return result;

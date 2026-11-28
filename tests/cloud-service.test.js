@@ -228,6 +228,13 @@ describe('Zählerstände speichern: Konflikt und Backend-Fehler', () => {
     expect(payloads()).toEqual([transaction]);
   });
 
+  it('queued MAINTENANCE (Wartungssperre während einer Rücksicherung) statt zu verwerfen', async () => {
+    const { cloud, fetch, payloads } = loadCloud({ key: 'k1' });
+    fetch.mockResolvedValue(reply({ status: 'error', code: 'MAINTENANCE', transient: true, message: 'Wartung' }));
+    expect(await cloud.saveTransaction(transaction)).toMatchObject({ status: 'success', queued: true });
+    expect(payloads()).toEqual([transaction]);
+  });
+
   it('sendet den Überschreib-Grund mit', async () => {
     const { cloud, fetch } = loadCloud({ key: 'k1' });
     fetch.mockResolvedValue(reply({ status: 'success', message: 'ok' }));
@@ -334,6 +341,14 @@ describe('Offline-Queue', () => {
     await cloud.processOfflineQueue();
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(queue('offline_queue').map(e => [e.id, e.status])).toEqual([['e2', 'pending'], ['e3', 'pending']]);
+  });
+
+  it('behält bei MAINTENANCE alle Einträge als pending für einen späteren Versuch', async () => {
+    const { cloud, fetch, queue } = withQueue([entry(1), entry(2)]);
+    fetch.mockResolvedValue(reply({ status: 'error', code: 'MAINTENANCE', transient: true, message: 'Wartung' }));
+    await cloud.processOfflineQueue();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(queue('offline_queue').map(e => [e.id, e.status])).toEqual([['e1', 'pending'], ['e2', 'pending']]);
   });
 
   it('behält den Rest bei Netzwerkproblemen', async () => {

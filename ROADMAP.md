@@ -30,11 +30,17 @@ allen erledigten Paketen steht unverändert in
 - TEST eingerichtet und Restore-Test bestanden (2026-11-27, Protokoll in
   `docs/backup-restore.md`). Offen: Einrichtung in PROD nach Freigabe; die Rotation zeigt
   sich real erst nach einigen Sonntagsläufen.
-- Im selben Zug klein mitnehmen: Vertrags-Token mit `constantTimeEquals` vergleichen und die
-  Entscheidung dokumentieren, ob das Repository privat gestellt und die produktive
-  Bereitstellung rotiert wird (die frühere PROD-URL ist in der Git-Historie sichtbar).
+- P1.3b Rücksicherung (Backup-Projekt 1.1.0, Backend 4.8.19): Auswahl der Kopie über die
+  Datei-ID, Vorbereitung im Backup-Projekt (`prepareRestore`), Schreiben nur in der Web-App
+  (`Restore.gs`) mit Zustandsautomat und Wartungssperre. Reihenfolge vor PROD: manuelle
+  TEST-Sicherung, Restore-Test mit Stichprobe abschließen, TEST-Deploy 4.8.19, vollständige
+  Restore-Abnahme in TEST, PROD nach separater Freigabe.
+- Vertrags-Token mit `constantTimeEquals` vergleichen: in 4.8.19 enthalten. Offen bleibt die
+  Entscheidung, ob das Repository privat gestellt und die produktive Bereitstellung rotiert
+  wird (die frühere PROD-URL ist in der Git-Historie sichtbar).
 
-**Nicht-Ziel:** tägliche Kopierflut oder automatische Wiederherstellung der Produktion.
+**Nicht-Ziel:** tägliche Kopierflut, automatische Wiederherstellung der Produktion oder
+Rücksicherung einzelner Blätter.
 
 ### 2. P6.7c Vertragsanlage in der Oberfläche
 
@@ -110,6 +116,7 @@ Noch nicht priorisiert; Reihenfolge wird vor Beginn mit dem Product Owner festge
 | 2026-11-27 | Rollback (E3): Backend durch Zurückstellen der PROD-Bereitstellung auf die vorherige Version ohne Code-Push, Frontend per Revert-PR; beides mit derselben ausdrücklichen Freigabe wie ein Deploy. Schemaschritte bleiben additiv. |
 | 2026-11-27 | GitHub Pages veröffentlicht vorerst weiter bei jedem Merge auf `main` (E4); Umstellung auf Tag oder manuellen Auslöser, sobald mehrere Personen mit der App arbeiten. |
 | 2026-11-27 | Backups laufen in einem eigenen Apps-Script-Projekt ohne Web-App; nur dieses hat Drive-Zugriff, die öffentlich erreichbare Web-App bleibt ohne. |
+| 2026-11-28 | Rücksicherung zweistufig: Das Backup-Projekt bereitet vor (Probe-Restore, Schema, Vor-Restore-Kopie), nur die Web-App schreibt, unter ihrem Lock und mit Wartungssperre. Freigabe über Backup-ID und Vor-Restore-Kopie statt Einmal-Token; nur vollständige Rücksicherung; bei Fehler nach dem ersten Schreiben bleiben Sperre und IDs. |
 | 2026-11-27 | Backup-Rotation: höchstens drei automatische Kopien, gestaffelt neu / mittlere bis 7 Wochen / ältere bis etwa 14 Wochen (gewählt: „neu, ~1 Monat, ~3 Monate“; mit drei Plätzen lückenlos nur als Nachrücken umsetzbar). |
 | 2026-11-27 | Fehlgeschlagene Deployments (E5) werden nach dem Ablauf in `docs/betrieb.md` behandelt und bekommen immer eine Zeile in der Deployment-Historie. |
 

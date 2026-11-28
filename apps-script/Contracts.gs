@@ -105,7 +105,7 @@ function tenantChangeRequestFingerprint(oldId, input, parties) {
  */
 function handleTenantChange(ss, payload) {
   const configuredToken = PropertiesService.getScriptProperties().getProperty('CONTRACT_WRITE_TOKEN');
-  if (!configuredToken || payload.token !== configuredToken) {
+  if (!configuredToken || !constantTimeEquals(payload.token, configuredToken)) {
     throw contractWriteFailure('CONTRACT_WRITE_FORBIDDEN', 'Vertrags-Schreibzugriff nicht freigeschaltet.');
   }
   const contractSheet = ss.getSheetByName('Vertraege');
@@ -315,7 +315,7 @@ function handleTenantChange(ss, payload) {
 
 function handleContractWrite(ss, payload) {
   const configuredToken = PropertiesService.getScriptProperties().getProperty('CONTRACT_WRITE_TOKEN');
-  if (!configuredToken || payload.token !== configuredToken) throw new Error('Vertrags-Schreibzugriff nicht freigeschaltet.');
+  if (!configuredToken || !constantTimeEquals(payload.token, configuredToken)) throw new Error('Vertrags-Schreibzugriff nicht freigeschaltet.');
   const sheet = ss.getSheetByName('Vertraege');
   const history = ss.getSheetByName('Mietanpassungen');
   if (!sheet || !history) throw new Error('Vertragsschema nicht vorbereitet.');
